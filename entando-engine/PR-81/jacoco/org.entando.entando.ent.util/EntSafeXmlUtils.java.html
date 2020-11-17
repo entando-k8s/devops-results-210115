@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntSafeXmlUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.ent.util</a> &gt; <span class="el_source">EntSafeXmlUtils.java</span></div><h1>EntSafeXmlUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+
+package org.entando.entando.ent.util;
+
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXNotSupportedException;
+
+import javax.xml.XMLConstants;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import java.io.InputStream;
+
+/**
+ * Helpers to centralize creation of safe factories and parsers
+ * &lt;p&gt;
+ * Reference:
+ * &lt;p&gt;
+ * https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#schemafactory
+ */
+public class EntSafeXmlUtils {
+
+    private static final String HTTP_XML_ORG_SAX_FEATURES_EXTERNAL_GENERAL_ENTITIES = &quot;http://xml.org/sax/features/external-general-entities&quot;;
+    private static final String HTTP_XML_ORG_SAX_FEATURES_EXTERNAL_PARAMETER_ENTITIES = &quot;http://xml.org/sax/features/external-parameter-entities&quot;;
+    private static final String HTTP_APACHE_ORG_XML_FEATURES_NONVALIDATING_LOAD_EXTERNAL_DTD = &quot;http://apache.org/xml/features/nonvalidating/load-external-dtd&quot;;
+    public static final String XMLSCHEMA_FACTORY_CLASS = &quot;com.sun.org.apache.xerces.internal.jaxp.validation.XMLSchemaFactory&quot;;
+
+    private static SAXParserFactory newSaxParserFactory() {
+<span class="fc" id="L46">        SAXParserFactory parseFactory = SAXParserFactory.newInstance();</span>
+        try {
+<span class="fc" id="L48">            parseFactory.setFeature(HTTP_XML_ORG_SAX_FEATURES_EXTERNAL_GENERAL_ENTITIES, false);</span>
+<span class="fc" id="L49">            parseFactory.setFeature(HTTP_XML_ORG_SAX_FEATURES_EXTERNAL_PARAMETER_ENTITIES, false);</span>
+<span class="fc" id="L50">            parseFactory.setFeature(HTTP_APACHE_ORG_XML_FEATURES_NONVALIDATING_LOAD_EXTERNAL_DTD, false);</span>
+<span class="nc" id="L51">        } catch (SAXNotSupportedException | SAXNotRecognizedException | ParserConfigurationException e) {</span>
+<span class="nc" id="L52">            throw new EntRuntimeException(&quot;Unable to setup the SAXParserFactory in secure mode&quot;, e);</span>
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">        return parseFactory;</span>
+    }
+
+    public static SAXParser newSafeSAXParser() throws ParserConfigurationException, SAXException {
+<span class="fc" id="L58">        SAXParserFactory parseFactory = newSaxParserFactory();</span>
+<span class="fc" id="L59">        return parseFactory.newSAXParser();</span>
+    }
+
+    public static SchemaFactory newSafeSchemaFactory(String schemaLanguage) {
+<span class="fc" id="L63">        SchemaFactory schemaFactory = SchemaFactory.newInstance(schemaLanguage, XMLSCHEMA_FACTORY_CLASS, null);</span>
+        try {
+<span class="fc" id="L65">            schemaFactory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, &quot;&quot;);</span>
+<span class="fc" id="L66">            schemaFactory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, &quot;&quot;);</span>
+<span class="nc" id="L67">        } catch (SAXNotRecognizedException | SAXNotSupportedException e) {</span>
+<span class="nc" id="L68">            throw new EntRuntimeException(&quot;Unable to setup the SchemaFactory in secure mode&quot;, e);</span>
+<span class="fc" id="L69">        }</span>
+<span class="fc" id="L70">        return schemaFactory;</span>
+    }
+
+    public static Schema newSafeSchema(String schemaLanguage, InputStream resourceAsStream) throws SAXException {
+<span class="fc" id="L74">        SchemaFactory factory = EntSafeXmlUtils.newSafeSchemaFactory(schemaLanguage);</span>
+<span class="fc" id="L75">        StreamSource schemaSource = new StreamSource(resourceAsStream);</span>
+<span class="fc" id="L76">        return factory.newSchema(schemaSource);</span>
+    }
+
+    private EntSafeXmlUtils() {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

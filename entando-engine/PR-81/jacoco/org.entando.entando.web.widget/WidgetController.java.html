@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.widget</a> &gt; <span class="el_source">WidgetController.java</span></div><h1>WidgetController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.widget;
+
+import com.agiletec.aps.system.services.role.Permission;
+import java.util.HashMap;
+import java.util.Map;
+import javax.validation.Valid;
+import org.entando.entando.aps.system.services.widgettype.IWidgetService;
+import org.entando.entando.aps.system.services.widgettype.model.WidgetDto;
+import org.entando.entando.aps.system.services.widgettype.model.WidgetInfoDto;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.Filter;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.web.component.ComponentUsage;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.web.page.model.PageSearchRequest;
+import org.entando.entando.web.widget.model.WidgetRequest;
+import org.entando.entando.web.widget.validator.WidgetValidator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+<span class="fc" id="L49">public class WidgetController {</span>
+    public static final String COMPONENT_ID = &quot;widget&quot;;
+
+<span class="fc" id="L52">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    IWidgetService widgetService;
+
+    @Autowired
+    private WidgetValidator widgetValidator;
+
+    @RestAccessControl(permission = Permission.MANAGE_PAGES)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;WidgetDto&gt;&gt; getWidget(@PathVariable String widgetCode) {
+<span class="fc" id="L63">        logger.trace(&quot;getWidget by code {}&quot;, widgetCode);</span>
+<span class="fc" id="L64">        WidgetDto widgetDto = this.widgetService.getWidget(widgetCode);</span>
+<span class="fc" id="L65">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(widgetDto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}/usage&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ComponentUsage&gt;&gt; getComponentUsage(@PathVariable String widgetCode) {
+<span class="fc" id="L71">        logger.trace(&quot;get {} usage by code {}&quot;, COMPONENT_ID, widgetCode);</span>
+
+<span class="fc" id="L73">        ComponentUsage usage = ComponentUsage.builder()</span>
+<span class="fc" id="L74">                .type(COMPONENT_ID)</span>
+<span class="fc" id="L75">                .code(widgetCode)</span>
+<span class="fc" id="L76">                .usage(widgetService.getComponentUsage(widgetCode))</span>
+<span class="fc" id="L77">                .build();</span>
+
+<span class="fc" id="L79">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(usage), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}/usage/details&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ComponentUsageEntity&gt;&gt; getComponentUsageDetails(@PathVariable String widgetCode, PageSearchRequest searchRequest) {
+
+<span class="nc" id="L86">        logger.trace(&quot;get {} usage details by code {}&quot;, COMPONENT_ID, widgetCode);</span>
+
+        // clear filters
+<span class="nc" id="L89">        searchRequest.setFilters(new Filter[0]);</span>
+
+<span class="nc" id="L91">        PagedMetadata&lt;ComponentUsageEntity&gt; result = widgetService.getComponentUsageDetails(widgetCode, searchRequest);</span>
+
+<span class="nc" id="L93">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE, name = &quot;widget&quot;)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; deleteWidget(@PathVariable String widgetCode) {
+<span class="fc" id="L100">        logger.info(&quot;deleting widget {}&quot;, widgetCode);</span>
+<span class="fc" id="L101">        this.widgetService.removeWidget(widgetCode);</span>
+<span class="fc" id="L102">        Map&lt;String, String&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L103">        result.put(&quot;code&quot;, widgetCode);</span>
+<span class="fc" id="L104">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE, name = &quot;widget&quot;)
+    public ResponseEntity&lt;SimpleRestResponse&lt;WidgetDto&gt;&gt; updateWidget(@PathVariable String widgetCode, @Valid @RequestBody WidgetRequest widgetRequest, BindingResult bindingResult) {
+<span class="fc" id="L110">        logger.trace(&quot;update widget. Code: {} and body {}: &quot;, widgetCode, widgetRequest);</span>
+        //field validations
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L113">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L115">        this.widgetValidator.validateEditWidget(widgetCode, widgetRequest, bindingResult);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L117">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L119">        WidgetDto widgetDto = this.widgetService.updateWidget(widgetCode, widgetRequest);</span>
+<span class="fc" id="L120">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(widgetDto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_PAGES)
+    @RequestMapping(value = &quot;/widgets&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE, name = &quot;widget&quot;)
+    public ResponseEntity&lt;SimpleRestResponse&lt;WidgetDto&gt;&gt; addWidget(
+            @Valid @RequestBody WidgetRequest widgetRequest,
+            BindingResult bindingResult) {
+<span class="fc" id="L128">        logger.trace(&quot;add widget. body {}: &quot;, widgetRequest);</span>
+        //field validations
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L131">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc" id="L134">        this.widgetValidator.validate(widgetRequest, bindingResult);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L136">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L138">        WidgetDto widgetDto = this.widgetService.addWidget(widgetRequest);</span>
+<span class="fc" id="L139">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(widgetDto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_PAGES)
+    @RequestMapping(value = &quot;/widgets&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;WidgetDto&gt;&gt; getWidgets(RestListRequest requestList) {
+<span class="fc" id="L145">        logger.trace(&quot;get widget list {}&quot;, requestList);</span>
+<span class="fc" id="L146">        this.getWidgetValidator().validateRestListRequest(requestList, WidgetDto.class);</span>
+<span class="fc" id="L147">        PagedMetadata&lt;WidgetDto&gt; result = this.widgetService.getWidgets(requestList);</span>
+<span class="fc" id="L148">        this.getWidgetValidator().validateRestListResult(requestList, result);</span>
+<span class="fc" id="L149">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/widgets/{widgetCode}/info&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;WidgetInfoDto&gt;&gt; getWidgetInfo(@PathVariable String widgetCode) {
+<span class="fc" id="L155">        logger.trace(&quot;getWidgetInfo by code {}&quot;, widgetCode);</span>
+<span class="fc" id="L156">        WidgetInfoDto info = this.widgetService.getWidgetInfo(widgetCode);</span>
+<span class="fc" id="L157">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(info), HttpStatus.OK);</span>
+    }
+
+    public IWidgetService getWidgetService() {
+<span class="nc" id="L161">        return widgetService;</span>
+    }
+
+    public void setWidgetService(IWidgetService widgetService) {
+<span class="fc" id="L165">        this.widgetService = widgetService;</span>
+<span class="fc" id="L166">    }</span>
+
+    public WidgetValidator getWidgetValidator() {
+<span class="fc" id="L169">        return widgetValidator;</span>
+    }
+
+    public void setWidgetValidator(WidgetValidator widgetValidator) {
+<span class="fc" id="L173">        this.widgetValidator = widgetValidator;</span>
+<span class="fc" id="L174">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
