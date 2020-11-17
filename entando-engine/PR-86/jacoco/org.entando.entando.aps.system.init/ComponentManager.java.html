@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">ComponentManager.java</span></div><h1>ComponentManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.init.util.ComponentLoader;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L31">public class ComponentManager implements IComponentManager {</span>
+
+<span class="fc" id="L33">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ComponentManager.class);</span>
+
+    public void init() throws Exception {
+<span class="fc" id="L36">        this.loadComponents();</span>
+<span class="fc" id="L37">        _logger.debug(&quot;{} ready.&quot;, this.getClass().getName());</span>
+<span class="fc" id="L38">    }</span>
+
+    @Override
+    public void refresh() {
+        try {
+<span class="nc" id="L43">            this.loadComponents();</span>
+<span class="nc" id="L44">        } catch (Throwable t) {</span>
+<span class="nc" id="L45">            _logger.error(&quot;Error reloading components definitions&quot;, t);</span>
+<span class="nc" id="L46">            throw new RuntimeException(&quot;Error reloading components definitions&quot;, t);</span>
+<span class="nc" id="L47">        }</span>
+<span class="nc" id="L48">    }</span>
+
+    protected void loadComponents() throws EntException {
+        try {
+<span class="fc" id="L52">            ComponentLoader loader</span>
+<span class="fc" id="L53">                    = new ComponentLoader(this.getLocationPatterns(), this.getPostProcessClasses());</span>
+<span class="fc" id="L54">            Map&lt;String, Component&gt; componentMap = loader.getComponents();</span>
+<span class="fc" id="L55">            List&lt;Component&gt; components = new ArrayList&lt;Component&gt;();</span>
+<span class="fc" id="L56">            components.addAll(componentMap.values());</span>
+<span class="fc" id="L57">            List&lt;Component&gt; orderedComponents = this.getOrderedComponents(components);</span>
+<span class="fc" id="L58">            this.setComponents(orderedComponents);</span>
+<span class="nc" id="L59">        } catch (Throwable t) {</span>
+<span class="nc" id="L60">            _logger.error(&quot;Error loading components definitions&quot;, t);</span>
+<span class="nc" id="L61">            throw new EntException(&quot;Error loading components definitions&quot;, t);</span>
+<span class="fc" id="L62">        }</span>
+<span class="fc" id="L63">    }</span>
+
+    private List&lt;Component&gt; getOrderedComponents(List&lt;Component&gt; components) {
+<span class="fc" id="L66">        List&lt;Component&gt; ordered = new ArrayList&lt;Component&gt;();</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        for (int i = 0; i &lt; components.size(); i++) {</span>
+<span class="nc" id="L68">            Component component = components.get(i);</span>
+<span class="nc" id="L69">            boolean added = false;</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            for (int j = 0; j &lt; ordered.size(); j++) {</span>
+<span class="nc" id="L71">                Component current = ordered.get(j);</span>
+<span class="nc bnc" id="L72" title="All 4 branches missed.">                if (null != current.getDependencies() &amp;&amp; current.getDependencies().contains(component.getCode())) {</span>
+<span class="nc" id="L73">                    ordered.add(j, component);</span>
+<span class="nc" id="L74">                    added = true;</span>
+<span class="nc" id="L75">                    break;</span>
+                }
+            }
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (!added) {</span>
+<span class="nc" id="L79">                ordered.add(component);</span>
+            }
+        }
+<span class="fc" id="L82">        return ordered;</span>
+    }
+
+    @Override
+    public List&lt;Component&gt; getCurrentComponents() {
+<span class="fc" id="L87">        return this.getComponents();</span>
+    }
+
+    @Override
+    public boolean isComponentInstalled(String componentCode) {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        return (null != this.getInstalledComponent(componentCode));</span>
+    }
+
+    @Override
+    public Component getInstalledComponent(String componentCode) {
+<span class="fc" id="L97">        List&lt;Component&gt; components = this.getComponents();</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (null != components) {</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            for (int i = 0; i &lt; components.size(); i++) {</span>
+<span class="nc" id="L100">                Component component = components.get(i);</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">                if (null != component &amp;&amp; component.getCode().equals(componentCode)) {</span>
+<span class="nc" id="L102">                    return component;</span>
+                }
+            }
+        }
+<span class="fc" id="L106">        return null;</span>
+    }
+
+    protected String getLocationPatterns() {
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        if (null == this._locationPatterns) {</span>
+<span class="fc" id="L111">            return DEFAULT_LOCATION_PATTERN;</span>
+        }
+<span class="nc" id="L113">        return _locationPatterns;</span>
+    }
+
+    public void setLocationPatterns(String locationPatterns) {
+<span class="nc" id="L117">        this._locationPatterns = locationPatterns;</span>
+<span class="nc" id="L118">    }</span>
+
+    protected List&lt;Component&gt; getComponents() {
+<span class="fc" id="L121">        return _components;</span>
+    }
+
+    protected void setComponents(List&lt;Component&gt; components) {
+<span class="fc" id="L125">        this._components = components;</span>
+<span class="fc" id="L126">    }</span>
+
+    protected Map&lt;String, String&gt; getPostProcessClasses() {
+<span class="fc" id="L129">        return _postProcessClasses;</span>
+    }
+
+    public void setPostProcessClasses(Map&lt;String, String&gt; postProcessClasses) {
+<span class="fc" id="L133">        this._postProcessClasses = postProcessClasses;</span>
+<span class="fc" id="L134">    }</span>
+
+    /**
+     * @return The class loader of the installer which contains all the new
+     * loaded classes and resources plus the old ones loaded by the parent
+     * application class loader
+     */
+    public static ClassLoader getComponentInstallerClassLoader() {
+<span class="nc" id="L142">        return _componentInstallerClassLoader;</span>
+    }
+
+    public static void setComponentInstallerClassLoader(ClassLoader _classLoader) {
+<span class="nc" id="L146">        _componentInstallerClassLoader = _classLoader;</span>
+<span class="nc" id="L147">    }</span>
+    
+    private String _locationPatterns;
+
+    private List&lt;Component&gt; _components;
+    private Map&lt;String, String&gt; _postProcessClasses;
+
+    public static final String DEFAULT_LOCATION_PATTERN = &quot;classpath*:component/**/**component.xml&quot;;
+
+
+    /**
+     * The class loader of the installer which contains all the new loaded
+     * classes and resources plus the old ones loaded by the parent application
+     * class loader
+     */
+    private static ClassLoader _componentInstallerClassLoader;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

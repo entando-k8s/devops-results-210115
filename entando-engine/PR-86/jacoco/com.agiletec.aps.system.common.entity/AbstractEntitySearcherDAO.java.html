@@ -1,0 +1,571 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractEntitySearcherDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.entity</a> &gt; <span class="el_source">AbstractEntitySearcherDAO.java</span></div><h1>AbstractEntitySearcherDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.entity;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import com.agiletec.aps.system.common.AbstractSearcherDAO;
+import com.agiletec.aps.system.common.entity.model.ApsEntityRecord;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Abstract class extended by those DAO that perform searches on entities.
+ * @author E.Santoboni
+ */
+@SuppressWarnings(value = {&quot;serial&quot;, &quot;rawtypes&quot;})
+<span class="fc" id="L36">public abstract class AbstractEntitySearcherDAO extends AbstractSearcherDAO implements IEntitySearcherDAO {</span>
+
+<span class="fc" id="L38">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractEntitySearcherDAO.class);</span>
+
+    @Override
+    public List&lt;ApsEntityRecord&gt; searchRecords(EntitySearchFilter[] filters) {
+<span class="fc" id="L42">        Connection conn = null;</span>
+<span class="fc" id="L43">        List&lt;ApsEntityRecord&gt; records = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L44">        PreparedStatement stat = null;</span>
+<span class="fc" id="L45">        ResultSet result = null;</span>
+        try {
+<span class="fc" id="L47">            conn = this.getConnection();</span>
+<span class="fc" id="L48">            stat = this.buildStatement(filters, false, true, conn);</span>
+<span class="fc" id="L49">            result = stat.executeQuery();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            while (result.next()) {</span>
+<span class="fc" id="L51">                ApsEntityRecord record = this.createRecord(result);</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">                if (!records.contains(record)) {</span>
+
+<span class="fc" id="L54">                    records.add(record);</span>
+                }
+<span class="fc" id="L56">            }</span>
+<span class="nc" id="L57">        } catch (Throwable t) {</span>
+<span class="nc" id="L58">            _logger.error(&quot;Error while loading records list&quot;, t);</span>
+<span class="nc" id="L59">            throw new RuntimeException(&quot;Error while loading records list&quot;, t);</span>
+        } finally {
+<span class="fc" id="L61">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="fc" id="L63">        return records;</span>
+    }
+
+    protected abstract ApsEntityRecord createRecord(ResultSet result) throws Throwable;
+
+    protected Integer countId(EntitySearchFilter[] filters) {
+<span class="nc" id="L69">        Connection conn = null;</span>
+<span class="nc" id="L70">        int count = 0;</span>
+<span class="nc" id="L71">        PreparedStatement stat = null;</span>
+<span class="nc" id="L72">        ResultSet result = null;</span>
+        try {
+<span class="nc" id="L74">            conn = this.getConnection();</span>
+<span class="nc" id="L75">            stat = this.buildStatement(filters, true, false, conn);</span>
+<span class="nc" id="L76">            result = stat.executeQuery();</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (result.next()) {</span>
+<span class="nc" id="L78">                count = result.getInt(1);</span>
+            }
+<span class="nc" id="L80">        } catch (Throwable t) {</span>
+<span class="nc" id="L81">            _logger.error(&quot;Error while loading the count of IDs&quot;, t);</span>
+<span class="nc" id="L82">            throw new RuntimeException(&quot;Error while loading the count of IDs&quot;, t);</span>
+        } finally {
+<span class="nc" id="L84">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="nc" id="L86">        return count;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchId(String typeCode, EntitySearchFilter[] filters) {
+<span class="pc bpc" id="L91" title="2 of 4 branches missed.">        if (typeCode != null &amp;&amp; typeCode.trim().length() &gt; 0) {</span>
+<span class="fc" id="L92">            EntitySearchFilter filter = new EntitySearchFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY, false, typeCode, false);</span>
+<span class="fc" id="L93">            EntitySearchFilter[] newFilters = this.addFilter(filters, filter);</span>
+<span class="fc" id="L94">            return this.searchId(newFilters);</span>
+        }
+<span class="nc" id="L96">        return this.searchId(filters);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchId(EntitySearchFilter[] filters) {
+<span class="fc" id="L101">        Connection conn = null;</span>
+<span class="fc" id="L102">        List&lt;String&gt; idList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L103">        PreparedStatement stat = null;</span>
+<span class="fc" id="L104">        ResultSet result = null;</span>
+        try {
+<span class="fc" id="L106">            conn = this.getConnection();</span>
+<span class="fc" id="L107">            stat = this.buildStatement(filters, false, false, conn);</span>
+<span class="fc" id="L108">            result = stat.executeQuery();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            while (result.next()) {</span>
+<span class="fc" id="L110">                String id = result.getString(this.getMasterTableIdFieldName());</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                if (!idList.contains(id)) {</span>
+<span class="fc" id="L112">                    idList.add(id);</span>
+                }
+<span class="fc" id="L114">            }</span>
+<span class="nc" id="L115">        } catch (Throwable t) {</span>
+<span class="nc" id="L116">            _logger.error(&quot;Error while loading the list of IDs&quot;, t);</span>
+<span class="nc" id="L117">            throw new RuntimeException(&quot;Error while loading the list of IDs&quot;, t);</span>
+        } finally {
+<span class="fc" id="L119">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="fc" id="L121">        return idList;</span>
+    }
+
+    protected EntitySearchFilter[] addFilter(EntitySearchFilter[] filters, EntitySearchFilter filterToAdd) {
+<span class="fc" id="L125">        int len = 0;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (filters != null) {</span>
+<span class="fc" id="L127">            len = filters.length;</span>
+        }
+<span class="fc" id="L129">        EntitySearchFilter[] newFilters = new EntitySearchFilter[len + 1];</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L131">            newFilters[i] = filters[i];</span>
+        }
+<span class="fc" id="L133">        newFilters[len] = filterToAdd;</span>
+<span class="fc" id="L134">        return newFilters;</span>
+    }
+
+    private PreparedStatement buildStatement(EntitySearchFilter[] filters, boolean isCount, boolean selectAll, Connection conn) {
+<span class="fc" id="L138">        String query = this.createQueryString(filters, isCount, selectAll);</span>
+<span class="fc" id="L139">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L141">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L142">            int index = 0;</span>
+<span class="fc" id="L143">            index = this.addAttributeFilterStatementBlock(filters, index, stat);</span>
+<span class="fc" id="L144">            index = this.addMetadataFieldFilterStatementBlock(filters, index, stat);</span>
+<span class="nc" id="L145">        } catch (Throwable t) {</span>
+<span class="nc" id="L146">            _logger.error(&quot;Error while creating the statement&quot;, t);</span>
+<span class="nc" id="L147">            throw new RuntimeException(&quot;Error while creating the statement&quot;, t);</span>
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">        return stat;</span>
+    }
+
+    /**
+     * Add to the statement the filters on the entity metadata.
+     * @param filters the filters to add to the statement.
+     * @param index The current index of the statement.
+     * @param stat The statement.
+     * @return The current statement index, eventually incremented by filters.
+     * @throws Throwable In case of error.
+     */
+    protected int addMetadataFieldFilterStatementBlock(EntitySearchFilter[] filters, int index, PreparedStatement stat) throws Throwable {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (filters == null) {</span>
+<span class="fc" id="L162">            return index;</span>
+        }
+<span class="fc bfc" id="L164" title="All 2 branches covered.">        for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L165">            EntitySearchFilter filter = filters[i];</span>
+<span class="fc bfc" id="L166" title="All 4 branches covered.">            if (filter.getKey() != null &amp;&amp; !filter.isAttributeFilter()) {</span>
+<span class="fc" id="L167">                index = this.addObjectSearchStatementBlock(filter, index, stat);</span>
+            }
+        }
+<span class="fc" id="L170">        return index;</span>
+    }
+
+    /**
+     * Add the attribute filters to the statement.
+     * @param filters The filters on the entity filters to insert in the statement.
+     * @param index The last index used to associate the elements to the statement.
+     * @param stat The statement where the filters are applied.
+     * @return The last used index.
+     * @throws SQLException In case of error.
+     */
+    protected int addAttributeFilterStatementBlock(EntitySearchFilter[] filters, 
+            int index, PreparedStatement stat) throws SQLException {
+<span class="fc bfc" id="L183" title="All 2 branches covered.">        if (filters == null) {</span>
+<span class="fc" id="L184">            return index;</span>
+        }
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L187">            EntitySearchFilter filter = filters[i];</span>
+<span class="pc bpc" id="L188" title="1 of 6 branches missed.">            if ((null != filter.getKey() || null != filter.getRoleName()) &amp;&amp; filter.isAttributeFilter()) {</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">                if (null != filter.getKey()) {</span>
+<span class="fc" id="L190">                    stat.setString(++index, filter.getKey());</span>
+                } else {
+<span class="fc" id="L192">                    stat.setString(++index, filter.getRoleName().toUpperCase());</span>
+                }
+<span class="fc" id="L194">                index = this.addObjectSearchStatementBlock(filter, index, stat);</span>
+            }
+        }
+<span class="fc" id="L197">        return index;</span>
+    }
+
+    /**
+     * Add to the statement a filter on a attribute.
+     * @param filter The filter on the attribute to apply in the statement.
+     * @param index The last index used to associate the elements to the statement.
+     * @param stat The statement where the filters are applied.
+     * @return The last used index.
+     * @throws SQLException In case of error.
+     */
+    protected int addObjectSearchStatementBlock(EntitySearchFilter filter, int index, PreparedStatement stat) throws SQLException {
+<span class="fc bfc" id="L209" title="All 4 branches covered.">        if (filter.isAttributeFilter() &amp;&amp; null != filter.getLangCode()) {</span>
+<span class="fc" id="L210">            stat.setString(++index, filter.getLangCode());</span>
+        }
+<span class="fc" id="L212">        return super.addObjectSearchStatementBlock(filter, index, stat);</span>
+    }
+    
+    protected String createQueryString(EntitySearchFilter[] filters, boolean isCount, boolean selectAll) {
+<span class="fc" id="L216">        StringBuffer query = this.createBaseQueryBlock(filters, isCount, selectAll);</span>
+<span class="fc" id="L217">        boolean hasAppendWhereClause = this.appendFullAttributeFilterQueryBlocks(filters, query, false);</span>
+<span class="fc" id="L218">        this.appendMetadataFieldFilterQueryBlocks(filters, query, hasAppendWhereClause);</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        if (!isCount) {</span>
+<span class="fc" id="L220">            boolean ordered = this.appendOrderQueryBlocks(filters, query, false);</span>
+<span class="fc" id="L221">            this.appendLimitQueryBlock(filters, query);</span>
+        }
+<span class="fc" id="L223">        return query.toString();</span>
+    }
+
+    /**
+     * Create the 'base block' of the query with the eventual references to the support table.
+     * @param filters The filters defined.
+     * @param isCount
+     * @param selectAll When true, this will insert all the fields in the master table in the select 
+     * of the master query.
+     * When true we select all the available fields; when false only the field addressed by the filter
+     * is selected.
+     * @return The base block of the query.
+     */
+    protected StringBuffer createBaseQueryBlock(EntitySearchFilter[] filters, boolean isCount, boolean selectAll) {
+<span class="fc" id="L237">        StringBuffer query = null;</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">        if (isCount) {</span>
+<span class="nc" id="L239">            query = this.createMasterCountQueryBlock();</span>
+        } else {
+<span class="fc" id="L241">            query = this.createMasterSelectQueryBlock(filters, selectAll);</span>
+        }
+<span class="fc" id="L243">        this.appendJoinSearchTableQueryBlock(filters, query);</span>
+<span class="fc" id="L244">        return query;</span>
+    }
+
+    protected StringBuffer createMasterSelectQueryBlock(EntitySearchFilter[] filters, boolean selectAll) {
+<span class="fc" id="L248">        String masterTableName = this.getEntityMasterTableName();</span>
+<span class="fc" id="L249">        StringBuffer query = new StringBuffer(&quot;SELECT &quot;).append(masterTableName).append(&quot;.&quot;);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">        if (selectAll) {</span>
+<span class="fc" id="L251">            query.append(&quot;* &quot;);</span>
+        } else {
+<span class="fc" id="L253">            query.append(this.getEntityMasterTableIdFieldName());</span>
+        }
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        if (filters != null) {</span>
+<span class="fc" id="L256">            String searchTableName = this.getEntitySearchTableName();</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">            for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L258">                EntitySearchFilter filter = filters[i];</span>
+<span class="fc bfc" id="L259" title="All 4 branches covered.">                if (!filter.isAttributeFilter() &amp;&amp; filter.isLikeOption()) {</span>
+<span class="fc" id="L260">                    String tableFieldName = this.getTableFieldName(filter.getKey());</span>
+                    //check for id column already present
+<span class="fc bfc" id="L262" title="All 2 branches covered.">                    if (!tableFieldName.equals(this.getMasterTableIdFieldName())) {</span>
+<span class="fc" id="L263">                        query.append(&quot;, &quot;).append(masterTableName).append(&quot;.&quot;).append(tableFieldName);</span>
+                    }
+<span class="fc bfc" id="L265" title="All 4 branches covered.">                } else if (filter.isAttributeFilter() &amp;&amp; filter.isLikeOption()) {</span>
+<span class="fc" id="L266">                    String columnName = this.getAttributeFieldColunm(filter);</span>
+<span class="fc" id="L267">                    query.append(&quot;, &quot;).append(searchTableName).append(i).append(&quot;.&quot;).append(columnName);</span>
+<span class="fc" id="L268">                    query.append(&quot; AS &quot;).append(columnName).append(i).append(&quot; &quot;);</span>
+                }
+            }
+        }
+<span class="fc" id="L272">        query.append(&quot; FROM &quot;).append(masterTableName).append(&quot; &quot;);</span>
+<span class="fc" id="L273">        return query;</span>
+    }
+
+    protected void appendJoinSearchTableQueryBlock(EntitySearchFilter[] filters, StringBuffer query) {
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (filters == null) {</span>
+<span class="fc" id="L278">            return;</span>
+        }
+<span class="fc" id="L280">        String masterTableName = this.getEntityMasterTableName();</span>
+<span class="fc" id="L281">        String masterTableIdFieldName = this.getEntityMasterTableIdFieldName();</span>
+<span class="fc" id="L282">        String searchTableName = this.getEntitySearchTableName();</span>
+<span class="fc" id="L283">        String searchTableIdFieldName = this.getEntitySearchTableIdFieldName();</span>
+<span class="fc" id="L284">        String attributeRoleTableName = this.getEntityAttributeRoleTableName();</span>
+<span class="fc" id="L285">        String attributeRoleTableIdFieldName = this.getEntityAttributeRoleTableIdFieldName();</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">        for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L287">            EntitySearchFilter filter = filters[i];</span>
+<span class="pc bpc" id="L288" title="1 of 8 branches missed.">            if ((null != filter.getKey() || null != filter.getRoleName()) &amp;&amp; filter.isAttributeFilter() &amp;&amp; !filter.isNullOption()) {</span>
+<span class="fc" id="L289">                query.append(&quot;INNER JOIN &quot;);</span>
+<span class="fc" id="L290">                query.append(searchTableName).append(&quot; &quot;).append(searchTableName).append(i).append(&quot; ON &quot;)</span>
+<span class="fc" id="L291">                     .append(masterTableName).append(&quot;.&quot;).append(masterTableIdFieldName).append(&quot; = &quot;)</span>
+<span class="fc" id="L292">                     .append(searchTableName).append(i).append(&quot;.&quot;).append(searchTableIdFieldName).append(&quot; &quot;);</span>
+<span class="fc bfc" id="L293" title="All 2 branches covered.">                if (null != filter.getRoleName()) {</span>
+<span class="fc" id="L294">                    query.append(&quot;INNER JOIN &quot;);</span>
+<span class="fc" id="L295">                    query.append(attributeRoleTableName).append(&quot; &quot;).append(attributeRoleTableName).append(i).append(&quot; ON &quot;)</span>
+<span class="fc" id="L296">                         .append(masterTableName).append(&quot;.&quot;).append(masterTableIdFieldName).append(&quot; = &quot;)</span>
+<span class="fc" id="L297">                         .append(attributeRoleTableName).append(i).append(&quot;.&quot;).append(attributeRoleTableIdFieldName).append(&quot; &quot;);</span>
+                }
+            }
+        }
+<span class="fc" id="L301">    }</span>
+
+    protected boolean appendFullAttributeFilterQueryBlocks(EntitySearchFilter[] filters, StringBuffer query, boolean hasAppendWhereClause) {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (filters != null) {</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">            for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L306">                EntitySearchFilter filter = filters[i];</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">                if (!filter.isAttributeFilter()) {</span>
+<span class="fc" id="L308">                    continue;</span>
+                }
+<span class="pc bpc" id="L310" title="1 of 4 branches missed.">                if (filter.isNullOption() &amp;&amp; filter.getKey() != null) {</span>
+<span class="fc" id="L311">                    hasAppendWhereClause = this.appendNullAttributeFilterQueryBlocks(filter, query, hasAppendWhereClause);</span>
+<span class="pc bpc" id="L312" title="2 of 6 branches missed.">                } else if (!filter.isNullOption() &amp;&amp; (filter.getKey() != null || filter.getRoleName() != null)) {</span>
+<span class="fc" id="L313">                    hasAppendWhereClause = this.appendValuedAttributeFilterQueryBlocks(filter, i, query, hasAppendWhereClause);</span>
+                }
+            }
+        }
+<span class="fc" id="L317">        return hasAppendWhereClause;</span>
+    }
+
+    private boolean appendNullAttributeFilterQueryBlocks(EntitySearchFilter filter, StringBuffer query, boolean hasAppendWhereClause) {
+<span class="fc" id="L321">        hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L322">        query.append(this.getEntityMasterTableName()).append(&quot;.&quot;).append(this.getEntityMasterTableIdFieldName());</span>
+<span class="fc" id="L323">        query.append(&quot; NOT IN (&quot;);</span>
+<span class="fc" id="L324">        String searchTableName = this.getEntitySearchTableName();</span>
+<span class="fc" id="L325">        query.append(&quot;SELECT &quot;).append(searchTableName).append(&quot;.&quot;).append(this.getEntitySearchTableIdFieldName());</span>
+<span class="fc" id="L326">        query.append(&quot; FROM &quot;).append(searchTableName).append(&quot; WHERE &quot;).append(searchTableName).append(&quot;.attrname = ? &quot;);</span>
+<span class="fc" id="L327">        this.addAttributeLangQueryBlock(searchTableName, query, filter, true);</span>
+<span class="fc" id="L328">        query.append(&quot; AND (&quot;).append(searchTableName).append(&quot;.datevalue IS NOT NULL OR &quot;).append(searchTableName).append(&quot;.textvalue IS NOT NULL OR &quot;).append(searchTableName).append(&quot;.numvalue IS NOT NULL) &quot;);</span>
+<span class="fc" id="L329">        query.append(&quot; ) &quot;);</span>
+<span class="fc" id="L330">        return hasAppendWhereClause;</span>
+    }
+
+    private boolean appendValuedAttributeFilterQueryBlocks(EntitySearchFilter filter, int index, StringBuffer query, boolean hasAppendWhereClause) {
+<span class="fc" id="L334">        String searchTableNameAlias = this.getEntitySearchTableName() + index;</span>
+<span class="fc" id="L335">        String attributeRoleTableNameAlias = this.getEntityAttributeRoleTableName() + index;</span>
+<span class="fc" id="L336">        hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc bfc" id="L337" title="All 2 branches covered.">        if (null != filter.getKey()) {</span>
+<span class="fc" id="L338">            query.append(searchTableNameAlias).append(&quot;.attrname = ? &quot;);</span>
+        } else {
+<span class="fc" id="L340">            query.append(&quot;UPPER(&quot;).append(attributeRoleTableNameAlias).append(&quot;.rolename) = ? &quot;);</span>
+<span class="fc" id="L341">            query.append(&quot; AND &quot;).append(searchTableNameAlias).append(&quot;.attrname = &quot;).append(attributeRoleTableNameAlias).append(&quot;.attrname &quot;);</span>
+        }
+<span class="fc" id="L343">        hasAppendWhereClause = this.addAttributeLangQueryBlock(searchTableNameAlias, query, filter, hasAppendWhereClause);</span>
+
+<span class="pc bpc" id="L345" title="1 of 4 branches missed.">        if (filter.getAllowedValues() != null &amp;&amp; filter.getAllowedValues().size() &gt; 0) {</span>
+<span class="fc" id="L346">            hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L347">            List&lt;Object&gt; allowedValues = filter.getAllowedValues();</span>
+<span class="fc bfc" id="L348" title="All 2 branches covered.">            for (int j = 0; j &lt; allowedValues.size(); j++) {</span>
+<span class="fc" id="L349">                Object allowedValue = allowedValues.get(j);</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">                if (j == 0) {</span>
+<span class="fc" id="L351">                    query.append(&quot; ( &quot;);</span>
+                } else {
+<span class="fc" id="L353">                    query.append(&quot; OR &quot;);</span>
+                }
+<span class="fc bfc" id="L355" title="All 2 branches covered.">                String operator = filter.isLikeOption() ? this.getLikeClause() : &quot;= ? &quot;;</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">                if (filter.isLikeOption()) {</span>
+<span class="fc" id="L357">                    query.append(&quot;UPPER(&quot; + searchTableNameAlias).append(&quot;.&quot;).append(this.getAttributeFieldColunm(allowedValue)).append(&quot;) &quot;);</span>
+                } else {
+
+<span class="fc" id="L360">                    query.append(searchTableNameAlias).append(&quot;.&quot;).append(this.getAttributeFieldColunm(allowedValue)).append(&quot; &quot;);</span>
+                }
+
+<span class="fc" id="L363">                query.append(operator);</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">                if (j == (allowedValues.size() - 1)) {</span>
+<span class="fc" id="L365">                    query.append(&quot; ) &quot;);</span>
+                }
+            }
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        } else if (filter.getValue() != null) {</span>
+<span class="fc" id="L369">            Object object = filter.getValue();</span>
+<span class="fc bfc" id="L370" title="All 2 branches covered.">            String operator = filter.isLikeOption() ? this.getLikeClause() : &quot;= ? &quot;;</span>
+<span class="fc" id="L371">            hasAppendWhereClause = this.addAttributeObjectSearchQueryBlock(searchTableNameAlias, query,</span>
+<span class="fc" id="L372">                                                                           object, operator, hasAppendWhereClause, filter.getLangCode(), filter);</span>
+<span class="fc" id="L373">        } else {</span>
+            //creazione blocco selezione su tabella ricerca
+<span class="fc bfc" id="L375" title="All 2 branches covered.">            if (null != filter.getStart()) {</span>
+<span class="fc" id="L376">                hasAppendWhereClause = this.addAttributeObjectSearchQueryBlock(searchTableNameAlias, query,</span>
+<span class="fc" id="L377">                                                                               filter.getStart(), &quot;&gt;= ? &quot;, hasAppendWhereClause, filter.getLangCode(), filter);</span>
+            }
+<span class="fc bfc" id="L379" title="All 2 branches covered.">            if (null != filter.getEnd()) {</span>
+<span class="fc" id="L380">                hasAppendWhereClause = this.addAttributeObjectSearchQueryBlock(searchTableNameAlias, query,</span>
+<span class="fc" id="L381">                                                                               filter.getEnd(), &quot;&lt;= ? &quot;, hasAppendWhereClause, filter.getLangCode(), filter);</span>
+            }
+<span class="fc bfc" id="L383" title="All 4 branches covered.">            if (null == filter.getStart() &amp;&amp; null == filter.getEnd()) {</span>
+<span class="fc" id="L384">                hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L385">                query.append(&quot; (&quot;).append(searchTableNameAlias).append(&quot;.datevalue IS NOT NULL OR &quot;).append(searchTableNameAlias).append(&quot;.textvalue IS NOT NULL OR &quot;).append(searchTableNameAlias).append(</span>
+                                                                                                                                                                                                           &quot;.numvalue IS NOT NULL) &quot;);
+            }
+        }
+<span class="fc" id="L389">        return hasAppendWhereClause;</span>
+    }
+
+    protected boolean addAttributeLangQueryBlock(String searchTableName,
+                                                 StringBuffer query,
+                                                 EntitySearchFilter filter,
+                                                 boolean hasAppendWhereClause) {
+<span class="pc bpc" id="L396" title="1 of 4 branches missed.">        if (filter.isAttributeFilter() &amp;&amp; null != filter.getLangCode()) {</span>
+<span class="fc" id="L397">            hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L398">            query.append(searchTableName).append(&quot;.langcode = ? &quot;);</span>
+        }
+<span class="fc" id="L400">        return hasAppendWhereClause;</span>
+    }
+
+    protected boolean appendMetadataFieldFilterQueryBlocks(EntitySearchFilter[] filters, StringBuffer query, boolean hasAppendWhereClause) {
+<span class="fc bfc" id="L404" title="All 2 branches covered.">        if (filters == null) {</span>
+<span class="fc" id="L405">            return hasAppendWhereClause;</span>
+        }
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L408">            EntitySearchFilter filter = filters[i];</span>
+<span class="fc bfc" id="L409" title="All 4 branches covered.">            if (filter.getKey() != null &amp;&amp; !filter.isAttributeFilter()) {</span>
+<span class="fc" id="L410">                hasAppendWhereClause = this.addMetadataFieldFilterQueryBlock(filter, query, hasAppendWhereClause);</span>
+            }
+        }
+<span class="fc" id="L413">        return hasAppendWhereClause;</span>
+    }
+
+    protected boolean appendOrderQueryBlocks(EntitySearchFilter[] filters, StringBuffer query, boolean ordered) {
+<span class="fc bfc" id="L417" title="All 2 branches covered.">        if (filters == null) {</span>
+<span class="fc" id="L418">            return ordered;</span>
+        }
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L421">            EntitySearchFilter filter = filters[i];</span>
+<span class="pc bpc" id="L422" title="1 of 8 branches missed.">            if ((null != filter.getKey() || null != filter.getRoleName()) &amp;&amp; null != filter.getOrder() &amp;&amp; !filter.isNullOption()) {</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">                if (!ordered) {</span>
+<span class="fc" id="L424">                    query.append(&quot;ORDER BY &quot;);</span>
+<span class="fc" id="L425">                    ordered = true;</span>
+                } else {
+<span class="fc" id="L427">                    query.append(&quot;, &quot;);</span>
+                }
+<span class="fc bfc" id="L429" title="All 2 branches covered.">                if (filter.isAttributeFilter()) {</span>
+<span class="fc" id="L430">                    String tableName = this.getEntitySearchTableName() + i;</span>
+<span class="fc" id="L431">                    this.addAttributeOrderQueryBlock(tableName, query, filter, filter.getOrder().toString());</span>
+<span class="fc" id="L432">                } else {</span>
+<span class="fc" id="L433">                    String fieldName = this.getTableFieldName(filter.getKey());</span>
+<span class="fc" id="L434">                    query.append(this.getEntityMasterTableName()).append(&quot;.&quot;).append(fieldName).append(&quot; &quot;).append(filter.getOrder());</span>
+                }
+            }
+        }
+<span class="fc" id="L438">        return ordered;</span>
+    }
+
+    protected boolean addAttributeObjectSearchQueryBlock(String searchTableName,
+                                                         StringBuffer query,
+                                                         Object object,
+                                                         String operator,
+                                                         boolean hasAppendWhereClause,
+                                                         String langCode,
+                                                         EntitySearchFilter filter) {
+<span class="fc" id="L448">        hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc bfc" id="L449" title="All 2 branches covered.">        if (filter.getValue() != null) {</span>
+<span class="fc bfc" id="L450" title="All 2 branches covered.">            if (filter.isLikeOption()) {</span>
+<span class="fc" id="L451">                query.append(&quot;UPPER(&quot;).append(searchTableName).append(&quot;.&quot;).append(this.getAttributeFieldColunm(object)).append(&quot;) &quot;);</span>
+            } else {
+<span class="fc" id="L453">                query.append(searchTableName).append(&quot;.&quot;).append(this.getAttributeFieldColunm(object)).append(&quot; &quot;);</span>
+            }
+        } else {
+<span class="fc" id="L456">            query.append(&quot;(&quot;).append(searchTableName).append(&quot;.&quot;).append(this.getAttributeFieldColunm(object)).append(&quot;) &quot;);</span>
+        }
+<span class="fc" id="L458">        query.append(operator);</span>
+<span class="fc" id="L459">        return hasAppendWhereClause;</span>
+    }
+
+    @Override
+    protected boolean verifyWhereClauseAppend(StringBuffer query, boolean hasAppendWhereClause) {
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        if (hasAppendWhereClause) {</span>
+<span class="fc" id="L465">            query.append(&quot;AND &quot;);</span>
+        } else {
+<span class="fc" id="L467">            query.append(&quot;WHERE &quot;);</span>
+<span class="fc" id="L468">            hasAppendWhereClause = true;</span>
+        }
+<span class="fc" id="L470">        return hasAppendWhereClause;</span>
+    }
+
+    private void addAttributeOrderQueryBlock(String searchTableNameAlias, StringBuffer query, EntitySearchFilter filter, String order) {
+<span class="pc bpc" id="L474" title="1 of 2 branches missed.">        if (order == null) {</span>
+<span class="nc" id="L475">            order = &quot;&quot;;</span>
+        }
+<span class="fc" id="L477">        Object object = filter.getValue();</span>
+<span class="fc bfc" id="L478" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L479">            object = filter.getStart();</span>
+        }
+<span class="fc bfc" id="L481" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L482">            object = filter.getEnd();</span>
+        }
+<span class="fc bfc" id="L484" title="All 2 branches covered.">        if (null == object) {</span>
+<span class="fc" id="L485">            query.append(searchTableNameAlias).append(&quot;.textvalue &quot;).append(order).append(&quot;, &quot;)</span>
+<span class="fc" id="L486">                 .append(searchTableNameAlias).append(&quot;.datevalue &quot;).append(order).append(&quot;, &quot;)</span>
+<span class="fc" id="L487">                 .append(searchTableNameAlias).append(&quot;.numvalue &quot;).append(order);</span>
+<span class="fc" id="L488">            return;</span>
+        }
+<span class="fc" id="L490">        query.append(searchTableNameAlias).append(&quot;.&quot;).append(this.getAttributeFieldColunm(object)).append(&quot; &quot;);</span>
+<span class="fc" id="L491">        query.append(order);</span>
+<span class="fc" id="L492">    }</span>
+
+    private String getAttributeFieldColunm(EntitySearchFilter filter) {
+<span class="fc" id="L495">        Object object = null;</span>
+<span class="pc bpc" id="L496" title="1 of 4 branches missed.">        if (null != filter.getAllowedValues() &amp;&amp; filter.getAllowedValues().size() &gt; 0) {</span>
+<span class="fc" id="L497">            object = filter.getAllowedValues().get(0);</span>
+<span class="pc bpc" id="L498" title="1 of 2 branches missed.">        } else if (null != filter.getValue()) {</span>
+<span class="fc" id="L499">            object = filter.getValue();</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">        } else if (null != filter.getStart()) {</span>
+<span class="nc" id="L501">            object = filter.getStart();</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">        } else if (null != filter.getEnd()) {</span>
+<span class="nc" id="L503">            object = filter.getEnd();</span>
+        } else {
+<span class="nc" id="L505">            return null;</span>
+        }
+<span class="fc" id="L507">        return this.getAttributeFieldColunm(object);</span>
+    }
+
+    private String getAttributeFieldColunm(Object attributeValue) {
+<span class="fc" id="L511">        String columnName = null;</span>
+<span class="pc bpc" id="L512" title="1 of 2 branches missed.">        if (null == attributeValue) {</span>
+<span class="nc" id="L513">            columnName = null;</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">        } else if (attributeValue instanceof String) {</span>
+<span class="fc" id="L515">            columnName = &quot;textvalue&quot;;</span>
+<span class="pc bpc" id="L516" title="1 of 2 branches missed.">        } else if (attributeValue instanceof Date) {</span>
+<span class="fc" id="L517">            columnName = &quot;datevalue&quot;;</span>
+<span class="nc bnc" id="L518" title="All 2 branches missed.">        } else if (attributeValue instanceof BigDecimal) {</span>
+<span class="nc" id="L519">            columnName = &quot;numvalue&quot;;</span>
+<span class="nc bnc" id="L520" title="All 2 branches missed.">        } else if (attributeValue instanceof Boolean) {</span>
+<span class="nc" id="L521">            columnName = &quot;textvalue&quot;;</span>
+        }
+<span class="fc" id="L523">        return columnName;</span>
+    }
+
+    /**
+     * Return the name of the entities master table.
+     * @return The name of the master table.
+     */
+    protected abstract String getEntityMasterTableName();
+
+    /**
+     * Return the name of the &quot;entity ID&quot; field in the master entity table.
+     * @return The name of the &quot;entity ID&quot; field.
+     */
+    protected abstract String getEntityMasterTableIdFieldName();
+
+    /**
+     * Return the name of the &quot;Entity Type code&quot; in the master entity table.
+     * @return The name of the &quot;Entity Type code&quot;.
+     */
+    protected abstract String getEntityMasterTableIdTypeFieldName();
+
+    /**
+     * Return the name of the support table used to perform search on entities.
+     * @return The name of the support table.
+     */
+    protected abstract String getEntitySearchTableName();
+
+    /**
+     * Return the name of the &quot;Entity ID&quot; in the support table used to perform search on entities.
+     * @return The name of &quot;Entity ID&quot; field.
+     */
+    protected abstract String getEntitySearchTableIdFieldName();
+
+    protected abstract String getEntityAttributeRoleTableName();
+
+    protected abstract String getEntityAttributeRoleTableIdFieldName();
+
+    @Override
+    protected String getMasterTableIdFieldName() {
+<span class="fc" id="L562">        return this.getEntityMasterTableIdFieldName();</span>
+    }
+
+    @Override
+    protected String getMasterTableName() {
+<span class="fc" id="L567">        return this.getEntityMasterTableName();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

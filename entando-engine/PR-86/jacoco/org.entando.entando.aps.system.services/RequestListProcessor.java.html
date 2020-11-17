@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RequestListProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services</a> &gt; <span class="el_source">RequestListProcessor.java</span></div><h1>RequestListProcessor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ * 
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.entando.entando.web.common.model.Filter;
+import org.entando.entando.web.common.model.RestListRequest;
+
+/**
+ * Base class used for defining filtering and sorting at service layer. This is
+ * useful when entities have already been retrieved from the database and are
+ * inside a cache or when the DAO layer is missing (e.g. the data is retrieved
+ * from a web service and not from a database). The other filters are usually
+ * managed at DAO layer.
+ */
+public abstract class RequestListProcessor&lt;T&gt; {
+
+    private final RestListRequest restListRequest;
+    private Stream&lt;T&gt; stream;
+
+<span class="fc" id="L38">    public RequestListProcessor(RestListRequest restListRequest, Stream&lt;T&gt; stream) {</span>
+<span class="fc" id="L39">        this.restListRequest = restListRequest;</span>
+<span class="fc" id="L40">        this.stream = stream;</span>
+<span class="fc" id="L41">    }</span>
+
+    public RequestListProcessor(RestListRequest restListRequest, List&lt;T&gt; items) {
+<span class="fc" id="L44">        this(restListRequest, items.stream());</span>
+<span class="fc" id="L45">    }</span>
+
+    protected abstract Function&lt;Filter, Predicate&lt;T&gt;&gt; getPredicates();
+
+    protected abstract Function&lt;String, Comparator&lt;T&gt;&gt; getComparators();
+
+    public RequestListProcessor&lt;T&gt; filter() {
+
+<span class="fc" id="L53">        Function&lt;Filter, Predicate&lt;T&gt;&gt; predicatesProvider = getPredicates();</span>
+
+<span class="pc bpc" id="L55" title="1 of 4 branches missed.">        if (null != restListRequest &amp;&amp; null != restListRequest.getFilters()) {</span>
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            for (Filter filter : restListRequest.getFilters()) {</span>
+
+<span class="fc" id="L59">                String filterAttribute = filter.getAttribute();</span>
+<span class="fc" id="L60">                String filterValue = filter.getValue();</span>
+
+<span class="pc bpc" id="L62" title="2 of 6 branches missed.">                if (filterAttribute != null &amp;&amp; !filterAttribute.isEmpty()</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">                        &amp;&amp; ((filterValue != null &amp;&amp; !filterValue.isEmpty())</span>
+<span class="pc bpc" id="L64" title="2 of 4 branches missed.">                        || (filter.getAllowedValues() != null &amp;&amp; filter.getAllowedValues().length &gt; 0))) {</span>
+
+<span class="fc" id="L66">                    Predicate&lt;T&gt; p = predicatesProvider.apply(filter);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                    if (null != p) {</span>
+<span class="fc" id="L68">                        stream = stream.filter(p);</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L74">        return this;</span>
+    }
+
+    public RequestListProcessor&lt;T&gt; sort() {
+
+<span class="fc" id="L79">        Function&lt;String, Comparator&lt;T&gt;&gt; comparatorsProvider = getComparators();</span>
+
+<span class="fc" id="L81">        String sort = restListRequest.getSort();</span>
+<span class="fc" id="L82">        String direction = restListRequest.getDirection();</span>
+
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">        if (sort != null &amp;&amp; direction != null) {</span>
+
+<span class="fc" id="L86">            Comparator&lt;T&gt; comparator = comparatorsProvider.apply(restListRequest.getSort());</span>
+
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            if (comparator != null) {</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">                if (direction.equalsIgnoreCase(FieldSearchFilter.DESC_ORDER)) {</span>
+<span class="fc" id="L90">                    comparator = comparator.reversed();</span>
+                }
+<span class="fc" id="L92">                stream = stream.sorted(comparator);</span>
+            }
+        }
+
+<span class="fc" id="L96">        return this;</span>
+    }
+
+    public RequestListProcessor&lt;T&gt; filterAndSort() {
+<span class="fc" id="L100">        return filter().sort();</span>
+    }
+
+    public Stream&lt;T&gt; getStream() {
+<span class="fc" id="L104">        return stream;</span>
+    }
+
+    public List&lt;T&gt; toList() {
+<span class="fc" id="L108">        return stream.collect(Collectors.toList());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

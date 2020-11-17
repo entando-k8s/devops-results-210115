@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseConfigManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.baseconfig</a> &gt; <span class="el_source">BaseConfigManager.java</span></div><h1>BaseConfigManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.baseconfig;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.servlet.ServletContext;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.baseconfig.cache.IConfigManagerCacheWrapper;
+import de.mkammerer.argon2.Argon2Factory;
+import java.util.HashMap;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.ServletContextAware;
+
+/**
+ * Servizio di configurazione. Carica da db e rende disponibile la
+ * configurazione. La configurazione è costituita da voci (items), individuate
+ * da un nome, e da parametri, anch'essi individuati da un nome. I parametri
+ * sono stringhe semplici, le voci possono essere testi XML complessi. In
+ * particolare, una delle voci contiene la configurazione dei parametri in forma
+ * di testo XML. L'insieme dei parametri comprende anche le proprietà di
+ * inizializzazione, passate alla factory del contesto di sistema; i valori di
+ * queste possono essere sovrascritti dai valori di eventuali parametri omonimi.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L46">public class BaseConfigManager extends AbstractService implements ConfigInterface, ServletContextAware {</span>
+
+<span class="fc" id="L48">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(BaseConfigManager.class);</span>
+
+    private Map&lt;String, String&gt; systemParams;
+
+<span class="fc" id="L52">    private String securityConfigPath = null;</span>
+
+    private IConfigManagerCacheWrapper cacheWrapper;
+
+    private IConfigItemDAO configDao;
+
+    private ServletContext servletContext;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L62">        String version = this.getSystemParams().get(SystemConstants.INIT_PROP_CONFIG_VERSION);</span>
+<span class="fc" id="L63">        this.getCacheWrapper().initCache(this.getConfigDAO(), version);</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        boolean legacyPasswordsUpdated = (this.getParam(LEGACY_PASSWORDS_UPDATED) != null</span>
+<span class="pc bnc" id="L65" title="All 2 branches missed.">                &amp;&amp; this.getParam(LEGACY_PASSWORDS_UPDATED).equalsIgnoreCase(&quot;true&quot;));</span>
+
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (legacyPasswordsUpdated) {</span>
+<span class="nc" id="L68">            logger.warn(&quot;legacyPasswordsUpdated system parameter ignored as legacy password update is no more supported&quot;);</span>
+        }
+<span class="fc" id="L70">        Properties props = this.extractSecurityConfiguration();</span>
+<span class="fc" id="L71">        this.checkSecurityConfiguration(props);</span>
+<span class="fc" id="L72">        logger.debug(&quot;{} ready. Initialized&quot;, this.getClass().getName());</span>
+<span class="fc" id="L73">    }</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L77">        this.getCacheWrapper().release();</span>
+<span class="fc" id="L78">        super.release();</span>
+<span class="fc" id="L79">    }</span>
+
+    /**
+     * Restituisce il valore di una voce della tabella di sistema. Il valore può
+     * essere un XML complesso.
+     *
+     * @param name Il nome della voce di configurazione.
+     * @return Il valore della voce di configurazione.
+     */
+    @Override
+    public String getConfigItem(String name) {
+<span class="fc" id="L90">        return this.getCacheWrapper().getConfigItem(name);</span>
+    }
+
+    /**
+     * Aggiorna un'item di configurazione nella mappa della configurazione degli
+     * item e nel db.
+     *
+     * @param itemName Il nome dell'item da aggiornare.
+     * @param config La nuova configurazione.
+     * @throws EntException
+     */
+    @Override
+    public void updateConfigItem(String itemName, String config) throws EntException {
+<span class="fc" id="L103">        String version = this.getSystemParams().get(SystemConstants.INIT_PROP_CONFIG_VERSION);</span>
+        try {
+<span class="fc" id="L105">            this.getConfigDAO().updateConfigItem(itemName, config, version);</span>
+<span class="fc" id="L106">            this.refresh();</span>
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">            logger.error(&quot;Error while updating item {}&quot;, itemName, t);</span>
+<span class="nc" id="L109">            throw new EntException(&quot;Error while updating item&quot;, t);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">    }</span>
+
+    /**
+     * Restituisce il valore di un parametro di configurazione. I parametri sono
+     * desunti dalla voce &quot;params&quot; della tabella di sistema.
+     *
+     * @param name Il nome del parametro di configurazione.
+     * @return Il valore del parametro di configurazione.
+     */
+    @Override
+    public String getParam(String name) {
+<span class="fc" id="L122">        String param = this.getSystemParams().get(name);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (null != param) {</span>
+<span class="fc" id="L124">            return param;</span>
+        } else {
+<span class="fc" id="L126">            return this.getCacheWrapper().getParam(name);</span>
+        }
+    }
+
+    protected Properties extractSecurityConfiguration() throws IOException {
+<span class="fc" id="L131">        Properties props = new Properties();</span>
+<span class="fc" id="L132">        try (InputStream is = this.getServletContext().getResourceAsStream(this.getSecurityConfigPath())) {</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if (null == is) {</span>
+<span class="nc" id="L134">                throw new RuntimeException(&quot;Null security configuration inside &quot; + this.getSecurityConfigPath());</span>
+            }
+<span class="fc" id="L136">            props.load(is);</span>
+        }
+<span class="fc" id="L138">        return props;</span>
+    }
+
+    protected void checkSecurityConfiguration(Properties mainProps) {
+<span class="fc" id="L142">        String algoType = null;</span>
+        try {
+<span class="fc" id="L144">            algoType = Argon2Factory.Argon2Types.valueOf(mainProps.getProperty(ALGO_TYPE_PARAM_NAME)).name();</span>
+<span class="nc" id="L145">        } catch (Exception e) {</span>
+<span class="nc" id="L146">            String defaultAlgoType = Argon2Factory.Argon2Types.ARGON2i.name();</span>
+<span class="nc" id="L147">            logger.error(&quot;Invalid value for Argon2 hashType '{}'; the default value is '{}'&quot;, algoType, defaultAlgoType, e);</span>
+<span class="nc" id="L148">            throw new RuntimeException(&quot;Invalid value for Argon2 hashType '&quot; + algoType + &quot;'; the default value is '&quot; + defaultAlgoType + &quot;'&quot;, e);</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">        System.getProperties().setProperty(ALGO_TYPE_PARAM_NAME, algoType);</span>
+
+<span class="fc" id="L152">        Integer hashLength = Integer.valueOf(mainProps.getProperty(ALGO_HASH_LENGTH_PARAM_NAME));</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (hashLength &lt; 4) {</span>
+<span class="nc" id="L154">            throw new RuntimeException(&quot;Hash length must be greater than 4 - value '&quot; + hashLength + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L156">        System.getProperties().setProperty(ALGO_HASH_LENGTH_PARAM_NAME, String.valueOf(hashLength));</span>
+
+<span class="fc" id="L158">        Integer saltLength = Integer.valueOf(mainProps.getProperty(ALGO_SALT_LENGTH_PARAM_NAME));</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if (saltLength &lt; 8) {</span>
+<span class="nc" id="L160">            throw new RuntimeException(&quot;Salt length must be greater than 8 - value '&quot; + saltLength + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L162">        System.getProperties().setProperty(ALGO_SALT_LENGTH_PARAM_NAME, String.valueOf(saltLength));</span>
+
+<span class="fc" id="L164">        Integer iterations = Integer.valueOf(mainProps.getProperty(ALGO_ITERATIONS_PARAM_NAME));</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (iterations &lt; 1) {</span>
+<span class="nc" id="L166">            throw new RuntimeException(&quot;Iterations number must be greater than 1 - value '&quot; + iterations + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L168">        System.getProperties().setProperty(ALGO_ITERATIONS_PARAM_NAME, String.valueOf(iterations));</span>
+
+<span class="fc" id="L170">        Integer parallelism = Integer.valueOf(mainProps.getProperty(ALGO_PARALLELISM_PARAM_NAME));</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (parallelism &lt; 1) {</span>
+<span class="nc" id="L172">            throw new RuntimeException(&quot;Parallelism number must be greater than 1 - value '&quot; + parallelism + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L174">        System.getProperties().setProperty(ALGO_PARALLELISM_PARAM_NAME, String.valueOf(parallelism));</span>
+
+<span class="fc" id="L176">        Integer memory = Integer.valueOf(mainProps.getProperty(ALGO_MEMORY_PARAM_NAME));</span>
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">        if (memory &lt; (8 * parallelism)) {</span>
+<span class="nc" id="L178">            throw new RuntimeException(&quot;Memory size must be greater than 8xparallelism - value '&quot; + memory + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L180">        System.getProperties().setProperty(ALGO_MEMORY_PARAM_NAME, String.valueOf(memory));</span>
+
+<span class="fc" id="L182">        String defaultEncryptionKey = mainProps.getProperty(ALGO_DEFAULT_KEY);</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (StringUtils.isNotEmpty(defaultEncryptionKey)) {</span>
+<span class="fc" id="L184">            System.getProperties().setProperty(ALGO_DEFAULT_KEY, defaultEncryptionKey);</span>
+        }
+<span class="fc" id="L186">    }</span>
+
+    @Override
+    public void updateParam(String name, String value) throws EntException {
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">        if (StringUtils.isEmpty(name) || StringUtils.isEmpty(value)) {</span>
+<span class="nc" id="L191">            return;</span>
+        }
+<span class="fc" id="L193">        Map&lt;String, String&gt; params = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L194">        params.put(name, value);</span>
+<span class="fc" id="L195">        this.updateParams(params);</span>
+<span class="fc" id="L196">    }</span>
+
+    @Override
+    public void updateParams(Map&lt;String, String&gt; params) throws EntException {
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if (null == params) {</span>
+<span class="nc" id="L201">            return;</span>
+        }
+        try {
+<span class="fc" id="L204">            String xmlParams = this.getConfigItem(SystemConstants.CONFIG_ITEM_PARAMS);</span>
+<span class="fc" id="L205">            String newXmlParams = SystemParamsUtils.getNewXmlParams(xmlParams, params, false);</span>
+<span class="fc" id="L206">            this.updateConfigItem(SystemConstants.CONFIG_ITEM_PARAMS, newXmlParams);</span>
+<span class="nc" id="L207">        } catch (Exception e) {</span>
+<span class="nc" id="L208">            logger.error(&quot;Error while updating parameters {}&quot;, params, e);</span>
+<span class="nc" id="L209">            throw new EntException(&quot;Error while updating parameters&quot;, e);</span>
+<span class="fc" id="L210">        }</span>
+<span class="fc" id="L211">    }</span>
+
+    /**
+     * Restituisce il dao in uso al manager.
+     *
+     * @return Il dao in uso al manager.
+     */
+    protected IConfigItemDAO getConfigDAO() {
+<span class="fc" id="L219">        return configDao;</span>
+    }
+
+    /**
+     * Setta il dao in uso al manager.
+     *
+     * @param configDao Il dao in uso al manager.
+     */
+    public void setConfigDAO(IConfigItemDAO configDao) {
+<span class="fc" id="L228">        this.configDao = configDao;</span>
+<span class="fc" id="L229">    }</span>
+
+    protected Map&lt;String, String&gt; getSystemParams() {
+<span class="fc" id="L232">        return this.systemParams;</span>
+    }
+
+    public void setSystemParams(Map&lt;String, String&gt; systemParams) {
+<span class="fc" id="L236">        this.systemParams = systemParams;</span>
+<span class="fc" id="L237">    }</span>
+
+    protected String getSecurityConfigPath() {
+<span class="fc" id="L240">        return securityConfigPath;</span>
+    }
+
+    public void setSecurityConfigPath(String securityConfigPath) {
+<span class="fc" id="L244">        this.securityConfigPath = securityConfigPath;</span>
+<span class="fc" id="L245">    }</span>
+
+    protected IConfigManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L248">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IConfigManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L252">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L253">    }</span>
+
+    protected ServletContext getServletContext() {
+<span class="fc" id="L256">        return servletContext;</span>
+    }
+
+    @Override
+    public void setServletContext(ServletContext servletContext) {
+<span class="fc" id="L261">        this.servletContext = servletContext;</span>
+<span class="fc" id="L262">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

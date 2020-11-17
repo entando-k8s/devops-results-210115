@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnmarshalUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api</a> &gt; <span class="el_source">UnmarshalUtils.java</span></div><h1>UnmarshalUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.core.MediaType;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Unmarshaller;
+
+import org.apache.commons.io.IOUtils;
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.provider.json.JSONProvider;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.context.ApplicationContext;
+
+/**
+ * @author E.Santoboni
+ */
+public class UnmarshalUtils {
+
+<span class="fc" id="L40">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(UnmarshalUtils.class);</span>
+
+	private UnmarshalUtils() {
+		//
+	}
+
+	@Deprecated
+	public static Object unmarshal(ApiMethod apiMethod, HttpServletRequest request, MediaType contentType) throws Throwable {
+<span class="nc" id="L48">		return unmarshal(apiMethod.getExpectedType(), request, contentType);</span>
+	}
+	
+	public static Object unmarshal(Class expectedType, HttpServletRequest request, MediaType contentType) throws Throwable {
+<span class="nc" id="L52">		ApplicationContext applicationContext = ApsWebApplicationUtils.getWebApplicationContext(request);</span>
+<span class="nc" id="L53">		return unmarshal(applicationContext, expectedType, request.getInputStream(), contentType);</span>
+	}
+	
+	@Deprecated
+	public static Object unmarshal(ApiMethod apiMethod, String requestBody, MediaType contentType) throws Throwable {
+<span class="nc" id="L58">		return unmarshal(apiMethod.getExpectedType(), requestBody, contentType);</span>
+	}
+	
+	@Deprecated
+	public static Object unmarshal(Class expectedType, String requestBody, MediaType contentType) throws Throwable {
+<span class="nc" id="L63">		InputStream stream = new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8));</span>
+<span class="nc" id="L64">		return unmarshal(null, expectedType, stream, contentType);</span>
+	}
+	
+	@Deprecated
+	public static Object unmarshal(ApiMethod apiMethod, InputStream bodyStream, MediaType contentType) throws Throwable {
+<span class="nc" id="L69">		return unmarshal(null, apiMethod.getExpectedType(), bodyStream, contentType);</span>
+	}
+	
+	public static Object unmarshal(ApplicationContext applicationContext, 
+			Class expectedType, InputStream bodyStream, MediaType contentType) throws Throwable {
+<span class="fc" id="L74">		Object bodyObject = null;</span>
+		try {
+<span class="fc" id="L76">			String body = IOUtils.toString(bodyStream, &quot;UTF-8&quot;);</span>
+<span class="fc" id="L77">			InputStream stream = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (MediaType.APPLICATION_JSON_TYPE.equals(contentType)) {</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                JSONProvider jsonProvider = (null != applicationContext) ? </span>
+<span class="fc" id="L80">						(JSONProvider) applicationContext.getBean(&quot;jsonProvider&quot;): </span>
+<span class="pc" id="L81">						new JSONProvider();</span>
+<span class="fc" id="L82">                bodyObject = jsonProvider.readFrom(expectedType, expectedType.getGenericSuperclass(),</span>
+<span class="fc" id="L83">                        expectedType.getAnnotations(), contentType, null, stream/*bodyStream*/);</span>
+<span class="fc" id="L84">            } else {</span>
+<span class="fc" id="L85">                JAXBContext context = JAXBContext.newInstance(expectedType);</span>
+<span class="fc" id="L86">                Unmarshaller unmarshaller = context.createUnmarshaller();</span>
+<span class="fc" id="L87">                bodyObject = unmarshaller.unmarshal(stream);</span>
+            }
+<span class="nc" id="L89">		} catch (Throwable t) {</span>
+<span class="nc" id="L90">			_logger.error(&quot;Error unmarshalling request body&quot;, t);</span>
+<span class="nc" id="L91">			throw new EntException(&quot;Error unmarshalling request body&quot;, t);</span>
+<span class="fc" id="L92">		}</span>
+<span class="fc" id="L93">		return bodyObject;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

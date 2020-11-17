@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>URLManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.url</a> &gt; <span class="el_source">URLManager.java</span></div><h1>URLManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.url;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.PageUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.util.Map;
+
+/**
+ * Servizio di gestione degli url; crea un URL completo ad una pagina del
+ * portale a partire da informazioni essenziali.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L38">public class URLManager extends AbstractURLManager {</span>
+
+<span class="fc" id="L40">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(URLManager.class);</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L44">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L45">    }</span>
+
+    /**
+     * Crea un URL completo ad una pagina del portale a partire dalle
+     * informazioni essenziali contenute nell'oggetto pageUrl passato come
+     * parametro.&lt;br&gt;
+     * In questa implementazione, l'URL è costruito come concatenazione dei
+     * seguenti elementi:
+     * &lt;ul&gt;
+     * &lt;li&gt;parametro di configurazione PAR_APPL_BASE_URL, che rappresenta l'URL
+     * base della web application così come viene visto dall'esterno; deve
+     * comprendere la stringa &quot;http://&quot; e deve terminare con &quot;/&quot;;&lt;/li&gt;
+     * &lt;li&gt;codice della lingua impostata nell'oggetto pageUrl, oppure la lingua
+     * corrente, oppure la lingua di default;&lt;/li&gt;
+     * &lt;li&gt;se il parametro &quot;urlStyle&quot; è settato a &quot;classic&quot;, codice della pagina
+     * corrente impostata nell'oggetto pageUrl seguito dal suffisso &quot;.page&quot;,
+     * altrimenti, se il parametro &quot;urlStyle&quot; è settato a &quot;breadcrumbs&quot;,
+     * &quot;/pages/&quot; seguito dal'insieme del codici pagina dalla root alla pagina
+     * corrente separati da &quot;/&quot;;&lt;/li&gt;
+     * &lt;li&gt;eventuale query string se sull'oggetto pageUrl sono stati impostati
+     * parametri.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param pageUrl L'oggetto contenente le informazioni da tradurre in URL.
+     * @param reqCtx Il contesto della richiesta.
+     * @return La Stringa contenente l'URL.
+     * @see com.agiletec.aps.system.services.url.AbstractURLManager#getURLString(com.agiletec.aps.system.services.url.PageURL,
+     * com.agiletec.aps.system.RequestContext)
+     */
+    @Override
+    public String getURLString(PageURL pageUrl, RequestContext reqCtx) {
+        try {
+<span class="fc" id="L77">            String langCode = pageUrl.getLangCode();</span>
+<span class="fc" id="L78">            Lang lang = this.getLangManager().getLang(langCode);</span>
+<span class="pc bpc" id="L79" title="3 of 4 branches missed.">            if (lang == null &amp;&amp; null != reqCtx) {</span>
+<span class="nc" id="L80">                lang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+            }
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">            if (lang == null) {</span>
+<span class="nc" id="L83">                lang = this.getLangManager().getDefaultLang();</span>
+            }
+<span class="fc" id="L85">            String pageCode = pageUrl.getPageCode();</span>
+<span class="fc" id="L86">            IPage page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="pc bpc" id="L87" title="3 of 4 branches missed.">            if (page == null &amp;&amp; null != reqCtx) {</span>
+<span class="nc" id="L88">                page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+            }
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            if (page == null) {</span>
+<span class="nc" id="L91">                page = this.getPageManager().getOnlineRoot();</span>
+            }
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            HttpServletRequest request = (null != reqCtx) ? reqCtx.getRequest() : null;</span>
+<span class="fc" id="L94">            String url = this.createURL(page, lang, pageUrl.getParams(), pageUrl.isEscapeAmp(), request);</span>
+<span class="pc bpc" id="L95" title="2 of 4 branches missed.">            if (null != reqCtx &amp;&amp; this.useJsessionId()) {</span>
+<span class="fc" id="L96">                HttpServletResponse resp = reqCtx.getResponse();</span>
+<span class="fc" id="L97">                String encUrl = resp.encodeURL(url.toString());</span>
+<span class="fc" id="L98">                return encUrl;</span>
+            } else {
+<span class="nc" id="L100">                return url;</span>
+            }
+<span class="nc" id="L102">        } catch (Throwable t) {</span>
+<span class="nc" id="L103">            _logger.error(&quot;Error creating url&quot;, t);</span>
+<span class="nc" id="L104">            throw new RuntimeException(&quot;Error creating url&quot;, t);</span>
+        }
+    }
+
+    /**
+     * Create and return url by required page, lang and request params.
+     *
+     * @param requiredPage The required page.
+     * @param requiredLang The required lang.
+     * @param params A map of params. It can be null.
+     * @return The url.
+     */
+    @Override
+    public String createURL(IPage requiredPage, Lang requiredLang, Map&lt;String, String&gt; params) {
+        try {
+<span class="nc" id="L119">            return this.createURL(requiredPage, requiredLang, params, false, null);</span>
+<span class="nc" id="L120">        } catch (EntException ex) {</span>
+<span class="nc" id="L121">            throw new RuntimeException(ex);</span>
+        }
+    }
+
+    @Override
+    public String createURL(IPage requiredPage, Lang requiredLang, Map&lt;String, String&gt; params, boolean escapeAmp) {
+        try {
+<span class="nc" id="L128">            return this.createURL(requiredPage, requiredLang, params, escapeAmp, null);</span>
+<span class="nc" id="L129">        } catch (EntException ex) {</span>
+<span class="nc" id="L130">            throw new RuntimeException(&quot;Error creating url&quot;, ex);</span>
+        }
+    }
+
+    @Override
+    public String createURL(IPage requiredPage, Lang requiredLang, Map&lt;String, String&gt; params, boolean escapeAmp,
+                            HttpServletRequest request) throws EntException {
+<span class="fc" id="L137">        StringBuilder url = null;</span>
+        try {
+<span class="fc" id="L139">            url = new StringBuilder(this.getApplicationBaseURL(request));</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            if (!this.isUrlStyleBreadcrumbs()) {</span>
+<span class="fc" id="L141">                url.append(requiredLang.getCode()).append('/');</span>
+<span class="fc" id="L142">                url.append(requiredPage.getCode()).append(&quot;.page&quot;);</span>
+            } else {
+<span class="fc" id="L144">                url.append(&quot;pages/&quot;);</span>
+<span class="fc" id="L145">                url.append(requiredLang.getCode()).append('/');</span>
+<span class="fc" id="L146">                StringBuffer fullPath = PageUtils.getFullPath(this.getPageManager(), requiredPage, &quot;/&quot;);</span>
+<span class="fc" id="L147">                url.append(fullPath.append(&quot;/&quot;));</span>
+            }
+<span class="fc" id="L149">            String queryString = this.createQueryString(params, escapeAmp);</span>
+<span class="fc" id="L150">            url.append(queryString);</span>
+<span class="nc" id="L151">        } catch (Throwable t) {</span>
+<span class="nc" id="L152">            _logger.error(&quot;Error creating url&quot;, t);</span>
+<span class="nc" id="L153">            throw new EntException(&quot;Error creating url&quot;, t);</span>
+<span class="fc" id="L154">        }</span>
+<span class="fc" id="L155">        return url.toString();</span>
+    }
+
+    @Override
+    public String getApplicationBaseURL(HttpServletRequest request) throws EntException {
+<span class="fc" id="L160">        StringBuilder baseUrl = new StringBuilder();</span>
+<span class="fc" id="L161">        this.addBaseURL(baseUrl, request);</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (!baseUrl.toString().endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L163">            baseUrl.append(&quot;/&quot;);</span>
+        }
+<span class="fc" id="L165">        return baseUrl.toString();</span>
+    }
+
+    protected void addBaseURL(StringBuilder link, HttpServletRequest request) {
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (null == request) {</span>
+<span class="nc" id="L170">            link.append(this.getConfigManager().getParam(SystemConstants.PAR_APPL_BASE_URL));</span>
+<span class="nc" id="L171">            return;</span>
+        }
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (this.isForceAddSchemeHost()) {</span>
+<span class="fc" id="L174">            String reqScheme = request.getScheme();</span>
+<span class="fc" id="L175">            link.append(reqScheme);</span>
+<span class="fc" id="L176">            link.append(&quot;://&quot;);</span>
+<span class="fc" id="L177">            String serverName = request.getServerName();</span>
+<span class="fc" id="L178">            link.append(serverName);</span>
+<span class="fc" id="L179">            boolean checkPort = false;</span>
+<span class="fc" id="L180">            String hostName = request.getHeader(&quot;Host&quot;);</span>
+<span class="pc bpc" id="L181" title="2 of 4 branches missed.">            if (null != hostName &amp;&amp; hostName.startsWith(serverName)) {</span>
+<span class="fc" id="L182">                checkPort = true;</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">                if (hostName.length() &gt; serverName.length()) {</span>
+<span class="nc" id="L184">                    link.append(hostName.substring(serverName.length()));</span>
+                }
+            }
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">            if (!checkPort) {</span>
+<span class="nc" id="L188">                link.append(&quot;:&quot;).append(request.getServerPort());</span>
+            }
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">            if (this.addContextName()) {</span>
+<span class="fc" id="L191">                link.append(request.getContextPath());</span>
+            }
+<span class="pc bnc" id="L193" title="All 2 branches missed.">        } else if (this.isRelativeBaseUrl()) {</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (this.addContextName()) {</span>
+<span class="nc" id="L195">                link.append(request.getContextPath());</span>
+            }
+        } else {
+<span class="nc" id="L198">            link.append(this.getConfigManager().getParam(SystemConstants.PAR_APPL_BASE_URL));</span>
+        }
+<span class="fc" id="L200">    }</span>
+
+    protected boolean isForceAddSchemeHost() {
+<span class="fc" id="L203">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_BASE_URL);</span>
+<span class="fc" id="L204">        return (SystemConstants.CONFIG_PARAM_BASE_URL_FROM_REQUEST.equals(param));</span>
+    }
+
+    protected boolean isRelativeBaseUrl() {
+<span class="nc" id="L208">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_BASE_URL);</span>
+<span class="nc" id="L209">        return (SystemConstants.CONFIG_PARAM_BASE_URL_RELATIVE.equals(param));</span>
+    }
+
+    protected boolean isStaticBaseUrl() {
+<span class="nc" id="L213">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_BASE_URL);</span>
+<span class="nc" id="L214">        return (SystemConstants.CONFIG_PARAM_BASE_URL_STATIC.equals(param));</span>
+    }
+
+    protected boolean addContextName() {
+<span class="fc" id="L218">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_BASE_URL_CONTEXT);</span>
+<span class="pc bpc" id="L219" title="2 of 4 branches missed.">        return (null != param &amp;&amp; Boolean.parseBoolean(param));</span>
+    }
+
+    protected boolean isUrlStyleBreadcrumbs() {
+<span class="fc" id="L223">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_URL_STYLE);</span>
+<span class="pc bpc" id="L224" title="1 of 4 branches missed.">        return (param != null &amp;&amp; param.trim().equals(SystemConstants.CONFIG_PARAM_URL_STYLE_BREADCRUMBS));</span>
+    }
+
+    protected boolean useJsessionId() {
+<span class="fc" id="L228">        String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_USE_JSESSIONID);</span>
+<span class="pc bpc" id="L229" title="2 of 4 branches missed.">        return (param != null &amp;&amp; Boolean.parseBoolean(param));</span>
+    }
+
+    protected ConfigInterface getConfigManager() {
+<span class="fc" id="L233">        return _configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L237">        this._configManager = configManager;</span>
+<span class="fc" id="L238">    }</span>
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L241">        return _langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L245">        this._langManager = langManager;</span>
+<span class="fc" id="L246">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L249">        return _pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L253">        this._pageManager = pageManager;</span>
+<span class="fc" id="L254">    }</span>
+
+    private ConfigInterface _configManager;
+    private IPageManager _pageManager;
+    private ILangManager _langManager;
+
+    protected static final int DEFAULT_HTTP_PORT = 80;
+    protected static final int DEFAULT_HTTPS_PORT = 443;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

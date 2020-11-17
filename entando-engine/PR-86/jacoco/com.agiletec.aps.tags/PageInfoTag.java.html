@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageInfoTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.tags</a> &gt; <span class="el_source">PageInfoTag.java</span></div><h1>PageInfoTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.tags;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.jsp.JspException;
+
+import org.entando.entando.aps.tags.ExtendedTagSupport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.url.PageURL;
+import com.agiletec.aps.tags.util.IParameterParentTag;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+/**
+ * Returns the information of the specified page. This tag can use the sub-tag
+ * &quot;ParameterTag&quot; to add url parameters if the info attribute is set to 'url'.
+ *
+ * @author E.Santoboni
+ */
+<span class="nc" id="L46">public class PageInfoTag extends ExtendedTagSupport implements IParameterParentTag {</span>
+
+<span class="nc" id="L48">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageInfoTag.class);</span>
+
+	@Override
+	public int doEndTag() throws JspException {
+<span class="nc" id="L52">		ServletRequest request = this.pageContext.getRequest();</span>
+<span class="nc" id="L53">		RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc" id="L54">		Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+		try {
+<span class="nc" id="L56">			IPageManager pageManager = (IPageManager) ApsWebApplicationUtils.getBean(SystemConstants.PAGE_MANAGER, this.pageContext);</span>
+<span class="nc" id="L57">			IPage page = pageManager.getOnlinePage(this.getPageCode());</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">			if (null == page) {</span>
+<span class="nc" id="L59">				_logger.error(&quot;Required info for null page : inserted code '{}'&quot;, this.getPageCode());</span>
+<span class="nc" id="L60">                return EVAL_PAGE;</span>
+			}
+<span class="nc bnc" id="L62" title="All 4 branches missed.">			if (this.getInfo() == null || this.getInfo().equals(CODE_INFO)) {</span>
+<span class="nc" id="L63">				this.setValue(page.getCode());</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">			} else if (this.getInfo().equals(TITLE_INFO)) {</span>
+<span class="nc" id="L65">				this.extractPageTitle(page, currentLang);</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">			} else if (this.getInfo().equals(URL_INFO)) {</span>
+<span class="nc" id="L67">				this.extractPageUrl(page, currentLang, reqCtx);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			} else if (this.getInfo().equals(OWNER_INFO)) {</span>
+<span class="nc" id="L69">				this.extractPageOwner(page, reqCtx);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">			} else if (this.getInfo().equals(CHILD_OF_INFO)) {</span>
+<span class="nc" id="L71">				this.extractIsChildOfTarget(page, pageManager);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">			} else if (this.getInfo().equals(HAS_CHILD)) {</span>
+<span class="nc bnc" id="L73" title="All 4 branches missed.">				boolean hasChild = (page.getChildrenCodes() != null &amp;&amp; page.getChildrenCodes().length &gt; 0);</span>
+<span class="nc" id="L74">				this._value = new Boolean(hasChild).toString();</span>
+			}
+<span class="nc" id="L76">			this.evalValue();</span>
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error during tag initialization&quot;, t);</span>
+			// ApsSystemUtils.logThrowable(t, this, &quot;doStartTag&quot;);
+<span class="nc" id="L80">			throw new JspException(&quot;Error during tag initialization &quot;, t);</span>
+<span class="nc" id="L81">		}</span>
+<span class="nc" id="L82">		this.release();</span>
+<span class="nc" id="L83">		return EVAL_PAGE;</span>
+	}
+
+	protected void extractIsChildOfTarget(IPage page, IPageManager pageManager) {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">		if (null != this.getTargetPage()) {</span>
+<span class="nc bnc" id="L88" title="All 4 branches missed.">			boolean isChild = (page.getCode().equals(this.getTargetPage()) || page.isChildOf(this.getTargetPage(), pageManager));</span>
+<span class="nc" id="L89">			this._value = new Boolean(isChild).toString();</span>
+		}
+<span class="nc" id="L91">	}</span>
+
+	protected void extractPageTitle(IPage page, Lang currentLang) {
+<span class="nc" id="L94">		ApsProperties titles = page.getTitles();</span>
+<span class="nc" id="L95">		String value = null;</span>
+<span class="nc bnc" id="L96" title="All 6 branches missed.">		if ((this.getLangCode() == null) || (this.getLangCode().equals(&quot;&quot;)) || (currentLang.getCode().equalsIgnoreCase(this</span>
+<span class="nc" id="L97">				.getLangCode()))) {</span>
+<span class="nc" id="L98">			value = titles.getProperty(currentLang.getCode());</span>
+		} else {
+<span class="nc" id="L100">			value = titles.getProperty(this.getLangCode());</span>
+		}
+<span class="nc bnc" id="L102" title="All 4 branches missed.">		if (value == null || value.trim().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L103">			ILangManager langManager = (ILangManager) ApsWebApplicationUtils.getBean(SystemConstants.LANGUAGE_MANAGER, this.pageContext);</span>
+<span class="nc" id="L104">			value = titles.getProperty(langManager.getDefaultLang().getCode());</span>
+		}
+<span class="nc" id="L106">		this.setValue(value);</span>
+<span class="nc" id="L107">	}</span>
+
+	protected void extractPageUrl(IPage page, Lang currentLang, RequestContext reqCtx) {
+<span class="nc" id="L110">		IURLManager urlManager = (IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, this.pageContext);</span>
+<span class="nc" id="L111">		PageURL pageUrl = urlManager.createURL(reqCtx);</span>
+<span class="nc" id="L112">		pageUrl.setPageCode(page.getCode());</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">		if (this.getLangCode() != null) {</span>
+<span class="nc" id="L114">			pageUrl.setLangCode(this.getLangCode());</span>
+		} else {
+<span class="nc" id="L116">			pageUrl.setLangCode(currentLang.getCode());</span>
+		}
+<span class="nc bnc" id="L118" title="All 2 branches missed.">		if (null != this.getParameters()) {</span>
+<span class="nc" id="L119">			Iterator&lt;String&gt; iter = this.getParameters().keySet().iterator();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">			while (iter.hasNext()) {</span>
+<span class="nc" id="L121">				String name = (String) iter.next();</span>
+<span class="nc" id="L122">				pageUrl.addParam(name, this.getParameters().get(name));</span>
+<span class="nc" id="L123">			}</span>
+		}
+<span class="nc" id="L125">		this.setValue(pageUrl.getURL());</span>
+<span class="nc" id="L126">	}</span>
+
+	protected void extractPageOwner(IPage page, RequestContext reqCtx) {
+<span class="nc" id="L129">		String value = page.getGroup();</span>
+<span class="nc" id="L130">		this.setValue(value);</span>
+<span class="nc" id="L131">	}</span>
+
+	protected void evalValue() throws JspException {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">		if (this.getVar() != null) {</span>
+<span class="nc" id="L135">			this.pageContext.setAttribute(this.getVar(), this.getValue());</span>
+		} else {
+			try {
+<span class="nc bnc" id="L138" title="All 2 branches missed.">				if (this.getEscapeXml()) {</span>
+<span class="nc" id="L139">					out(this.pageContext, this.getEscapeXml(), this.getValue());</span>
+				} else {
+<span class="nc" id="L141">					this.pageContext.getOut().print(this.getValue());</span>
+				}
+<span class="nc" id="L143">			} catch (IOException e) {</span>
+<span class="nc" id="L144">				_logger.error(&quot;Error closing tag&quot;, e);</span>
+				// ApsSystemUtils.logThrowable(e, this, &quot;doEndTag&quot;);
+<span class="nc" id="L146">				throw new JspException(&quot;Error closing tag &quot;, e);</span>
+<span class="nc" id="L147">			}</span>
+		}
+<span class="nc" id="L149">	}</span>
+
+	@Override
+	public void release() {
+<span class="nc" id="L153">		super.release();</span>
+<span class="nc" id="L154">		this._pageCode = null;</span>
+<span class="nc" id="L155">		this._info = null;</span>
+<span class="nc" id="L156">		this._langCode = null;</span>
+<span class="nc" id="L157">		this._var = null;</span>
+<span class="nc" id="L158">		this._value = null;</span>
+<span class="nc" id="L159">		this._parameters = null;</span>
+<span class="nc" id="L160">	}</span>
+
+	public String getPageCode() {
+<span class="nc" id="L163">		return _pageCode;</span>
+	}
+
+	public void setPageCode(String pageCode) {
+<span class="nc" id="L167">		this._pageCode = pageCode;</span>
+<span class="nc" id="L168">	}</span>
+
+	public String getInfo() {
+<span class="nc" id="L171">		return _info;</span>
+	}
+
+	public void setInfo(String info) {
+<span class="nc" id="L175">		this._info = info;</span>
+<span class="nc" id="L176">	}</span>
+
+	public String getTargetPage() {
+<span class="nc" id="L179">		return _targetPage;</span>
+	}
+
+	public void setTargetPage(String targetPage) {
+<span class="nc" id="L183">		this._targetPage = targetPage;</span>
+<span class="nc" id="L184">	}</span>
+
+	public String getLangCode() {
+<span class="nc" id="L187">		return _langCode;</span>
+	}
+
+	public void setLangCode(String langCode) {
+<span class="nc" id="L191">		this._langCode = langCode;</span>
+<span class="nc" id="L192">	}</span>
+
+	public void setVar(String var) {
+<span class="nc" id="L195">		this._var = var;</span>
+<span class="nc" id="L196">	}</span>
+
+	protected String getVar() {
+<span class="nc" id="L199">		return _var;</span>
+	}
+
+	public String getValue() {
+<span class="nc" id="L203">		return _value;</span>
+	}
+
+	public void setValue(String value) {
+<span class="nc" id="L207">		this._value = value;</span>
+<span class="nc" id="L208">	}</span>
+
+	public Map&lt;String, String&gt; getParameters() {
+<span class="nc" id="L211">		return this._parameters;</span>
+	}
+
+	@Override
+	public void addParameter(String name, String value) {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">		if (null == this._parameters) {</span>
+<span class="nc" id="L217">			this._parameters = new HashMap&lt;String, String&gt;();</span>
+		}
+<span class="nc" id="L219">		this._parameters.put(name, value);</span>
+<span class="nc" id="L220">	}</span>
+
+	private String _pageCode;
+	private String _info;
+	private String _targetPage;
+
+	private String _langCode;
+
+	private String _var;
+	private String _value;
+
+	private Map&lt;String, String&gt; _parameters;
+
+	public static final String CODE_INFO = &quot;code&quot;;
+	public static final String URL_INFO = &quot;url&quot;;
+	public static final String TITLE_INFO = &quot;title&quot;;
+	public static final String OWNER_INFO = &quot;owner&quot;;
+	public static final String CHILD_OF_INFO = &quot;childOf&quot;;
+	public static final String HAS_CHILD = &quot;hasChild&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

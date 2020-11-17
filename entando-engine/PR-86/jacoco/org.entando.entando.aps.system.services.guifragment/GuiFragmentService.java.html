@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GuiFragmentService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.guifragment</a> &gt; <span class="el_source">GuiFragmentService.java</span></div><h1>GuiFragmentService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.guifragment;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.guifragment.model.GuiFragmentDto;
+import org.entando.entando.aps.system.services.guifragment.model.GuiFragmentDtoSmall;
+import org.entando.entando.web.common.assembler.PagedMetadataMapper;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.web.guifragment.model.GuiFragmentRequestBody;
+import org.entando.entando.web.guifragment.validator.GuiFragmentValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+<span class="fc" id="L38">public class GuiFragmentService implements IGuiFragmentService {</span>
+
+<span class="fc" id="L40">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    @Autowired
+    private IGuiFragmentManager guiFragmentManager;
+
+    @Autowired
+    private IDtoBuilder&lt;GuiFragment, GuiFragmentDto&gt; dtoBuilder;
+
+    @Autowired
+    private IDtoBuilder&lt;GuiFragment, GuiFragmentDtoSmall&gt; dtoSmallBuilder;
+
+    @Autowired
+    private PagedMetadataMapper pagedMetadataMapper;
+
+    protected IGuiFragmentManager getGuiFragmentManager() {
+<span class="fc" id="L55">        return guiFragmentManager;</span>
+    }
+
+    public void setGuiFragmentManager(IGuiFragmentManager guiFragmentManager) {
+<span class="fc" id="L59">        this.guiFragmentManager = guiFragmentManager;</span>
+<span class="fc" id="L60">    }</span>
+
+    protected IDtoBuilder&lt;GuiFragment, GuiFragmentDto&gt; getDtoBuilder() {
+<span class="fc" id="L63">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;GuiFragment, GuiFragmentDto&gt; dtoBuilder) {
+<span class="fc" id="L67">        this.dtoBuilder = dtoBuilder;</span>
+<span class="fc" id="L68">    }</span>
+
+    protected IDtoBuilder&lt;GuiFragment, GuiFragmentDtoSmall&gt; getDtoSmallBuilder() {
+<span class="fc" id="L71">        return dtoSmallBuilder;</span>
+    }
+
+    public void setDtoSmallBuilder(IDtoBuilder&lt;GuiFragment, GuiFragmentDtoSmall&gt; dtoSmallBuilder) {
+<span class="fc" id="L75">        this.dtoSmallBuilder = dtoSmallBuilder;</span>
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public PagedMetadata&lt;GuiFragmentDtoSmall&gt; getGuiFragments(RestListRequest restListReq) {
+<span class="fc" id="L80">        PagedMetadata&lt;GuiFragmentDtoSmall&gt; pagedMetadata = null;</span>
+        try {
+<span class="fc" id="L82">            SearcherDaoPaginatedResult&lt;GuiFragment&gt; fragments = this.getGuiFragmentManager().getGuiFragments(restListReq.buildFieldSearchFilters());</span>
+<span class="fc" id="L83">            List&lt;GuiFragmentDtoSmall&gt; dtoList = this.getDtoSmallBuilder().convert(fragments.getList());</span>
+<span class="fc" id="L84">            pagedMetadata = new PagedMetadata&lt;&gt;(restListReq, dtoList, fragments.getCount());</span>
+<span class="nc" id="L85">        } catch (Throwable t) {</span>
+<span class="nc" id="L86">            logger.error(&quot;error in search fragments&quot;, t);</span>
+<span class="nc" id="L87">            throw new RestServerError(&quot;error in search fragments&quot;, t);</span>
+<span class="fc" id="L88">        }</span>
+<span class="fc" id="L89">        return pagedMetadata;</span>
+    }
+
+    @Override
+    public GuiFragmentDto getGuiFragment(String code) {
+<span class="fc" id="L94">        GuiFragment fragment = null;</span>
+        try {
+<span class="fc" id="L96">            fragment = this.getGuiFragmentManager().getGuiFragment(code);</span>
+<span class="nc" id="L97">        } catch (Exception e) {</span>
+<span class="nc" id="L98">            logger.error(&quot;Error extracting fragment {}&quot;, code, e);</span>
+<span class="nc" id="L99">            throw new RestServerError(&quot;error extracting fragment&quot;, e);</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (null == fragment) {</span>
+<span class="fc" id="L102">            logger.warn(&quot;no fragment found with code {}&quot;, code);</span>
+<span class="fc" id="L103">            throw new ResourceNotFoundException(GuiFragmentValidator.ERRCODE_FRAGMENT_DOES_NOT_EXISTS, &quot;fragment&quot;, code);</span>
+        }
+<span class="fc" id="L105">        return this.getDtoBuilder().convert(fragment);</span>
+    }
+
+    @Override
+    public GuiFragmentDto addGuiFragment(GuiFragmentRequestBody guiFragmentRequest) {
+        try {
+<span class="nc" id="L111">            GuiFragment fragment = this.createGuiFragment(guiFragmentRequest);</span>
+<span class="nc" id="L112">            this.getGuiFragmentManager().addGuiFragment(fragment);</span>
+<span class="nc" id="L113">            return this.getDtoBuilder().convert(fragment);</span>
+<span class="nc" id="L114">        } catch (EntException e) {</span>
+<span class="nc" id="L115">            logger.error(&quot;Error adding fragment&quot;, e);</span>
+<span class="nc" id="L116">            throw new RestServerError(&quot;error add fragment&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public GuiFragmentDto updateGuiFragment(GuiFragmentRequestBody guiFragmentRequest) {
+<span class="nc" id="L122">        String code = guiFragmentRequest.getCode();</span>
+        try {
+<span class="nc" id="L124">            GuiFragment fragment = this.getGuiFragmentManager().getGuiFragment(code);</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            if (null == fragment) {</span>
+<span class="nc" id="L126">                throw new ResourceNotFoundException(GuiFragmentValidator.ERRCODE_FRAGMENT_DOES_NOT_EXISTS, &quot;fragment&quot;, code);</span>
+            }
+<span class="nc" id="L128">            fragment.setGui(guiFragmentRequest.getGuiCode());</span>
+<span class="nc" id="L129">            this.getGuiFragmentManager().updateGuiFragment(fragment);</span>
+<span class="nc" id="L130">            return this.getDtoBuilder().convert(fragment);</span>
+<span class="nc" id="L131">        } catch (ResourceNotFoundException e) {</span>
+<span class="nc" id="L132">            throw e;</span>
+<span class="nc" id="L133">        } catch (EntException e) {</span>
+<span class="nc" id="L134">            logger.error(&quot;Error updating fragment {}&quot;, code, e);</span>
+<span class="nc" id="L135">            throw new RestServerError(&quot;error in update fragment&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public void removeGuiFragment(String guiFragmentCode) {
+        try {
+<span class="fc" id="L142">            GuiFragment fragment = this.getGuiFragmentManager().getGuiFragment(guiFragmentCode);</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">            if (null == fragment) {</span>
+<span class="nc" id="L144">                return;</span>
+            }
+<span class="fc" id="L146">            GuiFragmentDto dto = this.getDtoBuilder().convert(fragment);</span>
+<span class="fc" id="L147">            BeanPropertyBindingResult validationResult = this.checkFragmentForDelete(fragment, dto);</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L149">                throw new ValidationGenericException(validationResult);</span>
+            }
+<span class="nc" id="L151">            this.getGuiFragmentManager().deleteGuiFragment(guiFragmentCode);</span>
+<span class="nc" id="L152">        } catch (EntException e) {</span>
+<span class="nc" id="L153">            logger.error(&quot;Error in delete guiFragmentCode {}&quot;, guiFragmentCode, e);</span>
+<span class="nc" id="L154">            throw new RestServerError(&quot;error in delete guiFragmentCode&quot;, e);</span>
+<span class="nc" id="L155">        }</span>
+<span class="nc" id="L156">    }</span>
+
+    @Override
+    public List&lt;String&gt; getPluginCodes() {
+        try {
+<span class="fc" id="L161">            return this.getGuiFragmentManager().loadGuiFragmentPluginCodes();</span>
+<span class="nc" id="L162">        } catch (EntException e) {</span>
+<span class="nc" id="L163">            logger.error(&quot;Error loading plugin codes&quot;, e);</span>
+<span class="nc" id="L164">            throw new RestServerError(&quot;Error loading plugin codes&quot;, e);</span>
+        }
+    }
+
+    private GuiFragment createGuiFragment(GuiFragmentRequestBody guiFragmentRequest) {
+<span class="nc" id="L169">        GuiFragment fragment = new GuiFragment();</span>
+<span class="nc" id="L170">        fragment.setCode(guiFragmentRequest.getCode());</span>
+<span class="nc" id="L171">        fragment.setGui(guiFragmentRequest.getGuiCode());</span>
+<span class="nc" id="L172">        return fragment;</span>
+    }
+
+    protected BeanPropertyBindingResult checkFragmentForDelete(GuiFragment fragment, GuiFragmentDto dto) {
+<span class="fc" id="L176">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(fragment, &quot;fragment&quot;);</span>
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">        if (null == fragment) {</span>
+<span class="nc" id="L178">            return bindingResult;</span>
+        }
+<span class="pc bpc" id="L180" title="3 of 4 branches missed.">        if (!dto.getFragments().isEmpty() || !dto.getPageModels().isEmpty()) {</span>
+<span class="fc" id="L181">            List&lt;String&gt; fragments = dto.getFragments().stream().map(GuiFragmentDto.FragmentRef::getCode)</span>
+<span class="fc" id="L182">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L183">            List&lt;String&gt; pagemodels = dto.getPageModels().stream().map(GuiFragmentDto.PageModelRef::getCode)</span>
+<span class="fc" id="L184">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L185">            bindingResult.reject(GuiFragmentValidator.ERRCODE_FRAGMENT_REFERENCES,</span>
+<span class="fc" id="L186">                    new Object[]{fragment.getCode(), fragments, pagemodels}, &quot;guifragment.cannot.delete.references&quot;);</span>
+        }
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">        if (fragment.isLocked()) {</span>
+<span class="nc" id="L189">            bindingResult.reject(GuiFragmentValidator.ERRCODE_FRAGMENT_LOCKED, new Object[]{fragment.getCode()}, &quot;guifragment.cannot.delete.locked&quot;);</span>
+        }
+<span class="fc" id="L191">        return bindingResult;</span>
+    }
+
+    @Override
+    public Integer getComponentUsage(String componentCode) {
+        try {
+<span class="fc" id="L197">            return this.getGuiFragment(componentCode).getPageModels().size();</span>
+<span class="fc" id="L198">        } catch (ResourceNotFoundException e) {</span>
+<span class="fc" id="L199">            return 0;</span>
+        }
+    }
+
+    @Override
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String componentCode, RestListRequest restListRequest) {
+
+<span class="fc" id="L206">        List&lt;ComponentUsageEntity&gt; componentUsageEntityList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L208">        GuiFragmentDto fragmentDto = this.getGuiFragment(componentCode);</span>
+
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (null != fragmentDto.getWidgetType()) {</span>
+<span class="fc" id="L211">            componentUsageEntityList.add(new ComponentUsageEntity(ComponentUsageEntity.TYPE_WIDGET, fragmentDto.getWidgetTypeCode()));</span>
+        }
+
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (null != fragmentDto.getFragments()) {</span>
+
+<span class="fc" id="L216">            List&lt;ComponentUsageEntity&gt; fragmentList = fragmentDto.getFragments().stream()</span>
+<span class="fc" id="L217">                    .map(fragmentRef -&gt; new ComponentUsageEntity(ComponentUsageEntity.TYPE_FRAGMENT, fragmentRef.getCode()))</span>
+<span class="fc" id="L218">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L219">            componentUsageEntityList.addAll(fragmentList);</span>
+        }
+
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        if (null != fragmentDto.getPageModels()) {</span>
+
+<span class="fc" id="L224">            List&lt;ComponentUsageEntity&gt; pageModelList = fragmentDto.getPageModels().stream()</span>
+<span class="fc" id="L225">                    .map(pageModelRef -&gt; new ComponentUsageEntity(ComponentUsageEntity.TYPE_PAGE_TEMPLATE, pageModelRef.getCode()))</span>
+<span class="fc" id="L226">                    .collect(Collectors.toList());</span>
+<span class="fc" id="L227">            componentUsageEntityList.addAll(pageModelList);</span>
+        }
+
+<span class="fc" id="L230">        return pagedMetadataMapper.getPagedResult(restListRequest, componentUsageEntityList);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
