@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentPreviewViewerHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.preview</a> &gt; <span class="el_source">ContentPreviewViewerHelper.java</span></div><h1>ContentPreviewViewerHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.preview;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.ContentViewerHelper;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.ContentRenderizationInfo;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L35">public class ContentPreviewViewerHelper extends ContentViewerHelper {</span>
+
+<span class="fc" id="L37">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentPreviewViewerHelper.class);</span>
+	
+	@Override
+	public String getRenderedContent(String contentId, String modelId, RequestContext reqCtx) throws EntException {
+<span class="nc" id="L41">		String renderedContent = &quot;&quot;;</span>
+<span class="nc" id="L42">		HttpServletRequest request = reqCtx.getRequest();</span>
+		try {
+<span class="nc" id="L44">			String contentOnSessionMarker = (String) request.getAttribute(&quot;contentOnSessionMarker&quot;);</span>
+<span class="nc bnc" id="L45" title="All 4 branches missed.">			if (null == contentOnSessionMarker || contentOnSessionMarker.trim().length() == 0) {</span>
+<span class="nc" id="L46">				contentOnSessionMarker = request.getParameter(&quot;contentOnSessionMarker&quot;);</span>
+			}
+<span class="nc" id="L48">			Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="nc" id="L49">			String langCode = currentLang.getCode();</span>
+<span class="nc" id="L50">			Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L51">			Content contentOnSession = (Content) request.getSession()</span>
+<span class="nc" id="L52">					.getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + contentOnSessionMarker);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			contentId = (contentOnSession.getId() == null ? contentOnSession.getTypeCode()+&quot;123&quot; : contentOnSession.getId());</span>
+<span class="nc" id="L54">			ApsProperties widgetConfig = widget.getConfig();</span>
+<span class="nc" id="L55">			modelId = this.extractModelId(contentId, modelId, widgetConfig);</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">			if (null != contentId &amp;&amp; null != modelId) {</span>
+<span class="nc" id="L57">				long longModelId = new Long(modelId).longValue();</span>
+<span class="nc" id="L58">				this.setStylesheet(longModelId, reqCtx);</span>
+<span class="nc" id="L59">				ContentRenderizationInfo renderizationInfo = ((ContentPreviewDispenser) this.getContentDispenser()).getRenderizationInfoForPreview(contentId, longModelId, langCode, reqCtx);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">	            if (null == renderizationInfo) {</span>
+<span class="nc" id="L61">	            	_logger.warn(&quot;Null Renderization informations: content={}&quot;, contentId);</span>
+	            } else {
+<span class="nc" id="L63">					this.getContentDispenser().resolveLinks(renderizationInfo, reqCtx);</span>
+<span class="nc" id="L64">					renderedContent = renderizationInfo.getRenderedContent();</span>
+				}
+<span class="nc" id="L66">			} else {</span>
+<span class="nc" id="L67">				_logger.warn(&quot;Parametri visualizzazione contenuto incompleti: contenuto={} modello={}&quot;, contentId, modelId);</span>
+			}
+<span class="nc" id="L69">		} catch (Throwable t) {</span>
+<span class="nc" id="L70">			_logger.error(&quot;error loading rendered content for preview&quot;, t);</span>
+<span class="nc" id="L71">			throw new EntException(&quot;error loading rendered content for preview&quot;, t);</span>
+<span class="nc" id="L72">		}</span>
+<span class="nc" id="L73">		return renderedContent;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
