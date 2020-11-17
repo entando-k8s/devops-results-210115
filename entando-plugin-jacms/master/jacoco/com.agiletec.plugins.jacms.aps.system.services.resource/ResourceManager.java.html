@@ -1,0 +1,676 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.resource</a> &gt; <span class="el_source">ResourceManager.java</span></div><h1>ResourceManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.resource;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.category.CategoryUtilizer;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.category.ReloadingCategoryReferencesThread;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.resource.cache.IResourceManagerCacheWrapper;
+import com.agiletec.plugins.jacms.aps.system.services.resource.event.ResourceChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.*;
+import com.agiletec.plugins.jacms.aps.system.services.resource.parse.ResourceHandler;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntSafeXmlUtils;
+import org.xml.sax.InputSource;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Marshaller;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.parsers.SAXParser;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+/**
+ * Servizio gestore tipi di risorse (immagini, audio, video, etc..).
+ *
+ * @author W.Ambu - E.Santoboni
+ */
+<span class="fc" id="L55">public class ResourceManager extends AbstractService implements IResourceManager, GroupUtilizer, CategoryUtilizer {</span>
+
+<span class="fc" id="L57">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private IResourceDAO resourceDao;
+
+    private ICategoryManager categoryManager;
+
+    private ConfigInterface configManager;
+
+    private IResourceManagerCacheWrapper cacheWrapper;
+
+    /**
+     * Mappa dei prototipi dei tipi di risorsa
+     */
+    private Map&lt;String, ResourceInterface&gt; resourceTypes;
+
+    /**
+     * Restutuisce il dao in uso al manager.
+     *
+     * @return Il dao in uso al manager.
+     */
+    protected IResourceDAO getResourceDAO() {
+<span class="fc" id="L78">        return resourceDao;</span>
+    }
+
+    /**
+     * Setta il dao in uso al manager.
+     *
+     * @param resourceDao Il dao in uso al manager.
+     */
+    public void setResourceDAO(IResourceDAO resourceDao) {
+<span class="fc" id="L87">        this.resourceDao = resourceDao;</span>
+<span class="fc" id="L88">    }</span>
+
+    protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L91">        return categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L95">        this.categoryManager = categoryManager;</span>
+<span class="fc" id="L96">    }</span>
+
+    protected ConfigInterface getConfigManager() {
+<span class="fc" id="L99">        return configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L103">        this.configManager = configManager;</span>
+<span class="fc" id="L104">    }</span>
+
+    protected IResourceManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L107">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IResourceManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L111">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L112">    }</span>
+
+    @Override
+    public int getStatus() {
+<span class="fc" id="L116">        return this.getCacheWrapper().getStatus();</span>
+    }
+
+    protected void setStatus(int status) {
+<span class="nc" id="L120">        this.getCacheWrapper().updateStatus(status);</span>
+<span class="nc" id="L121">    }</span>
+
+    public void setResourceTypes(Map&lt;String, ResourceInterface&gt; resourceTypes) {
+<span class="fc" id="L124">        this.resourceTypes = resourceTypes;</span>
+<span class="fc" id="L125">    }</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L129">        this.getCacheWrapper().initCache();</span>
+<span class="fc" id="L130">        logger.debug(&quot;{} ready. Initialized {} resource types&quot;, this.getClass().getName(), this.resourceTypes.size());</span>
+<span class="fc" id="L131">    }</span>
+
+    /**
+     * Crea una nuova istanza di un tipo di risorsa del tipo richiesto. Il nuovo
+     * tipo di risorsa è istanziato mediante clonazione del prototipo
+     * corrispondente.
+     *
+     * @param typeCode Il codice del tipo di risorsa richiesto, come definito in
+     * configurazione.
+     * @return Il tipo di risorsa istanziato (vuoto).
+     */
+    @Override
+    public ResourceInterface createResourceType(String typeCode) {
+<span class="fc" id="L144">        ResourceInterface resource = (ResourceInterface) resourceTypes.get(typeCode);</span>
+<span class="fc" id="L145">        return resource.getResourcePrototype();</span>
+    }
+
+    /**
+     * Restituisce la lista delle chiavi dei tipi risorsa presenti nel sistema.
+     *
+     * @return La lista delle chiavi dei tipi risorsa esistenti.
+     */
+    @Override
+    public List&lt;String&gt; getResourceTypeCodes() {
+<span class="nc" id="L155">        return new ArrayList&lt;&gt;(this.resourceTypes.keySet());</span>
+    }
+
+    /**
+     * Salva una risorsa nel db con incluse nel filesystem, indipendentemente
+     * dal tipo.
+     *
+     * @param bean L'oggetto detentore dei dati della risorsa da inserire.
+     * @return la risorsa aggiunta.
+     * @throws EntException in caso di errore.
+     */
+    @Override
+    public ResourceInterface addResource(ResourceDataBean bean) throws EntException {
+<span class="fc" id="L168">        ResourceInterface newResource = this.createResource(bean);</span>
+        try {
+<span class="fc" id="L170">            this.generateAndSetResourceId(newResource, bean.getResourceId());</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">            newResource.setCorrelationCode(newResource.getCorrelationCode() == null ?</span>
+<span class="fc" id="L172">                    newResource.getId() : newResource.getCorrelationCode());</span>
+<span class="fc" id="L173">            newResource.saveResourceInstances(bean, getIgnoreMetadataKeysForResourceType(bean.getResourceType()));</span>
+<span class="fc" id="L174">            this.getResourceDAO().addResource(newResource);</span>
+<span class="nc" id="L175">        } catch (Throwable t) {</span>
+<span class="nc" id="L176">            newResource.deleteResourceInstances();</span>
+<span class="nc" id="L177">            logger.error(&quot;Error adding resource&quot;, t);</span>
+<span class="nc" id="L178">            throw new EntException(&quot;Error adding resource&quot;, t);</span>
+<span class="fc" id="L179">        }</span>
+<span class="fc" id="L180">        return newResource;</span>
+    }
+
+    private List&lt;String&gt; getIgnoreMetadataKeysForResourceType(String resourceType) {
+<span class="fc" id="L184">        ResourceInterface resourcePrototype = createResourceType(resourceType);</span>
+
+<span class="fc" id="L186">        String ignoreKeysConf = resourcePrototype.getMetadataIgnoreKeys();</span>
+<span class="fc" id="L187">        String[] ignoreKeys = ignoreKeysConf.split(&quot;,&quot;);</span>
+<span class="fc" id="L188">        return Arrays.asList(ignoreKeys);</span>
+    }
+
+    /**
+     * Salva una lista dirisorse nel db con incluse nel filesystem,
+     * indipendentemente dal tipo.
+     *
+     * @param beans L'oggetto detentore dei dati della risorsa da inserire.
+     * @throws EntException in caso di errore.
+     */
+    @Override
+    public List&lt;ResourceInterface&gt; addResources(List&lt;BaseResourceDataBean&gt; beans) throws EntException {
+<span class="fc" id="L200">        List&lt;ResourceInterface&gt; newResource = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L201">        beans.forEach(b -&gt; {</span>
+            try {
+<span class="fc" id="L203">                newResource.add(this.addResource(b));</span>
+<span class="nc" id="L204">            } catch (EntException ex) {</span>
+<span class="nc" id="L205">                logger.error(&quot;Error adding resources&quot;, ex);</span>
+<span class="fc" id="L206">            }</span>
+<span class="fc" id="L207">        });</span>
+<span class="fc" id="L208">        return newResource;</span>
+    }
+
+    /**
+     * Cancella una lista di risorse dal db ed i file di ogni istanza dal
+     * filesystem.
+     *
+     * @param resources La lista di risorse da cancellare.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void deleteResources(List&lt;ResourceInterface&gt; resources) throws EntException {
+<span class="fc" id="L220">        resources.forEach(resourceDelete -&gt; {</span>
+            try {
+<span class="fc" id="L222">                deleteResource(resourceDelete);</span>
+<span class="nc" id="L223">            } catch (EntException ex) {</span>
+<span class="nc" id="L224">                logger.error(&quot;Error deleting resources&quot;, ex);</span>
+<span class="fc" id="L225">            }</span>
+<span class="fc" id="L226">        });</span>
+<span class="fc" id="L227">    }</span>
+
+    /**
+     * Salva una lista di risorse nel db, indipendentemente dal tipo.y
+     *
+     * @param resource La risorsa da salvare.
+     * @throws EntException in caso di errore.
+     */
+    @Override
+    public void addResource(ResourceInterface resource) throws EntException {
+        try {
+<span class="fc" id="L238">            this.generateAndSetResourceId(resource, resource.getId());</span>
+<span class="fc" id="L239">            this.getResourceDAO().addResource(resource);</span>
+<span class="nc" id="L240">        } catch (Throwable t) {</span>
+<span class="nc" id="L241">            logger.error(&quot;Error adding resource&quot;, t);</span>
+<span class="nc" id="L242">            throw new EntException(&quot;Error adding resource&quot;, t);</span>
+<span class="fc" id="L243">        }</span>
+<span class="fc" id="L244">    }</span>
+
+    protected void generateAndSetResourceId(ResourceInterface resource, String id) throws EntException {
+<span class="pc bpc" id="L247" title="1 of 4 branches missed.">        if (null == id || id.trim().length() == 0) {</span>
+<span class="fc" id="L248">            IKeyGeneratorManager keyGenerator</span>
+<span class="fc" id="L249">                    = (IKeyGeneratorManager) this.getBeanFactory().getBean(SystemConstants.KEY_GENERATOR_MANAGER);</span>
+<span class="fc" id="L250">            int newId = keyGenerator.getUniqueKeyCurrentValue();</span>
+<span class="fc" id="L251">            resource.setId(String.valueOf(newId));</span>
+        }
+<span class="fc" id="L253">    }</span>
+
+    @Override
+    public void updateResource(ResourceDataBean bean) throws EntException {
+<span class="fc" id="L257">        ResourceInterface oldResource = this.loadResource(bean.getResourceId());</span>
+        try {
+<span class="fc bfc" id="L259" title="All 2 branches covered.">            if (null == bean.getInputStream()) {</span>
+<span class="fc" id="L260">                oldResource.setDescription(bean.getDescr());</span>
+<span class="fc" id="L261">                oldResource.setCategories(bean.getCategories());</span>
+<span class="fc" id="L262">                oldResource.setMetadata(bean.getMetadata());</span>
+<span class="fc" id="L263">                oldResource.setMainGroup(bean.getMainGroup());</span>
+<span class="fc" id="L264">                oldResource.setFolderPath(bean.getFolderPath());</span>
+<span class="fc" id="L265">                this.getResourceDAO().updateResource(oldResource);</span>
+<span class="fc" id="L266">                this.notifyResourceChanging(oldResource);</span>
+            } else {
+<span class="fc" id="L268">                ResourceInterface updatedResource = this.createResource(bean);</span>
+<span class="fc" id="L269">                updatedResource.saveResourceInstances(bean, getIgnoreMetadataKeysForResourceType(bean.getResourceType()));</span>
+<span class="fc" id="L270">                this.getResourceDAO().updateResource(updatedResource);</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">                if (!updatedResource.getMasterFileName().equals(oldResource.getMasterFileName())) {</span>
+<span class="nc" id="L272">                    oldResource.deleteResourceInstances();</span>
+                }
+<span class="fc" id="L274">                this.notifyResourceChanging(updatedResource);</span>
+            }
+<span class="nc" id="L276">        } catch (Throwable t) {</span>
+<span class="nc" id="L277">            logger.error(&quot;Error updating resource&quot;, t);</span>
+<span class="nc" id="L278">            throw new EntException(&quot;Error updating resource&quot;, t);</span>
+<span class="fc" id="L279">        }</span>
+<span class="fc" id="L280">    }</span>
+
+    /**
+     * Aggiorna una risorsa nel db.
+     *
+     * @param resource Il contenuto da aggiungere o modificare.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void updateResource(ResourceInterface resource) throws EntException {
+        try {
+<span class="fc" id="L291">            this.getResourceDAO().updateResource(resource);</span>
+<span class="fc" id="L292">            this.notifyResourceChanging(resource);</span>
+<span class="nc" id="L293">        } catch (Throwable t) {</span>
+<span class="nc" id="L294">            logger.error(&quot;Error updating resource&quot;, t);</span>
+<span class="nc" id="L295">            throw new EntException(&quot;Error updating resource&quot;, t);</span>
+<span class="fc" id="L296">        }</span>
+<span class="fc" id="L297">    }</span>
+
+    protected ResourceInterface createResource(ResourceDataBean bean) throws EntException {
+<span class="fc" id="L300">        ResourceInterface resource = this.createResourceType(bean.getResourceType());</span>
+<span class="fc" id="L301">        resource.setDescription(bean.getDescr());</span>
+<span class="fc" id="L302">        resource.setMainGroup(bean.getMainGroup());</span>
+<span class="fc" id="L303">        resource.setCategories(bean.getCategories());</span>
+<span class="fc" id="L304">        resource.setMasterFileName(bean.getFileName());</span>
+<span class="fc" id="L305">        resource.setId(bean.getResourceId());</span>
+<span class="fc" id="L306">        resource.setMetadata(bean.getMetadata());</span>
+<span class="fc" id="L307">        resource.setOwner(bean.getOwner());</span>
+<span class="fc" id="L308">        resource.setFolderPath(bean.getFolderPath());</span>
+<span class="fc" id="L309">        resource.setCorrelationCode(bean.getCorrelationCode());</span>
+<span class="fc" id="L310">        return resource;</span>
+    }
+
+    protected void notifyResourceChanging(ResourceInterface resource) throws EntException {
+<span class="fc" id="L314">        ResourceChangedEvent event = new ResourceChangedEvent();</span>
+<span class="fc" id="L315">        event.setResource(resource);</span>
+<span class="fc" id="L316">        this.notifyEvent(event);</span>
+<span class="fc" id="L317">    }</span>
+
+    /**
+     * Carica una lista di identificativi di risorse in base al tipo, ad una
+     * parola chiave e dalla categoria della risorsa.
+     *
+     * @param type Tipo di risorsa da cercare.
+     * @param text Testo immesso per il raffronto con la descrizione della
+     * risorsa. null o stringa vuota nel caso non si voglia ricercare le risorse
+     * per parola chiave.
+     * @param categoryCode Il codice della categoria delle risorse. null o
+     * stringa vuota nel caso non si voglia ricercare le risorse per categoria.
+     * @param groupCodes I codici dei gruppi consentiti tramite il quale
+     * filtrare le risorse.
+     * @return La lista di identificativi di risorse.
+     * @throws EntException In caso di errore.
+     */
+    @Override
+    public List&lt;String&gt; searchResourcesId(String type, String text,
+            String categoryCode, Collection&lt;String&gt; groupCodes) throws EntException {
+<span class="fc" id="L337">        return this.searchResourcesId(type, text, null, categoryCode, groupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchResourcesId(String type, String text,
+            String filename, String categoryCode, Collection&lt;String&gt; groupCodes) throws EntException {
+<span class="pc bpc" id="L343" title="2 of 4 branches missed.">        if (null == groupCodes || groupCodes.isEmpty()) {</span>
+<span class="nc" id="L344">            return new ArrayList&lt;&gt;();</span>
+        }
+<span class="fc" id="L346">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="fc" id="L348">            resourcesId = this.getResourceDAO().searchResourcesId(type, text, filename, categoryCode, groupCodes);</span>
+<span class="nc" id="L349">        } catch (Throwable t) {</span>
+<span class="nc" id="L350">            logger.error(&quot;Error searching resources id&quot;, t);</span>
+<span class="nc" id="L351">            throw new EntException(&quot;Error searching resources id&quot;, t);</span>
+<span class="fc" id="L352">        }</span>
+<span class="fc" id="L353">        return resourcesId;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchResourcesId(FieldSearchFilter[] filters, List&lt;String&gt; categories) throws EntException {
+<span class="fc" id="L358">        this.checkFilterKeys(filters);</span>
+<span class="fc" id="L359">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="fc" id="L361">            resourcesId = this.getResourceDAO().searchResourcesId(filters, categories);</span>
+<span class="nc" id="L362">        } catch (Throwable t) {</span>
+<span class="nc" id="L363">            logger.error(&quot;Error searching resources id&quot;, t);</span>
+<span class="nc" id="L364">            throw new EntException(&quot;Error searching resources id&quot;, t);</span>
+<span class="fc" id="L365">        }</span>
+<span class="fc" id="L366">        return resourcesId;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchResourcesId(FieldSearchFilter[] filters, String categoryCode, Collection&lt;String&gt; groupCodes) throws EntException {
+<span class="fc bfc" id="L371" title="All 2 branches covered.">        List&lt;String&gt; categories = (StringUtils.isBlank(categoryCode)) ? null : Arrays.asList(categoryCode);</span>
+<span class="fc" id="L372">        return this.searchResourcesId(filters, categories, groupCodes);</span>
+    }
+    
+    @Override
+    public List&lt;String&gt; searchResourcesId(FieldSearchFilter[] filters, List&lt;String&gt; categories, Collection&lt;String&gt; groupCodes) throws EntException {
+<span class="fc" id="L377">        this.checkFilterKeys(filters);</span>
+<span class="fc" id="L378">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="fc" id="L380">            resourcesId = this.getResourceDAO().searchResourcesId(filters, categories, groupCodes);</span>
+<span class="nc" id="L381">        } catch (Throwable t) {</span>
+<span class="nc" id="L382">            logger.error(&quot;Error searching resources id&quot;, t);</span>
+<span class="nc" id="L383">            throw new EntException(&quot;Error searching resources id&quot;, t);</span>
+<span class="fc" id="L384">        }</span>
+<span class="fc" id="L385">        return resourcesId;</span>
+    }
+    
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedResourcesId(FieldSearchFilter[] filters, List&lt;String&gt; categories, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L390">        SearcherDaoPaginatedResult&lt;String&gt; pagedResult = null;</span>
+        try {
+<span class="fc" id="L392">            int count = this.getResourceDAO().countResources(filters, categories, userGroupCodes);</span>
+<span class="fc" id="L393">            List&lt;String&gt; resourcesId = this.getResourceDAO().searchResourcesId(filters, categories, userGroupCodes);</span>
+<span class="fc" id="L394">            pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(count, resourcesId);</span>
+<span class="nc" id="L395">        } catch (Throwable t) {</span>
+<span class="nc" id="L396">            logger.error(&quot;Error searching paginated resources id&quot;, t);</span>
+<span class="nc" id="L397">            throw new EntException(&quot;Error searching paginated resources id&quot;, t);</span>
+<span class="fc" id="L398">        }</span>
+<span class="fc" id="L399">        return pagedResult;</span>
+    }
+    
+    protected void checkFilterKeys(FieldSearchFilter[] filters) {
+<span class="pc bpc" id="L403" title="1 of 4 branches missed.">        if (null != filters &amp;&amp; filters.length &gt; 0) {</span>
+<span class="fc" id="L404">            String[] allowedFilterKeys = {RESOURCE_ID_FILTER_KEY, RESOURCE_TYPE_FILTER_KEY, RESOURCE_DESCR_FILTER_KEY,</span>
+                    RESOURCE_MAIN_GROUP_FILTER_KEY, RESOURCE_FILENAME_FILTER_KEY, RESOURCE_CREATION_DATE_FILTER_KEY,
+                    RESOURCE_MODIFY_DATE_FILTER_KEY, RESOURCE_OWNER_FILTER_KEY, RESOURCE_FOLDER_PATH_FILTER_KEY};
+<span class="fc" id="L407">            List&lt;String&gt; allowedFilterKeysList = Arrays.asList(allowedFilterKeys);</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">            for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L409">                FieldSearchFilter filter = filters[i];</span>
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">                if (!allowedFilterKeysList.contains(filter.getKey())) {</span>
+<span class="nc" id="L411">                    throw new RuntimeException(&quot;Invalid filter key - '&quot; + filter.getKey() + &quot;'&quot;);</span>
+                }
+            }
+        }
+<span class="fc" id="L415">    }</span>
+
+    /**
+     * Restituisce la risorsa con l'id specificato.
+     *
+     * @param id L'identificativo della risorsa da caricare.
+     * @return La risorsa cercata. null se non vi è nessuna risorsa con
+     * l'identificativo immesso.
+     * @throws EntException in caso di errore.
+     */
+    @Override
+    public ResourceInterface loadResource(String id) throws EntException {
+<span class="fc" id="L427">        return loadResource(id, null);</span>
+    }
+
+    @Override
+    public ResourceInterface loadResource(String id, String correlationCode) throws EntException {
+<span class="fc" id="L432">        ResourceInterface resource = null;</span>
+        try {
+<span class="fc bfc" id="L434" title="All 2 branches covered.">            ResourceRecordVO resourceVo = correlationCode == null</span>
+<span class="fc" id="L435">                    ? this.getResourceDAO().loadResourceVo(id)</span>
+<span class="fc" id="L436">                    : this.getResourceDAO().loadResourceVoByCorrelationCode(correlationCode);</span>
+<span class="fc bfc" id="L437" title="All 2 branches covered.">            if (null != resourceVo) {</span>
+<span class="fc" id="L438">                resource = this.createResource(resourceVo);</span>
+<span class="fc" id="L439">                resource.setMasterFileName(resourceVo.getMasterFileName());</span>
+            }
+<span class="nc" id="L441">        } catch (Throwable t) {</span>
+<span class="nc" id="L442">            logger.error(&quot;Error loading resource : id {}&quot;, id, t);</span>
+<span class="nc" id="L443">            throw new EntException(&quot;Error loading resource : id &quot; + id, t);</span>
+<span class="fc" id="L444">        }</span>
+<span class="fc" id="L445">        return resource;</span>
+    }
+
+    /**
+     * Metodo di servizio. Restituisce una risorsa in base ai dati del
+     * corrispondente record.
+     *
+     * @param resourceVo Il vo relativo al record.
+     * @return La risorsa valorizzata.
+     * @throws EntException in caso di errore.
+     */
+    protected ResourceInterface createResource(ResourceRecordVO resourceVo) throws EntException {
+<span class="fc" id="L457">        String resourceType = resourceVo.getResourceType();</span>
+<span class="fc" id="L458">        String resourceXML = resourceVo.getXml();</span>
+<span class="fc" id="L459">        ResourceInterface resource = this.createResourceType(resourceType);</span>
+<span class="fc" id="L460">        this.fillEmptyResourceFromXml(resource, resourceXML);</span>
+<span class="fc" id="L461">        resource.setMainGroup(resourceVo.getMainGroup());</span>
+<span class="fc" id="L462">        resource.setCreationDate(resourceVo.getCreationDate());</span>
+<span class="fc" id="L463">        resource.setLastModified(resourceVo.getLastModified());</span>
+<span class="fc" id="L464">        resource.setOwner(resourceVo.getOwner());</span>
+<span class="fc" id="L465">        resource.setFolderPath(resourceVo.getFolderPath());</span>
+<span class="fc" id="L466">        resource.setCorrelationCode(resourceVo.getCorrelationCode());</span>
+<span class="fc" id="L467">        return resource;</span>
+    }
+
+    /**
+     * Valorizza una risorsa prototipo con gli elementi dell'xml che rappresenta
+     * una risorsa specifica.
+     *
+     * @param resource Il prototipo di risorsa da specializzare con gli
+     * attributi dell'xml.
+     * @param xml L'xml della risorsa specifica.
+     * @throws EntException
+     */
+    protected void fillEmptyResourceFromXml(ResourceInterface resource, String xml) throws EntException {
+        try {
+<span class="fc" id="L481">            SAXParser parser = EntSafeXmlUtils.newSafeSAXParser();</span>
+<span class="fc" id="L482">            InputSource is = new InputSource(new StringReader(xml));</span>
+<span class="fc" id="L483">            ResourceHandler handler = new ResourceHandler(resource, this.getCategoryManager());</span>
+<span class="fc" id="L484">            parser.parse(is, handler);</span>
+<span class="nc" id="L485">        } catch (Throwable t) {</span>
+<span class="nc" id="L486">            logger.error(&quot;Error loading resource&quot;, t);</span>
+<span class="nc" id="L487">            throw new EntException(&quot;Error loading resource&quot;, t);</span>
+<span class="fc" id="L488">        }</span>
+<span class="fc" id="L489">    }</span>
+
+    /**
+     * Cancella una risorsa dal db ed i file di ogni istanza dal filesystem.
+     *
+     * @param resource La risorsa da cancellare.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void deleteResource(ResourceInterface resource) throws EntException {
+        try {
+<span class="fc" id="L500">            this.getResourceDAO().deleteResource(resource.getId());</span>
+<span class="fc" id="L501">            resource.deleteResourceInstances();</span>
+<span class="nc" id="L502">        } catch (Throwable t) {</span>
+<span class="nc" id="L503">            logger.error(&quot;Error deleting resource&quot;, t);</span>
+<span class="nc" id="L504">            throw new EntException(&quot;Error deleting resource&quot;, t);</span>
+<span class="fc" id="L505">        }</span>
+<span class="fc" id="L506">    }</span>
+
+    @Override
+    public void refreshMasterFileNames() throws EntException {
+<span class="nc" id="L510">        this.startResourceReloaderThread(null, ResourceReloaderThread.RELOAD_MASTER_FILE_NAME);</span>
+<span class="nc" id="L511">    }</span>
+
+    @Override
+    public void refreshResourcesInstances(String resourceTypeCode) throws EntException {
+<span class="nc" id="L515">        this.startResourceReloaderThread(resourceTypeCode, ResourceReloaderThread.REFRESH_INSTANCE);</span>
+<span class="nc" id="L516">    }</span>
+
+    protected void startResourceReloaderThread(String resourceTypeCode, int operationCode) throws EntException {
+<span class="nc bnc" id="L519" title="All 2 branches missed.">        if (this.getStatus() != STATUS_READY) {</span>
+<span class="nc" id="L520">            logger.info(&quot;Service not ready : status {}&quot;, this.getStatus());</span>
+<span class="nc" id="L521">            return;</span>
+        }
+<span class="nc" id="L523">        String threadName = this.getName() + &quot;_resourceReloader_&quot; + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMdd&quot;);</span>
+        try {
+<span class="nc" id="L525">            List&lt;String&gt; resources = this.getResourceDAO().searchResourcesId(resourceTypeCode, null, null, null);</span>
+<span class="nc" id="L526">            ResourceReloaderThread thread = new ResourceReloaderThread(this, operationCode, resources);</span>
+<span class="nc" id="L527">            thread.setName(threadName);</span>
+<span class="nc" id="L528">            thread.start();</span>
+<span class="nc" id="L529">            logger.info(&quot;Reloader started&quot;);</span>
+<span class="nc" id="L530">        } catch (Throwable t) {</span>
+<span class="nc" id="L531">            logger.error(&quot;Error refreshing Resource of type {} - Thread Name '{}'&quot;, resourceTypeCode, threadName, t);</span>
+<span class="nc" id="L532">        }</span>
+<span class="nc" id="L533">    }</span>
+
+    protected void refreshMasterFileNames(String resourceId) {
+        try {
+<span class="nc" id="L537">            ResourceInterface resource = this.loadResource(resourceId);</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">            if (resource.isMultiInstance()) {</span>
+<span class="nc" id="L539">                ResourceInstance instance</span>
+<span class="nc" id="L540">                        = ((AbstractMultiInstanceResource) resource).getInstance(0, null);</span>
+<span class="nc" id="L541">                String filename = instance.getFileName();</span>
+<span class="nc" id="L542">                int index = filename.lastIndexOf(&quot;_d0.&quot;);</span>
+<span class="nc" id="L543">                String masterFileName = filename.substring(0, index) + filename.substring(index + 3);</span>
+<span class="nc" id="L544">                resource.setMasterFileName(masterFileName);</span>
+<span class="nc" id="L545">            } else {</span>
+<span class="nc" id="L546">                ResourceInstance instance</span>
+<span class="nc" id="L547">                        = ((AbstractMonoInstanceResource) resource).getInstance();</span>
+<span class="nc" id="L548">                resource.setMasterFileName(instance.getFileName());</span>
+            }
+<span class="nc" id="L550">            this.updateResource(resource);</span>
+<span class="nc" id="L551">        } catch (Throwable t) {</span>
+<span class="nc" id="L552">            logger.error(&quot;Error reloading master file name of resource {}&quot;, resourceId, t);</span>
+<span class="nc" id="L553">        }</span>
+<span class="nc" id="L554">    }</span>
+
+    protected void refreshResourceInstances(String resourceId) {
+        try {
+<span class="nc" id="L558">            ResourceInterface resource = this.loadResource(resourceId);</span>
+<span class="nc" id="L559">            resource.reloadResourceInstances();</span>
+<span class="nc" id="L560">            this.updateResource(resource);</span>
+<span class="nc" id="L561">        } catch (Throwable t) {</span>
+<span class="nc" id="L562">            logger.error(&quot;Error refreshing resource instances of resource {}&quot;, resourceId, t);</span>
+<span class="nc" id="L563">        }</span>
+<span class="nc" id="L564">    }</span>
+
+    @Override
+    public List&lt;String&gt; getGroupUtilizers(String groupName) throws EntException {
+<span class="fc" id="L568">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="fc" id="L570">            List&lt;String&gt; allowedGroups = new ArrayList&lt;&gt;(1);</span>
+<span class="fc" id="L571">            allowedGroups.add(groupName);</span>
+<span class="fc" id="L572">            resourcesId = this.getResourceDAO().searchResourcesId(null, null, null, null, allowedGroups);</span>
+<span class="nc" id="L573">        } catch (Throwable t) {</span>
+<span class="nc" id="L574">            logger.error(&quot;Error searching group utilizers : group '{}'&quot;, groupName, t);</span>
+<span class="nc" id="L575">            throw new EntException(&quot;Error searching group utilizers : group '&quot; + groupName + &quot;'&quot;, t);</span>
+<span class="fc" id="L576">        }</span>
+<span class="fc" id="L577">        return resourcesId;</span>
+    }
+
+    @Override
+    public List getCategoryUtilizers(String categoryCode) throws EntException {
+<span class="fc" id="L582">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="fc" id="L584">            resourcesId = this.getResourceDAO().searchResourcesId(null, null, null, categoryCode, null);</span>
+<span class="nc" id="L585">        } catch (Throwable t) {</span>
+<span class="nc" id="L586">            logger.error(&quot;Error searching category utilizers : category code '{}'&quot;, categoryCode, t);</span>
+<span class="nc" id="L587">            throw new EntException(&quot;Error searching category utilizers : category code '&quot; + categoryCode + &quot;'&quot;, t);</span>
+<span class="fc" id="L588">        }</span>
+<span class="fc" id="L589">        return resourcesId;</span>
+    }
+
+    @Override
+    public void reloadCategoryReferences(String categoryCode) throws EntException {
+        try {
+<span class="nc" id="L595">            List&lt;String&gt; resources = this.getCategoryUtilizersForReloadReferences(categoryCode);</span>
+<span class="nc" id="L596">            logger.info(&quot;start reload category references for {} resources&quot;, resources.size());</span>
+<span class="nc" id="L597">            ReloadingCategoryReferencesThread th = null;</span>
+<span class="nc" id="L598">            Thread currentThread = Thread.currentThread();</span>
+<span class="nc bnc" id="L599" title="All 2 branches missed.">            if (currentThread instanceof ReloadingCategoryReferencesThread) {</span>
+<span class="nc" id="L600">                th = (ReloadingCategoryReferencesThread) Thread.currentThread();</span>
+<span class="nc" id="L601">                th.setListSize(resources.size());</span>
+            }
+<span class="nc bnc" id="L603" title="All 4 branches missed.">            if (null != resources &amp;&amp; !resources.isEmpty()) {</span>
+<span class="nc" id="L604">                Iterator&lt;String&gt; it = resources.iterator();</span>
+<span class="nc bnc" id="L605" title="All 2 branches missed.">                while (it.hasNext()) {</span>
+<span class="nc" id="L606">                    String code = it.next();</span>
+<span class="nc" id="L607">                    ResourceInterface resource = this.loadResource(code);</span>
+<span class="nc" id="L608">                    this.getResourceDAO().updateResourceRelations(resource);</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">                    if (null != th) {</span>
+<span class="nc" id="L610">                        th.setListIndex(th.getListIndex() + 1);</span>
+                    }
+<span class="nc" id="L612">                }</span>
+            }
+<span class="nc" id="L614">        } catch (Throwable t) {</span>
+<span class="nc" id="L615">            logger.error(&quot;Error searching category utilizers : category code '{}'&quot;, categoryCode, t);</span>
+<span class="nc" id="L616">            throw new EntException(&quot;Error searching category utilizers : category code '&quot; + categoryCode + &quot;'&quot;, t);</span>
+<span class="nc" id="L617">        }</span>
+<span class="nc" id="L618">    }</span>
+
+    @Override
+    public List getCategoryUtilizersForReloadReferences(String categoryCode) throws EntException {
+<span class="nc" id="L622">        List&lt;String&gt; resourcesId = null;</span>
+        try {
+<span class="nc" id="L624">            resourcesId = this.getCategoryUtilizers(categoryCode);</span>
+<span class="nc" id="L625">        } catch (Throwable t) {</span>
+<span class="nc" id="L626">            throw new EntException(&quot;Error searching category utilizers : category code '&quot; + categoryCode + &quot;'&quot;, t);</span>
+<span class="nc" id="L627">        }</span>
+<span class="nc" id="L628">        return resourcesId;</span>
+    }
+
+    @Override
+    public Map&lt;String, List&lt;String&gt;&gt; getMetadataMapping() {
+<span class="fc" id="L633">        Map&lt;String, List&lt;String&gt;&gt; cachedMapping = this.getCacheWrapper().getMetadataMapping();</span>
+<span class="fc bfc" id="L634" title="All 2 branches covered.">        if (null != cachedMapping) {</span>
+<span class="fc" id="L635">            return cachedMapping;</span>
+        }
+<span class="fc" id="L637">        Map&lt;String, List&lt;String&gt;&gt; mapping = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L639">            String xmlConfig = this.getConfigManager().getConfigItem(JacmsSystemConstants.CONFIG_ITEM_RESOURCE_METADATA_MAPPING);</span>
+<span class="fc" id="L640">            InputStream stream = new ByteArrayInputStream(xmlConfig.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L641">            JAXBContext context = JAXBContext.newInstance(JaxbMetadataMapping.class);</span>
+<span class="fc" id="L642">            Unmarshaller unmarshaller = context.createUnmarshaller();</span>
+<span class="fc" id="L643">            JaxbMetadataMapping jaxbMapping = (JaxbMetadataMapping) unmarshaller.unmarshal(stream);</span>
+<span class="fc" id="L644">            jaxbMapping.getFields().stream().forEach(m -&gt; {</span>
+<span class="fc" id="L645">                String key = m.getKey();</span>
+<span class="fc" id="L646">                String csv = m.getValue();</span>
+<span class="pc bpc" id="L647" title="1 of 2 branches missed.">                List&lt;String&gt; metadatas = (!StringUtils.isBlank(csv)) ? Arrays.asList(csv.split(&quot;,&quot;)) : new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L648">                mapping.put(key, metadatas);</span>
+<span class="fc" id="L649">            });</span>
+<span class="fc" id="L650">            this.getCacheWrapper().updateMetadataMapping(mapping);</span>
+<span class="nc" id="L651">        } catch (Exception e) {</span>
+<span class="nc" id="L652">            logger.error(&quot;Error Extracting resource metadata mapping&quot;, e);</span>
+<span class="nc" id="L653">            throw new RuntimeException(&quot;Error Extracting resource metadata mapping&quot;, e);</span>
+<span class="fc" id="L654">        }</span>
+<span class="fc" id="L655">        return mapping;</span>
+    }
+
+    @Override
+    public void updateMetadataMapping(Map&lt;String, List&lt;String&gt;&gt; mapping) throws EntException {
+        try {
+<span class="fc" id="L661">            JAXBContext context = JAXBContext.newInstance(JaxbMetadataMapping.class);</span>
+<span class="fc" id="L662">            Marshaller marshaller = context.createMarshaller();</span>
+<span class="fc" id="L663">            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);</span>
+<span class="fc" id="L664">            StringWriter writer = new StringWriter();</span>
+<span class="fc" id="L665">            marshaller.marshal(new JaxbMetadataMapping(mapping), writer);</span>
+<span class="fc" id="L666">            String config = writer.toString();</span>
+<span class="fc" id="L667">            this.getConfigManager().updateConfigItem(JacmsSystemConstants.CONFIG_ITEM_RESOURCE_METADATA_MAPPING, config);</span>
+<span class="fc" id="L668">            this.getCacheWrapper().updateMetadataMapping(mapping);</span>
+<span class="nc" id="L669">        } catch (Exception e) {</span>
+<span class="nc" id="L670">            logger.error(&quot;Error Updating resource metadata mapping&quot;, e);</span>
+<span class="nc" id="L671">            throw new EntException(&quot;Error Updating resource metadata mapping&quot;, e);</span>
+<span class="fc" id="L672">        }</span>
+<span class="fc" id="L673">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LanguageProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">LanguageProcessor.java</span></div><h1>LanguageProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
+
+import static java.util.Optional.ofNullable;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.BundleDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.LanguageDescriptor;
+import org.entando.kubernetes.model.bundle.installable.Installable;
+import org.entando.kubernetes.model.bundle.installable.LanguageInstallable;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+/**
+ * Processor to create Languages.
+ */
+<span class="fc" id="L28">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class LanguageProcessor implements ComponentProcessor&lt;LanguageDescriptor&gt; {
+
+    private final EntandoCoreClient engineService;
+
+    @Override
+    public ComponentType getSupportedComponentType() {
+<span class="fc" id="L37">        return ComponentType.LANGUAGE;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;LanguageDescriptor&gt;&gt; process(BundleReader npr) {
+        try {
+<span class="fc" id="L43">            BundleDescriptor descriptor = npr.readBundleDescriptor();</span>
+
+<span class="fc" id="L45">            final List&lt;String&gt; languageDescriptorFiles = ofNullable(descriptor.getComponents())</span>
+<span class="fc" id="L46">                    .map(ComponentSpecDescriptor::getLanguages)</span>
+<span class="fc" id="L47">                    .orElse(Collections.emptyList());</span>
+
+<span class="fc" id="L49">            final List&lt;Installable&lt;LanguageDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            for (String ldf : languageDescriptorFiles) {</span>
+<span class="fc" id="L52">                List&lt;LanguageDescriptor&gt; languageDescriptorList = npr</span>
+<span class="fc" id="L53">                        .readListOfDescriptorFile(ldf, LanguageDescriptor.class);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">                for (LanguageDescriptor ld : languageDescriptorList) {</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">                    if (StringUtils.isEmpty(ld.getCode())) {</span>
+<span class="nc" id="L56">                        throw new EntandoComponentManagerException(</span>
+                                &quot;The bundle has a language with empty code. A code is mandatory for each language.&quot;);
+                    }
+<span class="fc" id="L59">                    installables.add(new LanguageInstallable(engineService, ld));</span>
+<span class="fc" id="L60">                }</span>
+<span class="fc" id="L61">            }</span>
+
+<span class="fc" id="L63">            return installables;</span>
+<span class="nc" id="L64">        } catch (IOException e) {</span>
+<span class="nc" id="L65">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public List&lt;Installable&lt;LanguageDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
+<span class="fc" id="L71">        return components.stream()</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.LANGUAGE)</span>
+<span class="fc" id="L73">                .map(c -&gt; new LanguageInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
+<span class="fc" id="L74">                .collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public LanguageDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
+<span class="fc" id="L79">        return LanguageDescriptor.builder()</span>
+<span class="fc" id="L80">                .code(component.getComponentId())</span>
+<span class="fc" id="L81">                .build();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

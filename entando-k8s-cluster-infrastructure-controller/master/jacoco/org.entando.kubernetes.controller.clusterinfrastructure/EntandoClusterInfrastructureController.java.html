@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoClusterInfrastructureController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando Cluster Infrastructure Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.clusterinfrastructure</a> &gt; <span class="el_source">EntandoClusterInfrastructureController.java</span></div><h1>EntandoClusterInfrastructureController.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.clusterinfrastructure;
+
+import static org.entando.kubernetes.controller.clusterinfrastructure.EntandoK8SServiceDeployableContainer.clientIdOf;
+
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.quarkus.runtime.StartupEvent;
+import java.util.Optional;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import org.entando.kubernetes.controller.AbstractDbAwareController;
+import org.entando.kubernetes.controller.ExposedDeploymentResult;
+import org.entando.kubernetes.controller.IngressingDeployCommand;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.SimpleKeycloakClient;
+import org.entando.kubernetes.controller.common.InfrastructureConfig;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructure;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructureSpec;
+
+public class EntandoClusterInfrastructureController extends AbstractDbAwareController&lt;EntandoClusterInfrastructure&gt; {
+
+    @Inject
+    public EntandoClusterInfrastructureController(KubernetesClient kubernetesClient) {
+<span class="nc" id="L41">        super(kubernetesClient);</span>
+
+<span class="nc" id="L43">    }</span>
+
+    public EntandoClusterInfrastructureController(KubernetesClient kubernetesClient, boolean exitAutomatically) {
+<span class="nc" id="L46">        super(kubernetesClient, exitAutomatically);</span>
+
+<span class="nc" id="L48">    }</span>
+
+    public EntandoClusterInfrastructureController(SimpleK8SClient&lt;?&gt; k8sClient, SimpleKeycloakClient keycloakClient) {
+<span class="fc" id="L51">        super(k8sClient, keycloakClient);</span>
+<span class="fc" id="L52">    }</span>
+
+    public void onStartup(@Observes StartupEvent event) {
+<span class="fc" id="L55">        processCommand();</span>
+
+<span class="fc" id="L57">    }</span>
+
+    @Override
+    protected void synchronizeDeploymentState(EntandoClusterInfrastructure entandoClusterInfrastructure) {
+<span class="fc" id="L61">        KeycloakConnectionConfig keycloakConnectionConfig = k8sClient.entandoResources().findKeycloak(entandoClusterInfrastructure);</span>
+<span class="fc" id="L62">        ClusterInfrastructureDeploymentResult entandoK8SService = deployEntandoK8SService(entandoClusterInfrastructure,</span>
+                keycloakConnectionConfig);
+<span class="fc" id="L64">        saveClusterInfrastructureConnectionConfig(entandoClusterInfrastructure, entandoK8SService);</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (entandoClusterInfrastructure.getSpec().isDefault()) {</span>
+<span class="fc" id="L66">            k8sClient.entandoResources().loadDefaultConfigMap()</span>
+<span class="fc" id="L67">                    .addToData(InfrastructureConfig.DEFAULT_CLUSTER_INFRASTRUCTURE_NAMESPACE_KEY,</span>
+<span class="fc" id="L68">                            entandoClusterInfrastructure.getMetadata().getNamespace())</span>
+<span class="fc" id="L69">                    .addToData(InfrastructureConfig.DEFAULT_CLUSTER_INFRASTRUCTURE_NAME_KEY,</span>
+<span class="fc" id="L70">                            entandoClusterInfrastructure.getMetadata().getName())</span>
+<span class="fc" id="L71">                    .done();</span>
+        }
+<span class="fc" id="L73">    }</span>
+
+    private void saveClusterInfrastructureConnectionConfig(EntandoClusterInfrastructure entandoClusterInfrastructure,
+            ExposedDeploymentResult&lt;?&gt; entandoK8SService) {
+<span class="fc" id="L77">        k8sClient.secrets().createConfigMapIfAbsent(entandoClusterInfrastructure, new ConfigMapBuilder()</span>
+<span class="fc" id="L78">                .withNewMetadata()</span>
+<span class="fc" id="L79">                .withName(InfrastructureConfig.connectionConfigMapNameFor(entandoClusterInfrastructure))</span>
+<span class="fc" id="L80">                .endMetadata()</span>
+<span class="fc" id="L81">                .addToData(InfrastructureConfig.ENTANDO_K8S_SERVICE_CLIENT_ID_KEY, clientIdOf(entandoClusterInfrastructure))</span>
+<span class="fc" id="L82">                .addToData(InfrastructureConfig.ENTANDO_K8S_SERVICE_INTERNAL_URL_KEY, entandoK8SService.getInternalBaseUrl())</span>
+<span class="fc" id="L83">                .addToData(InfrastructureConfig.ENTANDO_K8S_SERVICE_EXTERNAL_URL_KEY, entandoK8SService.getExternalBaseUrl())</span>
+<span class="fc" id="L84">                .build());</span>
+<span class="fc" id="L85">    }</span>
+
+    private ClusterInfrastructureDeploymentResult deployEntandoK8SService(EntandoClusterInfrastructure entandoClusterInfrastructure,
+            KeycloakConnectionConfig keycloakConnectionConfig) {
+<span class="fc" id="L89">        EntandoK8SServiceDeployable deployable = new EntandoK8SServiceDeployable(entandoClusterInfrastructure, keycloakConnectionConfig);</span>
+<span class="fc" id="L90">        IngressingDeployCommand&lt;ClusterInfrastructureDeploymentResult, EntandoClusterInfrastructureSpec&gt; command =</span>
+                new IngressingDeployCommand&lt;&gt;(deployable);
+<span class="fc" id="L92">        ClusterInfrastructureDeploymentResult result = command.execute(k8sClient, Optional.of(keycloakClient));</span>
+<span class="fc" id="L93">        k8sClient.entandoResources().updateStatus(entandoClusterInfrastructure, command.getStatus());</span>
+<span class="fc" id="L94">        return result;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

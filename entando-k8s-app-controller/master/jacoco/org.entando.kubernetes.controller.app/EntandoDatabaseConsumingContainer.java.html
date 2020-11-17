@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoDatabaseConsumingContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando App Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.app</a> &gt; <span class="el_source">EntandoDatabaseConsumingContainer.java</span></div><h1>EntandoDatabaseConsumingContainer.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.app;
+
+import io.fabric8.kubernetes.api.model.EnvVar;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.database.DatabaseSchemaCreationResult;
+import org.entando.kubernetes.controller.spi.DatabasePopulator;
+import org.entando.kubernetes.controller.spi.DbAware;
+import org.entando.kubernetes.controller.spi.IngressingContainer;
+import org.entando.kubernetes.model.DbmsVendor;
+
+public abstract class EntandoDatabaseConsumingContainer implements DbAware, IngressingContainer {
+
+    private static final String PORTDB = &quot;portdb&quot;;
+    private static final String SERVDB = &quot;servdb&quot;;
+    private static final String PORTDB_PREFIX = &quot;PORTDB_&quot;;
+    private static final String SERVDB_PREFIX = &quot;SERVDB_&quot;;
+<span class="fc" id="L38">    private Map&lt;String, DatabaseSchemaCreationResult&gt; dbSchemas = new ConcurrentHashMap&lt;&gt;();</span>
+    private DbmsVendor dbmsVendor;
+
+<span class="fc" id="L41">    protected EntandoDatabaseConsumingContainer(DbmsVendor dbmsVendor) {</span>
+<span class="fc" id="L42">        this.dbmsVendor = dbmsVendor;</span>
+<span class="fc" id="L43">    }</span>
+
+    protected DatabasePopulator buildDatabasePopulator() {
+<span class="fc" id="L46">        return new EntandoAppDatabasePopulator(this);</span>
+    }
+
+    @Override
+    public String getWebContextPath() {
+<span class="fc" id="L51">        return &quot;/entando-de-app&quot;;</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getHealthCheckPath() {
+<span class="fc" id="L56">        return Optional.of(getWebContextPath());</span>
+    }
+
+    @Override
+    public void addEnvironmentVariables(List&lt;EnvVar&gt; vars) {
+<span class="fc" id="L61">        vars.add(new EnvVar(&quot;DB_STARTUP_CHECK&quot;, &quot;false&quot;, null));</span>
+<span class="fc" id="L62">        addEntandoDbConnectionVars(vars, this.dbSchemas.get(PORTDB), PORTDB_PREFIX);</span>
+<span class="fc" id="L63">        addEntandoDbConnectionVars(vars, this.dbSchemas.get(SERVDB), SERVDB_PREFIX);</span>
+<span class="fc" id="L64">    }</span>
+
+    private void addEntandoDbConnectionVars(List&lt;EnvVar&gt; vars, DatabaseSchemaCreationResult dbDeploymentResult,
+            String varNamePrefix) {
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if (dbDeploymentResult == null) {</span>
+<span class="fc" id="L70">            vars.add(new EnvVar(varNamePrefix + &quot;DRIVER&quot;, &quot;derby&quot;, null));</span>
+        } else {
+<span class="fc" id="L72">            String jdbcUrl = dbDeploymentResult.getJdbcUrl();</span>
+<span class="fc" id="L73">            vars.add(new EnvVar(varNamePrefix + &quot;URL&quot;, jdbcUrl, null));</span>
+<span class="fc" id="L74">            vars.add(new EnvVar(varNamePrefix + &quot;USERNAME&quot;, null,</span>
+<span class="fc" id="L75">                    KubeUtils.secretKeyRef(dbDeploymentResult.getSchemaSecretName(), KubeUtils.USERNAME_KEY)));</span>
+<span class="fc" id="L76">            vars.add(new EnvVar(varNamePrefix + &quot;PASSWORD&quot;, null,</span>
+<span class="fc" id="L77">                    KubeUtils.secretKeyRef(dbDeploymentResult.getSchemaSecretName(), KubeUtils.PASSSWORD_KEY)));</span>
+
+<span class="fc" id="L79">            JbossDatasourceValidation jbossDatasourceValidation = JbossDatasourceValidation.getValidConnectionCheckerClass(this.dbmsVendor);</span>
+<span class="fc" id="L80">            vars.add(new EnvVar(varNamePrefix + &quot;CONNECTION_CHECKER&quot;, jbossDatasourceValidation.getValidConnectionCheckerClassName(),</span>
+                    null));
+<span class="fc" id="L82">            vars.add(new EnvVar(varNamePrefix + &quot;EXCEPTION_SORTER&quot;, jbossDatasourceValidation.getExceptionSorterClassName(),</span>
+                    null));
+        }
+
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public List&lt;String&gt; getDbSchemaQualifiers() {
+<span class="fc" id="L90">        return Arrays.asList(PORTDB, SERVDB);</span>
+    }
+
+    @Override
+    public Optional&lt;DatabasePopulator&gt; useDatabaseSchemas(Map&lt;String, DatabaseSchemaCreationResult&gt; dbSchemas) {
+<span class="fc" id="L95">        this.dbSchemas = Optional.ofNullable(dbSchemas).orElse(new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L96">        return Optional.of(buildDatabasePopulator());</span>
+    }
+
+    /**
+     * EntandoAppDatabasePopulator class.
+     */
+    public static class EntandoAppDatabasePopulator implements DatabasePopulator {
+
+        private final EntandoDatabaseConsumingContainer entandoAppDeployableContainer;
+
+<span class="fc" id="L106">        public EntandoAppDatabasePopulator(EntandoDatabaseConsumingContainer entandoAppDeployableContainer) {</span>
+<span class="fc" id="L107">            this.entandoAppDeployableContainer = entandoAppDeployableContainer;</span>
+<span class="fc" id="L108">        }</span>
+
+        @Override
+        public String determineImageToUse() {
+<span class="fc" id="L112">            return entandoAppDeployableContainer.determineImageToUse();</span>
+        }
+
+        @Override
+        public String[] getCommand() {
+<span class="fc" id="L117">            return new String[]{&quot;/bin/bash&quot;, &quot;-c&quot;, &quot;/entando-common/init-db-from-deployment.sh&quot;};</span>
+        }
+
+        @Override
+        public void addEnvironmentVariables(List&lt;EnvVar&gt; vars) {
+<span class="fc" id="L122">            entandoAppDeployableContainer.addEnvironmentVariables(vars);</span>
+<span class="fc" id="L123">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

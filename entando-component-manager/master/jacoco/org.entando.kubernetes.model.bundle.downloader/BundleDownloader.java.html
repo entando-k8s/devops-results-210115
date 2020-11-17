@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BundleDownloader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.downloader</a> &gt; <span class="el_source">BundleDownloader.java</span></div><h1>BundleDownloader.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.downloader;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.debundle.EntandoDeBundleTag;
+
+<span class="fc" id="L13">@Slf4j</span>
+public abstract class BundleDownloader {
+
+    protected Path targetPath;
+
+<span class="fc" id="L18">    public enum Type {</span>
+<span class="fc" id="L19">        NPM,</span>
+<span class="fc" id="L20">        GIT</span>
+    }
+
+<span class="fc" id="L23">    public BundleDownloader() {</span>
+
+<span class="fc" id="L25">    }</span>
+
+    public Path saveBundleLocally(EntandoDeBundle bundle, EntandoDeBundleTag tag) {
+<span class="fc" id="L28">        log.info(&quot;Downloading bundle &quot; + bundle.getMetadata().getName() + &quot;@&quot; + tag.getVersion() + &quot; locally&quot;);</span>
+        try {
+<span class="fc" id="L30">            createTargetDirectory();</span>
+<span class="fc" id="L31">            saveBundleStrategy(tag, targetPath);</span>
+<span class="fc" id="L32">            log.info(&quot;Bundle downloaded locally at path &quot; + targetPath.toAbsolutePath());</span>
+<span class="nc" id="L33">        } catch (BundleDownloaderException | IOException e) {</span>
+<span class="nc" id="L34">            log.error(&quot;An error occurred while during download operation&quot;, e);</span>
+<span class="nc" id="L35">            throw new BundleDownloaderException(e);</span>
+<span class="fc" id="L36">        }</span>
+<span class="fc" id="L37">        return this.targetPath;</span>
+    }
+
+    protected abstract Path saveBundleStrategy(EntandoDeBundleTag tag, Path targetPath);
+
+    public Path getTargetPath() {
+<span class="nc" id="L43">        return this.targetPath;</span>
+    }
+
+    public Path createTargetDirectory() throws IOException {
+<span class="fc" id="L47">        targetPath = Files.createTempDirectory(null);</span>
+<span class="fc" id="L48">        return targetPath;</span>
+    }
+
+    public void cleanTargetDirectory() {
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">        if (targetPath != null &amp;&amp; targetPath.toFile().exists()) {</span>
+<span class="fc" id="L53">            try (Stream&lt;Path&gt; localFiles = Files.walk(targetPath)) {</span>
+<span class="fc" id="L54">                localFiles</span>
+<span class="fc" id="L55">                        .sorted(Comparator.reverseOrder())</span>
+<span class="fc" id="L56">                        .map(Path::toFile)</span>
+<span class="fc" id="L57">                        .forEach(File::delete);</span>
+<span class="nc" id="L58">            } catch (IOException e) {</span>
+<span class="nc" id="L59">                throw new BundleDownloaderException(</span>
+                        &quot;An error occurred while cleaning up environment post bundle install&quot;, e);
+<span class="fc" id="L61">            }</span>
+        }
+<span class="fc" id="L63">    }</span>
+
+    public static class BundleDownloaderException extends RuntimeException {
+
+        public BundleDownloaderException() {
+<span class="nc" id="L68">            super();</span>
+<span class="nc" id="L69">        }</span>
+
+        public BundleDownloaderException(String message) {
+<span class="nc" id="L72">            super(message);</span>
+<span class="nc" id="L73">        }</span>
+
+        public BundleDownloaderException(String message, Throwable cause) {
+<span class="nc" id="L76">            super(message, cause);</span>
+<span class="nc" id="L77">        }</span>
+
+        public BundleDownloaderException(Throwable cause) {
+<span class="nc" id="L80">            super(cause);</span>
+<span class="nc" id="L81">        }</span>
+
+        protected BundleDownloaderException(String message, Throwable cause, boolean enableSuppression,
+                boolean writableStackTrace) {
+<span class="nc" id="L85">            super(message, cause, enableSuppression, writableStackTrace);</span>
+<span class="nc" id="L86">        }</span>
+    }
+
+    public static BundleDownloader getForType(String type) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (type == null) {</span>
+<span class="fc" id="L91">            return new GitBundleDownloader();</span>
+        }
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        switch (type.toLowerCase()) {</span>
+            case &quot;npm&quot;:
+<span class="fc" id="L96">                return new NpmBundleDownloader();</span>
+            case &quot;git&quot;:
+            default:
+<span class="fc" id="L99">                return new GitBundleDownloader();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

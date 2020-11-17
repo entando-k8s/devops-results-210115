@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentActionHelperAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.apsadmin.content.helper</a> &gt; <span class="el_source">ContentActionHelperAspect.java</span></div><h1>ContentActionHelperAspect.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.apsadmin.content.helper;
+
+import java.util.Iterator;
+
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.entando.entando.plugins.jpseo.aps.system.JpseoSystemConstants;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.FriendlyCodeVO;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ISeoMappingManager;
+import org.entando.entando.plugins.jpseo.aps.util.FriendlyCodeGenerator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.opensymphony.xwork2.ActionSupport;
+
+@Aspect
+<span class="fc" id="L44">public class ContentActionHelperAspect {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ContentActionHelperAspect.class);</span>
+
+	@Before(&quot;execution(* com.agiletec.plugins.jacms.apsadmin.content.helper.ContentActionHelper.scanEntity(..))&quot;)
+	public void executeExtraScanEntity(JoinPoint joinPoint) {
+		try {
+<span class="fc" id="L51">			this.checkFriendlyCodes((IApsEntity)joinPoint.getArgs()[0], (ActionSupport)joinPoint.getArgs()[1]);</span>
+<span class="nc" id="L52">		} catch (Throwable t) {</span>
+<span class="nc" id="L53">			_logger.error(&quot;error in executeExtraScanEntity&quot;, t);</span>
+<span class="nc" id="L54">			throw new RuntimeException(&quot;Error executing Extra Scan Entity&quot;, t);</span>
+<span class="fc" id="L55">		}</span>
+<span class="fc" id="L56">	}</span>
+
+	/*
+	La validazione comporta il controllo sull'univocità del codice
+	Se il codice risulta già in uso viene restituito un errore.
+	Può capitare di avere il contenuto X pubblicato con friendly code fc_1 e di modificarlo in fc_2, senza ri-pubblicare il contenuto;
+	in questo caso, sul DB, il codice resterebbe fc_1.
+	Qualora nel mentre si pubblicasse il contenuto Y con friendly code fc_2, all'atto di pubblicare X si avrebbe un errore.
+	 */
+	protected void checkFriendlyCodes(IApsEntity entity, ActionSupport action) {
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">		if (null == entity) {</span>
+<span class="nc" id="L67">			_logger.error(&quot;Invocazione di scansione/salvataggio contenuto nullo&quot;);</span>
+<span class="nc" id="L68">			return;</span>
+		}
+<span class="fc" id="L70">		AttributeInterface attribute = entity.getAttributeByRole(JpseoSystemConstants.ATTRIBUTE_ROLE_FRIENDLY_CODE);</span>
+<span class="pc bpc" id="L71" title="3 of 4 branches missed.">		if (null != attribute &amp;&amp; attribute instanceof ITextAttribute) {</span>
+<span class="nc" id="L72">			String contentId = entity.getId();</span>
+<span class="nc" id="L73">			String msgPrefix = action.getText(&quot;EntityAttribute.singleAttribute.errorMessage.prefix&quot;, new String[] { attribute.getName() });</span>
+<span class="nc" id="L74">			ITextAttribute textAttr = (ITextAttribute) attribute;</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">			if (attribute.isMultilingual()) {</span>
+<span class="nc" id="L76">				String attributeName = attribute.getName();</span>
+<span class="nc" id="L77">				Iterator&lt;Lang&gt; langs = this.getLangManager().getLangs().iterator();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">				while (langs.hasNext()) {</span>
+<span class="nc" id="L79">					Lang currentLang = langs.next();</span>
+<span class="nc" id="L80">					this.checkFriendlyCode(textAttr.getTextForLang(currentLang.getCode()), currentLang, attributeName, msgPrefix, contentId, action);</span>
+<span class="nc" id="L81">				}</span>
+<span class="nc" id="L82">			} else {</span>
+<span class="nc" id="L83">				this.checkFriendlyCode(textAttr.getText(), null, attribute.getName(), msgPrefix, contentId, action);</span>
+			}
+		}
+<span class="fc" id="L86">	}</span>
+
+	private void checkFriendlyCode(String text, Lang currentLang, String attributeName, String msgPrefix, String contentId, ActionSupport action) {
+<span class="nc" id="L89">		String friendlyCode = FriendlyCodeGenerator.generateFriendlyCode(text);</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">		if (null != friendlyCode) {</span>
+<span class="nc" id="L91">			FriendlyCodeVO fcVO = this.getSeoMappingManager().getReference(friendlyCode);</span>
+<span class="nc bnc" id="L92" title="All 6 branches missed.">			if (null != fcVO &amp;&amp; (contentId==null || !contentId.equals(fcVO.getContentId()))) {</span>
+<span class="nc" id="L93">				String errorMsg = null;</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">				if (currentLang == null) {</span>
+<span class="nc" id="L95">					errorMsg = action.getText(&quot;jpseo.error.content.friendlyCode.alreadyInUse&quot;, new String[] { friendlyCode });</span>
+				} else {
+<span class="nc" id="L97">					errorMsg = action.getText(&quot;jpseo.error.content.friendlyCodeForLang.alreadyInUse&quot;, new String[] { friendlyCode, currentLang.getDescr() });</span>
+				}
+<span class="nc" id="L99">				String fcUtilizer = null;</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">				if (fcVO.getPageCode() != null) {</span>
+<span class="nc" id="L101">					fcUtilizer = action.getText(&quot;jpseo.error.content.friendlyCode.utilizer.page&quot;, new String[] { fcVO.getPageCode() });</span>
+				} else {
+<span class="nc" id="L103">					fcUtilizer = action.getText(&quot;jpseo.error.content.friendlyCode.utilizer.content&quot;, new String[] { fcVO.getContentId() });</span>
+				}
+<span class="nc" id="L105">				action.addFieldError(attributeName, msgPrefix + &quot; &quot; + errorMsg + &quot; &quot; + fcUtilizer);</span>
+			}
+		}
+<span class="nc" id="L108">	}</span>
+
+	protected ISeoMappingManager getSeoMappingManager() {
+<span class="nc" id="L111">		return _seoMappingManager;</span>
+	}
+	public void setSeoMappingManager(ISeoMappingManager seoMappingManager) {
+<span class="fc" id="L114">		this._seoMappingManager = seoMappingManager;</span>
+<span class="fc" id="L115">	}</span>
+
+	public ILangManager getLangManager() {
+<span class="nc" id="L118">		return _langManager;</span>
+	}
+	public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L121">		this._langManager = langManager;</span>
+<span class="fc" id="L122">	}</span>
+
+	private ISeoMappingManager _seoMappingManager;
+	private ILangManager _langManager;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

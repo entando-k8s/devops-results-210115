@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LanguageService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.language</a> &gt; <span class="el_source">LanguageService.java</span></div><h1>LanguageService.java</h1><pre class="source lang-java linenums">package org.entando.entando.aps.system.services.language;
+
+import java.util.List;
+
+import javax.annotation.PostConstruct;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.language.utils.LanguageRequestListProcessor;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.language.validator.LanguageValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+<span class="fc" id="L24">public class LanguageService implements ILanguageService {</span>
+
+<span class="fc" id="L26">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    private ILangManager langManager;
+
+    private LanguageDtoBuilder languageDtoBuilder;
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L34">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L38">        this.langManager = langManager;</span>
+<span class="fc" id="L39">    }</span>
+
+    protected IDtoBuilder&lt;Lang, LanguageDto&gt; getLanguageDtoBuilder() {
+<span class="fc" id="L42">        return languageDtoBuilder;</span>
+    }
+
+    @PostConstruct
+    public void setUpDto() {
+<span class="fc" id="L47">        this.languageDtoBuilder = new LanguageDtoBuilder();</span>
+<span class="fc" id="L48">        this.languageDtoBuilder.setLangManager(getLangManager());</span>
+<span class="fc" id="L49">    }</span>
+
+    @Override
+    public PagedMetadata&lt;LanguageDto&gt; getLanguages(RestListRequest requestList) {
+        try {
+<span class="fc" id="L54">            List&lt;Lang&gt; sysLangs = this.getLangManager().getAssignableLangs();</span>
+<span class="fc" id="L55">            List&lt;LanguageDto&gt; langs = this.getLanguageDtoBuilder().convert(sysLangs);</span>
+            
+<span class="fc" id="L57">            langs = new LanguageRequestListProcessor(requestList, langs)</span>
+<span class="fc" id="L58">                    .filterAndSort().toList();</span>
+
+            //page
+<span class="fc" id="L61">            SearcherDaoPaginatedResult&lt;LanguageDto&gt; langsResult = new SearcherDaoPaginatedResult&lt;&gt;(langs.size(), langs);</span>
+<span class="fc" id="L62">            langsResult.setCount(langs.size());</span>
+<span class="fc" id="L63">            PagedMetadata&lt;LanguageDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, langsResult);</span>
+<span class="fc" id="L64">            pagedMetadata.setBody(langs);</span>
+<span class="fc" id="L65">            pagedMetadata.imposeLimits();</span>
+<span class="fc" id="L66">            return pagedMetadata;</span>
+<span class="nc" id="L67">        } catch (Throwable t) {</span>
+<span class="nc" id="L68">            logger.error(&quot;error in search langs&quot;, t);</span>
+<span class="nc" id="L69">            throw new RestServerError(&quot;error in search langs&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public LanguageDto getLanguage(String code) {
+        try {
+<span class="fc" id="L76">            Lang lang = this.getLangManager().getAssignableLangs().stream().filter(i -&gt; i.getCode().equals(code)).findFirst().orElse(null);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            if (null == lang) {</span>
+<span class="fc" id="L78">                logger.warn(&quot;no lang found with code {}&quot;, code);</span>
+<span class="fc" id="L79">                throw new ResourceNotFoundException(LanguageValidator.ERRCODE_LANGUAGE_DOES_NOT_EXISTS, &quot;language&quot;, code);</span>
+            }
+<span class="fc" id="L81">            return this.getLanguageDtoBuilder().convert(lang);</span>
+<span class="nc" id="L82">        } catch (EntException ex) {</span>
+<span class="nc" id="L83">            throw new RestServerError(&quot;error in getting language &quot; + code, ex);</span>
+        }
+    }
+
+    @Override
+    public LanguageDto updateLanguage(String code, boolean status) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (status) {</span>
+<span class="fc" id="L90">            return this.enableLang(code);</span>
+        } else {
+<span class="fc" id="L92">            return this.disableLang(code);</span>
+        }
+    }
+
+    protected LanguageDto disableLang(String code) {
+        try {
+<span class="fc" id="L98">            Lang sysLang = this.getLangManager().getAssignableLangs().stream().filter(i -&gt; i.getCode().equals(code)).findFirst().orElse(null);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (null == sysLang) {</span>
+<span class="fc" id="L100">                logger.warn(&quot;no lang found with code {}&quot;, code);</span>
+<span class="fc" id="L101">                throw new ResourceNotFoundException(LanguageValidator.ERRCODE_LANGUAGE_DOES_NOT_EXISTS, &quot;language&quot;, code);</span>
+            }
+            //idempotent
+<span class="fc" id="L104">            Lang lang = this.getLangManager().getLang(code);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (null != this.getLangManager().getLang(code)) {</span>
+<span class="fc" id="L106">                BeanPropertyBindingResult validations = this.validateDisable(lang);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">                if (validations.hasErrors()) {</span>
+<span class="fc" id="L108">                    throw new ValidationConflictException(validations);</span>
+                }
+            }
+<span class="fc" id="L111">            this.getLangManager().removeLang(code);</span>
+<span class="fc" id="L112">            return this.getLanguageDtoBuilder().convert(sysLang);</span>
+<span class="nc" id="L113">        } catch (EntException ex) {</span>
+<span class="nc" id="L114">            throw new RestServerError(&quot;error disabling language &quot; + code, ex);</span>
+        }
+    }
+
+    protected LanguageDto enableLang(String code) {
+        try {
+<span class="fc" id="L120">            Lang lang = this.getLangManager().getAssignableLangs().stream().filter(i -&gt; i.getCode().equals(code)).findFirst().orElse(null);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">            if (null == lang) {</span>
+<span class="fc" id="L122">                logger.warn(&quot;no lang found with code {}&quot;, code);</span>
+<span class="fc" id="L123">                throw new ResourceNotFoundException(LanguageValidator.ERRCODE_LANGUAGE_DOES_NOT_EXISTS, &quot;language&quot;, code);</span>
+            }
+            //idempotent
+<span class="fc bfc" id="L126" title="All 2 branches covered.">            if (null == this.getLangManager().getLang(code)) {</span>
+<span class="fc" id="L127">                logger.warn(&quot;the lang {} is already active&quot;, code);</span>
+<span class="fc" id="L128">                this.getLangManager().addLang(lang.getCode());</span>
+            }
+<span class="fc" id="L130">            return this.getLanguageDtoBuilder().convert(lang);</span>
+<span class="nc" id="L131">        } catch (EntException ex) {</span>
+<span class="nc" id="L132">            throw new RestServerError(&quot;error enabling lang &quot; + code, ex);</span>
+        }
+    }
+
+    protected BeanPropertyBindingResult validateDisable(Lang lang) {
+<span class="fc" id="L137">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(lang, &quot;lang&quot;);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        if (lang.isDefault()) {</span>
+<span class="fc" id="L139">            bindingResult.reject(LanguageValidator.ERRCODE_LANGUAGE_CANNOT_DISABLE_DEFAULT, new Object[]{lang.getCode(), lang.getDescr()}, &quot;language.cannot.disable.default&quot;);</span>
+        }
+<span class="fc" id="L141">        return bindingResult;</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

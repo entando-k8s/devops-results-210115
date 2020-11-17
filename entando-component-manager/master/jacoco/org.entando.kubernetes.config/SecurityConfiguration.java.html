@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.config</a> &gt; <span class="el_source">SecurityConfiguration.java</span></div><h1>SecurityConfiguration.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.config;
+
+import org.entando.kubernetes.security.oauth2.JwtAuthorityExtractor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.zalando.problem.spring.web.advice.security.SecurityProblemSupport;
+
+@EnableWebSecurity
+@EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true)
+@Import(SecurityProblemSupport.class)
+public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
+
+    private static final String ADMIN = &quot;ROLE_ADMIN&quot;;//From JHipster generated code.
+    @Value(&quot;${spring.security.oauth2.client.provider.oidc.issuer-uri}&quot;)
+    private String issuerUri;
+
+    private final JwtAuthorityExtractor jwtAuthorityExtractor;
+    private final SecurityProblemSupport problemSupport;
+
+<span class="fc" id="L27">    public SecurityConfiguration(JwtAuthorityExtractor jwtAuthorityExtractor, SecurityProblemSupport problemSupport) {</span>
+<span class="fc" id="L28">        this.problemSupport = problemSupport;</span>
+<span class="fc" id="L29">        this.jwtAuthorityExtractor = jwtAuthorityExtractor;</span>
+<span class="fc" id="L30">    }</span>
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        // @formatter:off
+<span class="fc" id="L35">        http</span>
+<span class="fc" id="L36">                .csrf()</span>
+<span class="fc" id="L37">                .disable()</span>
+<span class="fc" id="L38">                .exceptionHandling()</span>
+<span class="fc" id="L39">                .accessDeniedHandler(problemSupport)</span>
+<span class="fc" id="L40">                .and()</span>
+<span class="fc" id="L41">                .headers()</span>
+<span class="fc" id="L42">                .contentSecurityPolicy(</span>
+                        &quot;default-src 'self'; frame-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://storage&quot;
+                                + &quot;.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:&quot;)
+<span class="fc" id="L45">                .and()</span>
+<span class="fc" id="L46">                .referrerPolicy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)</span>
+<span class="fc" id="L47">                .and()</span>
+<span class="fc" id="L48">                .featurePolicy(</span>
+                        &quot;geolocation 'none'; midi 'none'; sync-xhr 'none'; microphone 'none'; camera 'none'; magnetometer 'none'; &quot;
+                                + &quot;gyroscope 'none'; speaker 'none'; fullscreen 'self'; payment 'none'&quot;)
+<span class="fc" id="L51">                .and()</span>
+<span class="fc" id="L52">                .frameOptions()</span>
+<span class="fc" id="L53">                .deny()</span>
+<span class="fc" id="L54">                .and()</span>
+<span class="fc" id="L55">                .sessionManagement()</span>
+<span class="fc" id="L56">                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)</span>
+<span class="fc" id="L57">                .and()</span>
+<span class="fc" id="L58">                .authorizeRequests()</span>
+<span class="fc" id="L59">                .antMatchers(HttpMethod.OPTIONS, &quot;/**&quot;).permitAll()</span>
+<span class="fc" id="L60">                .antMatchers(&quot;/actuator/health&quot;).permitAll()</span>
+<span class="fc" id="L61">                .antMatchers(&quot;/actuator/info&quot;).permitAll()</span>
+<span class="fc" id="L62">                .antMatchers(&quot;/actuator/prometheus&quot;).permitAll()</span>
+<span class="fc" id="L63">                .antMatchers(&quot;/v3/api-docs/**&quot;, &quot;/swagger-ui.html&quot;, &quot;/swagger-ui/**&quot;).permitAll()</span>
+<span class="fc" id="L64">                .antMatchers(&quot;/actuator/**&quot;).hasAuthority(ADMIN)</span>
+<span class="fc" id="L65">                .antMatchers(&quot;/**&quot;).authenticated()</span>
+<span class="fc" id="L66">                .and()</span>
+<span class="fc" id="L67">                .oauth2ResourceServer()</span>
+<span class="fc" id="L68">                .jwt()</span>
+<span class="fc" id="L69">                .jwtAuthenticationConverter(jwtAuthorityExtractor)</span>
+<span class="fc" id="L70">                .and()</span>
+<span class="fc" id="L71">                .and()</span>
+<span class="fc" id="L72">                .oauth2Client();</span>
+        // @formatter:on
+<span class="fc" id="L74">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

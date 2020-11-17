@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common</a> &gt; <span class="el_source">AbstractDAO.java</span></div><h1>AbstractDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common;
+
+import java.io.Serializable;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+import javax.sql.DataSource;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import org.entando.entando.ent.exception.EntException;
+import java.sql.PreparedStatement;
+
+/**
+ * Classe contenente alcuni metodi di utilita per i DAO.
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L35">public abstract class AbstractDAO implements Serializable {</span>
+
+<span class="fc" id="L37">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractDAO.class);</span>
+	
+	/**
+	 * Traccia un'eccezione e rilancia una eccezione runtime 
+	 * con il messaggio specificato. Da usare nel catch delle eccezioni.
+	 * @param t L'eccezione occorsa.
+	 * @param message Il messaggio per la nuova ecceione da rilanciare
+	 * @param methodName Il nome del metodo in cui si e verificata l'eccezione 
+	 *                   (non indispensabile, può essere null)
+	 */
+	@Deprecated
+	protected void processDaoException(Throwable t, String message, String methodName) {
+<span class="nc" id="L49">		ApsSystemUtils.logThrowable(t, this, methodName, message);</span>
+<span class="nc" id="L50">		throw new RuntimeException(message, t);</span>
+	}
+
+	/**
+	 * Restituisce una connessione SQL relativa al datasource.
+	 * @return La connessione richiesta.
+	 * @throws EntException In caso di errore in apertura di connessione.
+	 */
+	protected Connection getConnection() throws EntException {
+<span class="fc" id="L59">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L61">			conn = this.getDataSource().getConnection();</span>
+<span class="nc" id="L62">		} catch (SQLException e) {</span>
+<span class="nc" id="L63">			_logger.error(&quot;Error getting connection to the datasource&quot;, e);</span>
+<span class="nc" id="L64">			throw new EntException(&quot;Error getting connection to the datasource&quot;, e);</span>
+<span class="fc" id="L65">		}</span>
+<span class="fc" id="L66">		return conn;</span>
+	}
+
+	/**
+	 * Chiude in modo controllato un resultset, uno statement e la connessione, 
+	 * senza rilanciare eccezioni. Da usare nel finally di gestione di
+	 * una eccezione.
+	 * @param res Il resultset da chiudere; può esser null
+	 * @param stat Lo statement da chiudere; può esser null
+	 * @param conn La connessione al db; può esser null
+	 */
+	protected void closeDaoResources(ResultSet res, Statement stat, Connection conn) {
+<span class="fc" id="L78">		this.closeDaoResources(res, stat);</span>
+<span class="fc" id="L79">		this.closeConnection(conn);</span>
+<span class="fc" id="L80">	}</span>
+
+	/**
+	 * Chiude in modo controllato un resultset e uno statement, 
+	 * senza rilanciare eccezioni. Da usare nel finally di gestione di
+	 * una eccezione.
+	 * @param res Il resultset da chiudere; può esser null
+	 * @param stat Lo statement da chiudere; può esser null
+	 */
+	protected void closeDaoResources(ResultSet res, Statement stat) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		if (res != null) {</span>
+			try {
+<span class="fc" id="L92">				res.close();</span>
+<span class="nc" id="L93">			} catch (Throwable t) {</span>
+<span class="nc" id="L94">				_logger.error(&quot;Error while closing the resultset&quot;, t);</span>
+<span class="fc" id="L95">			}</span>
+		}
+<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (stat != null) {</span>
+			try {
+<span class="fc" id="L99">				stat.close();</span>
+<span class="nc" id="L100">			} catch (Throwable t) {</span>
+<span class="nc" id="L101">				_logger.error(&quot;Error while closing the resultset&quot;, t);</span>
+<span class="fc" id="L102">			}</span>
+		}
+<span class="fc" id="L104">	}</span>
+
+	/**
+	 * Esegue un rollback, senza rilanciare eccezioni. 
+	 * Da usare nel blocco catch di gestione di una eccezione. 
+	 * @param conn La connessione al db.
+	 */
+	protected void executeRollback(Connection conn) {
+		try {
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">			if (conn != null) conn.rollback();</span>
+<span class="nc" id="L114">		} catch (SQLException e) {</span>
+<span class="nc" id="L115">			_logger.error(&quot;Error on connection rollback&quot;, e);</span>
+<span class="fc" id="L116">		}</span>
+<span class="fc" id="L117">	}</span>
+
+	/**
+	 * Chiude in modo controllato una connessione, 
+	 * senza rilanciare eccezioni. Da usare nel finally di gestione di
+	 * una eccezione.
+	 * @param conn La connessione al db; può esser null
+	 */
+	protected void closeConnection(Connection conn) {
+		try {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">			if (conn != null) conn.close();</span>
+<span class="nc" id="L128">		} catch (Throwable t) {</span>
+<span class="nc" id="L129">			_logger.error(&quot;Error closing the connection&quot;, t);</span>
+<span class="fc" id="L130">		}</span>
+<span class="fc" id="L131">	}</span>
+	
+	protected void executeQueryWithoutResultset(String query, Object... args) {
+<span class="fc" id="L134">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L136">			conn = this.getConnection();</span>
+<span class="fc" id="L137">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L138">			this.executeQueryWithoutResultset(conn, query, args);</span>
+<span class="fc" id="L139">			conn.commit();</span>
+<span class="fc" id="L140">		} catch (Throwable t) {</span>
+<span class="fc" id="L141">			this.executeRollback(conn);</span>
+<span class="fc" id="L142">			_logger.error(&quot;Error executing query&quot;,  t);</span>
+<span class="fc" id="L143">			throw new RuntimeException(&quot;Error executing query&quot;, t);</span>
+		} finally {
+<span class="fc" id="L145">			this.closeConnection(conn);</span>
+		}
+<span class="fc" id="L147">	}</span>
+	
+	protected void executeQueryWithoutResultset(Connection conn, String query, Object... args) {
+<span class="fc" id="L150">		PreparedStatement stat = null;</span>
+    	try {
+<span class="fc" id="L152">    		stat = conn.prepareStatement(query);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">			for (int i = 0; i &lt; args.length; i++) {</span>
+<span class="fc" id="L154">				Object object = args[i];</span>
+<span class="fc" id="L155">				stat.setObject(i+1, object);</span>
+			}
+<span class="fc" id="L157">    		stat.executeUpdate();</span>
+<span class="fc" id="L158">    	} catch (Throwable t) {</span>
+<span class="fc" id="L159">    		_logger.error(&quot;Error executing query&quot;,  t);</span>
+<span class="fc" id="L160">			throw new RuntimeException(&quot;Error executing query&quot;, t);</span>
+    	} finally {
+<span class="fc" id="L162">    		closeDaoResources(null, stat);</span>
+    	}
+<span class="fc" id="L164">	}</span>
+	
+	protected DataSource getDataSource() {
+<span class="fc" id="L167">		return this._dataSource;</span>
+	}
+
+	/**
+	 * Setta il datasource relativo al db gestito dalla classe dao.
+	 * @param dataSource Il datasorce da settare.
+	 */
+	public void setDataSource(DataSource dataSource) {
+<span class="fc" id="L175">		this._dataSource = dataSource;</span>
+<span class="fc" id="L176">	}</span>
+
+	private DataSource _dataSource;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

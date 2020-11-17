@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoCustomResourceResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Kubernetes Custom Model</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model</a> &gt; <span class="el_source">EntandoCustomResourceResolver.java</span></div><h1>EntandoCustomResourceResolver.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.model;
+
+import static java.lang.String.format;
+import static java.lang.Thread.sleep;
+
+import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.apiextensions.CustomResourceDefinition;
+import io.fabric8.kubernetes.client.CustomResourceList;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import io.fabric8.kubernetes.client.dsl.internal.CustomResourceOperationsImpl;
+import io.fabric8.kubernetes.internal.KubernetesDeserializer;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.net.HttpURLConnection;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.entando.kubernetes.model.app.EntandoApp;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeApp;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.externaldatabase.EntandoDatabaseService;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructure;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServer;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+
+public class EntandoCustomResourceResolver&lt;R extends EntandoCustomResource, L extends CustomResourceList&lt;R&gt;, D extends
+        DoneableEntandoCustomResource&lt;D, R&gt;&gt; {
+
+<span class="fc" id="L47">    private static final Logger LOGGER = Logger.getLogger(EntandoCustomResourceResolver.class.getName());</span>
+
+    static {
+<span class="fc" id="L50">        registerCustomKinds();</span>
+<span class="fc" id="L51">    }</span>
+
+    private final String crdName;
+    private final Class&lt;R&gt; customResourceClass;
+    private final Class&lt;L&gt; customResourceListClass;
+    private final Class&lt;D&gt; doneableCustomResourceClass;
+    private final String yamlFile;
+    private CustomResourceDefinition customResourceDefinition;
+
+<span class="fc" id="L60">    public EntandoCustomResourceResolver(Class&lt;R&gt; customResourceClass, Class&lt;L&gt; listCass, Class&lt;D&gt; doneableClass) {</span>
+        try {
+
+<span class="fc" id="L63">            R r = customResourceClass.getConstructor().newInstance();</span>
+<span class="fc" id="L64">            this.yamlFile = &quot;crd/&quot; + r.getKind() + &quot;CRD.yaml&quot;;</span>
+<span class="fc" id="L65">            this.crdName = r.getDefinitionName();</span>
+<span class="fc" id="L66">            this.customResourceClass = customResourceClass;</span>
+<span class="fc" id="L67">            this.customResourceListClass = listCass;</span>
+<span class="fc" id="L68">            this.doneableCustomResourceClass = doneableClass;</span>
+<span class="nc" id="L69">        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {</span>
+<span class="nc" id="L70">            throw new IllegalStateException(e);</span>
+<span class="fc" id="L71">        }</span>
+<span class="fc" id="L72">    }</span>
+
+    public static void registerCustomKinds() {
+<span class="fc" id="L75">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoApp&quot;, EntandoApp.class);</span>
+<span class="fc" id="L76">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoPlugin&quot;, EntandoPlugin.class);</span>
+<span class="fc" id="L77">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoClusterInfrastructure&quot;, EntandoClusterInfrastructure.class);</span>
+<span class="fc" id="L78">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoKeycloakServer&quot;, EntandoKeycloakServer.class);</span>
+<span class="fc" id="L79">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoAppPluginLink&quot;, EntandoAppPluginLink.class);</span>
+<span class="fc" id="L80">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoDatabaseService&quot;, EntandoDatabaseService.class);</span>
+<span class="fc" id="L81">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoDeBundle&quot;, EntandoDeBundle.class);</span>
+<span class="fc" id="L82">        KubernetesDeserializer.registerCustomKind(&quot;entando.org/v1#EntandoCompositeApp&quot;, EntandoCompositeApp.class);</span>
+<span class="fc" id="L83">    }</span>
+
+    public CustomResourceOperationsImpl&lt;R, L, D&gt; resolveOperation(KubernetesClient client) {
+        try {
+<span class="fc" id="L87">            synchronized (this) {</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                if (this.customResourceDefinition == null) {</span>
+<span class="fc" id="L89">                    this.customResourceDefinition = loadCrd(client);</span>
+                }
+<span class="fc" id="L91">            }</span>
+<span class="fc" id="L92">            CustomResourceOperationsImpl&lt;R, L, D&gt; oper = (CustomResourceOperationsImpl&lt;R, L, D&gt;) client</span>
+<span class="fc" id="L93">                    .customResources(customResourceDefinition, customResourceClass, customResourceListClass, doneableCustomResourceClass);</span>
+<span class="fc" id="L94">            int count = 0;</span>
+<span class="pc bpc" id="L95" title="3 of 4 branches missed.">            while (notAvailable(oper, client) &amp;&amp; count &lt; 100) {</span>
+<span class="nc" id="L96">                sleep(100);</span>
+<span class="nc" id="L97">                count++;</span>
+            }
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (notAvailable(oper, client)) {</span>
+<span class="nc" id="L100">                throw new IllegalStateException(&quot;Could not resolve CRD for &quot; + this.customResourceClass);</span>
+            }
+<span class="fc" id="L102">            return oper;</span>
+<span class="nc" id="L103">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L104">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L105">            throw new IllegalStateException(e);</span>
+        }
+    }
+
+    private CustomResourceDefinition loadCrd(KubernetesClient client) {
+        try {
+<span class="fc" id="L111">            CustomResourceDefinition crd = client.customResourceDefinitions().withName(crdName).get();</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            if (crd == null) {</span>
+<span class="fc" id="L113">                crd = client.customResourceDefinitions().load(loadYamlFile()).get();</span>
+                // see issue https://github.com/fabric8io/kubernetes-client/issues/1486
+<span class="fc" id="L115">                crd.getSpec().getValidation().getOpenAPIV3Schema().setDependencies(null);</span>
+<span class="fc" id="L116">                client.customResourceDefinitions().create(crd);</span>
+            }
+<span class="fc" id="L118">            return crd;</span>
+<span class="nc" id="L119">        } catch (KubernetesClientException e) {</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (e.getCode() == HttpURLConnection.HTTP_FORBIDDEN) {</span>
+<span class="nc" id="L121">                LOGGER.warning(</span>
+<span class="nc" id="L122">                        format(&quot;User does not have permissions to create CRD's. Assuming CRD's have already been deployed. Loading %s CRD&quot;</span>
+                                        + &quot; from classpath.&quot;,
+                                crdName));
+                //The code doesn't have RBAC permission to read the CRD. Let's assume it has already been deployed
+<span class="nc" id="L126">                List&lt;HasMetadata&gt; list = client.load(loadYamlFile()).get();</span>
+<span class="nc" id="L127">                return (CustomResourceDefinition) list.get(0);</span>
+            } else {
+<span class="nc" id="L129">                LOGGER.log(Level.SEVERE, &quot;Error&quot;, e);</span>
+<span class="nc" id="L130">                throw e;</span>
+            }
+<span class="nc" id="L132">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L133">            throw e;</span>
+        }
+    }
+
+    private InputStream loadYamlFile() {
+<span class="fc" id="L138">        InputStream resourceAsStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(yamlFile);</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (resourceAsStream == null) {</span>
+<span class="nc" id="L140">            LOGGER.severe(() -&gt; format(&quot;Could not load yaml file: %s&quot;, yamlFile));</span>
+<span class="nc" id="L141">            throw new IllegalStateException(&quot;Could not load yaml file: &quot; + yamlFile);</span>
+        }
+<span class="fc" id="L143">        return resourceAsStream;</span>
+    }
+
+    private boolean notAvailable(CustomResourceOperationsImpl&lt;R, L, D&gt; oper, KubernetesClient client) {
+        //Sometimes it takes a couple of seconds after registration for the resource to become available.
+        try {
+<span class="fc" id="L149">            String namespaceToUse = client.getNamespace();</span>
+<span class="pc bpc" id="L150" title="1 of 4 branches missed.">            if (isBlank(namespaceToUse) || client.namespaces().withName(namespaceToUse).get() == null) {</span>
+                //Only needed to wait until the resource is available in tests. We can assume the test user has access to the default
+                // namespace
+<span class="fc" id="L153">                namespaceToUse = &quot;default&quot;;</span>
+            }
+<span class="fc" id="L155">            oper.inNamespace(namespaceToUse).list();</span>
+<span class="fc" id="L156">            return false;</span>
+<span class="nc" id="L157">        } catch (KubernetesClientException e) {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            return e.getCode() == HttpURLConnection.HTTP_NOT_FOUND;</span>
+        }
+    }
+
+    private boolean isBlank(String namespaceToUse) {
+<span class="pc bpc" id="L163" title="2 of 4 branches missed.">        return namespaceToUse == null || namespaceToUse.isEmpty();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

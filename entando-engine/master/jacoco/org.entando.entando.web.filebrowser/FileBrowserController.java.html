@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileBrowserController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.filebrowser</a> &gt; <span class="el_source">FileBrowserController.java</span></div><h1>FileBrowserController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.filebrowser;
+
+import com.agiletec.aps.system.services.role.Permission;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.storage.IFileBrowserService;
+import org.entando.entando.aps.system.services.storage.StorageManagerUtil;
+import org.entando.entando.aps.system.services.storage.model.BasicFileAttributeViewDto;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.RestResponse;
+import org.entando.entando.web.filebrowser.model.FileBrowserFileRequest;
+import org.entando.entando.web.filebrowser.model.FileBrowserRequest;
+import org.entando.entando.web.filebrowser.validator.FileBrowserValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author E.Santoboni
+ */
+@RestController
+@RequestMapping(value = &quot;/fileBrowser&quot;)
+<span class="fc" id="L46">public class FileBrowserController {</span>
+
+<span class="fc" id="L48">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    public static final String PROTECTED_FOLDER = &quot;protectedFolder&quot;;
+    public static final String PREV_PATH = &quot;prevPath&quot;;
+    public static final String CURRENT_PATH = &quot;currentPath&quot;;
+
+    @Autowired
+    private IFileBrowserService fileBrowserService;
+
+    @Autowired
+    private FileBrowserValidator validator;
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;List&lt;BasicFileAttributeViewDto&gt;, Map&lt;String, Object&gt;&gt;&gt; browseFolder(
+            @RequestParam(value = CURRENT_PATH, required = false, defaultValue = &quot;&quot;) String currentPath,
+            @RequestParam(value = PROTECTED_FOLDER, required = false) Boolean protectedFolder) {
+
+<span class="fc" id="L66">        String safeCurrentPath =  StorageManagerUtil.mustBeValidDirName(currentPath);</span>
+
+<span class="fc" id="L68">        logger.debug(&quot;browsing folder {} - protected {}&quot;, safeCurrentPath, protectedFolder);</span>
+<span class="fc" id="L69">        List&lt;BasicFileAttributeViewDto&gt; result = this.getFileBrowserService()</span>
+<span class="fc" id="L70">                .browseFolder(safeCurrentPath, protectedFolder);</span>
+
+<span class="fc" id="L72">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (null != protectedFolder) {</span>
+<span class="fc" id="L74">            metadata.put(PROTECTED_FOLDER, protectedFolder);</span>
+        }
+<span class="fc" id="L76">        metadata.put(CURRENT_PATH, safeCurrentPath);</span>
+<span class="fc" id="L77">        String prevPath = this.getPrevFolderName(safeCurrentPath);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (null != safeCurrentPath) {</span>
+<span class="fc" id="L79">            metadata.put(PREV_PATH, prevPath);</span>
+        }
+<span class="fc" id="L81">        logger.debug(&quot;Content folder -&gt; {}&quot;, result);</span>
+<span class="fc" id="L82">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    protected String getPrevFolderName(String currentPath) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (StringUtils.isEmpty(currentPath)) {</span>
+<span class="fc" id="L87">            return null;</span>
+        }
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (!currentPath.contains(&quot;/&quot;)) {</span>
+<span class="fc" id="L90">            return &quot;&quot;;</span>
+        } else {
+<span class="fc" id="L92">            return currentPath.substring(0, currentPath.lastIndexOf(&quot;/&quot;));</span>
+        }
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/file&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map&lt;String, Object&gt;, Map&lt;String, Object&gt;&gt;&gt; getFile(
+            @RequestParam(value = CURRENT_PATH, required = false, defaultValue = &quot;&quot;) String currentPath,
+            @RequestParam(value = PROTECTED_FOLDER, required = false, defaultValue = &quot;false&quot;) Boolean protectedFolder) {
+<span class="fc" id="L101">        logger.debug(&quot;required file {} - protected {}&quot;, currentPath, protectedFolder);</span>
+<span class="fc" id="L102">        byte[] base64 = this.getFileBrowserService().getFileStream(currentPath, protectedFolder);</span>
+<span class="fc" id="L103">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L104">        result.put(PROTECTED_FOLDER, protectedFolder);</span>
+<span class="fc" id="L105">        result.put(&quot;path&quot;, currentPath);</span>
+<span class="fc" id="L106">        result.put(&quot;filename&quot;, this.getFilename(currentPath));</span>
+<span class="fc" id="L107">        result.put(&quot;base64&quot;, base64);</span>
+<span class="fc" id="L108">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L109">        metadata.put(PREV_PATH, this.getPrevFolderName(currentPath));</span>
+<span class="fc" id="L110">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/file&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map, Map&gt;&gt; addFile(
+            @Valid @RequestBody FileBrowserFileRequest request,
+            BindingResult bindingResult) {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L119">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L121">        this.getValidator().validate(request, bindingResult);</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L123">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L125">        this.getFileBrowserService().addFile(request, bindingResult);</span>
+<span class="fc" id="L126">        return this.executeFilePostPutRespose(request);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/file&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map, Map&gt;&gt; updateFile(@Valid @RequestBody FileBrowserFileRequest request, BindingResult bindingResult) {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L133">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L135">        this.getValidator().validate(request, bindingResult);</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L137">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L139">        this.getFileBrowserService().updateFile(request, bindingResult);</span>
+<span class="fc" id="L140">        return this.executeFilePostPutRespose(request);</span>
+    }
+
+    public ResponseEntity&lt;RestResponse&lt;Map, Map&gt;&gt; executeFilePostPutRespose(FileBrowserRequest request) {
+<span class="fc" id="L144">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L145">        result.put(PROTECTED_FOLDER, request.isProtectedFolder());</span>
+<span class="fc" id="L146">        result.put(&quot;path&quot;, request.getPath());</span>
+<span class="fc" id="L147">        result.put(&quot;filename&quot;, this.getFilename(request.getPath()));</span>
+<span class="fc" id="L148">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L149">        metadata.put(PREV_PATH, this.getPrevFolderName(request.getPath()));</span>
+<span class="fc" id="L150">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/file&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map, Map&gt;&gt; deleteFile(@RequestParam String currentPath, @RequestParam Boolean protectedFolder) {
+<span class="fc" id="L156">        logger.debug(&quot;delete file {} - protected {}&quot;, currentPath, protectedFolder);</span>
+<span class="fc" id="L157">        String safeCurrentPath =  StorageManagerUtil.mustBeValidDirName(currentPath);</span>
+<span class="fc" id="L158">        this.getFileBrowserService().deleteFile(safeCurrentPath, protectedFolder);</span>
+<span class="fc" id="L159">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L160">        result.put(PROTECTED_FOLDER, protectedFolder);</span>
+<span class="fc" id="L161">        result.put(&quot;path&quot;, safeCurrentPath);</span>
+<span class="fc" id="L162">        result.put(&quot;filename&quot;, this.getFilename(safeCurrentPath));</span>
+<span class="fc" id="L163">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L164">        metadata.put(PREV_PATH, this.getPrevFolderName(safeCurrentPath));</span>
+<span class="fc" id="L165">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/directory&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map&lt;String, Object&gt;, Map&lt;String, Object&gt;&gt;&gt; addDirectory(
+            @Valid @RequestBody FileBrowserRequest request,
+            BindingResult bindingResult) {
+        //-
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L175">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L177">        this.getValidator().validate(request, bindingResult);</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L179">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L181">        this.getFileBrowserService().addDirectory(request, bindingResult);</span>
+<span class="fc" id="L182">        return this.executeDirectoryRespose(request.getPath(), request.isProtectedFolder());</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/directory&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;Map&lt;String, Object&gt;, Map&lt;String, Object&gt;&gt;&gt; deleteDirectory(
+            @RequestParam String currentPath,
+            @RequestParam Boolean protectedFolder) {
+        //-
+<span class="fc" id="L191">        logger.debug(&quot;delete directory {} - protected {}&quot;, currentPath, protectedFolder);</span>
+<span class="fc" id="L192">        this.getFileBrowserService().deleteDirectory(currentPath, protectedFolder);</span>
+<span class="fc" id="L193">        return this.executeDirectoryRespose(currentPath, protectedFolder);</span>
+    }
+
+    public ResponseEntity&lt;RestResponse&lt;Map&lt;String, Object&gt;, Map&lt;String, Object&gt;&gt;&gt; executeDirectoryRespose(
+            String path, Boolean protectedFolder) {
+        //-
+<span class="fc" id="L199">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if (path.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L201">            path = path.substring(0, path.length() - 1);</span>
+        }
+<span class="fc" id="L203">        result.put(PROTECTED_FOLDER, protectedFolder);</span>
+<span class="fc" id="L204">        result.put(&quot;path&quot;, path);</span>
+<span class="fc" id="L205">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L206">        metadata.put(PREV_PATH, this.getPrevFolderName(path));</span>
+<span class="fc" id="L207">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    private String getFilename(String currentPath) {
+<span class="fc" id="L211">        String[] sections = currentPath.split(&quot;/&quot;);</span>
+<span class="fc" id="L212">        return sections[sections.length - 1];</span>
+    }
+
+    public IFileBrowserService getFileBrowserService() {
+<span class="fc" id="L216">        return fileBrowserService;</span>
+    }
+
+    public void setFileBrowserService(IFileBrowserService fileBrowserService) {
+<span class="fc" id="L220">        this.fileBrowserService = fileBrowserService;</span>
+<span class="fc" id="L221">    }</span>
+
+    public FileBrowserValidator getValidator() {
+<span class="fc" id="L224">        return validator;</span>
+    }
+
+    public void setValidator(FileBrowserValidator validator) {
+<span class="nc" id="L228">        this.validator = validator;</span>
+<span class="nc" id="L229">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

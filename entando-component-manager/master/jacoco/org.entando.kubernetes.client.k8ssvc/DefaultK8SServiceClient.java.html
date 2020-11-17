@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultK8SServiceClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.client.k8ssvc</a> &gt; <span class="el_source">DefaultK8SServiceClient.java</span></div><h1>DefaultK8SServiceClient.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.client.k8ssvc;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import io.fabric8.kubernetes.api.model.extensions.IngressRule;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.exception.k8ssvc.K8SServiceClientException;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.MediaTypes;
+import org.springframework.hateoas.client.Hop;
+import org.springframework.hateoas.client.Traverson;
+import org.springframework.hateoas.mediatype.hal.Jackson2HalModule;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.oauth2.client.OAuth2RestTemplate;
+import org.springframework.security.oauth2.client.resource.OAuth2ProtectedResourceDetails;
+import org.springframework.security.oauth2.client.token.grant.client.ClientCredentialsAccessTokenProvider;
+import org.springframework.security.oauth2.client.token.grant.client.ClientCredentialsResourceDetails;
+import org.springframework.security.oauth2.common.AuthenticationScheme;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponents;
+import org.springframework.web.util.UriComponentsBuilder;
+
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">public class DefaultK8SServiceClient implements K8SServiceClient {</span>
+
+<span class="fc" id="L52">    private static final Logger LOGGER = Logger.getLogger(DefaultK8SServiceClient.class.getName());</span>
+    public static final String APPS_ENDPOINT = &quot;apps&quot;;
+    public static final String PLUGINS_ENDPOINT = &quot;plugins&quot;;
+    public static final String BUNDLES_ENDPOINT = &quot;bundles&quot;;
+    public static final String APP_PLUGIN_LINKS_ENDPOINT = &quot;app-plugin-links&quot;;
+
+    private final String k8sServiceUrl;
+    private final String clientId;
+    private final String clientSecret;
+    private final String tokenUri;
+    private RestTemplate restTemplate;
+    private Traverson traverson;
+
+<span class="fc" id="L65">    public DefaultK8SServiceClient(String k8sServiceUrl, String clientId, String clientSecret, String tokenUri) {</span>
+<span class="fc" id="L66">        this.clientId = clientId;</span>
+<span class="fc" id="L67">        this.clientSecret = clientSecret;</span>
+<span class="fc" id="L68">        this.tokenUri = tokenUri;</span>
+<span class="fc" id="L69">        this.k8sServiceUrl = k8sServiceUrl;</span>
+<span class="fc" id="L70">        this.restTemplate = newRestTemplate();</span>
+<span class="fc" id="L71">        this.traverson = newTraverson();</span>
+<span class="fc" id="L72">    }</span>
+
+    public Traverson newTraverson() {
+<span class="fc" id="L75">        return new Traverson(URI.create(k8sServiceUrl), MediaTypes.HAL_JSON, MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L76">                .setRestOperations(getRestTemplate());</span>
+    }
+
+    public RestTemplate getRestTemplate() {
+<span class="fc" id="L80">        return restTemplate;</span>
+    }
+
+    public void setRestTemplate(RestTemplate restTemplate) {
+<span class="fc" id="L84">        this.restTemplate = restTemplate;</span>
+<span class="fc" id="L85">        this.traverson = newTraverson();</span>
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public List&lt;EntandoAppPluginLink&gt; getAppLinks(String entandoAppName) {
+<span class="fc" id="L90">        return tryOrThrow(() -&gt; {</span>
+<span class="fc" id="L91">            CollectionModel&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt; links = traverson</span>
+<span class="fc" id="L92">                    .follow(APP_PLUGIN_LINKS_ENDPOINT)</span>
+<span class="fc" id="L93">                    .follow(Hop.rel(&quot;app-links&quot;).withParameter(&quot;app&quot;, entandoAppName))</span>
+<span class="fc" id="L94">                    .toObject(new ParameterizedTypeReference&lt;CollectionModel&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt;&gt;() {</span>
+                    });
+<span class="pc bpc" id="L96" title="2 of 4 branches missed.">            assert links != null;</span>
+<span class="fc" id="L97">            return links.getContent().stream()</span>
+<span class="fc" id="L98">                    .map(EntityModel::getContent)</span>
+<span class="fc" id="L99">                    .collect(Collectors.toList());</span>
+        });
+    }
+
+    @Override
+    public EntandoPlugin getPluginForLink(EntandoAppPluginLink el) {
+<span class="fc" id="L105">        return tryOrThrow(() -&gt; traverson.follow(APP_PLUGIN_LINKS_ENDPOINT)</span>
+<span class="fc" id="L106">                .follow(Hop.rel(&quot;app-plugin-link&quot;).withParameter(&quot;name&quot;, el.getMetadata().getName()))</span>
+<span class="fc" id="L107">                .follow(&quot;plugin&quot;)</span>
+<span class="fc" id="L108">                .toObject(new ParameterizedTypeReference&lt;EntityModel&lt;EntandoPlugin&gt;&gt;() {</span>
+                })
+<span class="fc" id="L110">                .getContent(), &quot;get plugin associated with link &quot; + el.getMetadata().getName());</span>
+    }
+
+    @Override
+    public Optional&lt;EntandoPlugin&gt; getPluginByName(String name) {
+<span class="fc" id="L115">        EntandoPlugin plugin = null;</span>
+        try {
+<span class="fc" id="L117">            plugin = traverson.follow(PLUGINS_ENDPOINT)</span>
+<span class="fc" id="L118">                    .follow(Hop.rel(&quot;plugin&quot;).withParameter(&quot;name&quot;, name))</span>
+<span class="fc" id="L119">                    .toObject(new ParameterizedTypeReference&lt;EntityModel&lt;EntandoPlugin&gt;&gt;() {</span>
+                    })
+<span class="fc" id="L121">                    .getContent();</span>
+<span class="nc" id="L122">        } catch (RestClientResponseException ex) {</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (ex.getRawStatusCode() != 404) {</span>
+<span class="nc" id="L124">                throw new KubernetesClientException(&quot;An error occurred while retrieving plugin with name &quot; + name, ex);</span>
+            }
+<span class="fc" id="L126">        }</span>
+<span class="fc" id="L127">        return Optional.ofNullable(plugin);</span>
+    }
+
+    @Override
+    public void unlink(EntandoAppPluginLink el) {
+<span class="fc" id="L132">        String linkName = el.getMetadata().getName();</span>
+<span class="fc" id="L133">        String appName = el.getSpec().getEntandoAppName();</span>
+<span class="fc" id="L134">        String pluginName = el.getSpec().getEntandoAppNamespace();</span>
+<span class="fc" id="L135">        Link unlinkHref = traverson.follow(APP_PLUGIN_LINKS_ENDPOINT)</span>
+<span class="fc" id="L136">                .follow(Hop.rel(&quot;app-plugin-link&quot;).withParameter(&quot;name&quot;, linkName))</span>
+<span class="fc" id="L137">                .asLink();</span>
+<span class="fc" id="L138">        tryOrThrow(() -&gt; restTemplate.delete(unlinkHref.toUri()),</span>
+<span class="fc" id="L139">                String.format(&quot;unlink app %s and plugin %s&quot;, appName, pluginName));</span>
+<span class="fc" id="L140">    }</span>
+
+    @Override
+    public EntandoAppPluginLink linkAppWithPlugin(String name, String namespace, EntandoPlugin plugin) {
+<span class="fc" id="L144">        URI linkToCall = tryOrThrow(() -&gt; {</span>
+<span class="fc" id="L145">            Link linkToApp = traverson.follow(&quot;apps&quot;)</span>
+<span class="fc" id="L146">                    .follow(Hop.rel(&quot;app&quot;).withParameter(&quot;name&quot;, name))</span>
+<span class="fc" id="L147">                    .asLink();</span>
+<span class="fc" id="L148">            return UriComponentsBuilder.fromUri(linkToApp.toUri()).pathSegment(&quot;links&quot;).build(Collections.emptyMap());</span>
+        });
+
+<span class="fc" id="L151">        return tryOrThrow(() -&gt; {</span>
+<span class="fc" id="L152">                    RequestEntity&lt;EntandoPlugin&gt; request = RequestEntity</span>
+<span class="fc" id="L153">                            .post(linkToCall)</span>
+<span class="fc" id="L154">                            .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L155">                            .body(plugin);</span>
+<span class="fc" id="L156">                    ResponseEntity&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt; resp = restTemplate</span>
+<span class="fc" id="L157">                            .exchange(request, new ParameterizedTypeReference&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt;() {</span>
+                            });
+<span class="pc bpc" id="L159" title="2 of 4 branches missed.">                    if (resp.getStatusCode().is2xxSuccessful() &amp;&amp; resp.getBody() != null) {</span>
+<span class="fc" id="L160">                        return resp.getBody().getContent();</span>
+                    }
+<span class="nc" id="L162">                    throw new RestClientResponseException(&quot;Linking process failed&quot;,</span>
+<span class="nc" id="L163">                            resp.getStatusCodeValue(), resp.getStatusCode().getReasonPhrase(),</span>
+                            null, null, null);
+                },
+<span class="fc" id="L166">                String.format(&quot;linking app %s to plugin %s&quot;, name, plugin.getMetadata().getName())</span>
+        );
+    }
+
+    @Override
+    public Optional&lt;EntandoAppPluginLink&gt; getLinkByName(String linkName) {
+<span class="fc" id="L172">        EntandoAppPluginLink link = null;</span>
+        try {
+<span class="fc" id="L174">            link = traverson.follow(APP_PLUGIN_LINKS_ENDPOINT)</span>
+<span class="fc" id="L175">                    .follow(Hop.rel(&quot;app-plugin-link&quot;).withParameter(&quot;name&quot;, linkName))</span>
+<span class="fc" id="L176">                    .toObject(new ParameterizedTypeReference&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt;() {</span>
+                    })
+<span class="fc" id="L178">                    .getContent();</span>
+<span class="nc" id="L179">        } catch (RestClientResponseException ex) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if (ex.getRawStatusCode() != 404) {</span>
+<span class="nc" id="L181">                throw new KubernetesClientException(</span>
+                        &quot;An error occurred while retrieving entando-app-plugin-link with name &quot; + linkName, ex);
+            }
+<span class="fc" id="L184">        }</span>
+<span class="fc" id="L185">        return Optional.ofNullable(link);</span>
+    }
+
+    @Override
+    public List&lt;EntandoDeBundle&gt; getBundlesInObservedNamespaces() {
+<span class="fc" id="L190">        return tryOrThrow(() -&gt; traverson.follow(BUNDLES_ENDPOINT)</span>
+<span class="fc" id="L191">                .toObject(new ParameterizedTypeReference&lt;CollectionModel&lt;EntityModel&lt;EntandoDeBundle&gt;&gt;&gt;() {</span>
+                })
+<span class="fc" id="L193">                .getContent()</span>
+<span class="fc" id="L194">                .stream().map(EntityModel::getContent)</span>
+<span class="fc" id="L195">                .collect(Collectors.toList()));</span>
+    }
+
+    @Override
+    public List&lt;EntandoDeBundle&gt; getBundlesInNamespace(String namespace) {
+<span class="fc" id="L200">        return tryOrThrow(() -&gt; traverson.follow(BUNDLES_ENDPOINT)</span>
+<span class="fc" id="L201">                .follow(Hop.rel(&quot;bundles-in-namespace&quot;).withParameter(&quot;namespace&quot;, namespace))</span>
+<span class="fc" id="L202">                .toObject(new ParameterizedTypeReference&lt;CollectionModel&lt;EntityModel&lt;EntandoDeBundle&gt;&gt;&gt;() {</span>
+                })
+<span class="fc" id="L204">                .getContent()</span>
+<span class="fc" id="L205">                .stream().map(EntityModel::getContent)</span>
+<span class="fc" id="L206">                .collect(Collectors.toList()));</span>
+    }
+
+    @Override
+    public List&lt;EntandoDeBundle&gt; getBundlesInNamespaces(List&lt;String&gt; namespaces) {
+        @SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L212">        CompletableFuture&lt;List&lt;EntandoDeBundle&gt;&gt;[] futures = namespaces.stream()</span>
+<span class="pc" id="L213">                .map(n -&gt; CompletableFuture.supplyAsync(() -&gt; getBundlesInNamespace(n))</span>
+<span class="fc" id="L214">                        .exceptionally(ex -&gt; {</span>
+<span class="fc" id="L215">                            LOGGER.log(Level.SEVERE, &quot;An error occurred while retrieving bundle from a namespace&quot;, ex);</span>
+<span class="fc" id="L216">                            return Collections.emptyList();</span>
+                        }))
+<span class="fc" id="L218">                .toArray(CompletableFuture[]::new);</span>
+
+<span class="fc" id="L220">        return CompletableFuture.allOf(futures).thenApply(v -&gt; Arrays.stream(futures)</span>
+<span class="fc" id="L221">                .map(CompletableFuture::join)</span>
+<span class="fc" id="L222">                .flatMap(Collection::stream)</span>
+<span class="fc" id="L223">                .collect(Collectors.toList())</span>
+<span class="fc" id="L224">        ).join();</span>
+    }
+
+    @Override
+    public Optional&lt;EntandoDeBundle&gt; getBundleWithName(String name) {
+<span class="fc" id="L229">        EntandoDeBundle bundle = null;</span>
+        try {
+<span class="fc" id="L231">            bundle = traverson.follow(BUNDLES_ENDPOINT)</span>
+<span class="fc" id="L232">                    .follow(Hop.rel(&quot;bundle&quot;).withParameter(&quot;name&quot;, name))</span>
+<span class="fc" id="L233">                    .toObject(new ParameterizedTypeReference&lt;EntityModel&lt;EntandoDeBundle&gt;&gt;() {</span>
+                    })
+<span class="fc" id="L235">                    .getContent();</span>
+
+<span class="fc" id="L237">        } catch (RestClientResponseException ex) {</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">            if (ex.getRawStatusCode() != 404) {</span>
+<span class="nc" id="L239">                throw new KubernetesClientException(&quot;An error occurred while retrieving bundle with name &quot; + name, ex);</span>
+            }
+<span class="fc" id="L241">        }</span>
+<span class="fc" id="L242">        return Optional.ofNullable(bundle);</span>
+    }
+
+    @Override
+    public Optional&lt;EntandoDeBundle&gt; getBundleWithNameAndNamespace(String name, String namespace) {
+<span class="fc" id="L247">        return getBundlesInNamespace(namespace).stream()</span>
+<span class="fc" id="L248">                .filter(b -&gt; b.getMetadata().getName().equals(name))</span>
+<span class="fc" id="L249">                .findFirst();</span>
+    }
+
+    @Override
+    public boolean isPluginReadyToServeApp(EntandoPlugin plugin, String appName) {
+<span class="fc bfc" id="L254" title="All 2 branches covered.">        if (plugin.getSpec().getIngressPath() == null) {</span>
+<span class="fc" id="L255">            return false;</span>
+        }
+<span class="fc" id="L257">        Ingress appIngress = getAppIngress(appName);</span>
+<span class="fc" id="L258">        IngressRule ingressRule = appIngress.getSpec().getRules().stream().findFirst().&lt;RuntimeException&gt;orElseThrow(</span>
+                () -&gt; {
+<span class="nc" id="L260">                    throw new K8SServiceClientException(</span>
+<span class="nc" id="L261">                            &quot;EntandoApp ingress &quot; + appIngress.getMetadata().getName() + &quot; does not have an host&quot;);</span>
+                });
+
+<span class="fc" id="L264">        String appHost = ingressRule.getHost();</span>
+<span class="fc" id="L265">        UriComponents pluginHealthCheck = UriComponentsBuilder.newInstance()</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">                .scheme(appIngress.getSpec().getTls().isEmpty() ? &quot;http&quot; : &quot;https&quot;)</span>
+<span class="fc" id="L267">                .host(appHost)</span>
+<span class="fc" id="L268">                .path(plugin.getSpec().getIngressPath())</span>
+<span class="fc" id="L269">                .path(plugin.getSpec().getHealthCheckPath())</span>
+<span class="fc" id="L270">                .build();</span>
+<span class="fc" id="L271">        RequestEntity&lt;?&gt; request = RequestEntity</span>
+<span class="fc" id="L272">                .get(URI.create(pluginHealthCheck.toUriString()))</span>
+<span class="fc" id="L273">                .accept(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L274">                .build();</span>
+        try {
+<span class="fc" id="L276">            ResponseEntity&lt;Object&gt; response = this.restTemplate.exchange(request, Object.class);</span>
+<span class="fc" id="L277">            return response.getStatusCode().is2xxSuccessful();</span>
+<span class="nc" id="L278">        } catch (RestClientResponseException e) {</span>
+<span class="nc" id="L279">            HttpStatus status = HttpStatus.valueOf(e.getRawStatusCode());</span>
+<span class="nc bnc" id="L280" title="All 4 branches missed.">            if (status.equals(HttpStatus.NOT_FOUND) || status.equals(HttpStatus.SERVICE_UNAVAILABLE)) {</span>
+<span class="nc" id="L281">                return false;</span>
+            }
+<span class="nc" id="L283">            throw e;</span>
+<span class="nc" id="L284">        } catch (RestClientException e) {</span>
+<span class="nc" id="L285">            throw e;</span>
+        }
+
+    }
+
+    private Ingress getAppIngress(String appName) {
+<span class="fc" id="L291">        return tryOrThrow(() -&gt; traverson.follow(APPS_ENDPOINT)</span>
+<span class="fc" id="L292">                .follow(Hop.rel(&quot;app&quot;).withParameter(&quot;name&quot;, appName))</span>
+<span class="fc" id="L293">                .follow(&quot;app-ingress&quot;)</span>
+<span class="fc" id="L294">                .toObject(new ParameterizedTypeReference&lt;EntityModel&lt;Ingress&gt;&gt;() {</span>
+                })
+<span class="fc" id="L296">                .getContent());</span>
+    }
+
+
+    private RestTemplate newRestTemplate() {
+<span class="fc" id="L301">        OAuth2ProtectedResourceDetails resourceDetails = getResourceDetails();</span>
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">        if (resourceDetails == null) {</span>
+<span class="nc" id="L303">            return null;</span>
+        }
+<span class="fc" id="L305">        final OAuth2RestTemplate template = new OAuth2RestTemplate(resourceDetails);</span>
+<span class="fc" id="L306">        template.setRequestFactory(getRequestFactory());</span>
+<span class="fc" id="L307">        template.setAccessTokenProvider(new ClientCredentialsAccessTokenProvider());</span>
+
+<span class="fc" id="L309">        List&lt;HttpMessageConverter&lt;?&gt;&gt; messageConverters = Traverson</span>
+<span class="fc" id="L310">                .getDefaultMessageConverters(MediaType.APPLICATION_JSON, MediaTypes.HAL_JSON);</span>
+<span class="fc" id="L311">        if (messageConverters.stream()</span>
+<span class="pc bpc" id="L312" title="1 of 2 branches missed.">                .noneMatch(mc -&gt; mc.getSupportedMediaTypes().contains(MediaType.APPLICATION_JSON))) {</span>
+<span class="fc" id="L313">            messageConverters.add(0, getJsonConverter());</span>
+        }
+<span class="fc" id="L315">        template.setMessageConverters(messageConverters);</span>
+
+<span class="fc" id="L317">        return template;</span>
+    }
+
+    private HttpMessageConverter&lt;?&gt; getJsonConverter() {
+<span class="fc" id="L321">        final List&lt;MediaType&gt; supportedMediatypes = Arrays.asList(MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L322">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L323">        mapper.registerModule(new Jackson2HalModule());</span>
+<span class="fc" id="L324">        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+
+<span class="fc" id="L326">        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();</span>
+
+<span class="fc" id="L328">        converter.setObjectMapper(mapper);</span>
+<span class="fc" id="L329">        converter.setSupportedMediaTypes(supportedMediatypes);</span>
+
+<span class="fc" id="L331">        return converter;</span>
+    }
+
+
+    private OAuth2ProtectedResourceDetails getResourceDetails() {
+<span class="fc" id="L336">        final ClientCredentialsResourceDetails resourceDetails = new ClientCredentialsResourceDetails();</span>
+<span class="fc" id="L337">        resourceDetails.setAuthenticationScheme(AuthenticationScheme.header);</span>
+<span class="fc" id="L338">        resourceDetails.setClientId(clientId);</span>
+<span class="fc" id="L339">        resourceDetails.setClientSecret(clientSecret);</span>
+<span class="fc" id="L340">        resourceDetails.setClientAuthenticationScheme(AuthenticationScheme.form);</span>
+        try {
+<span class="fc" id="L342">            resourceDetails.setAccessTokenUri(UriComponentsBuilder.fromUriString(tokenUri).toUriString());</span>
+<span class="nc" id="L343">        } catch (IllegalArgumentException ex) {</span>
+<span class="nc" id="L344">            LOGGER.log(Level.SEVERE, ex, () -&gt; String.format(&quot;Issues when using %s as token uri&quot;, tokenUri));</span>
+<span class="nc" id="L345">            return null;</span>
+<span class="fc" id="L346">        }</span>
+<span class="fc" id="L347">        return resourceDetails;</span>
+    }
+
+    private ClientHttpRequestFactory getRequestFactory() {
+<span class="fc" id="L351">        final HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();</span>
+<span class="fc" id="L352">        final int timeout = 10000;</span>
+
+<span class="fc" id="L354">        requestFactory.setConnectionRequestTimeout(timeout);</span>
+<span class="fc" id="L355">        requestFactory.setConnectTimeout(timeout);</span>
+<span class="fc" id="L356">        requestFactory.setReadTimeout(timeout);</span>
+<span class="fc" id="L357">        return requestFactory;</span>
+    }
+
+    public void tryOrThrow(Runnable runnable, String actionDescription) {
+        try {
+<span class="fc" id="L362">            runnable.run();</span>
+<span class="fc" id="L363">        } catch (RestClientResponseException ex) {</span>
+<span class="fc" id="L364">            throw new KubernetesClientException(</span>
+<span class="fc" id="L365">                    String.format(&quot;An error occurred while %s: %d - %s&quot;,</span>
+                            actionDescription,
+<span class="fc" id="L367">                            ex.getRawStatusCode(),</span>
+<span class="fc" id="L368">                            ex.getResponseBodyAsString()),</span>
+                    ex);
+<span class="nc" id="L370">        } catch (Exception ex) {</span>
+<span class="nc" id="L371">            throw new KubernetesClientException(&quot;A generic error occurred while &quot; + actionDescription, ex);</span>
+<span class="fc" id="L372">        }</span>
+<span class="fc" id="L373">    }</span>
+
+    public &lt;T&gt; T tryOrThrow(Supplier&lt;T&gt; supplier) {
+<span class="fc" id="L376">        return tryOrThrow(supplier, &quot;talking with k8s-service&quot;);</span>
+    }
+
+
+    public &lt;T&gt; T tryOrThrow(Supplier&lt;T&gt; supplier, String action) {
+        try {
+<span class="fc" id="L382">            return supplier.get();</span>
+<span class="fc" id="L383">        } catch (RestClientResponseException ex) {</span>
+<span class="fc" id="L384">            throw new KubernetesClientException(</span>
+<span class="fc" id="L385">                    String.format(&quot;An error occurred while %s: %d - %s&quot;,</span>
+                            action,
+<span class="fc" id="L387">                            ex.getRawStatusCode(),</span>
+<span class="fc" id="L388">                            ex.getResponseBodyAsString()),</span>
+                    ex);
+<span class="nc" id="L390">        } catch (Exception ex) {</span>
+<span class="nc" id="L391">            throw new KubernetesClientException(&quot;A generic error occurred while &quot; + action, ex);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

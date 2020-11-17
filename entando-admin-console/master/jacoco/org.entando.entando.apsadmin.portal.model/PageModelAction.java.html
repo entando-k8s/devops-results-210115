@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageModelAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.portal.model</a> &gt; <span class="el_source">PageModelAction.java</span></div><h1>PageModelAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.portal.model;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.struts2.interceptor.ServletResponseAware;
+import org.apache.struts2.json.JSONUtil;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.apsadmin.portal.model.helper.IPageModelActionHelper;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.http.HttpStatus;
+
+
+import com.agiletec.aps.system.services.pagemodel.Frame;
+import com.agiletec.aps.system.services.pagemodel.FrameSketch;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.system.services.pagemodel.PageModelDOM;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.opensymphony.xwork2.Action;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L51">public class PageModelAction extends AbstractPageModelAction implements ServletResponseAware {</span>
+	
+<span class="fc" id="L53">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageModelAction.class);</span>
+
+	@Override
+	public void setServletResponse(HttpServletResponse response) {
+<span class="fc" id="L57">		this._response = response;</span>
+<span class="fc" id="L58">	}</span>
+
+	@Override
+	public void validate() {
+<span class="fc" id="L62">		super.validate();</span>
+<span class="fc" id="L63">		List&lt;String&gt; codeFieldErrors = this.getFieldErrors().get(&quot;code&quot;);</span>
+<span class="pc bpc" id="L64" title="3 of 4 branches missed.">		if (null == codeFieldErrors || codeFieldErrors.isEmpty()) {</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">			if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L66">				String currectCode = this.getCode();</span>
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">				if (currectCode.length() &gt; 0 &amp;&amp; null != this.getPageModel(currectCode)) {</span>
+<span class="fc" id="L68">					String[] args = {currectCode};</span>
+<span class="fc" id="L69">					this.addFieldError(&quot;code&quot;, this.getText(&quot;error.pageModel.duplicateCode&quot;, args));</span>
+				}
+			}
+			try {
+<span class="fc" id="L73">				String template = this.getTemplate();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">				if (StringUtils.isBlank(template)) {</span>
+<span class="fc" id="L75">					String jspTemplatePath = PageModel.getPageModelJspPath(this.getCode(), this.getPluginCode());</span>
+<span class="fc" id="L76">					boolean existsJsp = false;</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">					if (StringUtils.isNotBlank(jspTemplatePath)) {</span>
+<span class="fc" id="L78">						String folderPath = this.getRequest().getSession().getServletContext().getRealPath(&quot;/&quot;);</span>
+<span class="fc" id="L79">						existsJsp = (new File(folderPath + jspTemplatePath)).exists();</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">						if (!existsJsp) {</span>
+<span class="fc" id="L81">							existsJsp = this.checkModelResource(&quot;file:**&quot; + jspTemplatePath);</span>
+						}
+					}
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">					if (!existsJsp) {</span>
+<span class="fc" id="L85">						this.addFieldError(&quot;template&quot;, this.getText(&quot;error.pageModel.templateRequired&quot;));</span>
+					}
+				}
+<span class="fc bfc" id="L88" title="All 2 branches covered.">				if (!this.checkModelConfiguration()) {</span>
+<span class="fc" id="L89">					this.addFieldError(&quot;xmlConfiguration&quot;, this.getText(&quot;error.pageModel.invalidConfiguration&quot;));</span>
+				}
+<span class="nc" id="L91">			} catch (Throwable t) {</span>
+<span class="nc" id="L92">				_logger.error(&quot;error in validate&quot;, t);</span>
+<span class="fc" id="L93">			}</span>
+		}
+<span class="fc" id="L95">	}</span>
+	
+	private boolean checkModelResource(String path) throws Throwable {
+<span class="fc" id="L98">		boolean existsJsp = false;</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">		if (StringUtils.isBlank(path)) {</span>
+<span class="nc" id="L100">			return existsJsp;</span>
+		}
+<span class="fc" id="L102">		PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();</span>
+<span class="fc" id="L103">		Resource[] resources = resolver.getResources(path);</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">		for (int i = 0; i &lt; resources.length; i++) {</span>
+<span class="nc" id="L105">			Resource resource = resources[i];</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			if (resource.exists()) {</span>
+<span class="nc" id="L107">				return true;</span>
+			}
+		}
+<span class="fc" id="L110">		return false;</span>
+	}
+	
+	private boolean checkModelConfiguration() throws Throwable {
+		try {
+<span class="fc" id="L115">			String xml = this.getXmlConfiguration();</span>
+<span class="fc" id="L116">			PageModelDOM dom = new PageModelDOM(xml, this.getWidgetTypeManager());</span>
+<span class="fc" id="L117">			Frame[] configuration = dom.getConfiguration();</span>
+<span class="fc" id="L118">			return true;</span>
+<span class="fc" id="L119">		} catch (Exception e) {</span>
+<span class="fc" id="L120">			return false;</span>
+		}
+	}
+	
+	public String newModel() {
+<span class="nc" id="L125">		this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="nc" id="L126">		return SUCCESS;</span>
+	}
+	
+	public String edit() {
+<span class="fc" id="L130">		this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L131">		return this.extractPageModelFormValues();</span>
+	}
+	
+	public String showDetails() {
+<span class="nc" id="L135">		String result = this.extractPageModelFormValues();</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">		if (!result.equals(SUCCESS)) return result;</span>
+<span class="nc" id="L137">		this.extractReferencingObjects(this.getCode());</span>
+<span class="nc" id="L138">		return result;</span>
+	}
+	
+	protected String extractPageModelFormValues() {
+		try {
+<span class="fc" id="L143">			PageModel pageModel = super.getPageModel(this.getCode());</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">			if (null == pageModel) {</span>
+<span class="fc" id="L145">				this.addActionError(this.getText(&quot;error.pageModel.notExist&quot;));</span>
+<span class="fc" id="L146">				return &quot;pageModelList&quot;;</span>
+			}
+<span class="fc" id="L148">			this.setDescription(pageModel.getDescription());</span>
+<span class="fc" id="L149">			this.setPluginCode(pageModel.getPluginCode());</span>
+			
+			//TO DELETE - start
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">			if (null != pageModel.getConfiguration()) {</span>
+<span class="fc" id="L153">				PageModelDOM dom = new PageModelDOM(pageModel);</span>
+<span class="fc" id="L154">				String xml = dom.getXMLDocument();</span>
+<span class="fc" id="L155">				this.setXmlConfiguration(xml);</span>
+			}
+			//TO DELETE - end
+			
+<span class="fc" id="L159">			this.setTemplate(pageModel.getTemplate());</span>
+<span class="nc" id="L160">		} catch (Throwable t) {</span>
+<span class="nc" id="L161">			_logger.error(&quot;error in extractPageModelFormValues&quot;, t);</span>
+<span class="nc" id="L162">			return FAILURE;</span>
+<span class="fc" id="L163">		}</span>
+<span class="fc" id="L164">		return SUCCESS;</span>
+	}
+	
+	public String trash() {
+		try {
+<span class="fc" id="L169">			String check = this.checkModelForDelete();</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">			if (null != check) return check;</span>
+<span class="nc" id="L171">		} catch (Throwable t) {</span>
+<span class="nc" id="L172">			_logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L173">			return FAILURE;</span>
+<span class="fc" id="L174">		}</span>
+<span class="fc" id="L175">		return SUCCESS;</span>
+	}
+	
+	public String delete() {
+		try {
+<span class="fc" id="L180">			String check = this.checkModelForDelete();</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">			if (null != check) return check;</span>
+<span class="fc" id="L182">			this.getPageModelManager().deletePageModel(this.getCode());</span>
+<span class="nc" id="L183">		} catch (Throwable t) {</span>
+<span class="nc" id="L184">			_logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L185">			return FAILURE;</span>
+<span class="fc" id="L186">		}</span>
+<span class="fc" id="L187">		return SUCCESS;</span>
+	}
+	
+	public String save() {
+		try {
+<span class="fc" id="L192">			PageModel model = this.createPageModel();</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">			if (ApsAdminSystemConstants.ADD == this.getStrutsAction()) {</span>
+<span class="fc" id="L194">				this.getPageModelManager().addPageModel(model);</span>
+			} else {
+<span class="nc" id="L196">				this.getPageModelManager().updatePageModel(model);</span>
+			}
+<span class="nc" id="L198">		} catch (Throwable t) {</span>
+<span class="nc" id="L199">			_logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L200">			return FAILURE;</span>
+<span class="fc" id="L201">		}</span>
+<span class="fc" id="L202">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Updates the sketch info.
+	 * The body format must be the same returned by /do/rs/PageModel/frames?code=code
+	 * @return 200 - the page template xml representation, updated with the sketch info provided;
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public String updateSketch() {
+		try {
+<span class="nc" id="L213">			PageModel pageModel = this.getPageModelManager().getPageModel(this.getCode());</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">			if (null != pageModel) {</span>
+<span class="nc" id="L215">				String payload = getBody(this.getRequest());</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">				if (StringUtils.isNotBlank(payload)) {</span>
+<span class="nc" id="L217">					List&lt;Object&gt; list = (List&lt;Object&gt;) JSONUtil.deserialize(payload);</span>
+<span class="nc" id="L218">					Iterator&lt;Object&gt; it = list.iterator();</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">					while (it.hasNext()) {</span>
+<span class="nc" id="L220">						Map&lt;String, Object&gt; framemap = (Map&lt;String, Object&gt;) it.next();</span>
+<span class="nc" id="L221">						Long posVal = (Long)framemap.get(&quot;pos&quot;);</span>
+<span class="nc" id="L222">						Map&lt;String, Object&gt; sketchMap = (Map&lt;String, Object&gt;) framemap.get(&quot;sketch&quot;);</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">						if (null != sketchMap) {</span>
+<span class="nc" id="L224">							Number x1 = (Number) sketchMap.get(&quot;x1&quot;);</span>
+<span class="nc" id="L225">							Number y1 = (Number) sketchMap.get(&quot;y1&quot;);</span>
+<span class="nc" id="L226">							Number x2 = (Number) sketchMap.get(&quot;x2&quot;);</span>
+<span class="nc" id="L227">							Number y2 = (Number) sketchMap.get(&quot;y2&quot;);</span>
+<span class="nc" id="L228">							FrameSketch fs = new FrameSketch();</span>
+<span class="nc" id="L229">							fs.setCoords(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue());</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">							if (null != pageModel.getFrameConfig(posVal.intValue())){</span>
+<span class="nc" id="L231">								pageModel.getFrameConfig(posVal.intValue()).setSketch(fs);</span>
+							}
+						}
+<span class="nc" id="L234">					}</span>
+<span class="nc" id="L235">					this.getPageModelManager().updatePageModel(pageModel);</span>
+<span class="nc" id="L236">					String xml = new PageModelDOM(pageModel).getXMLDocument();</span>
+<span class="nc" id="L237">					this._response.getWriter().write(xml);</span>
+<span class="nc" id="L238">					this._response.setStatus(HttpStatus.OK.value());</span>
+<span class="nc" id="L239">					return Action.NONE;					</span>
+				}
+			}
+<span class="nc" id="L242">		} catch (Throwable t) {</span>
+<span class="nc" id="L243">			_logger.error(&quot;error in updateSketch&quot;, t);</span>
+<span class="nc" id="L244">			this._response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());</span>
+<span class="nc" id="L245">			return Action.NONE;</span>
+<span class="nc" id="L246">		}</span>
+<span class="nc" id="L247">		this._response.setStatus(HttpStatus.NOT_ACCEPTABLE.value());</span>
+<span class="nc" id="L248">		return Action.NONE;</span>
+	}
+
+	public static String getBody(HttpServletRequest request) throws IOException {
+
+<span class="nc" id="L253">	    String body = null;</span>
+<span class="nc" id="L254">	    StringBuilder stringBuilder = new StringBuilder();</span>
+<span class="nc" id="L255">	    BufferedReader bufferedReader = null;</span>
+
+	    try {
+<span class="nc" id="L258">	        InputStream inputStream = request.getInputStream();</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">	        if (inputStream != null) {</span>
+<span class="nc" id="L260">	            bufferedReader = new BufferedReader(new InputStreamReader(inputStream));</span>
+<span class="nc" id="L261">	            char[] charBuffer = new char[128];</span>
+<span class="nc" id="L262">	            int bytesRead = -1;</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">	            while ((bytesRead = bufferedReader.read(charBuffer)) &gt; 0) {</span>
+<span class="nc" id="L264">	                stringBuilder.append(charBuffer, 0, bytesRead);</span>
+	            }
+<span class="nc" id="L266">	        } else {</span>
+<span class="nc" id="L267">	            stringBuilder.append(&quot;&quot;);</span>
+	        }
+<span class="nc" id="L269">	    } catch (IOException ex) {</span>
+<span class="nc" id="L270">	        throw ex;</span>
+	    } finally {
+<span class="nc bnc" id="L272" title="All 2 branches missed.">	        if (bufferedReader != null) {</span>
+	            try {
+<span class="nc" id="L274">	                bufferedReader.close();</span>
+<span class="nc" id="L275">	            } catch (IOException ex) {</span>
+<span class="nc" id="L276">	                throw ex;</span>
+<span class="nc" id="L277">	            }</span>
+	        }
+	    }
+<span class="nc" id="L280">	    body = stringBuilder.toString();</span>
+<span class="nc" id="L281">	    return body;</span>
+	}
+
+	public Frame[] getFramesSketch() {
+<span class="nc" id="L285">		PageModel pageModel = super.getPageModel(this.getCode());</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">		if (null == pageModel) {</span>
+<span class="nc" id="L287">			this._response.setStatus(HttpStatus.NOT_FOUND.value());</span>
+<span class="nc" id="L288">			return null;</span>
+		}
+<span class="nc" id="L290">		return pageModel.getFramesConfig();</span>
+	}
+	
+	protected PageModel createPageModel() throws Throwable {
+<span class="fc" id="L294">		PageModel model = null;</span>
+		try {
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">			if (ApsAdminSystemConstants.ADD == this.getStrutsAction()) {</span>
+<span class="fc" id="L297">				model = new PageModel();</span>
+<span class="fc" id="L298">				model.setCode(this.getCode());</span>
+			} else {
+<span class="nc" id="L300">				model = this.getPageModel(this.getCode());</span>
+			}
+<span class="fc" id="L302">			model.setDescription(this.getDescription());</span>
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">			String template = (!StringUtils.isBlank(this.getTemplate())) ? this.getTemplate() : null;</span>
+<span class="fc" id="L304">			model.setTemplate(template);</span>
+			
+			//TO DELETE - start
+<span class="fc" id="L307">			String xml = this.getXmlConfiguration();</span>
+<span class="fc" id="L308">			PageModelDOM dom = new PageModelDOM(xml, this.getWidgetTypeManager());</span>
+<span class="fc" id="L309">			Frame[] configuration = dom.getConfiguration();</span>
+<span class="fc" id="L310">			int mainFrame = dom.getMainFrame();</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">			if (mainFrame &gt; -1 ) {</span>
+<span class="fc" id="L312">				model.setMainFrame(mainFrame);</span>
+			}
+<span class="fc" id="L314">			model.setConfiguration(configuration);</span>
+			//TO DELETE - end
+<span class="nc" id="L316">		} catch (Throwable t) {</span>
+<span class="nc" id="L317">			_logger.error(&quot;error in creating page template&quot;, t);</span>
+<span class="nc" id="L318">			throw t;</span>
+<span class="fc" id="L319">		}</span>
+<span class="fc" id="L320">		return model;</span>
+	}
+	
+	protected String checkModelForDelete() {
+<span class="fc" id="L324">		PageModel model = super.getPageModel(this.getCode());</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">		if (null == model) {</span>
+<span class="fc" id="L326">			this.addActionError(this.getText(&quot;error.pageModel.notExist&quot;));</span>
+<span class="fc" id="L327">			return &quot;pageModelList&quot;;</span>
+		}
+<span class="fc" id="L329">		this.extractReferencingObjects(this.getCode());</span>
+<span class="pc bpc" id="L330" title="1 of 4 branches missed.">		if (null != this.getReferences() &amp;&amp; this.getReferences().size() &gt; 0) {</span>
+<span class="fc" id="L331">	        return &quot;references&quot;;</span>
+		}
+<span class="fc" id="L333">		return null;</span>
+	}
+	
+	protected void extractReferencingObjects(String pageModelCode) {
+		try {
+<span class="fc" id="L338">			PageModel model = super.getPageModel(pageModelCode);</span>
+<span class="pc bpc" id="L339" title="1 of 2 branches missed.">			if (null != model) {</span>
+<span class="fc" id="L340">				Map references = this.getPageModelActionHelper().getReferencingObjects(model, this.getRequest());</span>
+<span class="pc bpc" id="L341" title="1 of 4 branches missed.">				if (null != references &amp;&amp; references.size() &gt; 0) {</span>
+<span class="fc" id="L342">					this.setReferences(references);</span>
+				}
+			}
+<span class="nc" id="L345">		} catch (Throwable t) {</span>
+<span class="nc" id="L346">			_logger.error(&quot;Error extracting referenced objects by page template '{}'&quot;, pageModelCode, t);</span>
+<span class="fc" id="L347">		}</span>
+<span class="fc" id="L348">	}</span>
+	
+	public String getCode() {
+<span class="fc" id="L351">		return _code;</span>
+	}
+	public void setCode(String code) {
+<span class="fc" id="L354">		this._code = code;</span>
+<span class="fc" id="L355">	}</span>
+	
+	public Integer getStrutsAction() {
+<span class="fc" id="L358">		return _strutsAction;</span>
+	}
+	public void setStrutsAction(Integer strutsAction) {
+<span class="fc" id="L361">		this._strutsAction = strutsAction;</span>
+<span class="fc" id="L362">	}</span>
+	
+	public String getDescription() {
+<span class="fc" id="L365">		return _description;</span>
+	}
+	public void setDescription(String description) {
+<span class="fc" id="L368">		this._description = description;</span>
+<span class="fc" id="L369">	}</span>
+	
+	public String getPluginCode() {
+<span class="fc" id="L372">		return _pluginCode;</span>
+	}
+	public void setPluginCode(String pluginCode) {
+<span class="fc" id="L375">		this._pluginCode = pluginCode;</span>
+<span class="fc" id="L376">	}</span>
+	
+	@Deprecated //TO DELETE
+	public String getXmlConfiguration() {
+<span class="fc" id="L380">		return _xmlConfiguration;</span>
+	}
+	@Deprecated //TO DELETE
+	public void setXmlConfiguration(String xmlConfiguration) {
+<span class="fc" id="L384">		this._xmlConfiguration = xmlConfiguration;</span>
+<span class="fc" id="L385">	}</span>
+	
+	public String getTemplate() {
+<span class="fc" id="L388">		return _template;</span>
+	}
+	public void setTemplate(String template) {
+<span class="fc" id="L391">		this._template = template;</span>
+<span class="fc" id="L392">	}</span>
+	
+	public Map&lt;String, List&lt;Object&gt;&gt; getReferences() {
+<span class="fc" id="L395">		return _references;</span>
+	}
+	protected void setReferences(Map&lt;String, List&lt;Object&gt;&gt; references) {
+<span class="fc" id="L398">		this._references = references;</span>
+<span class="fc" id="L399">	}</span>
+	
+	protected IWidgetTypeManager getWidgetTypeManager() {
+<span class="fc" id="L402">		return _widgetTypeManager;</span>
+	}
+	public void setWidgetTypeManager(IWidgetTypeManager widgetTypeManager) {
+<span class="fc" id="L405">		this._widgetTypeManager = widgetTypeManager;</span>
+<span class="fc" id="L406">	}</span>
+	
+	protected IPageModelActionHelper getPageModelActionHelper() {
+<span class="fc" id="L409">		return _pageModelActionHelper;</span>
+	}
+	public void setPageModelActionHelper(IPageModelActionHelper pageModelActionHelper) {
+<span class="fc" id="L412">		this._pageModelActionHelper = pageModelActionHelper;</span>
+<span class="fc" id="L413">	}</span>
+	
+	private String _code;
+	private Integer _strutsAction;
+	private String _description;
+	private String _pluginCode;
+	@Deprecated
+	private String _xmlConfiguration;//TO DELETE
+	private String _template;
+	
+	private Map&lt;String, List&lt;Object&gt;&gt; _references;
+	
+	private IWidgetTypeManager _widgetTypeManager;
+	private IPageModelActionHelper _pageModelActionHelper;
+	private HttpServletResponse _response;
+	
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

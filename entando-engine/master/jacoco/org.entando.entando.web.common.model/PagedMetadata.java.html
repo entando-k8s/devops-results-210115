@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagedMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.common.model</a> &gt; <span class="el_source">PagedMetadata.java</span></div><h1>PagedMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.common.model;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+import java.lang.reflect.Field;
+import java.util.*;
+import java.util.stream.*;
+
+public class PagedMetadata&lt;T&gt; {
+
+    private int page;
+    private int pageSize;
+    private int lastPage;
+    private int totalItems;
+    private String sort;
+    private String direction;
+<span class="pc" id="L33">    private Filter[] filters = new Filter[0];</span>
+<span class="pc" id="L34">    private Map&lt;String, String&gt; additionalParams = new HashMap&lt;&gt;();</span>
+
+    @JsonIgnore
+    private int actualSize;
+
+    @JsonIgnore
+    private List&lt;T&gt; body;
+
+<span class="fc" id="L42">    public PagedMetadata() {</span>
+<span class="fc" id="L43">    }</span>
+
+    public PagedMetadata(RestListRequest req, SearcherDaoPaginatedResult&lt;?&gt; result) {
+<span class="fc" id="L46">        this(req, result.getCount());</span>
+<span class="fc" id="L47">    }</span>
+
+<span class="fc" id="L49">    public PagedMetadata(RestListRequest req, Integer totalItems) {</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (0 == req.getPageSize()) {</span>
+            // no pagination
+<span class="nc" id="L52">            this.actualSize = totalItems;</span>
+        } else {
+<span class="fc" id="L54">            this.actualSize = req.getPageSize();</span>
+        }
+<span class="fc" id="L56">        this.page = req.getPage();</span>
+<span class="fc" id="L57">        this.pageSize = req.getPageSize();</span>
+<span class="fc" id="L58">        Double pages = Math.ceil(new Double(totalItems) / new Double(this.actualSize));</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        this.lastPage = pages.intValue() == 0 ? 1 : pages.intValue();</span>
+<span class="fc" id="L60">        this.totalItems = totalItems;</span>
+<span class="fc" id="L61">        this.setSort(req.getSort());</span>
+<span class="fc" id="L62">        this.setDirection(req.getDirection());</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (null != req.getFilters()) {</span>
+<span class="fc" id="L64">            this.setFilters(req.getFilters());</span>
+        }
+<span class="fc" id="L66">    }</span>
+
+<span class="nc" id="L68">    public PagedMetadata(int page, int size, int last, int totalItems) {</span>
+<span class="nc" id="L69">        this.page = page;</span>
+<span class="nc" id="L70">        this.pageSize = size;</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        this.lastPage = last == 0 ? 1 : last;</span>
+<span class="nc" id="L72">        this.totalItems = totalItems;</span>
+<span class="nc" id="L73">    }</span>
+
+    public PagedMetadata(RestListRequest req, List&lt;T&gt; body, int totalItems) {
+<span class="fc" id="L76">        this(req, totalItems);</span>
+<span class="fc" id="L77">        this.setBody(body);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (null != req.getFilters()) {</span>
+<span class="pc bpc" id="L79" title="1 of 6 branches missed.">            if (Arrays.stream(filters).anyMatch(filter -&gt; filter.getAttribute() != null &amp;&amp; filter.getAttribute().contains(&quot;.&quot;))) {</span>
+<span class="fc" id="L80">                this.applySubFilter(req, body);</span>
+            }
+        }
+<span class="fc" id="L83">    }</span>
+
+    public int getPage() {
+<span class="fc" id="L86">        return page;</span>
+    }
+
+    public void setPage(int page) {
+<span class="fc" id="L90">        this.page = page;</span>
+<span class="fc" id="L91">    }</span>
+
+    public int getPageSize() {
+<span class="fc" id="L94">        return pageSize;</span>
+    }
+
+    public void setPageSize(int size) {
+<span class="fc" id="L98">        this.pageSize = size;</span>
+<span class="fc" id="L99">    }</span>
+
+    public int getLastPage() {
+<span class="fc" id="L102">        return lastPage;</span>
+    }
+
+    public void setLastPage(int last) {
+<span class="fc" id="L106">        this.lastPage = last;</span>
+<span class="fc" id="L107">    }</span>
+
+    public List&lt;T&gt; getBody() {
+<span class="fc" id="L110">        return body;</span>
+    }
+
+    public void setBody(List&lt;T&gt; body) {
+<span class="fc" id="L114">        this.body = body;</span>
+<span class="fc" id="L115">    }</span>
+
+    public int getTotalItems() {
+<span class="fc" id="L118">        return totalItems;</span>
+    }
+
+    public void setTotalItems(int totalItems) {
+<span class="fc" id="L122">        this.totalItems = totalItems;</span>
+<span class="fc" id="L123">    }</span>
+
+    public String getSort() {
+<span class="fc" id="L126">        return sort;</span>
+    }
+
+    public void setSort(String sort) {
+<span class="fc" id="L130">        this.sort = sort;</span>
+<span class="fc" id="L131">    }</span>
+
+    public String getDirection() {
+<span class="fc" id="L134">        return direction;</span>
+    }
+
+    public void setDirection(String direction) {
+<span class="fc" id="L138">        this.direction = direction;</span>
+<span class="fc" id="L139">    }</span>
+
+    public Filter[] getFilters() {
+<span class="fc" id="L142">        return filters;</span>
+    }
+
+    public void setFilters(Filter[] filters) {
+<span class="fc" id="L146">        this.filters = filters;</span>
+<span class="fc" id="L147">    }</span>
+
+    public int getActualSize() {
+<span class="fc" id="L150">        return actualSize;</span>
+    }
+
+    public void setActualSize(int actualSize) {
+<span class="fc" id="L154">        this.actualSize = actualSize;</span>
+<span class="fc" id="L155">    }</span>
+
+    public Map&lt;String, String&gt; getAdditionalParams() {
+<span class="fc" id="L158">        return additionalParams;</span>
+    }
+
+    public void setAdditionalParams(Map&lt;String, String&gt; additionalParams) {
+<span class="nc" id="L162">        this.additionalParams = additionalParams;</span>
+<span class="nc" id="L163">    }</span>
+
+    public void addAdditionalParams(String key, String value) {
+<span class="fc" id="L166">        this.additionalParams.put(key, value);</span>
+<span class="fc" id="L167">    }</span>
+
+    public void imposeLimits() {
+        // if the start of the requested paginated list is greater than the size of the entire list,
+        // the returned payload is an empty array
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if (((this.getPage() - 1) * this.getActualSize()) &gt; this.getBody().size()) {</span>
+<span class="nc" id="L173">            this.setBody(new ArrayList&lt;&gt;());</span>
+        } else {
+<span class="fc" id="L175">            int start = ((this.getPage() - 1) * this.getActualSize());</span>
+            // if the end of the requested paginated list is greater than the size of the entire list,
+            // the end is set on the size
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            int end = (this.getPage() * this.getActualSize()) &lt;= this.getBody().size() ? (this.getPage() * this.getActualSize())</span>
+<span class="fc" id="L179">                    : this.getBody().size();</span>
+<span class="fc" id="L180">            this.setBody(IntStream.range(start, end)</span>
+<span class="fc" id="L181">                    .mapToObj(this.getBody()::get)</span>
+<span class="fc" id="L182">                    .collect(Collectors.toList()));</span>
+        }
+<span class="fc" id="L184">    }</span>
+
+    public void applySubFilter(RestListRequest req, List&lt;T&gt; list) {
+<span class="pc bpc" id="L187" title="2 of 4 branches missed.">        if (null != req.getFilters() &amp;&amp; req.getFilters().length &gt; 0) {</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">            List&lt;Filter&gt; dottedfilters = Arrays.stream(req.getFilters()).filter(filter -&gt; (filter.getAttribute() != null</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">                    &amp;&amp; filter.getAttribute().contains(&quot;.&quot;))).collect(Collectors.toList());</span>
+<span class="fc" id="L190">            this.setBody(list.stream().filter(elem -&gt; isValidObj(dottedfilters, elem)).collect(Collectors.toList()));</span>
+        }
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        if (0 == req.getPageSize()) {</span>
+            // no pagination
+<span class="nc" id="L194">            this.actualSize = this.getBody().size();</span>
+        } else {
+<span class="fc" id="L196">            this.actualSize = req.getPageSize();</span>
+        }
+<span class="fc" id="L198">        this.totalItems = this.getBody().size();</span>
+<span class="fc" id="L199">        Double pages = Math.ceil(new Double(totalItems) / new Double(this.actualSize));</span>
+<span class="fc" id="L200">        this.lastPage = pages.intValue();</span>
+<span class="fc" id="L201">    }</span>
+
+    private boolean isValidObj(List&lt;Filter&gt; filters, Object obj) {
+<span class="fc" id="L204">        return filters.stream().allMatch(filter -&gt; isValidObj(filter, obj));</span>
+    }
+
+    private boolean isValidObj(Filter filter, Object obj) {
+<span class="fc" id="L208">        String fieldToScan = filter.getAttribute();</span>
+<span class="fc" id="L209">        Object value = this.getFieldValue(obj, fieldToScan);</span>
+<span class="pc bpc" id="L210" title="1 of 6 branches missed.">        return value != null &amp;&amp; value instanceof String &amp;&amp; ((String) value).contains(filter.getValue());</span>
+    }
+
+    private Object getFieldValue(Object bean, String fieldName) {
+<span class="fc" id="L214">        Class&lt; ?&gt; componentClass = bean.getClass();</span>
+<span class="fc" id="L215">        Object value = bean;</span>
+<span class="fc" id="L216">        Map&lt;String, Field&gt; fields = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L217">        fields = this.getAllFields(fields, componentClass);</span>
+<span class="fc" id="L218">        String[] nestedFields = StringUtils.split(fieldName, &quot;.&quot;);</span>
+        try {
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            for (String nested : nestedFields) {</span>
+<span class="fc" id="L221">                Field field = fields.get(nested);</span>
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">                if (field == null) {</span>
+<span class="nc" id="L223">                    return null;</span>
+                }
+<span class="fc" id="L225">                field.setAccessible(true);</span>
+<span class="fc" id="L226">                value = field.get(value);</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                if (value != null) {</span>
+<span class="fc" id="L228">                    componentClass = value.getClass();</span>
+<span class="fc" id="L229">                    fields.clear();</span>
+<span class="fc" id="L230">                    fields = this.getAllFields(fields, componentClass);</span>
+                } else {
+<span class="fc" id="L232">                    return null;</span>
+                }
+            }
+<span class="nc" id="L235">        } catch (IllegalAccessException iae) {</span>
+<span class="nc" id="L236">            throw new IllegalStateException(iae);</span>
+<span class="fc" id="L237">        }</span>
+<span class="fc" id="L238">        return value;</span>
+    }
+
+    private Map&lt;String, Field&gt; getAllFields(Map&lt;String, Field&gt; fields, Class&lt;?&gt; type) {
+<span class="fc" id="L242">        fields.putAll(Arrays.asList(type.getDeclaredFields()).stream()</span>
+<span class="fc" id="L243">                .collect(Collectors.toMap(field -&gt; field.getName(), field -&gt; field)));</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        if (type.getSuperclass() != null) {</span>
+<span class="fc" id="L245">            return getAllFields(fields, type.getSuperclass());</span>
+        }
+<span class="fc" id="L247">        return fields;</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (this == o) return true;</span>
+<span class="pc bpc" id="L253" title="2 of 4 branches missed.">        if (o == null || getClass() != o.getClass()) return false;</span>
+<span class="fc" id="L254">        PagedMetadata&lt;?&gt; that = (PagedMetadata&lt;?&gt;) o;</span>
+<span class="pc bpc" id="L255" title="5 of 10 branches missed.">        return page == that.page &amp;&amp;</span>
+               pageSize == that.pageSize &amp;&amp;
+               lastPage == that.lastPage &amp;&amp;
+               totalItems == that.totalItems &amp;&amp;
+               actualSize == that.actualSize &amp;&amp;
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">               Objects.equals(sort, that.sort) &amp;&amp;</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">               Objects.equals(direction, that.direction) &amp;&amp;</span>
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">               Arrays.equals(filters, that.filters) &amp;&amp;</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">               Objects.equals(additionalParams, that.additionalParams) &amp;&amp;</span>
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">               Objects.equals(body, that.body);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L269">        int result = Objects.hash(page, pageSize, lastPage, totalItems, sort, direction, additionalParams, actualSize, body);</span>
+<span class="nc" id="L270">        result = 31 * result + Arrays.hashCode(filters);</span>
+<span class="nc" id="L271">        return result;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L276">        return new ToStringBuilder(this)</span>
+<span class="nc" id="L277">                .append(&quot;page&quot;, page)</span>
+<span class="nc" id="L278">                .append(&quot;pageSize&quot;, pageSize)</span>
+<span class="nc" id="L279">                .append(&quot;lastPage&quot;, lastPage)</span>
+<span class="nc" id="L280">                .append(&quot;totalItems&quot;, totalItems)</span>
+<span class="nc" id="L281">                .append(&quot;sort&quot;, sort)</span>
+<span class="nc" id="L282">                .append(&quot;direction&quot;, direction)</span>
+<span class="nc" id="L283">                .append(&quot;filters&quot;, filters)</span>
+<span class="nc" id="L284">                .append(&quot;additionalParams&quot;, additionalParams)</span>
+<span class="nc" id="L285">                .append(&quot;actualSize&quot;, actualSize)</span>
+<span class="nc" id="L286">                .append(&quot;body&quot;, body)</span>
+<span class="nc" id="L287">                .toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

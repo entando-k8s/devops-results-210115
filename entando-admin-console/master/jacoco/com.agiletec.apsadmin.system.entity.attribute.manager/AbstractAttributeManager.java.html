@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractAttributeManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system.entity.attribute.manager</a> &gt; <span class="el_source">AbstractAttributeManager.java</span></div><h1>AbstractAttributeManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system.entity.attribute.manager;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.BeanFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.services.i18n.II18nManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.opensymphony.xwork2.ActionSupport;
+
+/**
+ * This abstract class is the base for the managers of all attributes.
+ * For the 'complex' attributes this class must be directly extended, otherwise
+ * -for 'simple' attributes- this class is extended by the managers of the 
+ * 'mono-language' and 'multi-language' Attributes.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L40">public abstract class AbstractAttributeManager implements AttributeManagerInterface {</span>
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractAttributeManager.class);</span>
+	
+    /**
+     * Return the key of the message to retrieve when an attribute is not valid.
+     * If a customized message is needed eg. due to the nature of the attribute, extend this method.
+     * @return The key of the message to return. 
+     */
+    protected String getInvalidAttributeMessage() {
+<span class="nc" id="L50">        return &quot;EntityAttribute.fieldError.invalidAttribute&quot;;</span>
+    }
+	
+    /**
+     * Return the key of the message used when a mandatory attribute is not populated.
+     * If a customized message is needed eg. due to the nature of the attribute, extend this method.
+     * @return The key of the message to return.
+     */
+    protected String getRequiredAttributeMessage() {
+<span class="fc" id="L59">        return &quot;EntityAttribute.fieldError.required&quot;;</span>
+    }
+	
+	@Override
+    public void updateEntityAttribute(AttributeInterface attribute, HttpServletRequest request) {
+<span class="fc" id="L64">        this.updateAttribute(attribute, new AttributeTracer(), request);</span>
+<span class="fc" id="L65">    }</span>
+	
+	/**
+     * Updates the attribute with the criteria specified in the content editing form.
+     * @param attribute The current attribute (simple or complex) to check.
+     * @param tracer The 'tracer' class needed to find the position of the attribute inside a 'composite' one.
+     * @param request The request.
+     */
+    protected abstract void updateAttribute(AttributeInterface attribute, AttributeTracer tracer, HttpServletRequest request);
+    
+    /**
+     * Return the value of the current attribute passed from the form.
+     * 
+     * @param attribute The current attribute (simple or complex) to check.
+     * @param tracer The 'tracer' class needed to find the position of the attribute inside a 'composite' one.
+     * @param request The request.
+     * @return The value passed in the form
+     */
+    protected String getValueFromForm(AttributeInterface attribute, AttributeTracer tracer, HttpServletRequest request) {
+<span class="fc" id="L84">        String formFieldName = tracer.getFormFieldName(attribute);</span>
+<span class="fc" id="L85">        return request.getParameter(formFieldName);</span>
+    }
+	
+	protected AttributeManagerInterface getManager(AttributeInterface attribute) {
+<span class="nc" id="L89">		String managerClassName = attribute.getAttributeManagerClassName();</span>
+        try {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			if (null == managerClassName) return null;</span>
+<span class="nc" id="L92">            Class managerClass = Class.forName(managerClassName);</span>
+<span class="nc" id="L93">            Object managerInstance = managerClass.newInstance();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (managerInstance instanceof AbstractAttributeManager) {</span>
+<span class="nc" id="L95">				AbstractAttributeManager manager = (AbstractAttributeManager) managerInstance;</span>
+<span class="nc" id="L96">				manager.setBeanFactory(this.getBeanFactory());</span>
+<span class="nc" id="L97">				return manager;</span>
+			}
+<span class="nc" id="L99">        } catch (Throwable e) {</span>
+<span class="nc" id="L100">            String message = &quot;Error creating manager of attribute '&quot;</span>
+<span class="nc" id="L101">                    + attribute.getName() + &quot;' type '&quot; + attribute.getType() + &quot;' -  Manager class '&quot; + managerClassName + &quot;'&quot;;</span>
+<span class="nc" id="L102">            _logger.error(&quot;Error creating manager of attribute '{}', type: '{}' - Manager class: {}&quot;, attribute.getName(), attribute.getType(), managerClassName, e);</span>
+<span class="nc" id="L103">            throw new RuntimeException(message, e);</span>
+<span class="nc" id="L104">        }</span>
+<span class="nc" id="L105">        return null;</span>
+    }
+	
+    /**
+     * Set the extra properties in the given manager.
+     * This method is used when creating a manager to handle the attribute element of a complex
+     * attribute and must be implemented when setting extra attributes.
+     * @param manager The manager to create.
+     */
+    protected void setExtraPropertyTo(AttributeManagerInterface manager) {
+        //nothing to do
+<span class="nc" id="L116">    }</span>
+    
+	@Override
+    public String getErrorMessage(AttributeFieldError attributeFieldError, ActionSupport action) {
+        try {
+<span class="fc" id="L121">            String errorCode = attributeFieldError.getErrorCode();</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">            if (errorCode.equals(FieldError.MANDATORY)) {</span>
+<span class="fc" id="L123">                return action.getText(this.getRequiredAttributeMessage());</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            } else if (errorCode.equals(AttributeFieldError.OGNL_VALIDATION)) {</span>
+<span class="nc" id="L125">                String message = attributeFieldError.getMessage();</span>
+<span class="nc bnc" id="L126" title="All 4 branches missed.">                if (null != message &amp;&amp; message.trim().length() &gt; 0) {</span>
+<span class="nc" id="L127">                    return message;</span>
+                }
+<span class="nc" id="L129">                String label = null;</span>
+<span class="nc" id="L130">                String labelKey = attributeFieldError.getMessageKey();</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">                if (null != labelKey &amp;&amp; labelKey.trim().length() &gt; 0) {</span>
+<span class="nc" id="L132">                    Lang currentLang = this.getLangManager().getDefaultLang();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    if (action instanceof BaseAction) {</span>
+<span class="nc" id="L134">                        currentLang = ((BaseAction) action).getCurrentLang();</span>
+                    }
+<span class="nc" id="L136">                    label = this.getI18nManager().getLabel(labelKey, currentLang.getCode());</span>
+                }
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                if (label != null) {</span>
+<span class="nc" id="L139">                    return label;</span>
+<span class="nc" id="L140">                } else return this.getCustomAttributeErrorMessage(attributeFieldError, action);</span>
+            } else {
+<span class="nc" id="L142">                return this.getCustomAttributeErrorMessage(attributeFieldError, action);</span>
+            }
+<span class="nc" id="L144">        } catch (Throwable t) {</span>
+<span class="nc" id="L145">        	_logger.error(&quot;Error creating Error Message&quot;, t);</span>
+<span class="nc" id="L146">            throw new RuntimeException(&quot;Error creating Error Message&quot;, t);</span>
+        }
+    }
+    
+    /**
+     * Return a custom error message.
+     * This method shouwld to be extended for custom attribute manager
+     * @param attributeFieldError The field error 
+     * @param action The current action
+     * @return The message for the specific error code.
+     */
+    protected String getCustomAttributeErrorMessage(AttributeFieldError attributeFieldError, ActionSupport action) {
+<span class="nc" id="L158">        return action.getText(this.getInvalidAttributeMessage());</span>
+    }
+    
+    protected II18nManager getI18nManager() {
+<span class="nc" id="L162">        return (II18nManager) this.getBeanFactory().getBean(SystemConstants.I18N_MANAGER, II18nManager.class);</span>
+    }
+	
+    protected ILangManager getLangManager() {
+<span class="nc" id="L166">        return (ILangManager) this.getBeanFactory().getBean(SystemConstants.LANGUAGE_MANAGER, ILangManager.class);</span>
+    }
+	
+	protected BeanFactory getBeanFactory() {
+<span class="nc" id="L170">		return _beanFactory;</span>
+	}
+	public void setBeanFactory(BeanFactory beanFactory) {
+<span class="fc" id="L173">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L174">	}</span>
+	
+	private BeanFactory _beanFactory;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

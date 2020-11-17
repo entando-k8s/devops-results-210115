@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ListAttribute.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.entity.model.attribute</a> &gt; <span class="el_source">ListAttribute.java</span></div><h1>ListAttribute.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.entity.model.attribute;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.jdom.Element;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import org.entando.entando.ent.exception.EntRuntimeException;
+
+/**
+ * This class represents the Attribute of type &quot;Multi-language List&quot;, composed by several homogeneous attributes; there
+ * is a list for every language in the system.
+ *
+ * @author M.Diana
+ */
+public class ListAttribute extends AbstractListAttribute {
+
+<span class="fc" id="L41">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ListAttribute.class);</span>
+
+    /**
+     * Initialize the data structure.
+     */
+<span class="fc" id="L46">    public ListAttribute() {</span>
+<span class="fc" id="L47">        this._listMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L48">    }</span>
+
+    /**
+     * Add a new empty attribute to the list in the specified language.
+     *
+     * @param langCode The code of the language.
+     * @return The attribute added to the list, ready to be populated with the data.
+     */
+    public AttributeInterface addAttribute(String langCode) {
+<span class="fc" id="L57">        AttributeInterface newAttr = (AttributeInterface) this.getNestedAttributeType().getAttributePrototype();</span>
+<span class="fc" id="L58">        newAttr.setDefaultLangCode(this.getDefaultLangCode());</span>
+<span class="fc" id="L59">        newAttr.setParentEntity(this.getParentEntity());</span>
+<span class="fc" id="L60">        List&lt;AttributeInterface&gt; attrList = this.getAttributeList(langCode);</span>
+<span class="fc" id="L61">        attrList.add(newAttr);</span>
+<span class="fc" id="L62">        return newAttr;</span>
+    }
+
+    /**
+     * Return the list of attributes of the desired language.
+     *
+     * @param langCode The language code.
+     * @return A list of homogeneous attributes.
+     */
+    public List&lt;AttributeInterface&gt; getAttributeList(String langCode) {
+<span class="fc" id="L72">        List&lt;AttributeInterface&gt; attrList = (List&lt;AttributeInterface&gt;) this._listMap.get(langCode);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (attrList == null) {</span>
+<span class="fc" id="L74">            attrList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L75">            this._listMap.put(langCode, attrList);</span>
+        }
+<span class="fc" id="L77">        return attrList;</span>
+    }
+
+    /**
+     * Return the list of attributes in the current rendering language.
+     *
+     * @return A list of homogeneous attributes.
+     */
+    @Override
+    public Object getRenderingAttributes() {
+<span class="nc" id="L87">        List&lt;AttributeInterface&gt; attrList = this.getAttributeList(this.getRenderingLang());</span>
+<span class="nc" id="L88">        return attrList;</span>
+    }
+
+    /**
+     * Remove from the list one of the attributes of the given language.
+     *
+     * @param langCode The code of the language of the list where to delete the attribute from.
+     * @param index The index of the attribute in the list.
+     */
+    public void removeAttribute(String langCode, int index) {
+<span class="nc" id="L98">        List&lt;AttributeInterface&gt; attrList = this.getAttributeList(langCode);</span>
+<span class="nc" id="L99">        attrList.remove(index);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (attrList.isEmpty()) {</span>
+<span class="nc" id="L101">            this._listMap.remove(langCode);</span>
+        }
+<span class="nc" id="L103">    }</span>
+
+    @Override
+    public void setDefaultLangCode(String langCode) {
+<span class="fc" id="L107">        super.setDefaultLangCode(langCode);</span>
+<span class="fc" id="L108">        Iterator&lt;List&lt;AttributeInterface&gt;&gt; values = this._listMap.values().iterator();</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        while (values.hasNext()) {</span>
+<span class="nc" id="L110">            List&lt;AttributeInterface&gt; elementList = values.next();</span>
+<span class="nc" id="L111">            Iterator&lt;AttributeInterface&gt; attributes = elementList.iterator();</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            while (attributes.hasNext()) {</span>
+<span class="nc" id="L113">                AttributeInterface attribute = attributes.next();</span>
+<span class="nc" id="L114">                attribute.setDefaultLangCode(langCode);</span>
+<span class="nc" id="L115">            }</span>
+<span class="nc" id="L116">        }</span>
+<span class="fc" id="L117">    }</span>
+
+    @Override
+    public Element getJDOMElement() {
+<span class="fc" id="L121">        Element listElement = this.createRootElement(&quot;list&quot;);</span>
+<span class="fc" id="L122">        listElement.setAttribute(&quot;nestedtype&quot;, this.getNestedAttributeTypeCode());</span>
+<span class="fc" id="L123">        Iterator&lt;String&gt; langIter = _listMap.keySet().iterator();</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        while (langIter.hasNext()) {</span>
+<span class="fc" id="L125">            String langCode = langIter.next();</span>
+<span class="fc" id="L126">            Element listLangElement = new Element(&quot;listlang&quot;);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">            if (null != langCode) {</span>
+<span class="fc" id="L128">                listLangElement.setAttribute(&quot;lang&quot;, langCode);</span>
+<span class="fc" id="L129">                List&lt;AttributeInterface&gt; attributeList = this.getAttributeList(langCode);</span>
+<span class="fc" id="L130">                Iterator&lt;AttributeInterface&gt; attributeListIter = attributeList.iterator();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">                while (attributeListIter.hasNext()) {</span>
+<span class="fc" id="L132">                    AttributeInterface attribute = attributeListIter.next();</span>
+<span class="fc" id="L133">                    Element attributeElement = attribute.getJDOMElement();</span>
+<span class="fc" id="L134">                    listLangElement.addContent(attributeElement);</span>
+<span class="fc" id="L135">                }</span>
+<span class="fc" id="L136">                listElement.addContent(listLangElement);</span>
+            }
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return listElement;</span>
+    }
+
+    /**
+     * Return a Map containing all the localized versions of the associated list.
+     *
+     * @return A map indexed by the language code.
+     */
+    public Map&lt;String, List&lt;AttributeInterface&gt;&gt; getAttributeListMap() {
+<span class="fc" id="L148">        return _listMap;</span>
+    }
+
+    @Override
+    public List&lt;AttributeInterface&gt; getAttributes() {
+<span class="fc" id="L153">        List&lt;AttributeInterface&gt; attributes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L154">        Iterator&lt;List&lt;AttributeInterface&gt;&gt; values = this.getAttributeListMap().values().iterator();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        while (values.hasNext()) {</span>
+<span class="fc" id="L156">            attributes.addAll(values.next());</span>
+        }
+<span class="fc" id="L158">        return attributes;</span>
+    }
+
+    @Override
+    public Object getValue() {
+<span class="fc" id="L163">        return this.getAttributeListMap();</span>
+    }
+
+    @Override
+    public AbstractJAXBAttribute getJAXBAttribute(String langCode) {
+<span class="fc" id="L168">        JAXBListAttribute jaxbAttribute = (JAXBListAttribute) super.createJAXBAttribute(langCode);</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (null == jaxbAttribute) {</span>
+<span class="nc" id="L170">            return null;</span>
+        }
+<span class="fc" id="L172">        List&lt;AttributeInterface&gt; attributes = this.getAttributeList(langCode);</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (null == attributes) {</span>
+<span class="nc" id="L174">            return null;</span>
+        }
+<span class="fc" id="L176">        List&lt;AbstractJAXBAttribute&gt; jaxbList = this.extractJAXBListAttributes(attributes, langCode);</span>
+<span class="fc" id="L177">        jaxbAttribute.setAttributes(jaxbList);</span>
+<span class="fc" id="L178">        return jaxbAttribute;</span>
+    }
+
+    @Override
+    public void valueFrom(AbstractJAXBAttribute jaxbAttribute, String langCode) {
+<span class="fc" id="L183">        super.valueFrom(jaxbAttribute, langCode);</span>
+<span class="fc" id="L184">        JAXBListAttribute jaxbListAttribute = (JAXBListAttribute) jaxbAttribute;</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">        if (null == jaxbListAttribute) {</span>
+<span class="nc" id="L186">            return;</span>
+        }
+<span class="fc" id="L188">        List&lt;AbstractJAXBAttribute&gt; attributes = jaxbListAttribute.getAttributes();</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        if (null == attributes) {</span>
+<span class="nc" id="L190">            return;</span>
+        }
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L193">            AbstractJAXBAttribute jaxbAttributeElement = attributes.get(i);</span>
+<span class="fc" id="L194">            AttributeInterface attribute = this.addAttribute(this.getDefaultLangCode());</span>
+<span class="fc" id="L195">            attribute.valueFrom(jaxbAttributeElement, langCode);</span>
+        }
+<span class="fc" id="L197">    }</span>
+
+    @Override
+    public Status getStatus() {
+<span class="fc" id="L201">        Lang defaultLang = super.getLangManager().getDefaultLang();</span>
+<span class="fc" id="L202">        List&lt;AttributeInterface&gt; attributeList = this.getAttributeList(defaultLang.getCode());</span>
+<span class="pc bpc" id="L203" title="1 of 4 branches missed.">        boolean valued = (null != attributeList &amp;&amp; !attributeList.isEmpty());</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (valued) {</span>
+<span class="fc" id="L205">            return Status.VALUED;</span>
+        } else {
+<span class="fc" id="L207">            return Status.EMPTY;</span>
+        }
+    }
+
+    @Override
+    public List&lt;AttributeFieldError&gt; validate(AttributeTracer tracer, ILangManager langManager) {
+<span class="fc" id="L213">        List&lt;AttributeFieldError&gt; errors = super.validate(tracer, langManager);</span>
+        try {
+<span class="fc" id="L215">            List&lt;Lang&gt; langs = langManager.getLangs();</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            for (int i = 0; i &lt; langs.size(); i++) {</span>
+<span class="fc" id="L217">                Lang lang = langs.get(i);</span>
+<span class="fc" id="L218">                List&lt;AttributeInterface&gt; attributeList = this.getAttributeList(lang.getCode());</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">                for (int j = 0; j &lt; attributeList.size(); j++) {</span>
+<span class="fc" id="L220">                    AttributeInterface attributeElement = attributeList.get(j);</span>
+<span class="fc" id="L221">                    AttributeTracer elementTracer = (AttributeTracer) tracer.clone();</span>
+<span class="fc" id="L222">                    elementTracer.setListElement(true);</span>
+<span class="fc" id="L223">                    elementTracer.setListLang(lang);</span>
+<span class="fc" id="L224">                    elementTracer.setListIndex(j);</span>
+<span class="fc" id="L225">                    Status elementStatus = attributeElement.getStatus();</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">                    if (elementStatus.equals(Status.EMPTY)) {</span>
+<span class="nc" id="L227">                        errors.add(new AttributeFieldError(attributeElement, FieldError.INVALID, elementTracer));</span>
+                    } else {
+<span class="fc" id="L229">                        List&lt;AttributeFieldError&gt; elementErrors = attributeElement.validate(elementTracer, langManager);</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">                        if (null != elementErrors) {</span>
+<span class="fc" id="L231">                            errors.addAll(elementErrors);</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L236">        } catch (Exception t) {</span>
+<span class="nc" id="L237">            _logger.error(&quot;Error validating list attribute&quot;, t);</span>
+<span class="nc" id="L238">            throw new EntRuntimeException(&quot;Error validating list attribute&quot;, t);</span>
+<span class="fc" id="L239">        }</span>
+<span class="fc" id="L240">        return errors;</span>
+    }
+
+    private Map&lt;String, List&lt;AttributeInterface&gt;&gt; _listMap;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

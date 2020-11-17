@@ -1,0 +1,540 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.category</a> &gt; <span class="el_source">CategoryAction.java</span></div><h1>CategoryAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.category;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.category.ReloadingCategoryReferencesThread;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.category.helper.ICategoryActionHelper;
+import com.agiletec.apsadmin.system.AbstractTreeAction;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseActionHelper;
+import com.agiletec.apsadmin.system.TreeNodeWrapper;
+
+/**
+ * Action class which handles categories.
+ *
+ * @author E.Santoboni - G.Cocco
+ */
+<span class="fc" id="L45">public class CategoryAction extends AbstractTreeAction {</span>
+
+<span class="fc" id="L47">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CategoryAction.class);</span>
+
+	@Override
+	public void validate() {
+<span class="fc" id="L51">		super.validate();</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">		if (this.getStrutsAction() == ApsAdminSystemConstants.ADD</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">				|| this.getStrutsAction() == ApsAdminSystemConstants.PASTE) {</span>
+<span class="fc" id="L54">			this.checkParentNode(this.getParentCategoryCode());</span>
+		}
+<span class="fc" id="L56">		this.checkCode();</span>
+<span class="fc" id="L57">		this.checkTitles(true);</span>
+<span class="fc" id="L58">	}</span>
+
+	public Integer getServiceStatus() {
+<span class="nc" id="L61">		return this.getCategoryManager().getMoveTreeStatus();</span>
+	}
+
+	public Map&lt;String, Integer&gt; getServiceStatusMap() {
+<span class="nc" id="L65">		return this.getCategoryManager().getReloadStatus();</span>
+	}
+
+	public List&lt;TreeNodeWrapper&gt; getAvailableNodesForMoveTreeAjax() {
+<span class="nc" id="L69">		List&lt;TreeNodeWrapper&gt; result = new ArrayList&lt;TreeNodeWrapper&gt;();</span>
+		try {
+<span class="nc" id="L71">			String startCategoryCode = this.getSelectedNode();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">			if (StringUtils.isBlank(startCategoryCode)) {</span>
+<span class="nc" id="L73">				_logger.warn(&quot;required parameter 'selectedNode' missing&quot;);</span>
+<span class="nc" id="L74">				return result;</span>
+			}
+<span class="nc" id="L76">			Category nodeToMove = this.getCategory(startCategoryCode);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">			if (null == nodeToMove) {</span>
+<span class="nc" id="L78">				_logger.warn(&quot;category {} is null&quot;, startCategoryCode);</span>
+<span class="nc" id="L79">				return result;</span>
+			}
+<span class="nc" id="L81">			this.setCategoryCodeToken(super.getParameter(&quot;categoryCodeToken&quot;));</span>
+<span class="nc" id="L82">			List&lt;Category&gt; searchResult = this.getCategoryManager().searchCategories(this.getCategoryCodeToken());</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">			if (null == searchResult || searchResult.isEmpty()) {</span>
+<span class="nc" id="L84">				return result;</span>
+			}
+<span class="nc" id="L86">			BeanComparator comparator = new BeanComparator(&quot;code&quot;);</span>
+<span class="nc" id="L87">			Collections.sort(result, comparator);</span>
+<span class="nc" id="L88">			int maxIndex = 30;</span>
+<span class="nc" id="L89">			String maxParam = super.getParameter(&quot;max&quot;);</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">			if (StringUtils.isNotBlank(maxParam) &amp;&amp; StringUtils.isNumeric(maxParam)) {</span>
+<span class="nc" id="L91">				maxIndex = new Integer(maxParam).intValue();</span>
+			}
+<span class="nc" id="L93">			Iterator&lt;Category&gt; it = searchResult.iterator();</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">			while (result.size() &lt; maxIndex &amp;&amp; it.hasNext()) {</span>
+<span class="nc" id="L95">				ITreeNode candidate = it.next();</span>
+<span class="nc bnc" id="L96" title="All 4 branches missed.">				if (!candidate.isChildOf(nodeToMove.getCode(), this.getCategoryManager()) &amp;&amp; !candidate.getCode().equals(nodeToMove.getParentCode())) {</span>
+<span class="nc" id="L97">					ITreeNode parent = this.getCategoryManager().getNode(candidate.getParentCode());</span>
+<span class="nc" id="L98">                    result.add(new TreeNodeWrapper(candidate, parent, this.getCurrentLang().getCode(), this.getCategoryManager()));</span>
+				}
+<span class="nc" id="L100">			}</span>
+<span class="nc" id="L101">		} catch (Throwable t) {</span>
+<span class="nc" id="L102">			_logger.error(&quot;Error on searching categories ajax&quot;, t);</span>
+<span class="nc" id="L103">			throw new RuntimeException(&quot;Error on searching categories ajax&quot;, t);</span>
+<span class="nc" id="L104">		}</span>
+<span class="nc" id="L105">		return result;</span>
+	}
+
+	private void checkTitles(boolean checkErrors) {
+<span class="fc" id="L109">		Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">		while (langsIter.hasNext()) {</span>
+<span class="fc" id="L111">			Lang lang = (Lang) langsIter.next();</span>
+<span class="fc" id="L112">			String titleKey = &quot;lang&quot; + lang.getCode();</span>
+<span class="fc" id="L113">			String title = this.getRequest().getParameter(titleKey);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">			if (null != title) {</span>
+<span class="fc" id="L115">				this.getTitles().put(lang.getCode(), title.trim());</span>
+			}
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">			if (checkErrors) {</span>
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">				if (null == title || title.trim().length() == 0) {</span>
+<span class="fc" id="L119">					String[] args = {lang.getDescr()};</span>
+<span class="fc" id="L120">					this.addFieldError(titleKey, this.getText(&quot;error.category.insertTitle&quot;, args));</span>
+				}
+			}
+<span class="fc" id="L123">		}</span>
+<span class="fc" id="L124">	}</span>
+
+	private void checkCode() {
+<span class="fc" id="L127">		String code = this.getCategoryCode();</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">		if ((this.getStrutsAction() == ApsAdminSystemConstants.ADD</span>
+<span class="pc bpc" id="L129" title="2 of 4 branches missed.">				|| this.getStrutsAction() == ApsAdminSystemConstants.PASTE)</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">				&amp;&amp; null != code &amp;&amp; code.trim().length() &gt; 0) {</span>
+<span class="fc" id="L131">			String currectCode = BaseActionHelper.purgeString(code.trim());</span>
+<span class="pc bpc" id="L132" title="1 of 4 branches missed.">			if (currectCode.length() &gt; 0 &amp;&amp; null != this.getCategoryManager().getCategory(currectCode)) {</span>
+<span class="fc" id="L133">				String[] args = {currectCode};</span>
+<span class="fc" id="L134">				this.addFieldError(&quot;categoryCode&quot;, this.getText(&quot;error.category.duplicateCode&quot;, args));</span>
+			}
+
+<span class="fc" id="L137">			this.setCategoryCode(currectCode);</span>
+		}
+<span class="fc" id="L139">	}</span>
+
+	protected String checkParentNode(String selectedNode) {
+<span class="pc bpc" id="L142" title="2 of 4 branches missed.">		if (null == selectedNode || selectedNode.trim().length() == 0) {</span>
+<span class="nc" id="L143">			this.addFieldError(&quot;parentCategoryCode&quot;, this.getText(&quot;error.category.noParentSelected&quot;));</span>
+<span class="nc" id="L144">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="fc" id="L146">		return null;</span>
+	}
+
+	public String add() {
+<span class="fc" id="L150">		String selectedNode = this.getSelectedNode();</span>
+		try {
+<span class="fc" id="L152">			this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="fc" id="L153">			this.setParentCategoryCode(selectedNode);</span>
+<span class="nc" id="L154">		} catch (Throwable t) {</span>
+<span class="nc" id="L155">			_logger.error(&quot;error in add&quot;, t);</span>
+<span class="nc" id="L156">			return FAILURE;</span>
+<span class="fc" id="L157">		}</span>
+<span class="fc" id="L158">		return SUCCESS;</span>
+	}
+
+	public String edit() {
+<span class="fc" id="L162">		this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L163">		return this.extractCategoryFormValues();</span>
+	}
+
+	public String showDetail() {
+<span class="fc" id="L167">		String result = this.extractCategoryFormValues();</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (!result.equals(SUCCESS)) {</span>
+<span class="fc" id="L169">			return result;</span>
+		}
+<span class="fc" id="L171">		this.extractReferencingObjects(this.getSelectedNode());</span>
+<span class="fc" id="L172">		return result;</span>
+	}
+
+	protected String extractCategoryFormValues() {
+<span class="fc" id="L176">		String selectedNode = this.getSelectedNode();</span>
+		try {
+<span class="fc" id="L178">			Category category = this.getCategory(selectedNode);</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">			if (null == category) {</span>
+<span class="fc" id="L180">				this.addActionError(this.getText(&quot;error.category.selectCategory&quot;));</span>
+<span class="fc" id="L181">				return &quot;categoryTree&quot;;</span>
+			}
+<span class="fc" id="L183">			this.setParentCategoryCode(category.getParentCode());</span>
+<span class="fc" id="L184">			this.setCategoryCode(category.getCode());</span>
+<span class="fc" id="L185">			this.setTitles(category.getTitles());</span>
+<span class="nc" id="L186">		} catch (Throwable t) {</span>
+<span class="nc" id="L187">			_logger.error(&quot;error in extractCategoryFormValues&quot;, t);</span>
+<span class="nc" id="L188">			return FAILURE;</span>
+<span class="fc" id="L189">		}</span>
+<span class="fc" id="L190">		return SUCCESS;</span>
+	}
+
+	public String trash() {
+		try {
+<span class="fc" id="L195">			String check = this.checkDelete();</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">			if (null != check) {</span>
+<span class="fc" id="L197">				return check;</span>
+			}
+<span class="nc" id="L199">		} catch (Throwable t) {</span>
+<span class="nc" id="L200">			_logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L201">			return FAILURE;</span>
+<span class="fc" id="L202">		}</span>
+<span class="fc" id="L203">		return SUCCESS;</span>
+	}
+
+	public String delete() {
+<span class="fc" id="L207">		String selectedNode = this.getSelectedNode();</span>
+		try {
+<span class="fc" id="L209">			String check = this.checkDelete();</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">			if (null != check) {</span>
+<span class="fc" id="L211">				return check;</span>
+			}
+<span class="fc" id="L213">			Category currentCategory = this.getCategory(selectedNode);</span>
+<span class="fc" id="L214">			this.getCategoryManager().deleteCategory(selectedNode);</span>
+<span class="fc" id="L215">			this.setSelectedNode(currentCategory.getParentCode());</span>
+<span class="nc" id="L216">		} catch (Throwable t) {</span>
+<span class="nc" id="L217">			_logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L218">			return FAILURE;</span>
+<span class="fc" id="L219">		}</span>
+<span class="fc" id="L220">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Perform all the needed checks before deleting a category. When errors are
+	 * detected a new actionMessaged, containing the appropriate error code and
+	 * messaged, is created.
+	 *
+	 * @return null if the deletion operation is successful, otherwise the error
+	 * code
+	 */
+	protected String checkDelete() {
+<span class="fc" id="L232">		Category currentCategory = this.getCategory(this.getSelectedNode());</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">		if (null == currentCategory) {</span>
+<span class="nc" id="L234">			_logger.info(&quot;Required a selected node&quot;);</span>
+<span class="nc" id="L235">			this.addActionError(this.getText(&quot;error.category.selectCategory&quot;));</span>
+<span class="nc" id="L236">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">		if (currentCategory.getCode().equals(currentCategory.getParentCode())) {</span>
+<span class="nc" id="L239">			_logger.info(&quot;Home category not deletable&quot;);</span>
+<span class="nc" id="L240">			this.addActionError(this.getText(&quot;error.category.homeDelete.notAllowed&quot;));</span>
+<span class="nc" id="L241">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">		if (currentCategory.getChildrenCodes().length != 0) {</span>
+<span class="nc" id="L244">			_logger.info(&quot;Category with children not deletable&quot;);</span>
+<span class="nc" id="L245">			this.addActionError(this.getText(&quot;error.category.deleteWithChildren.notAllowed&quot;));</span>
+<span class="nc" id="L246">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="fc" id="L248">		this.extractReferencingObjects(this.getSelectedNode());</span>
+<span class="pc bpc" id="L249" title="1 of 4 branches missed.">		if (null != this.getReferences() &amp;&amp; this.getReferences().size() &gt; 0) {</span>
+<span class="fc" id="L250">			return &quot;references&quot;;</span>
+		}
+<span class="fc" id="L252">		return null;</span>
+	}
+
+	protected void extractReferencingObjects(String categoryCode) {
+		try {
+<span class="fc" id="L257">			Category category = this.getCategoryManager().getCategory(categoryCode);</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">			if (null != category) {</span>
+<span class="fc" id="L259">				Map references = this.getHelper().getReferencingObjects(category, this.getRequest());</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">				if (references.size() &gt; 0) {</span>
+<span class="fc" id="L261">					this.setReferences(references);</span>
+				}
+			}
+<span class="nc" id="L264">		} catch (Throwable t) {</span>
+<span class="nc" id="L265">			_logger.error(&quot;Error extracting referenced objects by category {}&quot;, categoryCode, t);</span>
+<span class="fc" id="L266">		}</span>
+<span class="fc" id="L267">	}</span>
+
+	public String save() {
+		try {
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">			if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="nc" id="L272">				Category category = this.getCategory(this.getCategoryCode());</span>
+<span class="nc" id="L273">				category.setTitles(this.getTitles());</span>
+<span class="nc" id="L274">				this.getCategoryManager().updateCategory(category);</span>
+<span class="nc" id="L275">				_logger.debug(&quot;Updated category {}&quot;, category.getCode());</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">			} else if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L277">				String parentCategoryCode = this.getParentCategoryCode();</span>
+<span class="fc" id="L278">				Category category = this.getHelper().buildNewCategory(this.getCategoryCode(), parentCategoryCode, this.getTitles());</span>
+<span class="fc" id="L279">				this.getCategoryManager().addCategory(category);</span>
+<span class="fc" id="L280">				_logger.debug(&quot;Added new category {}&quot;, this.getCategoryCode());</span>
+<span class="fc" id="L281">			} else {</span>
+<span class="nc" id="L282">				_logger.error(&quot;Select a position&quot;);</span>
+<span class="nc" id="L283">				this.addFieldError(&quot;categoryCode&quot;, this.getText(&quot;error.category.noParentSelected&quot;));</span>
+<span class="nc" id="L284">				return FAILURE;</span>
+			}
+<span class="nc" id="L286">		} catch (Exception e) {</span>
+<span class="nc" id="L287">			_logger.error(&quot;error in save&quot;, e);</span>
+<span class="nc" id="L288">			return FAILURE;</span>
+<span class="fc" id="L289">		}</span>
+<span class="fc" id="L290">		return SUCCESS;</span>
+	}
+
+	public String moveTree() {
+<span class="nc" id="L294">		String selectedNode = this.getSelectedNode();</span>
+<span class="nc" id="L295">		String parentCategoryCode = this.getRequest().getParameter(&quot;parentCategoryCode&quot;);</span>
+		try {
+<span class="nc" id="L297">			String check = this.checkMoveCategory(selectedNode, parentCategoryCode);</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L299">				return check;</span>
+			}
+<span class="nc" id="L301">			this.extractReferencingObjectsForMove(this.getSelectedNode());</span>
+<span class="nc bnc" id="L302" title="All 4 branches missed.">			if (null != this.getReferences() &amp;&amp; this.getReferences().size() &gt; 0) {</span>
+<span class="nc" id="L303">				return &quot;moveReferences&quot;;</span>
+			}
+<span class="nc" id="L305">			Category currentCategory = this.getCategory(this.getSelectedNode());</span>
+<span class="nc" id="L306">			Category parent = this.getCategory(parentCategoryCode);</span>
+<span class="nc" id="L307">			this.getCategoryManager().moveCategory(currentCategory, parent);</span>
+<span class="nc" id="L308">		} catch (Throwable t) {</span>
+<span class="nc" id="L309">			_logger.error(&quot;error in move category&quot;, t);</span>
+<span class="nc" id="L310">			return FAILURE;</span>
+<span class="nc" id="L311">		}</span>
+<span class="nc" id="L312">		return SUCCESS;</span>
+	}
+
+	public String executeMoveTree() {
+<span class="nc" id="L316">		String selectedNode = this.getSelectedNode();</span>
+<span class="nc" id="L317">		String parentCategoryCode = this.getRequest().getParameter(&quot;parentCategoryCode&quot;);</span>
+		try {
+<span class="nc" id="L319">			String check = this.checkMoveCategory(selectedNode, parentCategoryCode);</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L321">				return check;</span>
+			}
+<span class="nc" id="L323">			Category currentCategory = this.getCategory(this.getSelectedNode());</span>
+<span class="nc" id="L324">			Category parent = this.getCategory(parentCategoryCode);</span>
+<span class="nc" id="L325">			this.getCategoryManager().moveCategory(currentCategory, parent);</span>
+<span class="nc" id="L326">		} catch (Throwable t) {</span>
+<span class="nc" id="L327">			_logger.error(&quot;error in move executeMoveTree&quot;, t);</span>
+<span class="nc" id="L328">			return FAILURE;</span>
+<span class="nc" id="L329">		}</span>
+<span class="nc" id="L330">		return SUCCESS;</span>
+	}
+
+	protected String checkMoveCategory(String selectedNode, String parentCategoryCode) {
+<span class="nc bnc" id="L334" title="All 2 branches missed.">		if (this.getCategoryManager().getMoveTreeStatus() != ICategoryManager.STATUS_READY) {</span>
+<span class="nc" id="L335">			this.addActionError(this.getText(&quot;error.category.move.updateReferencesRunning&quot;));</span>
+<span class="nc" id="L336">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc" id="L338">		Category currentCategory = this.getCategory(this.getSelectedNode());</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">		if (null == currentCategory) {</span>
+<span class="nc" id="L340">			_logger.info(&quot;Required a selected node&quot;);</span>
+<span class="nc" id="L341">			this.addActionError(this.getText(&quot;error.category.selectCategory&quot;));</span>
+<span class="nc" id="L342">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc bnc" id="L344" title="All 2 branches missed.">		if (currentCategory.getCode().equals(this.getCategoryManager().getRoot().getCode())) {</span>
+<span class="nc" id="L345">			_logger.info(&quot;Root category cannot be moved&quot;);</span>
+<span class="nc" id="L346">			this.addActionError(this.getText(&quot;error.category.move.rootNotAllowed&quot;));</span>
+<span class="nc" id="L347">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc bnc" id="L349" title="All 4 branches missed.">		if (&quot;&quot;.equals(parentCategoryCode) || null == this.getCategoryManager().getCategory(parentCategoryCode)) {</span>
+<span class="nc" id="L350">			this.addActionError(this.getText(&quot;error.category.move.selectCategoryParent&quot;));</span>
+<span class="nc" id="L351">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc" id="L353">		Category parent = this.getCategory(parentCategoryCode);</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">		if (null == parent) {</span>
+<span class="nc" id="L355">			_logger.info(&quot;Required a selected node&quot;);</span>
+<span class="nc" id="L356">			this.addActionError(this.getText(&quot;error.category.selectCategoryParent&quot;));</span>
+<span class="nc" id="L357">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc bnc" id="L359" title="All 2 branches missed.">		if (parent.getCode().equals(currentCategory.getParentCode())) {</span>
+<span class="nc" id="L360">			_logger.debug(&quot;trying to move a node under it's own parent..&quot;);</span>
+<span class="nc" id="L361">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc bnc" id="L363" title="All 2 branches missed.">		if (parent.isChildOf(selectedNode, this.getCategoryManager())) {</span>
+<span class="nc" id="L364">			List&lt;String&gt; args = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L365">			args.add(parent.getCode());</span>
+<span class="nc" id="L366">			args.add(selectedNode);</span>
+<span class="nc" id="L367">			this.addActionError(this.getText(&quot;error.category.move.parentUnderChild.notAllowed&quot;));</span>
+<span class="nc" id="L368">			return &quot;categoryTree&quot;;</span>
+		}
+<span class="nc" id="L370">		return null;</span>
+	}
+
+	protected void extractReferencingObjectsForMove(String categoryCode) {
+		try {
+<span class="nc" id="L375">			Category category = this.getCategoryManager().getCategory(categoryCode);</span>
+<span class="nc bnc" id="L376" title="All 2 branches missed.">			if (null != category) {</span>
+<span class="nc" id="L377">				Map references = this.getHelper().getReferencingObjectsForMove(category, this.getRequest());</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">				if (references.size() &gt; 0) {</span>
+<span class="nc" id="L379">					this.setReferences(references);</span>
+				}
+			}
+<span class="nc" id="L382">		} catch (Throwable t) {</span>
+<span class="nc" id="L383">			_logger.error(&quot;Error extracting referenced objects for move by category {}&quot;, categoryCode, t);</span>
+<span class="nc" id="L384">		}</span>
+<span class="nc" id="L385">	}</span>
+
+	/**
+	 * provide the result for the progress bar
+	 *
+	 * @return
+	 */
+	public Map&lt;String, Integer&gt; getUpdateReferencesStatus() {
+<span class="nc" id="L393">		int total = 0;</span>
+<span class="nc" id="L394">		int done = 0;</span>
+<span class="nc" id="L395">		ThreadGroup currentGroup = Thread.currentThread().getThreadGroup();</span>
+<span class="nc" id="L396">		int numThreads = currentGroup.activeCount();</span>
+<span class="nc" id="L397">		Thread[] listOfThreads = new Thread[numThreads];</span>
+<span class="nc" id="L398">		currentGroup.enumerate(listOfThreads);</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">		for (int i = 0; i &lt; numThreads; i++) {</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">			if (listOfThreads[i].getName().startsWith(ICategoryManager.RELOAD_CATEGORY_REFERENCES_THREAD_NAME_PREFIX)) {</span>
+<span class="nc" id="L401">				ReloadingCategoryReferencesThread thread = (ReloadingCategoryReferencesThread) listOfThreads[i];</span>
+<span class="nc" id="L402">				total = total + thread.getListSize();</span>
+<span class="nc" id="L403">				done = done + thread.getListIndex();</span>
+			}
+		}
+<span class="nc" id="L406">		Map&lt;String, Integer&gt; result = new HashMap&lt;String, Integer&gt;();</span>
+<span class="nc" id="L407">		result.put(&quot;total&quot;, total);</span>
+<span class="nc" id="L408">		result.put(&quot;done&quot;, done);</span>
+<span class="nc" id="L409">		return result;</span>
+	}
+
+	public Category getCategory(String categoryCode) {
+<span class="fc" id="L413">		return this.getCategoryManager().getCategory(categoryCode);</span>
+	}
+
+	@Deprecated
+	public Category getRoot() {
+<span class="nc" id="L418">		return this.getCategoryManager().getRoot();</span>
+	}
+
+	public ITreeNode getTreeRootNode() {
+<span class="fc" id="L422">		ITreeNode node = null;</span>
+		try {
+<span class="fc" id="L424">			node = this.getHelper().getAllowedTreeRoot(new ArrayList&lt;String&gt;());</span>
+<span class="nc" id="L425">		} catch (Throwable t) {</span>
+<span class="nc" id="L426">			_logger.error(&quot;error in getTreeRootNode&quot;, t);</span>
+<span class="fc" id="L427">		}</span>
+<span class="fc" id="L428">		return node;</span>
+	}
+
+	@Override
+	public String buildTree() {
+<span class="nc" id="L433">		this.checkTitles(false);</span>
+<span class="nc" id="L434">		return super.buildTree();</span>
+	}
+
+	public List&lt;Lang&gt; getLangs() {
+<span class="nc" id="L438">		return this.getLangManager().getLangs();</span>
+	}
+
+	public List&lt;Category&gt; getBreadCrumbsTargets(String categoryCode) {
+<span class="nc" id="L442">		Category category = this.getCategoryManager().getCategory(categoryCode);</span>
+<span class="nc bnc" id="L443" title="All 2 branches missed.">		if (null == category) {</span>
+<span class="nc" id="L444">			return null;</span>
+		}
+<span class="nc" id="L446">		List&lt;Category&gt; categories = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L447">		this.getSubBreadCrumbsTargets(categories, category);</span>
+<span class="nc" id="L448">		return categories;</span>
+	}
+
+	private void getSubBreadCrumbsTargets(List&lt;Category&gt; categories, Category current) {
+<span class="nc" id="L452">		categories.add(0, current);</span>
+<span class="nc" id="L453">		Category parent = this.getCategoryManager().getCategory(current.getParentCode());</span>
+<span class="nc bnc" id="L454" title="All 4 branches missed.">		if (parent != null &amp;&amp; !parent.getCode().equals(current.getCode())) {</span>
+<span class="nc" id="L455">			this.getSubBreadCrumbsTargets(categories, parent);</span>
+		}
+<span class="nc" id="L457">	}</span>
+
+	public int getStrutsAction() {
+<span class="fc" id="L460">		return _strutsAction;</span>
+	}
+
+	public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L464">		this._strutsAction = strutsAction;</span>
+<span class="fc" id="L465">	}</span>
+
+	public String getCategoryCode() {
+<span class="fc" id="L468">		return _categoryCode;</span>
+	}
+
+	public void setCategoryCode(String categoryCode) {
+<span class="fc" id="L472">		this._categoryCode = categoryCode;</span>
+<span class="fc" id="L473">	}</span>
+
+	public String getParentCategoryCode() {
+<span class="fc" id="L476">		return _parentCategoryCode;</span>
+	}
+
+	public void setParentCategoryCode(String parentCategoryCode) {
+<span class="fc" id="L480">		this._parentCategoryCode = parentCategoryCode;</span>
+<span class="fc" id="L481">	}</span>
+
+	public ApsProperties getTitles() {
+<span class="fc" id="L484">		return _titles;</span>
+	}
+
+	public void setTitles(ApsProperties titles) {
+<span class="fc" id="L488">		this._titles = titles;</span>
+<span class="fc" id="L489">	}</span>
+
+	protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L492">		return _categoryManager;</span>
+	}
+
+	public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L496">		this._categoryManager = categoryManager;</span>
+<span class="fc" id="L497">	}</span>
+
+	protected ICategoryActionHelper getHelper() {
+<span class="fc" id="L500">		return (ICategoryActionHelper) super.getTreeHelper();</span>
+	}
+
+	public Map getReferences() {
+<span class="fc" id="L504">		return _references;</span>
+	}
+
+	protected void setReferences(Map references) {
+<span class="fc" id="L508">		this._references = references;</span>
+<span class="fc" id="L509">	}</span>
+
+	public String getSelectedNode() {
+<span class="fc" id="L512">		return _selectedNode;</span>
+	}
+
+	public void setSelectedNode(String selectedNode) {
+<span class="fc" id="L516">		super.getTreeNodesToOpen().add(selectedNode);</span>
+<span class="fc" id="L517">		this._selectedNode = selectedNode;</span>
+<span class="fc" id="L518">	}</span>
+
+	public String getCategoryCodeToken() {
+<span class="nc" id="L521">		return _categoryCodeToken;</span>
+	}
+
+	public void setCategoryCodeToken(String categoryCodeToken) {
+<span class="nc" id="L525">		this._categoryCodeToken = categoryCodeToken;</span>
+<span class="nc" id="L526">	}</span>
+
+	private int _strutsAction;
+	private String _categoryCode;
+	private String _parentCategoryCode;
+	private String _selectedNode;
+	private String _categoryCodeToken;
+<span class="fc" id="L533">	private ApsProperties _titles = new ApsProperties();</span>
+
+	private ICategoryManager _categoryManager;
+
+	private Map _references;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentPreviewAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content</a> &gt; <span class="el_source">ContentPreviewAction.java</span></div><h1>ContentPreviewAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content;
+
+import java.io.IOException;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts2.interceptor.ServletResponseAware;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.apsadmin.content.AbstractContentAction;
+
+/**
+ * Classe action delegate alla gestione della funzione di preview contenuti.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L38">public class ContentPreviewAction extends AbstractContentAction implements ServletResponseAware {</span>
+
+<span class="fc" id="L40">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentPreviewAction.class);</span>
+	
+	public String preview() {
+<span class="fc" id="L43">		Content content = this.getContent();</span>
+<span class="fc" id="L44">		this.getContentActionHelper().updateEntity(content, this.getRequest());</span>
+		try {
+<span class="fc" id="L46">			String previewLangCode = this.extractPreviewLangCode();</span>
+<span class="fc" id="L47">			this.setPreviewLangCode(previewLangCode);</span>
+<span class="fc" id="L48">			String previewPageCode = this.getRequest().getParameter(PAGE_CODE_PARAM_PREFIX + &quot;_&quot; + previewLangCode);</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">			if (null == previewPageCode) {</span>
+<span class="fc" id="L50">				previewPageCode = this.getRequest().getParameter(PAGE_CODE_PARAM_PREFIX);</span>
+			}
+<span class="fc" id="L52">			this.setPreviewPageCode(previewPageCode);</span>
+<span class="nc" id="L53">		} catch (Throwable t) {</span>
+<span class="nc" id="L54">			_logger.error(&quot;error in preview&quot;, t);</span>
+<span class="nc" id="L55">			return FAILURE;</span>
+<span class="fc" id="L56">		}</span>
+<span class="fc" id="L57">		return SUCCESS;</span>
+	}
+	
+	private String extractPreviewLangCode() {
+<span class="fc" id="L61">		String previewLangCode = null;</span>
+<span class="fc" id="L62">		Enumeration&lt;String&gt; attributeEnum = this.getRequest().getAttributeNames();</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">		if (null != attributeEnum) {</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">			while (attributeEnum.hasMoreElements()) {</span>
+<span class="fc" id="L65">				String attributeName = attributeEnum.nextElement();</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">				if (attributeName.startsWith(LANG_CODE_PARAM_PREFIX + &quot;_&quot;)) {</span>
+<span class="nc" id="L67">					previewLangCode = (String) this.getRequest().getAttribute(attributeName);</span>
+<span class="nc" id="L68">					break;</span>
+				}
+<span class="fc" id="L70">			}</span>
+		}
+<span class="pc bpc" id="L72" title="3 of 4 branches missed.">		if (null == previewLangCode || previewLangCode.trim().length() == 0) {</span>
+<span class="fc" id="L73">			previewLangCode = this.getLangManager().getDefaultLang().getCode();</span>
+		}
+<span class="fc" id="L75">		return previewLangCode;</span>
+	}
+	
+	public String executePreview() {
+		try {
+<span class="fc" id="L80">			String pageDestCode = this.getCheckPageDestinationCode();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">			if (null == pageDestCode) return INPUT;</span>
+<span class="fc" id="L82">			this.prepareForward(pageDestCode);</span>
+<span class="fc" id="L83">			this.getRequest().setCharacterEncoding(&quot;UTF-8&quot;);</span>
+<span class="nc" id="L84">		} catch (Throwable t) {</span>
+<span class="nc" id="L85">			_logger.error(&quot;error in executePreview&quot;, t);</span>
+<span class="nc" id="L86">			throw new RuntimeException(&quot;error in executePreview&quot;, t);</span>
+<span class="fc" id="L87">		}</span>
+<span class="fc" id="L88">		return null;</span>
+	}
+	
+	protected String getCheckPageDestinationCode() {
+<span class="fc" id="L92">		IPageManager pageManager = this.getPageManager();</span>
+<span class="fc" id="L93">		String pageDestCode = this.getPreviewPageCode();</span>
+<span class="fc bfc" id="L94" title="All 4 branches covered.">		if (null == pageDestCode || pageDestCode.trim().length() == 0) {</span>
+<span class="fc" id="L95">			pageDestCode = this.getContent().getViewPage();</span>
+<span class="pc bpc" id="L96" title="2 of 4 branches missed.">			if (null == pageDestCode || null == pageManager.getOnlinePage(pageDestCode)) {</span>
+<span class="nc" id="L97">				String[] args = {pageDestCode};</span>
+<span class="nc" id="L98">				this.addFieldError(&quot;previewPageCode&quot;, this.getText(&quot;error.content.preview.pageNotValid&quot;, args));</span>
+<span class="nc" id="L99">				return null;</span>
+			}
+		}
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (null == pageManager.getOnlinePage(pageDestCode)) {</span>
+<span class="fc" id="L103">			String[] args = {pageDestCode};</span>
+<span class="fc" id="L104">			this.addFieldError(&quot;previewPageCode&quot;, this.getText(&quot;error.content.preview.pageNotFound&quot;, args));</span>
+<span class="fc" id="L105">			return null;</span>
+		}
+<span class="fc" id="L107">		return pageDestCode;</span>
+	}
+	
+	private void prepareForward(String pageDestCode) throws IOException {
+<span class="fc" id="L111">		Lang currentLang = this.getLangManager().getLang(this.getPreviewLangCode());</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">		if (null == currentLang) {</span>
+<span class="fc" id="L113">			currentLang = this.getLangManager().getDefaultLang();</span>
+		}
+<span class="fc" id="L115">		IPageManager pageManager = this.getPageManager();</span>
+<span class="fc" id="L116">		IPage pageDest = pageManager.getOnlinePage(pageDestCode);</span>
+<span class="fc" id="L117">		Map&lt;String, String&gt; parameters = new HashMap&lt;String, String&gt;();</span>
+<span class="fc" id="L118">		parameters.put(&quot;contentOnSessionMarker&quot;, this.getContentOnSessionMarker());</span>
+<span class="fc" id="L119">		String redirectUrl = this.getUrlManager().createURL(pageDest, currentLang, parameters, false);</span>
+<span class="fc" id="L120">		this.getServletResponse().sendRedirect(redirectUrl);</span>
+<span class="fc" id="L121">	}</span>
+	
+	@Override
+	public void setServletResponse(HttpServletResponse response) {
+<span class="fc" id="L125">		this._response = response;</span>
+<span class="fc" id="L126">	}</span>
+	public HttpServletResponse getServletResponse() {
+<span class="fc" id="L128">		return _response;</span>
+	}
+	
+	public String getPreviewPageCode() {
+<span class="fc" id="L132">		return _previewPageCode;</span>
+	}
+	public void setPreviewPageCode(String previewPageCode) {
+<span class="fc" id="L135">		this._previewPageCode = previewPageCode;</span>
+<span class="fc" id="L136">	}</span>
+	
+	public String getPreviewLangCode() {
+<span class="fc" id="L139">		return _previewLangCode;</span>
+	}
+	public void setPreviewLangCode(String previewLangCode) {
+<span class="fc" id="L142">		this._previewLangCode = previewLangCode;</span>
+<span class="fc" id="L143">	}</span>
+	
+	protected IPageManager getPageManager() {
+<span class="fc" id="L146">		return _pageManager;</span>
+	}
+	public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L149">		this._pageManager = pageManager;</span>
+<span class="fc" id="L150">	}</span>
+	
+	public IURLManager getUrlManager() {
+<span class="fc" id="L153">		return _urlManager;</span>
+	}
+	public void setUrlManager(IURLManager urlManager) {
+<span class="fc" id="L156">		this._urlManager = urlManager;</span>
+<span class="fc" id="L157">	}</span>
+	
+	private HttpServletResponse _response;
+	
+	private String _previewPageCode;
+	private String _previewLangCode;
+	
+	private IPageManager _pageManager;
+	private IURLManager _urlManager;
+	
+	public static final String PAGE_CODE_PARAM_PREFIX = &quot;jacmsPreviewActionPageCode&quot;;
+	
+	public static final String LANG_CODE_PARAM_PREFIX = &quot;jacmsPreviewActionLangCode&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

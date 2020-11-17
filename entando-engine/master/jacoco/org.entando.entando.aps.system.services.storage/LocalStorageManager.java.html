@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocalStorageManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.storage</a> &gt; <span class="el_source">LocalStorageManager.java</span></div><h1>LocalStorageManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.storage;
+
+import org.apache.commons.io.FilenameUtils;
+import org.entando.entando.ent.exception.EntException;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.CharEncoding;
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import java.io.*;
+import java.util.*;
+
+<span class="fc" id="L27">public class LocalStorageManager implements IStorageManager {</span>
+
+<span class="fc" id="L29">	private static final EntLogger logger = EntLogFactory.getSanitizedLogger(LocalStorageManager.class);</span>
+
+	private String baseURL;
+	private String baseDiskRoot;
+	private String protectedBaseDiskRoot;
+	private String protectedBaseURL;
+	private String allowedEditExtensions;
+
+
+	public void init() throws Exception {
+<span class="fc" id="L39">		logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L40">	}</span>
+
+	@Override
+	public void saveFile(String subPath, boolean isProtectedResource, InputStream is) throws EntException, IOException {
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L45">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L46">		FileOutputStream outStream = null;</span>
+		try {
+<span class="fc" id="L48">			File dir = new File(fullPath).getParentFile();</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">			if (!dir.exists()) {</span>
+<span class="fc" id="L50">				dir.mkdirs();</span>
+			}
+<span class="fc" id="L52">			byte[] buffer = new byte[1024];</span>
+			int length;
+<span class="fc" id="L54">			outStream = new FileOutputStream(fullPath);</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">			while ((length = is.read(buffer)) != -1) {</span>
+<span class="fc" id="L56">				outStream.write(buffer, 0, length);</span>
+<span class="fc" id="L57">				outStream.flush();</span>
+			}
+<span class="nc" id="L59">		} catch (Throwable t) {</span>
+<span class="nc" id="L60">			logger.error(&quot;Error on saving file&quot;, t);</span>
+<span class="nc" id="L61">			throw new EntException(&quot;Error on saving file&quot;, t);</span>
+		} finally {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">			if (null != outStream) {</span>
+<span class="fc" id="L64">				outStream.close();</span>
+			}
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">			if (null != is) {</span>
+<span class="fc" id="L67">				is.close();</span>
+			}
+		}
+<span class="fc" id="L70">	}</span>
+
+	@Override
+	public boolean deleteFile(String subPath, boolean isProtectedResource) {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L75">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L76">		File file = new File(fullPath);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">		if (file.exists()) {</span>
+<span class="fc" id="L78">			return file.delete();</span>
+		}
+<span class="fc" id="L80">		return false;</span>
+	}
+
+	@Override
+	public void createDirectory(String subPath, boolean isProtectedResource) {
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L86">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L87">		File dir = new File(fullPath);</span>
+<span class="pc bpc" id="L88" title="3 of 4 branches missed.">		if (!dir.exists() || !dir.isDirectory()) {</span>
+<span class="fc" id="L89">			dir.mkdirs();</span>
+		}
+<span class="fc" id="L91">	}</span>
+
+	@Override
+	public void deleteDirectory(String subPath, boolean isProtectedResource) {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L96">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L97">		File dir = new File(fullPath);</span>
+<span class="fc" id="L98">		this.delete(dir);</span>
+<span class="fc" id="L99">	}</span>
+
+	private boolean delete(File file) {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (file.exists()) {</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">			if (file.isDirectory()) {</span>
+<span class="fc" id="L104">				String[] filesName = file.list();</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">				if (filesName != null) {</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">					for (String s : filesName) {</span>
+<span class="fc" id="L107">						File fileToDelete = new File(file.getAbsoluteFile() + File.separator + s);</span>
+<span class="fc" id="L108">						this.delete(fileToDelete);</span>
+					}
+				}
+<span class="fc" id="L111">				boolean deleted = file.delete();</span>
+
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">				if(!deleted) {</span>
+<span class="nc" id="L114">					logger.warn(&quot;Failed to delete  file {}&quot;, file.getAbsolutePath());</span>
+				}
+<span class="fc" id="L116">			} else {</span>
+<span class="fc" id="L117">				return file.delete();</span>
+			}
+		}
+<span class="fc" id="L120">		return false;</span>
+	}
+
+	@Override
+	public InputStream getStream(String subPath, boolean isProtectedResource) throws EntException {
+		try {
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">			subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L127">			String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L128">			File file = new File(fullPath);</span>
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">			if (file.exists() &amp;&amp; !file.isDirectory()) {</span>
+<span class="fc" id="L130">				return new FileInputStream(file);</span>
+			}
+<span class="nc" id="L132">		} catch (Throwable t) {</span>
+<span class="nc" id="L133">			logger.error(&quot;Error extracting stream&quot;, t);</span>
+<span class="nc" id="L134">			throw new EntException(&quot;Error extracting stream&quot;, t);</span>
+<span class="fc" id="L135">		}</span>
+<span class="fc" id="L136">		return null;</span>
+	}
+
+	@Override
+	public boolean exists(String subPath, boolean isProtectedResource) {
+<span class="fc" id="L141">		File file = this.getFile(subPath, isProtectedResource);</span>
+<span class="fc" id="L142">		return file.exists();</span>
+	}
+
+	protected File getFile(String subPath, boolean isProtectedResource) {
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L147">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L148">		return new File(fullPath);</span>
+	}
+
+	@Override
+	public String getResourceUrl(String subPath, boolean isProtectedResource) {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">		String baseUrl = (!isProtectedResource) ? this.getBaseURL() : this.getProtectedBaseURL();</span>
+<span class="nc" id="L155">		return this.createPath(baseUrl, subPath, true);</span>
+	}
+
+	@Override
+	public String readFile(String subPath, boolean isProtectedResource) throws EntException {
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L161">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L162">		File file = new File(fullPath);</span>
+		try {
+<span class="fc" id="L164">			return FileUtils.readFileToString(file, CharEncoding.UTF_8);</span>
+<span class="nc" id="L165">		} catch (Throwable t) {</span>
+<span class="nc" id="L166">			logger.error(&quot;Error reading File with path {}&quot;, subPath, t);</span>
+<span class="nc" id="L167">			throw new EntException(&quot;Error reading file&quot;, t);</span>
+		}
+	}
+
+	@Override
+	public void editFile(String subPath, boolean isProtectedResource, InputStream is) throws EntException {
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L174">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L175">		String tempFilePath = null;</span>
+		try {
+<span class="fc" id="L177">			File oldFile = new File(fullPath);</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">			if (oldFile.exists()) {</span>
+<span class="fc" id="L179">				String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="fc" id="L180">				tempFilePath = tempDir + File.separator + subPath;</span>
+<span class="fc" id="L181">				FileUtils.copyFile(oldFile, new File(tempFilePath));</span>
+			}
+<span class="fc" id="L183">			this.saveFile(subPath, isProtectedResource, is);</span>
+<span class="nc" id="L184">		} catch (Throwable t) {</span>
+			try {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">				if (null != tempFilePath) {</span>
+<span class="nc" id="L187">					FileUtils.moveFile(new File(tempFilePath), new File(fullPath));</span>
+				}
+<span class="nc" id="L189">			} catch (Throwable tr) {</span>
+<span class="nc" id="L190">				logger.error(&quot;Error restoring File from path {} to path&quot;, tempFilePath, fullPath, tr);</span>
+<span class="nc" id="L191">			}</span>
+<span class="nc" id="L192">			logger.error(&quot;Error writing File with path {}&quot;, subPath, t);</span>
+<span class="nc" id="L193">			throw new EntException(&quot;Error editing file&quot;, t);</span>
+		} finally {
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">			if (null != tempFilePath) {</span>
+<span class="fc" id="L196">				boolean deleted = new File(tempFilePath).delete();</span>
+
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">				if(!deleted) {</span>
+<span class="nc" id="L199">					logger.warn(&quot;Failed to delete  file {}&quot;, tempFilePath);</span>
+				}
+			}
+		}
+<span class="fc" id="L203">	}</span>
+
+	@Override
+	public String[] list(String subPath, boolean isProtectedResource) {
+<span class="nc" id="L207">		return this.list(subPath, isProtectedResource, null);</span>
+	}
+
+	@Override
+	public String[] listDirectory(String subPath, boolean isProtectedResource) {
+<span class="fc" id="L212">		return this.list(subPath, isProtectedResource, true);</span>
+	}
+
+	@Override
+	public String[] listFile(String subPath, boolean isProtectedResource) {
+<span class="fc" id="L217">		return this.list(subPath, isProtectedResource, false);</span>
+	}
+
+	private String[] list(String subPath, boolean isProtectedResource, Boolean searchDirectory) {
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L222">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L223">		File directory = new File(fullPath);</span>
+<span class="pc bpc" id="L224" title="1 of 4 branches missed.">		if (directory.exists() &amp;&amp; directory.isDirectory()) {</span>
+<span class="fc" id="L225">			String[] objects = new String[]{};</span>
+<span class="fc" id="L226">			String folder = fullPath;</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">			if (!folder.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L228">				folder += &quot;/&quot;;</span>
+			}
+<span class="fc" id="L230">			String[] contents = directory.list();</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">			if (null == searchDirectory) {</span>
+<span class="nc" id="L232">				objects = contents;</span>
+			} else {
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">				if (contents != null) {</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">					for (String string : contents) {</span>
+<span class="fc" id="L236">						File file = new File(folder + string);</span>
+<span class="fc bfc" id="L237" title="All 8 branches covered.">						if ((file.isDirectory() &amp;&amp; searchDirectory) || (!file.isDirectory() &amp;&amp; !searchDirectory)) {</span>
+<span class="fc" id="L238">							objects = this.addChild(string, objects);</span>
+						}
+					}
+				}
+			}
+<span class="fc" id="L243">			Arrays.sort(Objects.requireNonNull(objects));</span>
+<span class="fc" id="L244">			return objects;</span>
+		}
+<span class="fc" id="L246">		return null;</span>
+	}
+
+	protected String[] addChild(String stringToAdd, String[] objects) {
+<span class="fc" id="L250">		int len = objects.length;</span>
+<span class="fc" id="L251">		String[] newArray = new String[len + 1];</span>
+<span class="fc" id="L252">		System.arraycopy(objects, 0, newArray, 0, len);</span>
+<span class="fc" id="L253">		newArray[len] = stringToAdd;</span>
+<span class="fc" id="L254">		return newArray;</span>
+	}
+
+	@Override
+	public String createFullPath(String subPath, boolean isProtectedResource) {
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">		String diskRoot = (!isProtectedResource) ? this.getBaseDiskRoot() : this.getProtectedBaseDiskRoot();</span>
+<span class="fc" id="L261">		String resPath = this.createPath(diskRoot, subPath, false);</span>
+		// PATH-TRAVERSAL-CHECK
+		try {
+<span class="pc bpc" id="L264" title="1 of 4 branches missed.">			if (!diskRoot.endsWith(resPath) &amp;&amp; !FilenameUtils.directoryContains(diskRoot, resPath)) {</span>
+<span class="nc" id="L265">				throw new EntRuntimeException(</span>
+<span class="nc" id="L266">						String.format(&quot;Path validation failed: \&quot;%s\&quot; not in \&quot;%s\&quot;&quot;, resPath, diskRoot)</span>
+				);
+			}
+<span class="nc" id="L269">        } catch (IOException e) {</span>
+<span class="nc" id="L270">            throw new EntRuntimeException(&quot;Error validating the path&quot;, e);</span>
+<span class="fc" id="L271">        }</span>
+<span class="fc" id="L272">		return resPath;</span>
+	}
+
+	private String createPath(String basePath, String subPath, boolean isUrlPath) {
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">		String separator = (isUrlPath) ? &quot;/&quot; : File.separator;</span>
+<span class="fc" id="L278">		boolean baseEndWithSlash = basePath.endsWith(separator);</span>
+<span class="fc" id="L279">		boolean subPathStartWithSlash = subPath.startsWith(separator);</span>
+<span class="pc bpc" id="L280" title="6 of 8 branches missed.">		if ((baseEndWithSlash &amp;&amp; !subPathStartWithSlash) || (!baseEndWithSlash &amp;&amp; subPathStartWithSlash)) {</span>
+<span class="fc" id="L281">			return basePath + subPath;</span>
+<span class="nc bnc" id="L282" title="All 4 branches missed.">		} else if (!baseEndWithSlash &amp;&amp; !subPathStartWithSlash) {</span>
+<span class="nc" id="L283">			return basePath + separator + subPath;</span>
+		} else {
+<span class="nc" id="L285">			String base = basePath.substring(0, basePath.length() - File.separator.length());</span>
+<span class="nc" id="L286">			return base + subPath;</span>
+		}
+	}
+
+	@Override
+	public BasicFileAttributeView[] listAttributes(String subPath, boolean isProtectedResource) {
+<span class="fc" id="L292">		return this.listAttributes(subPath, isProtectedResource, null);</span>
+	}
+
+	@Override
+	public BasicFileAttributeView[] listDirectoryAttributes(String subPath, boolean isProtectedResource) {
+<span class="nc" id="L297">		return this.listAttributes(subPath, isProtectedResource, true);</span>
+	}
+
+	@Override
+	public BasicFileAttributeView[] listFileAttributes(String subPath, boolean isProtectedResource) {
+<span class="nc" id="L302">		return this.listAttributes(subPath, isProtectedResource, false);</span>
+	}
+
+	private BasicFileAttributeView[] listAttributes(String subPath, boolean isProtectedResource, Boolean searchDirectory) {
+<span class="pc bpc" id="L306" title="1 of 2 branches missed.">		subPath = (null == subPath) ? &quot;&quot; : subPath;</span>
+<span class="fc" id="L307">		String fullPath = this.createFullPath(subPath, isProtectedResource);</span>
+<span class="fc" id="L308">		File directory = new File(fullPath);</span>
+<span class="pc bpc" id="L309" title="2 of 4 branches missed.">		if (directory.exists() &amp;&amp; directory.isDirectory()) {</span>
+<span class="fc" id="L310">			BasicFileAttributeView[] objects = new BasicFileAttributeView[]{};</span>
+<span class="fc" id="L311">			String folder = fullPath;</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">			if (!folder.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L313">				folder += &quot;/&quot;;</span>
+			}
+<span class="fc" id="L315">			String[] contents = directory.list();</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">			for (String string : Objects.requireNonNull(contents)) {</span>
+<span class="fc" id="L317">				File file = new File(folder + string);</span>
+<span class="pc bpc" id="L318" title="9 of 10 branches missed.">				if (null == searchDirectory || (file.isDirectory() &amp;&amp; searchDirectory) || (!file.isDirectory() &amp;&amp; !searchDirectory)) {</span>
+<span class="fc" id="L319">					BasicFileAttributeView bfav = new BasicFileAttributeView(file);</span>
+<span class="fc" id="L320">					objects = this.addChild(bfav, objects);</span>
+				}
+			}
+<span class="fc" id="L323">			Arrays.sort(objects);</span>
+<span class="fc" id="L324">			return objects;</span>
+		}
+<span class="nc" id="L326">		return null;</span>
+	}
+
+	protected BasicFileAttributeView[] addChild(BasicFileAttributeView elementToAdd, BasicFileAttributeView[] objects) {
+<span class="fc" id="L330">		int len = objects.length;</span>
+<span class="fc" id="L331">		BasicFileAttributeView[] newArray = new BasicFileAttributeView[len + 1];</span>
+<span class="fc" id="L332">		System.arraycopy(objects, 0, newArray, 0, len);</span>
+<span class="fc" id="L333">		newArray[len] = elementToAdd;</span>
+<span class="fc" id="L334">		return newArray;</span>
+	}
+
+	@Override
+	public BasicFileAttributeView getAttributes(String subPath, boolean isProtectedResource) {
+<span class="nc" id="L339">		File file = this.getFile(subPath, isProtectedResource);</span>
+<span class="nc bnc" id="L340" title="All 2 branches missed.">		if (!file.exists()) {</span>
+<span class="nc" id="L341">			return null;</span>
+		} else {
+<span class="nc" id="L343">			return new BasicFileAttributeView(file);</span>
+		}
+	}
+
+	protected String getBaseURL() {
+<span class="nc" id="L348">		return baseURL;</span>
+	}
+
+	public void setBaseURL(String baseURL) {
+<span class="fc" id="L352">		this.baseURL = baseURL;</span>
+<span class="fc" id="L353">	}</span>
+
+	protected String getBaseDiskRoot() {
+<span class="fc" id="L356">		return baseDiskRoot;</span>
+	}
+
+	public void setBaseDiskRoot(String baseDiskRoot) {
+<span class="fc" id="L360">		this.baseDiskRoot = baseDiskRoot;</span>
+<span class="fc" id="L361">	}</span>
+
+	protected String getProtectedBaseDiskRoot() {
+<span class="fc" id="L364">		return protectedBaseDiskRoot;</span>
+	}
+
+	public void setProtectedBaseDiskRoot(String protBaseDiskRoot) {
+<span class="fc" id="L368">		this.protectedBaseDiskRoot = protBaseDiskRoot;</span>
+<span class="fc" id="L369">	}</span>
+
+	protected String getProtectedBaseURL() {
+<span class="nc" id="L372">		return protectedBaseURL;</span>
+	}
+
+	public void setProtectedBaseURL(String protBaseURL) {
+<span class="fc" id="L376">		this.protectedBaseURL = protBaseURL;</span>
+<span class="fc" id="L377">	}</span>
+
+	public void setAllowedEditExtensions(String allowedEditExtensions) {
+<span class="nc" id="L380">		this.allowedEditExtensions = allowedEditExtensions;</span>
+<span class="nc" id="L381">	}</span>
+
+	public String getAllowedEditExtensions() {
+<span class="nc" id="L384">		return allowedEditExtensions;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

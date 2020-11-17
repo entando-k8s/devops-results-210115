@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoK8SServiceDeployableContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando Cluster Infrastructure Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.clusterinfrastructure</a> &gt; <span class="el_source">EntandoK8SServiceDeployableContainer.java</span></div><h1>EntandoK8SServiceDeployableContainer.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.clusterinfrastructure;
+
+import io.fabric8.kubernetes.api.model.EnvVar;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.controller.EntandoOperatorConfig;
+import org.entando.kubernetes.controller.EntandoOperatorConfigProperty;
+import org.entando.kubernetes.controller.KeycloakClientConfig;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.database.DatabaseSchemaCreationResult;
+import org.entando.kubernetes.controller.spi.ConfigurableResourceContainer;
+import org.entando.kubernetes.controller.spi.DatabasePopulator;
+import org.entando.kubernetes.controller.spi.KubernetesPermission;
+import org.entando.kubernetes.controller.spi.ParameterizableContainer;
+import org.entando.kubernetes.controller.spi.SpringBootDeployableContainer;
+import org.entando.kubernetes.model.EntandoIngressingDeploymentSpec;
+import org.entando.kubernetes.model.KeycloakAwareSpec;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructure;
+import org.entando.kubernetes.model.plugin.ExpectedRole;
+
+public class EntandoK8SServiceDeployableContainer implements SpringBootDeployableContainer, ParameterizableContainer,
+        ConfigurableResourceContainer {
+
+    public static final String K8S_SVC_QUALIFIER = &quot;k8s-svc&quot;;
+    private static final String ENTANDO_K8S_SERVICE_IMAGE_NAME = &quot;entando/entando-k8s-service&quot;;
+
+    private final EntandoClusterInfrastructure entandoClusterInfrastructure;
+    private final KeycloakConnectionConfig keycloakConnectionConfig;
+
+    public EntandoK8SServiceDeployableContainer(EntandoClusterInfrastructure entandoClusterInfrastructure,
+<span class="fc" id="L52">            KeycloakConnectionConfig keycloakConnectionConfig) {</span>
+<span class="fc" id="L53">        this.entandoClusterInfrastructure = entandoClusterInfrastructure;</span>
+<span class="fc" id="L54">        this.keycloakConnectionConfig = keycloakConnectionConfig;</span>
+<span class="fc" id="L55">    }</span>
+
+    public static String clientIdOf(EntandoClusterInfrastructure infrastructure) {
+<span class="fc" id="L58">        return infrastructure.getMetadata().getName() + &quot;-&quot; + K8S_SVC_QUALIFIER;</span>
+    }
+
+    @Override
+    public void addEnvironmentVariables(List&lt;EnvVar&gt; vars) {
+<span class="fc" id="L63">        List&lt;String&gt; namespacesToObserve = EntandoOperatorConfig.getNamespacesToObserve();</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if (!namespacesToObserve.isEmpty()) {</span>
+<span class="nc" id="L65">            vars.add(new EnvVar(EntandoOperatorConfigProperty.ENTANDO_NAMESPACES_TO_OBSERVE.name(),</span>
+<span class="nc" id="L66">                    namespacesToObserve.stream().collect(Collectors.joining(&quot;,&quot;)), null));</span>
+        }
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public DatabaseSchemaCreationResult getDatabaseSchema() {
+<span class="fc" id="L72">        return null;</span>
+    }
+
+    @Override
+    public int getCpuLimitMillicores() {
+<span class="fc" id="L77">        return 1000;</span>
+    }
+
+    @Override
+    public int getMemoryLimitMebibytes() {
+<span class="fc" id="L82">        return 768;</span>
+    }
+
+    @Override
+    public String determineImageToUse() {
+<span class="fc" id="L87">        return ENTANDO_K8S_SERVICE_IMAGE_NAME;</span>
+    }
+
+    @Override
+    public String getNameQualifier() {
+<span class="fc" id="L92">        return K8S_SVC_QUALIFIER;</span>
+    }
+
+    @Override
+    public int getPrimaryPort() {
+<span class="fc" id="L97">        return 8084;</span>
+    }
+
+    public KeycloakConnectionConfig getKeycloakConnectionConfig() {
+<span class="fc" id="L101">        return keycloakConnectionConfig;</span>
+    }
+
+    @Override
+    public KeycloakClientConfig getKeycloakClientConfig() {
+<span class="fc" id="L106">        String clientId = clientIdOf(this.entandoClusterInfrastructure);</span>
+<span class="fc" id="L107">        List&lt;ExpectedRole&gt; clientRoles = Arrays.asList(</span>
+                new ExpectedRole(KubeUtils.ENTANDO_APP_ROLE),
+                new ExpectedRole(KubeUtils.ENTANDO_PLUGIN_ROLE)
+        );
+<span class="fc" id="L111">        return new KeycloakClientConfig(determineRealm(),</span>
+                clientId, &quot;Entando K8S Service&quot;, clientRoles, null);
+    }
+
+    @Override
+    public KeycloakAwareSpec getKeycloakAwareSpec() {
+<span class="fc" id="L117">        return entandoClusterInfrastructure.getSpec();</span>
+    }
+
+    @Override
+    public String getWebContextPath() {
+<span class="fc" id="L122">        return &quot;/k8s&quot;;</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getHealthCheckPath() {
+<span class="fc" id="L127">        return Optional.of(getWebContextPath() + &quot;/actuator/health&quot;);</span>
+    }
+
+    @Override
+    public List&lt;KubernetesPermission&gt; getKubernetesPermissions() {
+<span class="nc" id="L132">        return Arrays.asList(new KubernetesPermission(&quot;entando.org&quot;, &quot;*&quot;, &quot;*&quot;),</span>
+                new KubernetesPermission(&quot;&quot;, &quot;secrets&quot;, &quot;create&quot;, &quot;get&quot;, &quot;update&quot;, &quot;delete&quot;),
+                new KubernetesPermission(&quot;&quot;, &quot;configmaps&quot;, &quot;*&quot;),
+                new KubernetesPermission(&quot;&quot;, &quot;namespaces&quot;, &quot;get&quot;)
+        );
+    }
+
+    @Override
+    public List&lt;String&gt; getDbSchemaQualifiers() {
+<span class="nc" id="L141">        return Collections.emptyList();</span>
+    }
+
+    @Override
+    public Optional&lt;DatabasePopulator&gt; useDatabaseSchemas(Map&lt;String, DatabaseSchemaCreationResult&gt; map) {
+<span class="nc" id="L146">        return Optional.empty();</span>
+    }
+
+    @Override
+    public EntandoIngressingDeploymentSpec getCustomResourceSpec() {
+<span class="fc" id="L151">        return getKeycloakAwareSpec();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

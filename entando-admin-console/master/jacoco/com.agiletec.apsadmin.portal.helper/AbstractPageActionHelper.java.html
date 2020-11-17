@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractPageActionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal.helper</a> &gt; <span class="el_source">AbstractPageActionHelper.java</span></div><h1>AbstractPageActionHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal.helper;
+
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.system.common.tree.ITreeNodeManager;
+
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.PageUtilizer;
+import com.agiletec.aps.system.services.page.PageUtils;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.portal.AbstractPortalAction;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.apsadmin.system.TreeNodeBaseActionHelper;
+import com.agiletec.apsadmin.system.TreeNodeWrapper;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.servlet.http.HttpServletRequest;
+import org.apache.commons.lang3.StringUtils;
+
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.apsadmin.portal.node.PageTreeNodeWrapper;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
+/**
+ * Main abstract hepler for pages handling
+ *
+ * @author E.Santoboni -S.Puddu
+ */
+<span class="fc" id="L54">public abstract class AbstractPageActionHelper extends TreeNodeBaseActionHelper implements IPageActionHelper {</span>
+
+<span class="fc" id="L56">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(AbstractPageActionHelper.class);</span>
+
+    private IPageManager _pageManager;
+    private ConfigInterface _configService;
+
+    @Autowired(required = false)
+    private List&lt;IExternalPageValidator&gt; externalValidators;
+
+    protected abstract IPage getPage(String pageCode);
+
+    protected abstract boolean isDraftPageHepler();
+
+    @Override
+    public boolean checkPageGroup(IPage page, BaseAction currentAction) {
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">        if (null == page || StringUtils.isBlank(page.getGroup())) {</span>
+<span class="fc" id="L71">            return true;</span>
+        }
+        try {
+<span class="fc" id="L74">            String groupCode = page.getGroup();</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (!groupCode.equals(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L76">                String[] childrenCodes = page.getChildrenCodes();</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                if (null != childrenCodes) {</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                    for (String childrenCode : childrenCodes) {</span>
+<span class="nc" id="L79">                        IPage child = this.getPage(childrenCode);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">                        if (null == child) {</span>
+<span class="nc" id="L81">                            continue;</span>
+                        }
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                        if (!groupCode.equals(child.getGroup())) {</span>
+<span class="nc" id="L84">                            String textMessage = currentAction.getText(&quot;error.page.child.invalidGroup&quot;, new String[]{child.getCode(), child.getGroup()});</span>
+<span class="nc" id="L85">                            currentAction.addFieldError(&quot;group&quot;, textMessage);</span>
+                        }
+                    }
+                }
+            }
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            if (!page.isRoot()) {</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                IPage parent = (page.isOnlineInstance()) ? </span>
+<span class="nc" id="L92">                        this.getPageManager().getOnlinePage(page.getParentCode()) : </span>
+<span class="fc" id="L93">                        this.getPageManager().getDraftPage(page.getParentCode());</span>
+<span class="fc" id="L94">                String parentGroupCode = parent.getGroup();</span>
+<span class="pc bpc" id="L95" title="3 of 4 branches missed.">                if (!parentGroupCode.equals(Group.FREE_GROUP_NAME) &amp;&amp; !parentGroupCode.equals(groupCode)) {</span>
+<span class="nc" id="L96">                    String textMessage = currentAction.getText(&quot;error.page.parent.invalidGroup&quot;, new String[]{parent.getCode(), parentGroupCode});</span>
+<span class="nc" id="L97">                    currentAction.addFieldError(&quot;group&quot;, textMessage);</span>
+                }
+            }
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (null != this.getExternalValidators()) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                for (IExternalPageValidator externalValidator : this.getExternalValidators()) {</span>
+<span class="nc" id="L102">                    externalValidator.checkPageGroup(page, this.isDraftPageHepler(), currentAction);</span>
+<span class="nc" id="L103">                }</span>
+            }
+<span class="nc" id="L105">        } catch (Exception e) {</span>
+<span class="nc" id="L106">            logger.error(&quot;Error checking page {}&quot;, page.getCode(), e);</span>
+<span class="nc" id="L107">            return false;</span>
+<span class="fc" id="L108">        }</span>
+<span class="fc" id="L109">        return true;</span>
+    }
+
+    @Override
+    protected abstract IPage getRoot();
+
+    @Override
+    public Map getReferencingObjects(IPage page, HttpServletRequest request) throws EntException {
+<span class="fc" id="L117">        Map&lt;String, List&gt; references = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L119">            String[] defNames = ApsWebApplicationUtils.getWebApplicationContext(request).getBeanNamesForType(PageUtilizer.class);</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">            for (int i = 0; i &lt; defNames.length; i++) {</span>
+<span class="nc" id="L121">                Object service = null;</span>
+                try {
+<span class="nc" id="L123">                    service = ApsWebApplicationUtils.getWebApplicationContext(request).getBean(defNames[i]);</span>
+<span class="nc" id="L124">                } catch (Throwable t) {</span>
+<span class="nc" id="L125">                    logger.error(&quot;error in hasReferencingObjects&quot;, t);</span>
+<span class="nc" id="L126">                    service = null;</span>
+<span class="nc" id="L127">                }</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                if (service != null) {</span>
+<span class="nc" id="L129">                    PageUtilizer pageUtilizer = (PageUtilizer) service;</span>
+<span class="nc" id="L130">                    List utilizers = pageUtilizer.getPageUtilizers(page.getCode());</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">                    if (utilizers != null &amp;&amp; !utilizers.isEmpty()) {</span>
+<span class="nc" id="L132">                        references.put(pageUtilizer.getName() + &quot;Utilizers&quot;, utilizers);</span>
+                    }
+                }
+            }
+<span class="nc" id="L136">        } catch (Throwable t) {</span>
+<span class="nc" id="L137">            throw new EntException(&quot;Error extracting Referencing Objects&quot;, t);</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return references;</span>
+    }
+
+    @Override
+    public ITreeNode getAllowedTreeRoot(Collection&lt;String&gt; groupCodes) throws EntException {
+<span class="fc" id="L144">        return this.getAllowedTreeRoot(groupCodes, false);</span>
+    }
+
+    @Override
+    public ITreeNode getAllowedTreeRoot(Collection&lt;String&gt; userGroupCodes, boolean alsoFreeViewPages) throws EntException {
+<span class="fc" id="L149">        PageTreeNodeWrapper root = null;</span>
+<span class="fc" id="L150">        IPage pageRoot = (IPage) this.getRoot();</span>
+<span class="pc bpc" id="L151" title="2 of 6 branches missed.">        if (userGroupCodes.contains(Group.FREE_GROUP_NAME) || userGroupCodes.contains(Group.ADMINS_GROUP_NAME)</span>
+<span class="nc bnc" id="L152" title="All 4 branches missed.">                || (alsoFreeViewPages &amp;&amp; null != pageRoot.getExtraGroups() &amp;&amp; pageRoot.getExtraGroups().contains(Group.FREE_GROUP_NAME))) {</span>
+<span class="fc" id="L153">            root = new PageTreeNodeWrapper(this.getRoot(), null);</span>
+        } else {
+<span class="fc" id="L155">            root = this.getVirtualRoot();</span>
+        }
+<span class="fc" id="L157">        this.addTreeWrapper(root, pageRoot, userGroupCodes, alsoFreeViewPages);</span>
+<span class="fc" id="L158">        return root;</span>
+    }
+
+    private void addTreeWrapper(PageTreeNodeWrapper currentWrapper, IPage currentNode, Collection&lt;String&gt; userGroupCodes, boolean alsoFreeViewPages) {
+<span class="fc" id="L162">        String[] children = currentNode.getChildrenCodes();</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            IPage newCurrentNode = PageUtils.getPage(this.getPageManager(), !this.isDraftPageHepler(), children[i]);</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            if (null == newCurrentNode) {</span>
+<span class="nc" id="L166">                return;</span>
+            }
+<span class="fc bfc" id="L168" title="All 2 branches covered.">            if (this.isPageAllowed(newCurrentNode, userGroupCodes, alsoFreeViewPages)) {</span>
+<span class="fc" id="L169">                PageTreeNodeWrapper newNode = new PageTreeNodeWrapper(newCurrentNode, currentWrapper);</span>
+<span class="fc" id="L170">                currentWrapper.addChildCode(newNode.getCode());</span>
+<span class="fc" id="L171">                currentWrapper.addChild(newNode);</span>
+<span class="fc" id="L172">                newNode.setParentCode(currentWrapper.getCode());</span>
+<span class="fc" id="L173">                newNode.setParent(currentWrapper);</span>
+<span class="fc" id="L174">                this.addTreeWrapper(newNode, newCurrentNode, userGroupCodes, alsoFreeViewPages);</span>
+<span class="fc" id="L175">            } else {</span>
+<span class="fc" id="L176">                this.addTreeWrapper(currentWrapper, newCurrentNode, userGroupCodes, alsoFreeViewPages);</span>
+            }
+        }
+<span class="fc" id="L179">    }</span>
+
+    /**
+     * Metodo a servizio della costruzione dell'albero delle pagine. Nel caso
+     * che l'utente corrente non sia abilitato alla visualizzazione del nodo
+     * root, fornisce un nodo &quot;virtuale&quot; nel quale inserire gli eventuali nodi
+     * visibili.
+     *
+     * @return Il nodo root virtuale.
+     */
+    private PageTreeNodeWrapper getVirtualRoot() {
+<span class="fc" id="L190">        PageTreeNodeWrapper virtualRoot = new PageTreeNodeWrapper();</span>
+<span class="fc" id="L191">        virtualRoot.setCode(AbstractPortalAction.VIRTUAL_ROOT_CODE);</span>
+<span class="fc" id="L192">        List&lt;Lang&gt; langs = this.getLangManager().getLangs();</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        for (int i = 0; i &lt; langs.size(); i++) {</span>
+<span class="fc" id="L194">            Lang lang = langs.get(i);</span>
+<span class="fc" id="L195">            virtualRoot.setTitle(lang.getCode(), &quot;ROOT&quot;);</span>
+        }
+<span class="fc" id="L197">        virtualRoot.setParent(virtualRoot);</span>
+<span class="fc" id="L198">        virtualRoot.setParentCode(virtualRoot.getCode());</span>
+<span class="fc" id="L199">        return virtualRoot;</span>
+    }
+
+    @Override
+    protected void buildCheckNodes(ITreeNode treeNode, Set&lt;String&gt; nodesToShow, Collection&lt;String&gt; groupCodes) {
+<span class="fc" id="L204">        nodesToShow.add(treeNode.getCode());</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (treeNode instanceof PageTreeNodeWrapper) {</span>
+<span class="nc" id="L206">            treeNode = ((PageTreeNodeWrapper) treeNode).getOrigin();</span>
+        }
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">        if (treeNode == null) {</span>
+<span class="nc" id="L209">            return;</span>
+        }
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        IPage parent = (((IPage) treeNode).isOnlineInstance()) ? </span>
+<span class="nc" id="L212">                this.getPageManager().getOnlinePage(treeNode.getParentCode()) : </span>
+<span class="fc" id="L213">                this.getPageManager().getDraftPage(treeNode.getParentCode());</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (parent == null) {</span>
+<span class="nc" id="L215">            return;</span>
+        }
+<span class="fc" id="L217">        IPage page = this.getPage(parent.getCode());</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        if (!this.isPageAllowed(page, groupCodes, false)) {</span>
+<span class="fc" id="L219">            nodesToShow.add(AbstractPortalAction.VIRTUAL_ROOT_CODE);</span>
+<span class="fc" id="L220">            return;</span>
+        }
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        if (parent.getParentCode() != null</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                &amp;&amp; !parent.getCode().equals(treeNode.getCode())) {</span>
+<span class="fc" id="L224">            this.buildCheckNodes(parent, nodesToShow, groupCodes);</span>
+        }
+<span class="fc" id="L226">    }</span>
+
+    protected boolean isPageAllowed(IPage page, Collection&lt;String&gt; groupCodes, boolean alsoFreeViewPages) {
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        if (page == null) {</span>
+<span class="nc" id="L230">            return false;</span>
+        }
+<span class="fc" id="L232">        String pageGroup = page.getGroup();</span>
+<span class="fc" id="L233">        Collection&lt;String&gt; extraGroups = page.getExtraGroups();</span>
+<span class="pc bpc" id="L234" title="4 of 8 branches missed.">        boolean isAuth = (groupCodes.contains(pageGroup) || groupCodes.contains(Group.ADMINS_GROUP_NAME))</span>
+<span class="pc bnc" id="L235" title="All 2 branches missed.">                || (alsoFreeViewPages &amp;&amp; null != extraGroups &amp;&amp; extraGroups.contains(Group.FREE_GROUP_NAME));</span>
+<span class="fc" id="L236">        return isAuth;</span>
+    }
+
+    @Override
+    protected boolean isNodeAllowed(String code, Collection&lt;String&gt; groupCodes) {
+<span class="pc bpc" id="L241" title="2 of 4 branches missed.">        if (null != code &amp;&amp; code.equals(AbstractPortalAction.VIRTUAL_ROOT_CODE)) {</span>
+<span class="nc" id="L242">            return true;</span>
+        }
+<span class="fc" id="L244">        IPage page = this.getPage(code);</span>
+<span class="fc" id="L245">        return this.isPageAllowed(page, groupCodes, false);</span>
+    }
+
+    @Override
+    protected ITreeNode getTreeNode(String code) {
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (AbstractPortalAction.VIRTUAL_ROOT_CODE.equals(code)) {</span>
+<span class="nc" id="L251">            return this.getVirtualRoot();</span>
+        }
+<span class="fc" id="L253">        return this.getPage(code);</span>
+    }
+
+    @Override
+    public ActivityStreamInfo createActivityStreamInfo(IPage page,
+            int strutsAction, boolean addLink, String entryPageAction) {
+<span class="fc" id="L259">        ActivityStreamInfo asi = this.createBaseActivityStreamInfo(page, strutsAction, addLink);</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if (addLink) {</span>
+<span class="fc" id="L261">            asi.setLinkNamespace(&quot;/do/Page&quot;);</span>
+<span class="fc" id="L262">            asi.setLinkActionName(entryPageAction);</span>
+<span class="fc" id="L263">            asi.addLinkParameter(&quot;selectedNode&quot;, page.getCode());</span>
+        }
+<span class="fc" id="L265">        return asi;</span>
+    }
+
+    @Override
+    public ActivityStreamInfo createConfigFrameActivityStreamInfo(IPage page,
+            int framePos, int strutsAction, boolean addLink) {
+<span class="fc" id="L271">        ActivityStreamInfo asi = this.createBaseActivityStreamInfo(page, strutsAction, addLink);</span>
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">        if (addLink) {</span>
+<span class="fc" id="L273">            asi.setLinkNamespace(&quot;/do/Page&quot;);</span>
+<span class="fc" id="L274">            asi.setLinkActionName(&quot;editFrame&quot;);</span>
+<span class="fc" id="L275">            asi.addLinkParameter(&quot;pageCode&quot;, page.getCode());</span>
+<span class="fc" id="L276">            asi.addLinkParameter(&quot;frame&quot;, String.valueOf(framePos));</span>
+        }
+<span class="fc" id="L278">        return asi;</span>
+    }
+
+    private ActivityStreamInfo createBaseActivityStreamInfo(IPage page, int strutsAction, boolean addLink) {
+<span class="fc" id="L282">        ActivityStreamInfo asi = new ActivityStreamInfo();</span>
+<span class="fc" id="L283">        asi.setActionType(strutsAction);</span>
+<span class="fc" id="L284">        asi.setObjectTitles(page.getTitles());</span>
+<span class="fc" id="L285">        List&lt;String&gt; groupCodes = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L286">        groupCodes.add(page.getGroup());</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">        if (null != page.getExtraGroups()) {</span>
+<span class="fc" id="L288">            groupCodes.addAll(page.getExtraGroups());</span>
+        }
+<span class="fc" id="L290">        asi.setGroups(groupCodes);</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">        if (addLink) {</span>
+<span class="fc" id="L292">            asi.setLinkAuthGroup(page.getGroup());</span>
+<span class="fc" id="L293">            asi.setLinkAuthPermission(Permission.MANAGE_PAGES);</span>
+        }
+<span class="fc" id="L295">        return asi;</span>
+    }
+
+    @Override
+    protected TreeNodeWrapper buildWrapper(ITreeNode treeNode) {
+<span class="fc" id="L300">        IPage parent = this.getPage(treeNode.getParentCode());</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">        if (treeNode instanceof IPage) {</span>
+<span class="fc" id="L302">            return new PageTreeNodeWrapper((IPage) treeNode, parent);</span>
+        } else {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">            if (AbstractPortalAction.VIRTUAL_ROOT_CODE.equals(treeNode.getCode())) {</span>
+<span class="fc" id="L305">                return this.getVirtualRoot();</span>
+            }
+<span class="fc" id="L307">            IPage page = this.getPage(treeNode.getCode());</span>
+<span class="fc" id="L308">            return new PageTreeNodeWrapper(page, parent);</span>
+        }
+    }
+
+    @Override
+    protected ITreeNodeManager getTreeNodeManager() {
+<span class="nc" id="L314">        return this.getPageManager();</span>
+    }
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L318">        return _pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L322">        this._pageManager = pageManager;</span>
+<span class="fc" id="L323">    }</span>
+
+    protected ConfigInterface getConfigService() {
+<span class="nc" id="L326">        return _configService;</span>
+    }
+
+    public void setConfigService(ConfigInterface configService) {
+<span class="fc" id="L330">        this._configService = configService;</span>
+<span class="fc" id="L331">    }</span>
+
+    protected List&lt;IExternalPageValidator&gt; getExternalValidators() {
+<span class="fc" id="L334">        return externalValidators;</span>
+    }
+
+    public void setExternalValidators(List&lt;IExternalPageValidator&gt; externalValidators) {
+<span class="nc" id="L338">        this.externalValidators = externalValidators;</span>
+<span class="nc" id="L339">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DirectoryProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">DirectoryProcessor.java</span></div><h1>DirectoryProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.BundleProperty;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.DirectoryDescriptor;
+import org.entando.kubernetes.model.bundle.installable.DirectoryInstallable;
+import org.entando.kubernetes.model.bundle.installable.Installable;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.springframework.stereotype.Service;
+
+/**
+ * Processor to handle Static files to be stored by Entando. Commonly used for js, images and css.
+ *
+ * &lt;p&gt;This processor will also create the folders.
+ *
+ * @author Sergio Marcelino
+ */
+<span class="fc" id="L29">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class DirectoryProcessor implements ComponentProcessor&lt;DirectoryDescriptor&gt; {
+
+    private final EntandoCoreClient engineService;
+
+    @Override
+    public ComponentType getSupportedComponentType() {
+<span class="fc" id="L38">        return ComponentType.DIRECTORY;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(BundleReader npr) {
+<span class="fc" id="L43">        final List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+
+        try {
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            if (npr.containsResourceFolder()) {</span>
+<span class="fc" id="L47">                final String componentFolder = &quot;/&quot; + npr.getBundleCode();</span>
+<span class="fc" id="L48">                installables.add(new DirectoryInstallable(engineService, new DirectoryDescriptor(componentFolder, true)));</span>
+
+<span class="fc" id="L50">                List&lt;String&gt; resourceFolders = npr.getResourceFolders().stream().sorted().collect(Collectors.toList());</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">                for (final String resourceFolder : resourceFolders) {</span>
+<span class="fc" id="L52">                    Path fileFolder = Paths.get(BundleProperty.RESOURCES_FOLDER_PATH.getValue())</span>
+<span class="fc" id="L53">                            .relativize(Paths.get(resourceFolder));</span>
+<span class="fc" id="L54">                    String folder = Paths.get(componentFolder).resolve(fileFolder).toString();</span>
+<span class="fc" id="L55">                    installables.add(new DirectoryInstallable(engineService, new DirectoryDescriptor(folder, false)));</span>
+<span class="fc" id="L56">                }</span>
+            }
+<span class="nc" id="L58">        } catch (IOException e) {</span>
+<span class="nc" id="L59">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+<span class="fc" id="L60">        }</span>
+
+<span class="fc" id="L62">        return installables;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
+<span class="fc" id="L67">        return components.stream()</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.DIRECTORY)</span>
+<span class="fc" id="L69">                .map(c -&gt; new DirectoryInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
+<span class="fc" id="L70">                .collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public DirectoryDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
+<span class="fc" id="L75">        Path dirPath = Paths.get(component.getComponentId());</span>
+<span class="fc" id="L76">        boolean isRoot = false;</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (dirPath.getParent().equals(dirPath.getRoot())) {</span>
+<span class="fc" id="L78">            isRoot = true;</span>
+        }
+<span class="fc" id="L80">        return new DirectoryDescriptor(component.getComponentId(), isRoot);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

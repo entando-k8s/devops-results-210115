@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TlsHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.common</a> &gt; <span class="el_source">TlsHelper.java</span></div><h1>TlsHelper.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.common;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.entando.kubernetes.controller.EntandoOperatorConfig;
+
+public final class TlsHelper {
+
+    public static final String TLS_KEY = &quot;tls.key&quot;;
+    public static final String TLS_CRT = &quot;tls.crt&quot;;
+<span class="fc" id="L46">    private static final TlsHelper INSTANCE = new TlsHelper();</span>
+<span class="fc" id="L47">    private final char[] trustStorePassword = RandomStringUtils.randomAlphanumeric(20).toCharArray();</span>
+<span class="fc" id="L48">    private Optional&lt;KeyStore&gt; trustStore = Optional.empty();</span>
+<span class="fc" id="L49">    private Optional&lt;String&gt; trustStoreBase64 = Optional.empty();</span>
+
+<span class="fc" id="L51">    private TlsHelper() {</span>
+<span class="fc" id="L52">    }</span>
+
+    public static TlsHelper getInstance() {
+<span class="fc" id="L55">        return INSTANCE;</span>
+    }
+
+    public static boolean isDefaultTlsKeyPairAvailable() {
+<span class="fc" id="L59">        return EntandoOperatorConfig.getPathToDefaultTlsKeyPair()</span>
+<span class="pc bpc" id="L60" title="2 of 4 branches missed.">                .map(path -&gt; path.resolve(TLS_CRT).toFile().exists() &amp;&amp; path.resolve(TLS_KEY).toFile().exists()).orElse(false);</span>
+    }
+
+    public static boolean canAutoCreateTlsSecret() {
+<span class="pc bpc" id="L64" title="1 of 4 branches missed.">        return EntandoOperatorConfig.useAutoCertGeneration() || isDefaultTlsKeyPairAvailable();</span>
+    }
+
+    public void init() {
+<span class="fc" id="L68">        List&lt;Path&gt; caPaths = EntandoOperatorConfig.getCertificateAuthorityCertPaths();</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (caPaths.isEmpty()) {</span>
+<span class="nc" id="L70">            this.trustStore = Optional.empty();</span>
+        } else {
+<span class="fc" id="L72">            populateTrustStore(caPaths);</span>
+        }
+<span class="fc" id="L74">    }</span>
+
+    public String getTrustStoreBase64() {
+<span class="fc" id="L77">        return trustStoreBase64.orElseThrow(IllegalStateException::new);</span>
+    }
+
+    public String getTlsCaCertBase64(Path path) {
+<span class="fc" id="L81">        return base64EncodeContent(path);</span>
+    }
+
+    public String getTlsCertBase64() {
+<span class="fc" id="L85">        return loadSslFile(TLS_CRT);</span>
+    }
+
+    public String getTlsKeyBase64() {
+<span class="fc" id="L89">        return loadSslFile(TLS_KEY);</span>
+    }
+
+    public boolean isTrustStoreAvailable() {
+<span class="fc" id="L93">        return trustStore.isPresent();</span>
+    }
+
+    public String getTrustStorePassword() {
+<span class="fc" id="L97">        return new String(trustStorePassword);</span>
+    }
+
+    private void populateTrustStore(List&lt;Path&gt; caPaths) {
+        try {
+<span class="fc" id="L102">            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());</span>
+<span class="fc" id="L103">            keyStore.load(null, null);</span>
+<span class="fc" id="L104">            caPaths.forEach(certPath -&gt; importCert(keyStore, certPath));</span>
+<span class="fc" id="L105">            Path tempFile = Files.createTempFile(&quot;trust-store&quot;, &quot;.jks&quot;);</span>
+<span class="fc" id="L106">            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L107">            trustManagerFactory.init((KeyStore) null);</span>
+<span class="fc" id="L108">            TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();</span>
+<span class="fc" id="L109">            X509TrustManager trustManager = (X509TrustManager) trustManagers[0];</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            for (X509Certificate certificate : trustManager.getAcceptedIssuers()) {</span>
+<span class="fc" id="L111">                keyStore.setCertificateEntry(certificate.getSubjectX500Principal().getName(), certificate);</span>
+            }
+<span class="fc" id="L113">            try (OutputStream stream = Files.newOutputStream(tempFile)) {</span>
+<span class="fc" id="L114">                keyStore.store(stream, trustStorePassword);</span>
+            }
+<span class="fc" id="L116">            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {</span>
+<span class="fc" id="L117">                keyStore.store(outputStream, trustStorePassword);</span>
+<span class="fc" id="L118">                trustStoreBase64 = Optional.of(new String(Base64.getEncoder().encode(outputStream.toByteArray()), StandardCharsets.UTF_8));</span>
+            }
+<span class="fc" id="L120">            System.setProperty(&quot;javax.net.ssl.trustStore&quot;, tempFile.normalize().toAbsolutePath().toString());</span>
+<span class="fc" id="L121">            System.setProperty(&quot;javax.net.ssl.trustStorePassword&quot;, new String(trustStorePassword));</span>
+<span class="fc" id="L122">            this.trustStore = Optional.of(keyStore);</span>
+<span class="nc" id="L123">        } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException e) {</span>
+<span class="nc" id="L124">            throw new IllegalStateException(e);</span>
+<span class="fc" id="L125">        }</span>
+<span class="fc" id="L126">    }</span>
+
+    private void importCert(KeyStore keyStore, Path certPath) {
+<span class="fc" id="L129">        try (InputStream stream = Files.newInputStream(certPath)) {</span>
+<span class="fc" id="L130">            Certificate cert = CertificateFactory.getInstance(&quot;x.509&quot;).generateCertificate(stream);</span>
+<span class="fc" id="L131">            keyStore.setCertificateEntry(certPath.getFileName().toString(), cert);</span>
+<span class="nc" id="L132">        } catch (IOException | KeyStoreException | CertificateException e) {</span>
+<span class="nc" id="L133">            throw new IllegalStateException(e);</span>
+<span class="fc" id="L134">        }</span>
+<span class="fc" id="L135">    }</span>
+
+    private String loadSslFile(String other) {
+<span class="fc" id="L138">        return EntandoOperatorConfig.getPathToDefaultTlsKeyPair().map(path -&gt; base64EncodeContent(path.resolve(other)))</span>
+<span class="fc" id="L139">                .orElseThrow(IllegalStateException::new);</span>
+    }
+
+    private String base64EncodeContent(Path path) {
+        try {
+<span class="fc" id="L144">            return new String(Base64.getEncoder().encode(Files.readAllBytes(path)),</span>
+                    StandardCharsets.UTF_8);
+<span class="nc" id="L146">        } catch (IOException e) {</span>
+<span class="nc" id="L147">            throw new IllegalStateException(e);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

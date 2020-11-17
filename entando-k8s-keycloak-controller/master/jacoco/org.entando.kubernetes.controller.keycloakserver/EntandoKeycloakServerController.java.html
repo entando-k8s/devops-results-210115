@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoKeycloakServerController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Keycloak</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.keycloakserver</a> &gt; <span class="el_source">EntandoKeycloakServerController.java</span></div><h1>EntandoKeycloakServerController.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.keycloakserver;
+
+import static java.lang.String.format;
+
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.Secret;
+import io.fabric8.kubernetes.api.model.SecretBuilder;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.quarkus.runtime.StartupEvent;
+import java.util.Optional;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.entando.kubernetes.controller.AbstractDbAwareController;
+import org.entando.kubernetes.controller.IngressingDeployCommand;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.SimpleKeycloakClient;
+import org.entando.kubernetes.controller.common.KeycloakConnectionSecret;
+import org.entando.kubernetes.controller.common.KeycloakName;
+import org.entando.kubernetes.controller.database.DatabaseServiceResult;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.model.DbmsVendor;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServer;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServerSpec;
+
+public class EntandoKeycloakServerController extends AbstractDbAwareController&lt;EntandoKeycloakServer&gt; {
+
+    @Inject
+    public EntandoKeycloakServerController(KubernetesClient kubernetesClient) {
+<span class="nc" id="L48">        super(kubernetesClient);</span>
+<span class="nc" id="L49">    }</span>
+
+    public EntandoKeycloakServerController(KubernetesClient kubernetesClient, boolean exitAutomatically) {
+<span class="nc" id="L52">        super(kubernetesClient, exitAutomatically);</span>
+<span class="nc" id="L53">    }</span>
+
+    public EntandoKeycloakServerController(SimpleK8SClient&lt;?&gt; k8sClient, SimpleKeycloakClient keycloakClient) {
+<span class="fc" id="L56">        super(k8sClient, keycloakClient);</span>
+<span class="fc" id="L57">    }</span>
+
+    public void onStartup(@Observes StartupEvent event) {
+<span class="fc" id="L60">        processCommand();</span>
+<span class="fc" id="L61">    }</span>
+
+    @Override
+    protected void synchronizeDeploymentState(EntandoKeycloakServer newEntandoKeycloakServer) {
+<span class="fc" id="L65">        DatabaseServiceResult databaseServiceResult = prepareKeycloakDatabaseService(newEntandoKeycloakServer);</span>
+<span class="fc" id="L66">        Secret existingKeycloakAdminSecret = prepareKeycloakAdminSecretInControllerNamespace(newEntandoKeycloakServer);</span>
+<span class="fc" id="L67">        KeycloakServiceDeploymentResult serviceDeploymentResult = deployKeycloak(</span>
+                newEntandoKeycloakServer,
+                databaseServiceResult,
+                existingKeycloakAdminSecret);
+<span class="fc" id="L71">        ensureHttpAccess(serviceDeploymentResult);</span>
+<span class="fc" id="L72">        ConfigMap keycloakConnectionConfigMap = saveConnectionInfoConfigMapInDeploymentNamespace(newEntandoKeycloakServer,</span>
+                serviceDeploymentResult);
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (newEntandoKeycloakServer.getSpec().isDefault()) {</span>
+<span class="fc" id="L75">            k8sClient.entandoResources().loadDefaultConfigMap()</span>
+<span class="fc" id="L76">                    .addToData(KeycloakName.DEFAULT_KEYCLOAK_NAME_KEY, newEntandoKeycloakServer.getMetadata().getName())</span>
+<span class="fc" id="L77">                    .addToData(KeycloakName.DEFAULT_KEYCLOAK_NAMESPACE_KEY, newEntandoKeycloakServer.getMetadata().getNamespace())</span>
+<span class="fc" id="L78">                    .done();</span>
+
+        }
+<span class="fc" id="L81">        ensureKeycloakRealm(new KeycloakConnectionSecret(existingKeycloakAdminSecret, keycloakConnectionConfigMap));</span>
+<span class="fc" id="L82">        k8sClient.entandoResources().updateStatus(newEntandoKeycloakServer, serviceDeploymentResult.getStatus());</span>
+<span class="fc" id="L83">    }</span>
+
+    private ConfigMap saveConnectionInfoConfigMapInDeploymentNamespace(EntandoKeycloakServer newEntandoKeycloakServer,
+            KeycloakServiceDeploymentResult serviceDeploymentResult) {
+<span class="fc" id="L87">        ConfigMap result = k8sClient.secrets().loadConfigMap(newEntandoKeycloakServer,</span>
+<span class="fc" id="L88">                KeycloakName.forTheConnectionConfigMap(newEntandoKeycloakServer));</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (result == null) {</span>
+            //Don't overwrite if it is already there. This allows developers to override the URL_KEY where required
+<span class="fc" id="L91">            ConfigMap newConfigMap = new ConfigMapBuilder().withNewMetadata()</span>
+<span class="fc" id="L92">                    .withNamespace(newEntandoKeycloakServer.getMetadata().getNamespace())</span>
+<span class="fc" id="L93">                    .withName(KeycloakName.forTheConnectionConfigMap(newEntandoKeycloakServer))</span>
+<span class="fc" id="L94">                    .endMetadata()</span>
+<span class="fc" id="L95">                    .addToData(KubeUtils.URL_KEY, serviceDeploymentResult.getExternalBaseUrl())</span>
+<span class="fc" id="L96">                    .addToData(KubeUtils.INTERNAL_URL_KEY, serviceDeploymentResult.getInternalBaseUrl()).build();</span>
+<span class="fc" id="L97">            k8sClient.secrets().createConfigMapIfAbsent(newEntandoKeycloakServer, newConfigMap);</span>
+<span class="fc" id="L98">            return newConfigMap;</span>
+        } else {
+<span class="nc" id="L100">            return result;</span>
+        }
+
+    }
+
+    private void ensureHttpAccess(KeycloakServiceDeploymentResult serviceDeploymentResult) {
+        //Give the operator access over http for cluster.local calls
+<span class="fc" id="L107">        k8sClient.pods().executeOnPod(serviceDeploymentResult.getPod(), &quot;server-container&quot;, 30,</span>
+                &quot;cd /opt/jboss/keycloak/bin&quot;,
+                &quot;./kcadm.sh config credentials --server http://localhost:8080/auth --realm master --user $KEYCLOAK_USER --password &quot;
+                        + &quot;$KEYCLOAK_PASSWORD&quot;,
+                &quot;./kcadm.sh update realms/master -s sslRequired=NONE&quot;
+        );
+<span class="fc" id="L113">    }</span>
+
+    private KeycloakServiceDeploymentResult deployKeycloak(EntandoKeycloakServer newEntandoKeycloakServer,
+            DatabaseServiceResult databaseServiceResult, Secret existingKeycloakAdminSecret) {
+        // Create the Keycloak service using the provided database and  the locally stored keycloak admin credentials
+        // for this EntandoKeycloakServer.
+<span class="fc" id="L119">        KeycloakDeployable keycloakDeployable = new KeycloakDeployable(</span>
+                newEntandoKeycloakServer,
+                databaseServiceResult,
+                existingKeycloakAdminSecret);
+<span class="fc" id="L123">        IngressingDeployCommand&lt;KeycloakServiceDeploymentResult, EntandoKeycloakServerSpec&gt; keycloakCommand = new IngressingDeployCommand&lt;&gt;(</span>
+                keycloakDeployable);
+<span class="fc" id="L125">        return keycloakCommand.execute(k8sClient, Optional.of(keycloakClient)).withStatus(keycloakCommand.getStatus());</span>
+    }
+
+    private Secret prepareKeycloakAdminSecretInControllerNamespace(EntandoKeycloakServer newEntandoKeycloakServer) {
+<span class="fc" id="L129">        Secret existingKeycloakAdminSecret = k8sClient.secrets()</span>
+<span class="fc" id="L130">                .loadControllerSecret(KeycloakName.forTheAdminSecret(newEntandoKeycloakServer));</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (existingKeycloakAdminSecret == null) {</span>
+            //We need to FIRST populate the secret in the controller's namespace so that, if deployment fails, we have the credentials
+            // that the secret in the Deployment's namespace was based on, because we may not have read access to it.
+<span class="fc" id="L134">            existingKeycloakAdminSecret = new SecretBuilder()</span>
+<span class="fc" id="L135">                    .withNewMetadata()</span>
+<span class="fc" id="L136">                    .withName(KeycloakName.forTheAdminSecret(newEntandoKeycloakServer))</span>
+<span class="fc" id="L137">                    .endMetadata()</span>
+<span class="fc" id="L138">                    .addToStringData(KubeUtils.USERNAME_KEY, &quot;entando_keycloak_admin&quot;)</span>
+<span class="fc" id="L139">                    .addToStringData(KubeUtils.PASSSWORD_KEY, RandomStringUtils.randomAlphanumeric(10))</span>
+<span class="fc" id="L140">                    .build();</span>
+<span class="fc" id="L141">            k8sClient.secrets().overwriteControllerSecret(existingKeycloakAdminSecret);</span>
+
+        }
+<span class="fc" id="L144">        return existingKeycloakAdminSecret;</span>
+    }
+
+    private DatabaseServiceResult prepareKeycloakDatabaseService(EntandoKeycloakServer newEntandoKeycloakServer) {
+        // Create database for Keycloak
+<span class="fc" id="L149">        return prepareDatabaseService(</span>
+                newEntandoKeycloakServer,
+<span class="fc" id="L151">                newEntandoKeycloakServer.getSpec().getDbms().orElse(DbmsVendor.EMBEDDED),</span>
+                &quot;db&quot;);
+    }
+
+    private void ensureKeycloakRealm(KeycloakConnectionConfig keycloakConnectionConfig) {
+<span class="fc" id="L156">        logger.severe(() -&gt; format(&quot;Attempting to log into Keycloak at %s&quot;, keycloakConnectionConfig.determineBaseUrl()));</span>
+<span class="fc" id="L157">        keycloakClient.login(keycloakConnectionConfig.determineBaseUrl(), keycloakConnectionConfig.getUsername(),</span>
+<span class="fc" id="L158">                keycloakConnectionConfig.getPassword());</span>
+<span class="fc" id="L159">        keycloakClient.ensureRealm(KubeUtils.ENTANDO_DEFAULT_KEYCLOAK_REALM);</span>
+<span class="fc" id="L160">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">ContentProcessor.java</span></div><h1>ContentProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
+
+import static java.util.Optional.ofNullable;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.BundleDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.content.ContentDescriptor;
+import org.entando.kubernetes.model.bundle.installable.ContentInstallable;
+import org.entando.kubernetes.model.bundle.installable.Installable;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.springframework.stereotype.Service;
+
+/**
+ * Processor to handle Bundles with CMS Content.
+ */
+<span class="fc" id="L27">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class ContentProcessor implements ComponentProcessor&lt;ContentDescriptor&gt; {
+
+    private final EntandoCoreClient engineService;
+
+    @Override
+    public ComponentType getSupportedComponentType() {
+<span class="fc" id="L36">        return ComponentType.CONTENT;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;ContentDescriptor&gt;&gt; process(BundleReader npr) {
+        try {
+<span class="fc" id="L42">            BundleDescriptor descriptor = npr.readBundleDescriptor();</span>
+<span class="fc" id="L43">            List&lt;String&gt; contentDescriptorList = ofNullable(descriptor.getComponents())</span>
+<span class="fc" id="L44">                    .map(ComponentSpecDescriptor::getContents)</span>
+<span class="fc" id="L45">                    .orElse(new ArrayList&lt;&gt;());</span>
+
+<span class="fc" id="L47">            List&lt;Installable&lt;ContentDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            for (String fileName : contentDescriptorList) {</span>
+<span class="fc" id="L50">                ContentDescriptor contentDescriptor = npr</span>
+<span class="fc" id="L51">                        .readDescriptorFile(fileName, ContentDescriptor.class);</span>
+<span class="fc" id="L52">                installables.add(new ContentInstallable(engineService, contentDescriptor));</span>
+<span class="fc" id="L53">            }</span>
+
+<span class="fc" id="L55">            return installables;</span>
+<span class="nc" id="L56">        } catch (IOException e) {</span>
+<span class="nc" id="L57">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public List&lt;Installable&lt;ContentDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
+<span class="fc" id="L63">        return components.stream()</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.CONTENT)</span>
+<span class="fc" id="L65">                .map(c -&gt; new ContentInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
+<span class="fc" id="L66">                .collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public ContentDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
+<span class="fc" id="L71">        return ContentDescriptor.builder()</span>
+<span class="fc" id="L72">                .id(component.getComponentId())</span>
+<span class="fc" id="L73">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

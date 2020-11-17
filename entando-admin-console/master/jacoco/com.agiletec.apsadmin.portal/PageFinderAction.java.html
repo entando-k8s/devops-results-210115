@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">PageFinderAction.java</span></div><h1>PageFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import org.entando.entando.apsadmin.portal.rs.model.PageJO;
+import org.entando.entando.apsadmin.portal.rs.model.PagesStatusResponse;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.PagesStatus;
+import com.agiletec.aps.system.services.user.UserDetails;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * This action class contains all the elements currently use to perform searches across the portal pages.
+ *
+ * @author M.E. Minnai
+ */
+<span class="fc" id="L36">public class PageFinderAction extends AbstractPortalAction {</span>
+
+<span class="fc" id="L38">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageFinderAction.class);</span>
+    private static final int DEFAULT_LASTUPDATE_RESPONSE_SIZE = 5;
+
+    private String _pageCodeToken;
+
+    private int _lastUpdateResponseSize;
+
+    public PagesStatusResponse getPagesStatusResponse() {
+<span class="nc" id="L46">        PagesStatusResponse response = null;</span>
+        try {
+<span class="nc" id="L48">            PagesStatus pagesStatus = this.getPageManager().getPagesStatus();</span>
+<span class="nc" id="L49">            response = new PagesStatusResponse(pagesStatus);</span>
+<span class="nc" id="L50">        } catch (Throwable t) {</span>
+<span class="nc" id="L51">            _logger.error(&quot;Error loading pagesStatus&quot;, t);</span>
+<span class="nc" id="L52">            throw new RuntimeException(&quot;Error loading pagesStatus&quot;, t);</span>
+<span class="nc" id="L53">        }</span>
+<span class="nc" id="L54">        return response;</span>
+    }
+
+    public String getLastUpdated() {
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (this.getLastUpdateResponseSize() &lt; 1) {</span>
+<span class="nc" id="L59">            this.setLastUpdateResponseSize(DEFAULT_LASTUPDATE_RESPONSE_SIZE);</span>
+        }
+<span class="nc" id="L61">        return SUCCESS;</span>
+    }
+
+    public List&lt;PageJO&gt; getLastUpdatePagesResponse() {
+<span class="nc" id="L65">        List&lt;PageJO&gt; response = null;</span>
+        try {
+<span class="nc" id="L67">            List&lt;IPage&gt; pages = this.getPageManager().loadLastUpdatedPages(this.getLastUpdateResponseSize());</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">            if (null != pages &amp;&amp; !pages.isEmpty()) {</span>
+<span class="nc" id="L69">                response = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L70">                Iterator&lt;IPage&gt; it = pages.iterator();</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">                while (it.hasNext()) {</span>
+<span class="nc" id="L72">                    IPage page = it.next();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                    if (null != page) {</span>
+<span class="nc" id="L74">                        PageJO pageJO = this.buildLastUpdateResponseItem(page);</span>
+<span class="nc" id="L75">                        response.add(pageJO);</span>
+                    }
+<span class="nc" id="L77">                }</span>
+            }
+<span class="nc" id="L79">        } catch (Throwable t) {</span>
+<span class="nc" id="L80">            _logger.error(&quot;Error loading pagesStatus&quot;, t);</span>
+<span class="nc" id="L81">            throw new RuntimeException(&quot;Error loading pagesStatus&quot;, t);</span>
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">        return response;</span>
+    }
+
+    protected PageJO buildLastUpdateResponseItem(IPage page) {
+<span class="nc" id="L87">        PageJO pageJO = new PageJO();</span>
+<span class="nc" id="L88">        pageJO.setCode(page.getCode());</span>
+<span class="nc" id="L89">        pageJO.setRoot(page.isRoot());</span>
+<span class="nc" id="L90">        pageJO.setOnline(page.isOnline());</span>
+<span class="nc" id="L91">        pageJO.setChanged(page.isChanged());</span>
+<span class="nc" id="L92">        pageJO.setParentCode(page.getParentCode());</span>
+<span class="nc" id="L93">        pageJO.setGroup(page.getGroup());</span>
+<span class="nc" id="L94">        pageJO.setDraftMetadata(page.getMetadata());</span>
+<span class="nc" id="L95">        return pageJO;</span>
+    }
+
+    public String search() {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        if (StringUtils.isBlank(this.getPageCodeToken())) {</span>
+<span class="fc" id="L100">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc" id="L102">        return SUCCESS;</span>
+    }
+
+    public List&lt;IPage&gt; searchPages() {
+<span class="fc" id="L106">        List&lt;IPage&gt; result = null;</span>
+        try {
+<span class="fc" id="L108">            List&lt;String&gt; allowedGroupCodes = this.getAllowedGroupCodes();</span>
+<span class="fc" id="L109">            result = this.getPageManager().searchPages(this.getPageCodeToken(), allowedGroupCodes);</span>
+<span class="nc" id="L110">        } catch (Throwable t) {</span>
+<span class="nc" id="L111">            _logger.error(&quot;Error on searching pages&quot;, t);</span>
+<span class="nc" id="L112">            throw new RuntimeException(&quot;Error on searching pages&quot;, t);</span>
+<span class="fc" id="L113">        }</span>
+<span class="fc" id="L114">        return result;</span>
+    }
+
+    @Deprecated
+    public List&lt;IPage&gt; getPagesFound() {
+<span class="fc" id="L119">        return this.searchPages();</span>
+    }
+
+    private List&lt;String&gt; getAllowedGroupCodes() {
+<span class="fc" id="L123">        List&lt;String&gt; allowedGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L124">        UserDetails currentUser = this.getCurrentUser();</span>
+<span class="fc" id="L125">        List&lt;Group&gt; userGroups = this.getAuthorizationManager().getUserGroups(currentUser);</span>
+<span class="fc" id="L126">        Iterator&lt;Group&gt; iter = userGroups.iterator();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L128">            Group group = iter.next();</span>
+<span class="fc" id="L129">            allowedGroups.add(group.getName());</span>
+<span class="fc" id="L130">        }</span>
+<span class="fc" id="L131">        return allowedGroups;</span>
+    }
+    
+    public String getFullTitle(IPage page, String langCode) {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if (null != page) {</span>
+<span class="nc" id="L136">            return page.getFullTitle(langCode, this.getPageManager());</span>
+        }
+<span class="nc" id="L138">        return &quot;undefined&quot;;</span>
+    }
+
+    /**
+     * Set the token to be searched among the pages
+     *
+     * @param pageCodeToken The token to be searched among the pages
+     */
+    public void setPageCodeToken(String pageCodeToken) {
+<span class="fc" id="L147">        this._pageCodeToken = pageCodeToken;</span>
+<span class="fc" id="L148">    }</span>
+
+    /**
+     * Return the token to be searched among the pages
+     *
+     * @return The token to be searched among the pages
+     */
+    public String getPageCodeToken() {
+<span class="fc" id="L156">        return _pageCodeToken;</span>
+    }
+
+    public int getLastUpdateResponseSize() {
+<span class="nc" id="L160">        return _lastUpdateResponseSize;</span>
+    }
+
+    public void setLastUpdateResponseSize(int lastUpdateResponseSize) {
+<span class="nc" id="L164">        this._lastUpdateResponseSize = lastUpdateResponseSize;</span>
+<span class="nc" id="L165">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

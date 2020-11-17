@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseContentBulkCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services.content.command.common</a> &gt; <span class="el_source">BaseContentBulkCommand.java</span></div><h1>BaseContentBulkCommand.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services.content.command.common;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.common.command.BaseBulkCommand;
+import org.entando.entando.aps.system.common.command.constants.ApsCommandErrorCode;
+import org.entando.entando.plugins.jacms.aps.util.CmsPageUtil;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentUtilizer;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+
+<span class="fc" id="L36">public abstract class BaseContentBulkCommand&lt;C extends ContentBulkCommandContext&gt; extends BaseBulkCommand&lt;String, IContentManager, C&gt; implements ApplicationContextAware {</span>
+
+	@Override
+	protected boolean apply(String item) throws EntException {
+<span class="fc" id="L40">		boolean performed = false;</span>
+<span class="fc" id="L41">		Content content = this.getContent(item);</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">		if (content == null) {</span>
+<span class="nc" id="L43">			this.getTracer().traceError(item, ApsCommandErrorCode.NOT_FOUND);</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">		} else if (!this.isAuthOnContent(content)) {</span>
+<span class="nc" id="L45">			this.getTracer().traceError(item, ApsCommandErrorCode.USER_NOT_ALLOWED);</span>
+		} else {
+<span class="fc" id="L47">			performed = this.apply(content);</span>
+		}
+<span class="fc" id="L49">		return performed;</span>
+	}
+
+	protected boolean isAuthOnContent(Content content) throws EntException {
+<span class="fc" id="L53">		UserDetails user = this.getCurrentUser();</span>
+<span class="pc bpc" id="L54" title="2 of 4 branches missed.">		return user == null || this.getContentAuthHelper().isAuthToEdit(user, content);</span>
+	}
+
+	protected boolean checkContentUtilizers(Content content) throws EntException {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">		if (!Group.FREE_GROUP_NAME.equals(content.getMainGroup()) &amp;&amp; </span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">				!content.getGroups().contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L60">			IContentManager contentManager = this.getApplier();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			for (ContentUtilizer contentUtilizer : this.getContentUtilizers()) {</span>
+<span class="nc" id="L62">				List&lt;?&gt; utilizers = contentUtilizer.getContentUtilizers(content.getId());</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">				if (null != utilizers) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">					for (Object utilizer : utilizers) {</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">						if (contentUtilizer instanceof IContentManager) {</span>
+<span class="nc" id="L66">							Content refContent = contentManager.loadContent(utilizer.toString(), true);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">							if (!content.getMainGroup().equals(refContent.getMainGroup()) &amp;&amp; </span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">									!content.getGroups().contains(refContent.getMainGroup())) {</span>
+<span class="nc" id="L69">								return false;</span>
+							}
+<span class="nc bnc" id="L71" title="All 2 branches missed.">						} else if (utilizer instanceof IPage) {</span>
+<span class="nc" id="L72">							IPage page = (IPage) utilizer;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">							if (!CmsPageUtil.isContentPublishableOnPageOnline(content, page)) {</span>
+<span class="nc" id="L74">								return false;</span>
+							}
+						}
+<span class="nc" id="L77">					}</span>
+				}
+<span class="nc" id="L79">			}</span>
+		}
+<span class="fc" id="L81">		return true;</span>
+	}
+
+	protected abstract boolean apply(Content content) throws EntException;
+
+	protected Content getContent(String id) throws EntException {
+<span class="fc" id="L87">		return this.getApplier().loadContent(id, false);</span>
+	}
+
+	protected UserDetails getCurrentUser() {
+<span class="fc" id="L91">		return this.getContext().getCurrentUser();</span>
+	}
+
+	protected IContentManager getContentManager() {
+<span class="nc" id="L95">		return this.getApplier();</span>
+	}
+	@Override
+	public void setApplier(IContentManager applier) {
+<span class="fc" id="L99">		super.setApplier(applier);</span>
+<span class="fc" id="L100">	}</span>
+
+	protected Collection&lt;ContentUtilizer&gt; getContentUtilizers() {
+<span class="nc bnc" id="L103" title="All 2 branches missed.">		if (this._contentUtilizers == null) {</span>
+<span class="nc" id="L104">			Map&lt;String, ContentUtilizer&gt; contentUtilizers = this.getApplicationContext().getBeansOfType(ContentUtilizer.class);</span>
+<span class="nc" id="L105">			this._contentUtilizers = contentUtilizers.values();</span>
+		}
+<span class="nc" id="L107">		return _contentUtilizers;</span>
+	}
+	protected void setContentUtilizers(Collection&lt;ContentUtilizer&gt; contentUtilizers) {
+<span class="nc" id="L110">		this._contentUtilizers = contentUtilizers;</span>
+<span class="nc" id="L111">	}</span>
+
+	protected IContentAuthorizationHelper getContentAuthHelper() {
+<span class="fc" id="L114">		return _contentAuthHelper;</span>
+	}
+	public void setContentAuthHelper(IContentAuthorizationHelper contentAuthHelper) {
+<span class="fc" id="L117">		this._contentAuthHelper = contentAuthHelper;</span>
+<span class="fc" id="L118">	}</span>
+
+	public ApplicationContext getApplicationContext() {
+<span class="nc" id="L121">		return _applicationContext;</span>
+	}
+	@Override
+	public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+<span class="fc" id="L125">		this._applicationContext = applicationContext;</span>
+<span class="fc" id="L126">	}</span>
+
+	private Collection&lt;ContentUtilizer&gt; _contentUtilizers;
+	private IContentAuthorizationHelper _contentAuthHelper;
+	private ApplicationContext _applicationContext;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

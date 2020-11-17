@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageTemplateProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">PageTemplateProcessor.java</span></div><h1>PageTemplateProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
+
+import static java.util.Optional.ofNullable;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.BundleDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.PageTemplateDescriptor;
+import org.entando.kubernetes.model.bundle.installable.Installable;
+import org.entando.kubernetes.model.bundle.installable.PageTemplateInstallable;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.springframework.stereotype.Service;
+
+/**
+ * Processor to handle Page Templates.
+ */
+<span class="fc" id="L27">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class PageTemplateProcessor implements ComponentProcessor&lt;PageTemplateDescriptor&gt; {
+
+    private final EntandoCoreClient engineService;
+
+    @Override
+    public ComponentType getSupportedComponentType() {
+<span class="fc" id="L36">        return ComponentType.PAGE_TEMPLATE;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;PageTemplateDescriptor&gt;&gt; process(BundleReader npr) {
+        try {
+<span class="fc" id="L42">            BundleDescriptor descriptor = npr.readBundleDescriptor();</span>
+<span class="fc" id="L43">            List&lt;String&gt; pageTemplatesDescriptor = ofNullable(descriptor.getComponents())</span>
+<span class="fc" id="L44">                    .map(ComponentSpecDescriptor::getPageTemplates)</span>
+<span class="fc" id="L45">                    .orElse(Collections.emptyList());</span>
+
+<span class="fc" id="L47">            List&lt;Installable&lt;PageTemplateDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            for (String fileName : pageTemplatesDescriptor) {</span>
+<span class="fc" id="L50">                PageTemplateDescriptor pageTemplateDescriptor = npr.readDescriptorFile(fileName, PageTemplateDescriptor.class);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">                if (pageTemplateDescriptor.getTemplatePath() != null) {</span>
+<span class="fc" id="L52">                    String tp = getRelativePath(fileName, pageTemplateDescriptor.getTemplatePath());</span>
+<span class="fc" id="L53">                    pageTemplateDescriptor.setTemplate(npr.readFileAsString(tp));</span>
+                }
+<span class="fc" id="L55">                installables.add(new PageTemplateInstallable(engineService, pageTemplateDescriptor));</span>
+<span class="fc" id="L56">            }</span>
+
+<span class="fc" id="L58">            return installables;</span>
+<span class="nc" id="L59">        } catch (IOException e) {</span>
+<span class="nc" id="L60">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public List&lt;Installable&lt;PageTemplateDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
+<span class="fc" id="L66">        return components.stream()</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.PAGE_TEMPLATE)</span>
+<span class="fc" id="L68">                .map(c -&gt; new PageTemplateInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
+<span class="fc" id="L69">                .collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public PageTemplateDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
+<span class="fc" id="L74">        return PageTemplateDescriptor.builder()</span>
+<span class="fc" id="L75">                .code(component.getComponentId())</span>
+<span class="fc" id="L76">                .build();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

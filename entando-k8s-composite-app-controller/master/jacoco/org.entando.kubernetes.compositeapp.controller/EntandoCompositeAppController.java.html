@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoCompositeAppController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Composite App Controller</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.compositeapp.controller</a> &gt; <span class="el_source">EntandoCompositeAppController.java</span></div><h1>EntandoCompositeAppController.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.compositeapp.controller;
+
+import static java.lang.String.format;
+
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.Watcher.Action;
+import io.quarkus.runtime.StartupEvent;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.logging.Level;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import org.entando.kubernetes.controller.AbstractDbAwareController;
+import org.entando.kubernetes.controller.EntandoControllerException;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.PodResult;
+import org.entando.kubernetes.controller.common.ControllerExecutor;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentPhase;
+import org.entando.kubernetes.model.WebServerStatus;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeApp;
+import org.entando.kubernetes.model.compositeapp.EntandoCustomResourceReference;
+
+public class EntandoCompositeAppController extends AbstractDbAwareController&lt;EntandoCompositeApp&gt; {
+
+    private final String namespace;
+
+    @Inject
+    public EntandoCompositeAppController(KubernetesClient kubernetesClient) {
+<span class="nc" id="L49">        this(kubernetesClient, true);</span>
+<span class="nc" id="L50">    }</span>
+
+    /**
+     * This constructor is intended for in-process tests where we do not want the controller to exit automatically.
+     */
+    public EntandoCompositeAppController(KubernetesClient kubernetesClient, boolean exitAutomatically) {
+<span class="fc" id="L56">        super(kubernetesClient, exitAutomatically);</span>
+<span class="fc" id="L57">        this.namespace = kubernetesClient.getNamespace();</span>
+<span class="fc" id="L58">    }</span>
+
+    public SimpleK8SClient&lt;?&gt; getClient() {
+<span class="fc" id="L61">        return super.k8sClient;</span>
+    }
+
+    public void onStartup(@Observes StartupEvent event) {
+<span class="fc" id="L65">        processCommand();</span>
+<span class="fc" id="L66">    }</span>
+
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    protected void synchronizeDeploymentState(EntandoCompositeApp newCompositeApp) {
+<span class="fc" id="L71">        ControllerExecutor executor = new ControllerExecutor(namespace, k8sClient);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        for (EntandoBaseCustomResource component : newCompositeApp.getSpec().getComponents()) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            if (component instanceof EntandoCustomResourceReference) {</span>
+<span class="fc" id="L74">                EntandoCustomResourceReference ref = (EntandoCustomResourceReference) component;</span>
+<span class="fc" id="L75">                component = k8sClient.entandoResources().load(resolveType(ref.getSpec().getTargetKind()),</span>
+<span class="fc" id="L76">                        ref.getSpec().getTargetNamespace().orElse(newCompositeApp.getMetadata().getNamespace()),</span>
+<span class="fc" id="L77">                        ref.getSpec().getTargetName());</span>
+
+<span class="fc" id="L79">            } else {</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">                if (component.getMetadata().getNamespace() == null) {</span>
+<span class="nc" id="L81">                    component.getMetadata().setNamespace(newCompositeApp.getMetadata().getNamespace());</span>
+                }
+                //TODO relax buildOwnerReference
+<span class="fc" id="L84">                component.getMetadata().setOwnerReferences(</span>
+<span class="fc" id="L85">                        Collections.singletonList(KubeUtils.buildOwnerReference((EntandoBaseCustomResource) newCompositeApp)));</span>
+            }
+<span class="fc" id="L87">            component.getStatus().setEntandoDeploymentPhase(EntandoDeploymentPhase.STARTED);</span>
+<span class="fc" id="L88">            EntandoBaseCustomResource storedComponent = k8sClient.entandoResources().createOrPatchEntandoResource(component);</span>
+<span class="fc" id="L89">            Pod pod = executor.runControllerFor(</span>
+                    Action.ADDED,
+                    storedComponent,
+<span class="fc" id="L92">                    executor.resolveLatestImageFor(storedComponent.getClass()).orElseThrow(IllegalStateException::new)</span>
+            );
+<span class="fc" id="L94">            WebServerStatus webServerStatus = new WebServerStatus(storedComponent.getMetadata().getName());</span>
+<span class="fc" id="L95">            webServerStatus.setPodStatus(pod.getStatus());</span>
+<span class="fc" id="L96">            getClient().entandoResources().updateStatus(newCompositeApp, webServerStatus);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (PodResult.of(pod).hasFailed()) {</span>
+<span class="fc" id="L98">                String message = format(&quot;Unexpected exception occurred while adding %s %s/%s&quot;, storedComponent.getKind(),</span>
+<span class="fc" id="L99">                        storedComponent.getMetadata().getNamespace(),</span>
+<span class="fc" id="L100">                        storedComponent.getMetadata().getName());</span>
+<span class="fc" id="L101">                this.logger.log(Level.SEVERE, message);</span>
+<span class="fc" id="L102">                throw new EntandoControllerException(message);</span>
+            }
+<span class="fc" id="L104">        }</span>
+<span class="fc" id="L105">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    protected Class&lt;? extends EntandoBaseCustomResource&gt; resolveType(String kind) {
+<span class="fc" id="L109">        return (Class&lt;? extends EntandoBaseCustomResource&gt;) Arrays</span>
+<span class="fc" id="L110">                .stream(EntandoBaseCustomResource.class.getAnnotation(JsonSubTypes.class).value())</span>
+<span class="fc" id="L111">                .filter(type -&gt; type.name().equals(kind))</span>
+<span class="fc" id="L112">                .findAny()</span>
+<span class="fc" id="L113">                .orElseThrow(IllegalArgumentException::new)</span>
+<span class="fc" id="L114">                .value();</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
