@@ -1,0 +1,464 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageConfigAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">PageConfigAction.java</span></div><h1>PageConfigAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal;
+
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.Response.Status;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.struts2.interceptor.ServletResponseAware;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.apsadmin.portal.rs.model.DeleteWidgetResponse;
+import org.entando.entando.apsadmin.portal.rs.model.JoinWidgetResponse;
+import org.entando.entando.apsadmin.portal.rs.model.PageResponse;
+import org.entando.entando.apsadmin.portal.rs.model.SwapWidgetRequest;
+import org.entando.entando.apsadmin.portal.rs.model.SwapWidgetResponse;
+import org.entando.entando.apsadmin.portal.rs.validator.ISwapWidgetRequestValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Page;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+
+/**
+ * Main action class for the pages configuration.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L45">public class PageConfigAction extends AbstractPortalAction implements ServletResponseAware {</span>
+
+<span class="fc" id="L47">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageConfigAction.class);</span>
+
+	public String configure() {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">		String pageCode = (this.getSelectedNode() != null ? this.getSelectedNode() : this.getPageCode());</span>
+<span class="nc" id="L51">		this.setPageCode(pageCode);</span>
+<span class="nc" id="L52">		this.setSelectedNode(pageCode);</span>
+<span class="nc" id="L53">		String check = this.checkSelectedNode(pageCode);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">		if (null != check) {</span>
+<span class="nc" id="L55">			return check;</span>
+		}
+<span class="nc" id="L57">		return SUCCESS;</span>
+	}
+
+	public String editFrame() {
+		try {
+<span class="fc" id="L62">			String result = this.checkBaseParams();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">			if (null != result) {</span>
+<span class="fc" id="L64">				return result;</span>
+			}
+<span class="fc" id="L66">			Widget widget = this.getCurrentPage().getWidgets()[this.getFrame()];// can be null</span>
+<span class="fc" id="L67">			this.setWidget(widget);</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">			if (widget != null) {</span>
+<span class="fc" id="L69">				WidgetType widgetType = widget.getType();</span>
+<span class="fc" id="L70">				_logger.debug(&quot;pageCode: {}, frame: {}, widgetType: {}&quot;, this.getPageCode(), this.getFrame(), widgetType.getCode());</span>
+<span class="fc" id="L71">				this.setWidgetAction(widgetType.getAction());</span>
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">				if (null == widgetType.getConfig() &amp;&amp; null != this.getWidgetAction()) {</span>
+<span class="fc" id="L73">					return &quot;configureSpecialWidget&quot;;</span>
+				}
+<span class="fc" id="L75">			} else {</span>
+<span class="nc" id="L76">				_logger.debug(&quot;pageCode: {} frame: {}, empty widhet to config&quot;, this.getPageCode(), this.getFrame());</span>
+			}
+<span class="nc" id="L78">		} catch (Exception e) {</span>
+<span class="nc" id="L79">			_logger.error(&quot;error in edit frame&quot;, e);</span>
+<span class="nc" id="L80">			return FAILURE;</span>
+<span class="fc" id="L81">		}</span>
+<span class="fc" id="L82">		return SUCCESS;</span>
+	}
+
+	@Deprecated
+	public String joinShowlet() {
+<span class="nc" id="L87">		return this.joinWidget();</span>
+	}
+
+	public String joinWidget() {
+		try {
+<span class="fc" id="L92">			String result = this.checkBaseParams();</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			if (null != result) {</span>
+<span class="fc" id="L94">				return result;</span>
+			}
+<span class="pc bpc" id="L96" title="2 of 4 branches missed.">			if (null != this.getWidgetTypeCode() &amp;&amp; this.getWidgetTypeCode().length() == 0) {</span>
+<span class="nc" id="L97">				this.addActionError(this.getText(&quot;error.page.widgetTypeCodeUnknown&quot;));</span>
+<span class="nc" id="L98">				return INPUT;</span>
+			}
+<span class="fc" id="L100">			_logger.debug(&quot;code={}, pageCode={}, frame={}&quot; + this.getWidgetTypeCode(), this.getPageCode(), this.getFrame());</span>
+<span class="fc" id="L101">			WidgetType widgetType = this.getShowletType(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">			if (null == widgetType) {</span>
+<span class="nc" id="L103">				this.addActionError(this.getText(&quot;error.page.widgetTypeCodeUnknown&quot;));</span>
+<span class="nc" id="L104">				return INPUT;</span>
+			}
+<span class="fc bfc" id="L106" title="All 4 branches covered.">			if (null == widgetType.getConfig() &amp;&amp; null != widgetType.getAction()) {</span>
+<span class="fc" id="L107">				this.setWidgetAction(widgetType.getAction());</span>
+				//continue to widget configuration
+<span class="fc" id="L109">				return &quot;configureSpecialWidget&quot;;</span>
+			}
+<span class="fc" id="L111">			Widget widget = new Widget();</span>
+<span class="fc" id="L112">			widget.setType(widgetType);</span>
+<span class="fc" id="L113">			this.getPageManager().joinWidget(this.getPageCode(), widget, this.getFrame());</span>
+<span class="fc" id="L114">			this.addActivityStreamInfo(ApsAdminSystemConstants.ADD, true);</span>
+<span class="nc" id="L115">		} catch (Exception e) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;error in joinWidget&quot;, e);</span>
+<span class="nc" id="L117">			return FAILURE;</span>
+<span class="fc" id="L118">		}</span>
+<span class="fc" id="L119">		return SUCCESS;</span>
+	}
+
+	public String joinWidgetJson() {
+		try {
+<span class="nc" id="L124">			String result = this.checkBaseParams();</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">			if (null != result) {</span>
+<span class="nc" id="L126">				return result;</span>
+			}
+<span class="nc" id="L128">			IPage page = this.getPage(this.getPageCode());</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">			if (null != page.getWidgets()[this.getFrame()]) {</span>
+<span class="nc" id="L130">				this.addActionError(this.getText(&quot;error.page.join.frameNotEmpty&quot;));</span>
+<span class="nc" id="L131">				return &quot;pageTree&quot;;</span>
+			}
+<span class="nc bnc" id="L133" title="All 4 branches missed.">			if (null != this.getWidgetTypeCode() &amp;&amp; this.getWidgetTypeCode().length() == 0) {</span>
+<span class="nc" id="L134">				this.addActionError(this.getText(&quot;error.page.widgetTypeCodeUnknown&quot;));</span>
+<span class="nc" id="L135">				return INPUT;</span>
+			}
+<span class="nc" id="L137">			_logger.debug(&quot;code={}, pageCode={}, frame={}&quot; + this.getWidgetTypeCode(), this.getPageCode(), this.getFrame());</span>
+<span class="nc" id="L138">			WidgetType widgetType = this.getShowletType(this.getWidgetTypeCode());</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">			if (null == widgetType) {</span>
+<span class="nc" id="L140">				this.addActionError(this.getText(&quot;error.page.widgetTypeCodeUnknown&quot;));</span>
+<span class="nc" id="L141">				return INPUT;</span>
+			}
+<span class="nc bnc" id="L143" title="All 4 branches missed.">			if (null == widgetType.getConfig() &amp;&amp; null != widgetType.getAction()) {</span>
+<span class="nc" id="L144">				this.setWidgetAction(widgetType.getAction());</span>
+				//continue to widget configuration
+<span class="nc" id="L146">				return &quot;configureSpecialWidget&quot;;</span>
+			}
+<span class="nc" id="L148">			Widget widget = new Widget();</span>
+<span class="nc" id="L149">			widget.setType(widgetType);</span>
+<span class="nc" id="L150">			this.getPageManager().joinWidget(this.getPageCode(), widget, this.getFrame());</span>
+<span class="nc" id="L151">			this.addActivityStreamInfo(ApsAdminSystemConstants.ADD, true);</span>
+<span class="nc" id="L152">		} catch (Exception e) {</span>
+<span class="nc" id="L153">			_logger.error(&quot;error in joinWidget&quot;, e);</span>
+<span class="nc" id="L154">			return FAILURE;</span>
+<span class="nc" id="L155">		}</span>
+<span class="nc" id="L156">		return SUCCESS;</span>
+	}
+
+	public JoinWidgetResponse getJoinWidgetResponse() {
+<span class="nc" id="L160">		IPage page = null;</span>
+<span class="nc" id="L161">		IPage onlinePage = null;</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">		if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="nc" id="L163">			page = this.getPage(this.getPageCode());</span>
+<span class="nc" id="L164">			onlinePage = this.getOnlinePage(this.getPageCode());</span>
+		}
+<span class="nc" id="L166">		JoinWidgetResponse response = new JoinWidgetResponse(this, page, onlinePage);</span>
+<span class="nc bnc" id="L167" title="All 4 branches missed.">		if (page != null &amp;&amp; StringUtils.isNotBlank(this.getWidgetAction())) {</span>
+<span class="nc" id="L168">			StringBuilder url = new StringBuilder(&quot;/do/Page/SpecialWidget/&quot;);</span>
+<span class="nc" id="L169">			url.append(this.getWidgetAction()).append(&quot;?&quot;);</span>
+<span class="nc" id="L170">			String[] params = new String[]{&quot;pageCode=&quot; + this.getPageCode(), &quot;widgetTypeCode=&quot; + this.getWidgetTypeCode(), &quot;frame=&quot; + this.getFrame()};</span>
+<span class="nc" id="L171">			url.append(StringUtils.join(params, &quot;&amp;&quot;));</span>
+<span class="nc" id="L172">			response.setRedirectLocation(url.toString());</span>
+		}
+<span class="nc" id="L174">		return response;</span>
+	}
+
+	@Deprecated
+	public String removeShowlet() {
+<span class="nc" id="L179">		return this.trashWidget();</span>
+	}
+
+	@Deprecated
+	public String trashShowlet() {
+<span class="nc" id="L184">		return trashWidget();</span>
+	}
+
+	public String trashWidget() {
+		try {
+<span class="fc" id="L189">			String result = this.checkBaseParams();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">			if (null != result) {</span>
+<span class="fc" id="L191">				return result;</span>
+			}
+<span class="nc" id="L193">		} catch (Exception e) {</span>
+<span class="nc" id="L194">			_logger.error(&quot;error in trashWidget&quot;, e);</span>
+<span class="nc" id="L195">			return FAILURE;</span>
+<span class="fc" id="L196">		}</span>
+<span class="fc" id="L197">		return SUCCESS;</span>
+	}
+
+	@Deprecated
+	public String deleteShowlet() {
+<span class="nc" id="L202">		return deleteWidget();</span>
+	}
+
+	public String deleteWidget() {
+		try {
+<span class="fc" id="L207">			String result = this.checkBaseParams();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">			if (null != result) {</span>
+<span class="fc" id="L209">				return result;</span>
+			}
+<span class="fc" id="L211">			this.getPageManager().removeWidget(this.getPageCode(), this.getFrame());</span>
+<span class="fc" id="L212">			this.addActivityStreamInfo(ApsAdminSystemConstants.DELETE, true);</span>
+<span class="nc" id="L213">		} catch (Exception e) {</span>
+<span class="nc" id="L214">			_logger.error(&quot;error in deleteWidget&quot;, e);</span>
+<span class="nc" id="L215">			return FAILURE;</span>
+<span class="fc" id="L216">		}</span>
+<span class="fc" id="L217">		return SUCCESS;</span>
+	}
+
+	public String deleteWidgetJson() {
+		try {
+<span class="nc" id="L222">			String result = this.checkBaseParams();</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">			if (null != result) {</span>
+<span class="nc" id="L224">				return result;</span>
+			}
+<span class="nc" id="L226">			this.getPageManager().removeWidget(this.getPageCode(), this.getFrame());</span>
+<span class="nc" id="L227">			this.addActivityStreamInfo(ApsAdminSystemConstants.DELETE, true);</span>
+<span class="nc" id="L228">		} catch (Exception e) {</span>
+<span class="nc" id="L229">			_logger.error(&quot;error in deleteWidget&quot;, e);</span>
+<span class="nc" id="L230">			return FAILURE;</span>
+<span class="nc" id="L231">		}</span>
+<span class="nc" id="L232">		return SUCCESS;</span>
+	}
+
+	public DeleteWidgetResponse getDeleteWidgetResponse() {
+<span class="nc" id="L236">		IPage page = null;</span>
+<span class="nc" id="L237">		IPage onlinePage = null;</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">		if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="nc" id="L239">			page = this.getPage(this.getPageCode());</span>
+<span class="nc" id="L240">			onlinePage = this.getOnlinePage(this.getPageCode());</span>
+		}
+<span class="nc" id="L242">		return new DeleteWidgetResponse(this, page, onlinePage);</span>
+	}
+
+	public String move() {
+		try {
+<span class="nc" id="L247">			SwapWidgetRequest ajaxRequest = this.getSwapWidgetRequest();</span>
+<span class="nc" id="L248">			this.getValidator().validateRequest(ajaxRequest, this);</span>
+<span class="nc bnc" id="L249" title="All 4 branches missed.">			if (this.hasActionErrors() || this.hasFieldErrors()) {</span>
+<span class="nc" id="L250">				this.response.setStatus(Status.BAD_REQUEST.getStatusCode());</span>
+<span class="nc" id="L251">				return INPUT;</span>
+			}
+<span class="nc" id="L253">			this.getPageManager().moveWidget(ajaxRequest.getPageCode(), ajaxRequest.getSrc(), ajaxRequest.getDest());</span>
+<span class="nc" id="L254">		} catch (Throwable t) {</span>
+<span class="nc" id="L255">			this.response.setStatus(Status.INTERNAL_SERVER_ERROR.getStatusCode());</span>
+<span class="nc" id="L256">			_logger.error(&quot;error in move&quot;, t);</span>
+<span class="nc" id="L257">			return FAILURE;</span>
+<span class="nc" id="L258">		}</span>
+<span class="nc" id="L259">		this.response.setStatus(Status.OK.getStatusCode());</span>
+<span class="nc" id="L260">		this.setPageCode(swapWidgetRequest.getPageCode());</span>
+<span class="nc" id="L261">		return SUCCESS;</span>
+	}
+
+	public SwapWidgetResponse getMoveWidgetResponse() {
+<span class="nc" id="L265">		IPage page = null;</span>
+<span class="nc" id="L266">		IPage onlinePage = null;</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">		if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="nc" id="L268">			page = this.getPage(this.getPageCode());</span>
+<span class="nc" id="L269">			onlinePage = this.getOnlinePage(this.getPageCode());</span>
+		}
+<span class="nc" id="L271">		return new SwapWidgetResponse(this, page, onlinePage);</span>
+	}
+
+	public String restoreOnlineConfig() {
+		try {
+<span class="nc" id="L276">			IPage page = this.getPage(this.getPageCode());</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">			if (!this.isUserAllowed(page)) {</span>
+<span class="nc" id="L278">				_logger.info(&quot;Current user not allowed&quot;);</span>
+<span class="nc" id="L279">				this.addActionError(this.getText(&quot;error.page.userNotAllowed&quot;));</span>
+<span class="nc" id="L280">				return &quot;pageTree&quot;;</span>
+			}
+<span class="nc bnc" id="L282" title="All 2 branches missed.">			if (null == page) {</span>
+<span class="nc" id="L283">				_logger.info(&quot;Null page code&quot;);</span>
+<span class="nc" id="L284">				this.addActionError(this.getText(&quot;error.page.invalidPageCode&quot;));</span>
+<span class="nc" id="L285">				return &quot;pageTree&quot;;</span>
+			}
+<span class="nc bnc" id="L287" title="All 2 branches missed.">			if (!page.isOnline()) {</span>
+<span class="nc" id="L288">				this.addActionError(this.getText(&quot;error.page.restore.invalidStatus&quot;));</span>
+<span class="nc" id="L289">				return &quot;pageTree&quot;;</span>
+			}
+<span class="nc" id="L291">			IPage publicPage = this.getOnlinePage(this.getPageCode());</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">			if (null != publicPage) {</span>
+<span class="nc" id="L293">				((Page) page).setMetadata(publicPage.getMetadata());</span>
+<span class="nc" id="L294">				((Page) page).setWidgets(publicPage.getWidgets());</span>
+<span class="nc" id="L295">				this.getPageManager().updatePage(page);</span>
+<span class="nc" id="L296">				this.addActivityStreamInfo(ApsAdminSystemConstants.EDIT, true);</span>
+			}
+<span class="nc" id="L298">		} catch (Exception e) {</span>
+<span class="nc" id="L299">			_logger.error(&quot;error in restoreOnlineConfig&quot;, e);</span>
+<span class="nc" id="L300">			return FAILURE;</span>
+<span class="nc" id="L301">		}</span>
+<span class="nc" id="L302">		return SUCCESS;</span>
+	}
+
+	public PageResponse getRestoreOnlineConfigResponse() {
+<span class="nc" id="L306">		IPage draftPage = null;</span>
+<span class="nc" id="L307">		IPage onlinePage = null;</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">		if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="nc" id="L309">			draftPage = this.getPage(this.getPageCode());</span>
+<span class="nc" id="L310">			onlinePage = this.getOnlinePage(this.getPageCode());</span>
+		}
+<span class="nc" id="L312">		return new PageResponse(this, draftPage, onlinePage);</span>
+	}
+
+	//TODO METODO COMUNE ALLA CONFIG SPECIAL WIDGET
+	protected String checkBaseParams() {
+<span class="fc" id="L317">		IPage page = this.getPage(this.getPageCode());</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">		if (!this.isUserAllowed(page)) {</span>
+<span class="fc" id="L319">			_logger.info(&quot;Current user not allowed&quot;);</span>
+<span class="fc" id="L320">			this.addActionError(this.getText(&quot;error.page.userNotAllowed&quot;));</span>
+<span class="fc" id="L321">			return &quot;pageTree&quot;;</span>
+		}
+<span class="pc bpc" id="L323" title="1 of 2 branches missed.">		if (null == page) {</span>
+<span class="nc" id="L324">			_logger.info(&quot;Null page code&quot;);</span>
+<span class="nc" id="L325">			this.addActionError(this.getText(&quot;error.page.invalidPageCode&quot;));</span>
+<span class="nc" id="L326">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc bfc" id="L328" title="All 4 branches covered.">		if (this.getFrame() == -1 || this.getFrame() &gt;= page.getWidgets().length) {</span>
+<span class="fc" id="L329">			_logger.info(&quot;Mandatory frame id or invalid - '{}'&quot;, this.getFrame());</span>
+<span class="fc" id="L330">			this.addActionError(this.getText(&quot;error.page.invalidPageFrame&quot;));</span>
+<span class="fc" id="L331">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc" id="L333">		return null;</span>
+	}
+
+	protected void addActivityStreamInfo(int strutsAction, boolean addLink) {
+<span class="fc" id="L337">		IPage page = this.getPage(this.getPageCode());</span>
+<span class="fc" id="L338">		ActivityStreamInfo asi = this.getPageActionHelper()</span>
+<span class="fc" id="L339">				.createActivityStreamInfo(page, strutsAction, addLink, &quot;configure&quot;);</span>
+<span class="fc" id="L340">		super.addActivityStreamInfo(asi);</span>
+<span class="fc" id="L341">	}</span>
+
+	public WidgetType getShowletType(String typeCode) {
+<span class="fc" id="L344">		return this.getWidgetTypeManager().getWidgetType(typeCode);</span>
+	}
+
+	public IPage getCurrentPage() {
+<span class="fc" id="L348">		return this.getPage(this.getPageCode());</span>
+	}
+
+	public String getPageCode() {
+<span class="fc" id="L352">		return _pageCode;</span>
+	}
+
+	public void setPageCode(String pageCode) {
+<span class="fc" id="L356">		this._pageCode = pageCode;</span>
+<span class="fc" id="L357">	}</span>
+
+	public int getFrame() {
+<span class="fc" id="L360">		return _frame;</span>
+	}
+
+	public void setFrame(int frame) {
+<span class="fc" id="L364">		this._frame = frame;</span>
+<span class="fc" id="L365">	}</span>
+
+	@Deprecated
+	public String getShowletAction() {
+<span class="nc" id="L369">		return this.getWidgetAction();</span>
+	}
+
+	@Deprecated
+	public void setShowletAction(String showletAction) {
+<span class="nc" id="L374">		this.setWidgetAction(showletAction);</span>
+<span class="nc" id="L375">	}</span>
+
+	public String getWidgetAction() {
+<span class="fc" id="L378">		return _widgetAction;</span>
+	}
+
+	public void setWidgetAction(String widgetAction) {
+<span class="fc" id="L382">		this._widgetAction = widgetAction;</span>
+<span class="fc" id="L383">	}</span>
+
+	@Deprecated
+	public String getShowletTypeCode() {
+<span class="nc" id="L387">		return this.getWidgetTypeCode();</span>
+	}
+
+	@Deprecated
+	public void setShowletTypeCode(String widgetTypeCode) {
+<span class="nc" id="L392">		this.setWidgetTypeCode(widgetTypeCode);</span>
+<span class="nc" id="L393">	}</span>
+
+	public String getWidgetTypeCode() {
+<span class="fc" id="L396">		return _widgetTypeCode;</span>
+	}
+
+	public void setWidgetTypeCode(String widgetTypeCode) {
+<span class="fc" id="L400">		this._widgetTypeCode = widgetTypeCode;</span>
+<span class="fc" id="L401">	}</span>
+
+	@Deprecated
+	public Widget getShowlet() {
+<span class="nc" id="L405">		return this.getWidget();</span>
+	}
+
+	@Deprecated
+	public void setShowlet(Widget widget) {
+<span class="nc" id="L410">		this.setWidget(widget);</span>
+<span class="nc" id="L411">	}</span>
+
+	public Widget getWidget() {
+<span class="nc" id="L414">		return _widget;</span>
+	}
+
+	public void setWidget(Widget widget) {
+<span class="fc" id="L418">		this._widget = widget;</span>
+<span class="fc" id="L419">	}</span>
+
+	@Override
+	public void setServletResponse(HttpServletResponse response) {
+<span class="fc" id="L423">		this.response = response;</span>
+<span class="fc" id="L424">	}</span>
+
+	public SwapWidgetRequest getSwapWidgetRequest() {
+<span class="nc" id="L427">		return swapWidgetRequest;</span>
+	}
+
+	public void setSwapWidgetRequest(SwapWidgetRequest swapWidgetRequest) {
+<span class="nc" id="L431">		this.swapWidgetRequest = swapWidgetRequest;</span>
+<span class="nc" id="L432">	}</span>
+
+	protected IPageActionHelper getPageActionHelper() {
+<span class="fc" id="L435">		return _pageActionHelper;</span>
+	}
+
+	public void setPageActionHelper(IPageActionHelper pageActionHelper) {
+<span class="fc" id="L439">		this._pageActionHelper = pageActionHelper;</span>
+<span class="fc" id="L440">	}</span>
+
+	protected ISwapWidgetRequestValidator getValidator() {
+<span class="nc" id="L443">		return validator;</span>
+	}
+
+	@Autowired
+	@Qualifier(ISwapWidgetRequestValidator.BEAN_NAME)
+	public void setValidator(ISwapWidgetRequestValidator validator) {
+<span class="fc" id="L449">		this.validator = validator;</span>
+<span class="fc" id="L450">	}</span>
+
+	private String _pageCode;
+<span class="fc" id="L453">	private int _frame = -1;</span>
+	private String _widgetAction;
+	private String _widgetTypeCode;
+	private Widget _widget;
+	private SwapWidgetRequest swapWidgetRequest;
+
+	private HttpServletResponse response;
+	private IPageActionHelper _pageActionHelper;
+	private ISwapWidgetRequestValidator validator;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

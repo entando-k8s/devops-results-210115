@@ -1,0 +1,1014 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">PageAction.java</span></div><h1>PageAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal;
+
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.*;
+import com.agiletec.aps.system.services.pagemodel.IPageModelManager;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+import com.agiletec.apsadmin.portal.helper.IPageActionReferencesHelper;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseActionHelper;
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.struts2.interceptor.ServletResponseAware;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.apsadmin.portal.PageActionConstants;
+import org.entando.entando.apsadmin.portal.rs.model.PageResponse;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.Response.Status;
+import java.util.*;
+
+/**
+ * Main action for pages handling
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L46">public class PageAction extends AbstractPortalAction implements ServletResponseAware {</span>
+
+<span class="fc" id="L48">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(PageAction.class);</span>
+
+    private static final int PAGE_TITLE_MAX_LENGTH = 70;
+    
+    private String pageCode;
+    private String parentPageCode;
+    private String copyPageCode;
+    private String group;
+    private boolean groupSelectLock;
+<span class="fc" id="L57">    private Set&lt;String&gt; extraGroups = new TreeSet&lt;&gt;();</span>
+    private String model;
+<span class="fc" id="L59">    private boolean defaultShowlet = false;</span>
+<span class="fc" id="L60">    private ApsProperties titles = new ApsProperties();</span>
+<span class="fc" id="L61">    private boolean showable = false;</span>
+    private boolean useExtraTitles;
+    private int strutsAction;
+
+    private String mimeType;
+    private String charset;
+
+    private String nodeToBeDelete;
+
+    private String extraGroupNameToRemove;
+
+    private IPage pageToShow;
+
+    private Map references;
+
+    private String _allowedMimeTypesCSV;
+    private String _allowedCharsetsCSV;
+
+    private String targetNode;
+<span class="fc" id="L80">    private Set&lt;String&gt; treeNodesToOpen = new HashSet&lt;&gt;();</span>
+    private String treeNodeActionMarkerCode;
+
+    private HttpServletResponse response;
+
+    private IPageModelManager pageModelManager;
+    private IPageActionHelper pageActionHelper;
+    private IPageActionReferencesHelper pageActionReferencesHelper;
+
+    @Override
+    public void validate() {
+<span class="fc" id="L91">        super.validate();</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">        if (this.getStrutsAction() == ApsAdminSystemConstants.ADD || this.getStrutsAction() == ApsAdminSystemConstants.PASTE) {</span>
+<span class="fc" id="L93">            this.checkParentNode(this.getParentPageCode());</span>
+        }
+<span class="fc" id="L95">        this.checkCode();</span>
+<span class="fc" id="L96">        this.checkTitles();</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (this.getAuthorizationManager().isAuthOnGroup(this.getCurrentUser(), Group.ADMINS_GROUP_NAME)) {</span>
+            try {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                IPage currentPage = (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) ? this.getUpdatedPage() : this.buildNewPage();</span>
+<span class="fc" id="L100">                boolean check = this.getPageActionHelper().checkPageGroup(currentPage, this);</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">                if (!check) {</span>
+<span class="nc" id="L102">                    logger.error(&quot;Error checking page group&quot;);</span>
+<span class="nc" id="L103">                    this.addActionError(this.getText(&quot;error.page.scanGroup&quot;));</span>
+                }
+<span class="nc" id="L105">            } catch (Exception e) {</span>
+<span class="nc" id="L106">                logger.error(&quot;Error validation groups&quot;, e);</span>
+<span class="nc" id="L107">                throw new RuntimeException(&quot;Error validation groups&quot;, e);</span>
+<span class="fc" id="L108">            }</span>
+        }
+<span class="fc" id="L110">    }</span>
+
+    protected String checkParentNode(String selectedNode) {
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">        if (null == selectedNode || selectedNode.trim().length() == 0) {</span>
+<span class="fc" id="L114">            this.addFieldError(&quot;parentPageCode&quot;, this.getText(&quot;error.parentPage.noSelection&quot;));</span>
+<span class="fc" id="L115">            return &quot;pageTree&quot;;</span>
+        }
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        if (VIRTUAL_ROOT_CODE.equals(selectedNode)) {</span>
+<span class="nc" id="L118">            this.addFieldError(&quot;parentPageCode&quot;, this.getText(&quot;error.parentPage.virtualRootSelected&quot;));</span>
+<span class="nc" id="L119">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc" id="L121">        IPage selectedPage = this.getPage(selectedNode);</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (null == selectedPage) {</span>
+<span class="nc" id="L123">            this.addFieldError(&quot;parentPageCode&quot;, this.getText(&quot;error.parentPage.selectedPage.null&quot;));</span>
+<span class="nc" id="L124">            return &quot;pageTree&quot;;</span>
+        }
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if (!this.isUserAllowed(selectedPage)) {</span>
+<span class="nc" id="L127">            this.addFieldError(&quot;parentPageCode&quot;, this.getText(&quot;error.parentPage.userNotAllowed&quot;));</span>
+<span class="nc" id="L128">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc" id="L130">        return null;</span>
+    }
+
+    protected void checkTitles() {
+<span class="fc" id="L134">        this.updateTitles();</span>
+<span class="fc" id="L135">        Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        while (langsIter.hasNext()) {</span>
+<span class="fc" id="L137">            Lang lang = langsIter.next();</span>
+<span class="fc" id="L138">            String title = (String) this.getTitles().get(lang.getCode());</span>
+<span class="fc" id="L139">            String titleKey = &quot;lang&quot; + lang.getCode();</span>
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">            if (null == title || title.trim().length() == 0) {</span>
+<span class="fc" id="L141">                String[] args = {lang.getDescr()};</span>
+<span class="fc" id="L142">                this.addFieldError(titleKey, this.getText(&quot;error.page.insertTitle&quot;, args));</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            } else if (title.length() &gt; PAGE_TITLE_MAX_LENGTH) {</span>
+<span class="fc" id="L144">                String[] args = {lang.getCode(), String.valueOf(PAGE_TITLE_MAX_LENGTH)};</span>
+<span class="fc" id="L145">                this.addFieldError(titleKey, this.getText(&quot;error.page.wrongTitleMaxLength&quot;, args));</span>
+            }
+<span class="fc" id="L147">        }</span>
+<span class="fc" id="L148">    }</span>
+
+    protected void updateTitles() {
+<span class="fc" id="L151">        Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        while (langsIter.hasNext()) {</span>
+<span class="fc" id="L153">            Lang lang = (Lang) langsIter.next();</span>
+<span class="fc" id="L154">            String titleKey = &quot;lang&quot; + lang.getCode();</span>
+<span class="fc" id="L155">            String title = this.getRequest().getParameter(titleKey);</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            if (null != title) {</span>
+<span class="fc" id="L157">                this.getTitles().put(lang.getCode(), title.trim());</span>
+            }
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">    }</span>
+
+    protected void checkCode() {
+<span class="fc" id="L163">        String code = this.getPageCode();</span>
+<span class="fc bfc" id="L164" title="All 6 branches covered.">        if ((this.getStrutsAction() == ApsAdminSystemConstants.ADD || this.getStrutsAction() == ApsAdminSystemConstants.PASTE)</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">                &amp;&amp; null != code &amp;&amp; code.trim().length() &gt; 0) {</span>
+<span class="fc" id="L166">            String currectCode = BaseActionHelper.purgeString(code.trim());</span>
+<span class="pc bpc" id="L167" title="1 of 4 branches missed.">            if (currectCode.length() &gt; 0 &amp;&amp; null != this.getPage(currectCode)) {</span>
+<span class="fc" id="L168">                String[] args = {currectCode};</span>
+<span class="fc" id="L169">                this.addFieldError(&quot;pageCode&quot;, this.getText(&quot;error.page.duplicateCode&quot;, args));</span>
+            }
+<span class="fc" id="L171">            this.setPageCode(currectCode);</span>
+        }
+<span class="fc" id="L173">    }</span>
+
+    public String newPage() {
+<span class="fc" id="L176">        String selectedNode = this.getParentPageCode();</span>
+        try {
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(selectedNode)) {</span>
+<span class="fc" id="L179">                selectedNode = this.getSelectedNode();</span>
+            }
+<span class="fc" id="L181">            IPage parentPage = null;</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if (StringUtils.isNotEmpty(selectedNode)) {</span>
+<span class="fc" id="L183">                String check = this.checkSelectedNode(selectedNode);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">                if (null != check) {</span>
+<span class="fc" id="L185">                    return check;</span>
+                }
+<span class="fc" id="L187">                parentPage = this.getPage(selectedNode);</span>
+            }
+<span class="fc" id="L189">            this.valueFormForNew(parentPage);</span>
+<span class="fc" id="L190">            this.setCharset(&quot;utf-8&quot;);</span>
+<span class="fc" id="L191">            this.setMimeType(&quot;text/html&quot;);</span>
+<span class="nc" id="L192">        } catch (Throwable t) {</span>
+<span class="nc" id="L193">            logger.error(&quot;error in newPage&quot;, t);</span>
+<span class="nc" id="L194">            return FAILURE;</span>
+<span class="fc" id="L195">        }</span>
+<span class="fc" id="L196">        return SUCCESS;</span>
+    }
+
+    public String settingsPage() {
+<span class="nc" id="L200">        return SUCCESS;</span>
+    }
+
+    protected void valueFormForNew(IPage parentPage) {
+<span class="fc" id="L204">        this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (parentPage != null) {</span>
+<span class="fc" id="L206">            this.setParentPageCode(parentPage.getCode());</span>
+<span class="fc" id="L207">            String groupName = parentPage.getGroup();</span>
+<span class="fc" id="L208">            this.setGroup(groupName);</span>
+        }
+<span class="fc" id="L210">        this.setGroupSelectLock(false);</span>
+<span class="fc" id="L211">        this.setDefaultShowlet(true);</span>
+<span class="fc" id="L212">        this.setShowable(true);</span>
+<span class="fc" id="L213">    }</span>
+
+    public String edit() {
+<span class="fc" id="L216">        String selectedPageCode = this.getSelectedNode();</span>
+        try {
+<span class="fc" id="L218">            String check = this.checkSelectedNode(selectedPageCode);</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L220">                return check;</span>
+            }
+<span class="fc" id="L222">            IPage page = this.getPage(selectedPageCode);</span>
+<span class="fc" id="L223">            this.valueFormForEdit(page);</span>
+<span class="nc" id="L224">        } catch (Throwable t) {</span>
+<span class="nc" id="L225">            logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L226">            return FAILURE;</span>
+<span class="fc" id="L227">        }</span>
+<span class="fc" id="L228">        return SUCCESS;</span>
+    }
+
+    public String entryEdit() {
+        try {
+<span class="nc" id="L233">            this.updateTitles();</span>
+<span class="nc" id="L234">        } catch (Throwable t) {</span>
+<span class="nc" id="L235">            logger.error(&quot;error in entry edit&quot;, t);</span>
+<span class="nc" id="L236">            return FAILURE;</span>
+<span class="nc" id="L237">        }</span>
+<span class="nc" id="L238">        return SUCCESS;</span>
+    }
+
+    public String joinExtraGroup() {
+        try {
+<span class="fc" id="L243">            this.updateTitles();</span>
+<span class="fc" id="L244">            String[] groupNameList = super.getParameters().get(&quot;extraGroupNameToAdd&quot;);</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">            if (groupNameList != null) {</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">                for (String groupName : groupNameList) {</span>
+<span class="fc" id="L247">                    this.getExtraGroups().add(groupName);</span>
+                }
+            }
+<span class="nc" id="L250">        } catch (Throwable t) {</span>
+<span class="nc" id="L251">            logger.error(&quot;error in joinExtraGroup&quot;, t);</span>
+<span class="nc" id="L252">            return FAILURE;</span>
+<span class="fc" id="L253">        }</span>
+<span class="fc" id="L254">        return SUCCESS;</span>
+    }
+
+    public String removeExtraGroup() {
+        try {
+<span class="fc" id="L259">            this.updateTitles();</span>
+<span class="fc" id="L260">            this.getExtraGroups().remove(this.getExtraGroupNameToRemove());</span>
+<span class="nc" id="L261">        } catch (Throwable t) {</span>
+<span class="nc" id="L262">            logger.error(&quot;error in removeExtraGroup&quot;, t);</span>
+<span class="nc" id="L263">            return FAILURE;</span>
+<span class="fc" id="L264">        }</span>
+<span class="fc" id="L265">        return SUCCESS;</span>
+    }
+
+    public String showDetail() {
+<span class="fc" id="L269">        String selectedPageCode = this.getSelectedNode();</span>
+        try {
+<span class="fc" id="L271">            String check = this.checkSelectedNode(selectedPageCode);</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L273">                return check;</span>
+            }
+<span class="fc" id="L275">            IPage page = this.getPage(selectedPageCode);</span>
+<span class="fc" id="L276">            Map extractedReferences = this.getPageActionHelper().getReferencingObjects(page, this.getRequest());</span>
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">            if (null != extractedReferences) {</span>
+<span class="fc" id="L278">                this.setReferences(extractedReferences);</span>
+            }
+<span class="fc" id="L280">            this.setPageToShow(page);</span>
+<span class="nc" id="L281">        } catch (Throwable t) {</span>
+<span class="nc" id="L282">            logger.error(&quot;error in showDetail&quot;, t);</span>
+<span class="nc" id="L283">            return FAILURE;</span>
+<span class="fc" id="L284">        }</span>
+<span class="fc" id="L285">        return SUCCESS;</span>
+    }
+
+    protected void valueFormForEdit(IPage pageToEdit) throws CloneNotSupportedException {
+<span class="fc" id="L289">        this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L290">        this.setParentPageCode(pageToEdit.getParentCode());</span>
+<span class="fc" id="L291">        this.setPageCode(pageToEdit.getCode());</span>
+<span class="fc" id="L292">        this.setGroup(pageToEdit.getGroup());</span>
+<span class="fc" id="L293">        PageMetadata draftMetadata = pageToEdit.getMetadata();</span>
+<span class="fc" id="L294">        this.copyMetadataToForm(draftMetadata);</span>
+<span class="fc" id="L295">        boolean isAdmin = this.getAuthorizationManager().isAuthOnGroup(this.getCurrentUser(), Group.ADMINS_GROUP_NAME);</span>
+<span class="fc" id="L296">        IPage parentPage = this.getPageManager().getDraftPage(pageToEdit.getParentCode());</span>
+<span class="pc bpc" id="L297" title="1 of 4 branches missed.">        boolean isParentFree = (pageToEdit.isRoot() || parentPage.getGroup().equals(Group.FREE_GROUP_NAME));</span>
+<span class="fc bfc" id="L298" title="All 4 branches covered.">        this.setGroupSelectLock(!(isAdmin &amp;&amp; isParentFree));</span>
+<span class="fc" id="L299">    }</span>
+
+    public String copy() {
+<span class="fc" id="L302">        String selectedNode = this.getSelectedNode();</span>
+        try {
+<span class="fc" id="L304">            String check = this.checkSelectedNode(selectedNode);</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L306">                return check;</span>
+            }
+<span class="fc" id="L308">            IPage pageToCopy = this.getPage(selectedNode);</span>
+<span class="fc" id="L309">            IPage publicToCopy = this.getOnlinePage(selectedNode);</span>
+<span class="fc" id="L310">            this.setStrutsAction(ApsAdminSystemConstants.PASTE);</span>
+<span class="fc" id="L311">            this.setCopyPageCode(selectedNode);</span>
+<span class="fc" id="L312">            this.setGroup(pageToCopy.getGroup());</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">            PageMetadata metadata = (null != publicToCopy) ? publicToCopy.getMetadata() : pageToCopy.getMetadata();</span>
+<span class="fc" id="L314">            this.copyMetadataToForm(metadata);</span>
+<span class="fc" id="L315">            this.getTitles().clear();</span>
+<span class="fc" id="L316">            this.setParentPageCode(selectedNode);</span>
+<span class="nc" id="L317">        } catch (Throwable t) {</span>
+<span class="nc" id="L318">            logger.error(&quot;error in paste&quot;, t);</span>
+<span class="nc" id="L319">            return FAILURE;</span>
+<span class="fc" id="L320">        }</span>
+<span class="fc" id="L321">        return SUCCESS;</span>
+    }
+
+    private void copyMetadataToForm(PageMetadata metadata) throws CloneNotSupportedException {
+<span class="pc bpc" id="L325" title="1 of 2 branches missed.">        if (metadata != null) {</span>
+<span class="fc" id="L326">            metadata = metadata.clone();</span>
+<span class="fc" id="L327">            this.setTitles(metadata.getTitles());</span>
+<span class="fc" id="L328">            this.setExtraGroups(metadata.getExtraGroups());</span>
+<span class="fc" id="L329">            this.setModel(metadata.getModel().getCode());</span>
+<span class="fc" id="L330">            this.setShowable(metadata.isShowable());</span>
+<span class="fc" id="L331">            this.setUseExtraTitles(metadata.isUseExtraTitles());</span>
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">            if (StringUtils.isNotBlank(metadata.getCharset())) {</span>
+<span class="nc" id="L333">                this.setCharset(metadata.getCharset());</span>
+            } else {
+<span class="fc" id="L335">                this.setCharset(&quot;utf-8&quot;);</span>
+            }
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">            if (StringUtils.isNotBlank(metadata.getMimeType())) {</span>
+<span class="nc" id="L338">                this.setMimeType(metadata.getMimeType());</span>
+            } else {
+<span class="fc" id="L340">                this.setMimeType(&quot;text/html&quot;);</span>
+            }
+        }
+<span class="fc" id="L343">    }</span>
+
+    public String save() {
+<span class="fc" id="L346">        IPage page = null;</span>
+        try {
+<span class="fc bfc" id="L348" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L349">                page = this.getUpdatedPage();</span>
+<span class="fc" id="L350">                this.getPageManager().updatePage(page);</span>
+<span class="fc" id="L351">                this.addActionMessage(this.getText(&quot;message.page.info.updated&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="fc" id="L352">                    .getTitles())}));</span>
+<span class="fc" id="L353">                logger.debug(&quot;Updating page &quot; + page.getCode());</span>
+            } else {
+<span class="fc" id="L355">                page = this.buildNewPage();</span>
+<span class="fc" id="L356">                this.getPageManager().addPage(page);</span>
+<span class="fc" id="L357">                this.addActionMessage(this.getText(&quot;message.page.info.added&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="fc" id="L358">                    .getTitles())}));</span>
+<span class="fc" id="L359">                logger.debug(&quot;Adding new page&quot;);</span>
+            }
+<span class="fc" id="L361">            this.addActivityStreamInfo(page, this.getStrutsAction(), true);</span>
+<span class="nc" id="L362">        } catch (Throwable t) {</span>
+<span class="nc" id="L363">            logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L364">            return FAILURE;</span>
+<span class="fc" id="L365">        }</span>
+<span class="fc" id="L366">        return SUCCESS;</span>
+    }
+
+    public String saveAndConfigure() {
+<span class="nc" id="L370">        IPage page = null;</span>
+        try {
+<span class="nc bnc" id="L372" title="All 2 branches missed.">            if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="nc" id="L373">                page = this.getUpdatedPage();</span>
+<span class="nc" id="L374">                this.getPageManager().updatePage(page);</span>
+<span class="nc" id="L375">                this.addActionMessage(this.getText(&quot;message.page.info.updated&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="nc" id="L376">                    .getTitles())}));</span>
+<span class="nc" id="L377">                logger.debug(&quot;Updating page &quot; + page.getCode());</span>
+            } else {
+<span class="nc" id="L379">                page = this.buildNewPage();</span>
+<span class="nc" id="L380">                this.getPageManager().addPage(page);</span>
+<span class="nc" id="L381">                this.addActionMessage(this.getText(&quot;message.page.info.added&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="nc" id="L382">                    .getTitles())}));</span>
+<span class="nc" id="L383">                logger.debug(&quot;Adding new page&quot;);</span>
+            }
+<span class="nc" id="L385">            this.addActivityStreamInfo(page, this.getStrutsAction(), true);</span>
+<span class="nc" id="L386">            this.setPageCode(page.getCode());</span>
+<span class="nc" id="L387">            this.setSelectedNode(page.getCode());</span>
+<span class="nc" id="L388">        } catch (Throwable t) {</span>
+<span class="nc" id="L389">            logger.error(&quot;error in save and configure&quot;, t);</span>
+<span class="nc" id="L390">            return FAILURE;</span>
+<span class="nc" id="L391">        }</span>
+<span class="nc" id="L392">        return SUCCESS;</span>
+    }
+
+    public String pageDetails() {
+<span class="nc" id="L396">        return SUCCESS;</span>
+    }
+
+    public PageResponse getPageDetailResponse() {
+<span class="nc" id="L400">        PageResponse pageResponse = null;</span>
+        try {
+<span class="nc" id="L402">            IPage draftPage = null;</span>
+<span class="nc" id="L403">            IPage onlinePage = null;</span>
+<span class="nc" id="L404">            String check = this.checkSelectedNode(this.getPageCode());</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">            if (null == check) {</span>
+<span class="nc" id="L406">                draftPage = this.getPage(this.getPageCode());</span>
+<span class="nc" id="L407">                onlinePage = this.getOnlinePage(this.getPageCode());</span>
+            }
+<span class="nc" id="L409">            pageResponse = new PageResponse(this, draftPage, onlinePage);</span>
+<span class="nc" id="L410">        } catch (Throwable t) {</span>
+<span class="nc" id="L411">            logger.error(&quot;error in getPageJsonResponse&quot;, t);</span>
+<span class="nc" id="L412">            this.getServletResponse().setStatus(Status.INTERNAL_SERVER_ERROR.getStatusCode());</span>
+<span class="nc" id="L413">            return null;</span>
+<span class="nc" id="L414">        }</span>
+<span class="nc" id="L415">        return pageResponse;</span>
+    }
+
+    protected IPage buildNewPage() throws EntException {
+<span class="fc" id="L419">        Page page = new Page();</span>
+        try {
+<span class="fc" id="L421">            page.setParentCode(this.getParentPageCode());</span>
+<span class="fc bfc" id="L422" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.PASTE) {</span>
+<span class="fc" id="L423">                IPage copyPage = this.getPage(this.getCopyPageCode());</span>
+<span class="fc" id="L424">                IPage publicPage = this.getOnlinePage(this.getCopyPageCode());</span>
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">                page.setWidgets(null != publicPage ? publicPage.getWidgets() : copyPage.getWidgets());</span>
+<span class="pc bpc" id="L426" title="1 of 2 branches missed.">                PageMetadata metadata = (null != publicPage) ? publicPage.getMetadata() : copyPage.getMetadata();</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">                if (metadata != null) {</span>
+<span class="fc" id="L428">                    metadata = metadata.clone();</span>
+<span class="fc" id="L429">                    metadata.setTitles(this.getTitles());</span>
+<span class="fc" id="L430">                    page.setMetadata(metadata);</span>
+                }
+<span class="fc" id="L432">                page.setGroup(copyPage.getGroup());</span>
+<span class="fc" id="L433">            } else {</span>
+<span class="fc" id="L434">                page.setGroup(this.getGroup());</span>
+<span class="fc" id="L435">                PageMetadata metadata = page.getMetadata();</span>
+<span class="fc" id="L436">                this.valueMetadataFromForm(metadata);</span>
+<span class="fc bfc" id="L437" title="All 2 branches covered.">                if (null != metadata.getModel()) {</span>
+<span class="fc" id="L438">                    page.setWidgets(new Widget[metadata.getModel().getFrames().length]);</span>
+                }
+            }
+            // ricava il codice
+<span class="fc" id="L442">            page.setCode(this.buildNewPageCode(page.getMetadata()));</span>
+<span class="nc" id="L443">        } catch (Throwable t) {</span>
+<span class="nc" id="L444">            logger.error(&quot;Error building new page&quot;, t);</span>
+<span class="nc" id="L445">            throw new EntException(&quot;Error building new page&quot;, t);</span>
+<span class="fc" id="L446">        }</span>
+<span class="fc" id="L447">        return page;</span>
+    }
+
+    private String buildNewPageCode(PageMetadata metadata) throws EntException {
+<span class="fc" id="L451">        String newPageCode = this.getPageCode();</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        if (StringUtils.isNotBlank(newPageCode)) {</span>
+<span class="fc" id="L453">            newPageCode = newPageCode.trim();</span>
+        } else {
+<span class="fc" id="L455">            String defaultLangCode = this.getLangManager().getDefaultLang().getCode();</span>
+<span class="fc" id="L456">            newPageCode = this.getPageActionHelper().buildCode(metadata.getTitle(defaultLangCode), &quot;page&quot;, 25);</span>
+        }
+<span class="fc" id="L458">        return newPageCode;</span>
+    }
+
+    protected IPage getUpdatedPage() throws EntException {
+<span class="fc" id="L462">        Page page = null;</span>
+        try {
+<span class="fc" id="L464">            page = (Page) this.getPage(this.getPageCode());</span>
+<span class="fc" id="L465">            page.setGroup(this.getGroup());</span>
+<span class="fc" id="L466">            PageMetadata metadata = page.getMetadata();</span>
+<span class="pc bpc" id="L467" title="1 of 2 branches missed.">            if (metadata == null) {</span>
+<span class="nc" id="L468">                metadata = new PageMetadata();</span>
+<span class="nc" id="L469">                page.setMetadata(metadata);</span>
+            }
+<span class="fc" id="L471">            PageModel oldModel = metadata.getModel();</span>
+<span class="fc" id="L472">            this.valueMetadataFromForm(metadata);</span>
+<span class="pc bpc" id="L473" title="2 of 4 branches missed.">            if (oldModel == null || !oldModel.getCode().equals(this.getModel())) {</span>
+                // The model is changed, so I drop all the previous widgets
+<span class="nc" id="L475">                page.setWidgets(new Widget[metadata.getModel().getFrames().length]);</span>
+            }
+<span class="nc" id="L477">        } catch (Throwable t) {</span>
+<span class="nc" id="L478">            logger.error(&quot;Error updating page&quot;, t);</span>
+<span class="nc" id="L479">            throw new EntException(&quot;Error updating page&quot;, t);</span>
+<span class="fc" id="L480">        }</span>
+<span class="fc" id="L481">        return page;</span>
+    }
+
+    private void valueMetadataFromForm(PageMetadata metadata) {
+<span class="pc bpc" id="L485" title="1 of 4 branches missed.">        if (metadata.getModel() == null || !metadata.getModel().getCode().equals(this.getModel())) {</span>
+            // Ho cambiato modello e allora cancello tutte le showlets
+            // Precedenti
+<span class="fc" id="L488">            PageModel model = this.getPageModelManager().getPageModel(this.getModel());</span>
+<span class="fc" id="L489">            metadata.setModel(model);</span>
+        }
+<span class="fc" id="L491">        metadata.setShowable(this.isShowable());</span>
+<span class="fc" id="L492">        metadata.setUseExtraTitles(this.isUseExtraTitles());</span>
+<span class="fc" id="L493">        metadata.setTitles(this.getTitles());</span>
+<span class="fc" id="L494">        metadata.setExtraGroups(this.getExtraGroups());</span>
+<span class="fc" id="L495">        String charset = this.getCharset();</span>
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">        metadata.setCharset(StringUtils.isNotBlank(charset) ? charset : null);</span>
+<span class="fc" id="L497">        String mimetype = this.getMimeType();</span>
+<span class="pc bpc" id="L498" title="1 of 2 branches missed.">        metadata.setMimeType(StringUtils.isNotBlank(mimetype) ? mimetype : null);</span>
+<span class="fc" id="L499">        metadata.setUpdatedAt(new Date());</span>
+<span class="fc" id="L500">    }</span>
+
+    public String setDefaultWidgets() {
+<span class="fc" id="L503">        Page page = null;</span>
+        try {
+<span class="fc" id="L505">            page = (Page) this.getPage(this.getPageCode());</span>
+<span class="fc" id="L506">            PageModel model = page.getMetadata().getModel();</span>
+<span class="fc" id="L507">            Widget[] defaultWidgets = model.getDefaultWidget();</span>
+<span class="pc bpc" id="L508" title="1 of 2 branches missed.">            if (null == defaultWidgets) {</span>
+<span class="nc" id="L509">                logger.info(&quot;No default Widget found for pagemodel '{}' of page '{}'&quot;, model.getCode(), page.getCode());</span>
+<span class="nc" id="L510">                return SUCCESS;</span>
+            }
+<span class="fc" id="L512">            Widget[] widgets = new Widget[defaultWidgets.length];</span>
+<span class="fc bfc" id="L513" title="All 2 branches covered.">            for (int i = 0; i &lt; defaultWidgets.length; i++) {</span>
+<span class="fc" id="L514">                Widget defaultWidget = defaultWidgets[i];</span>
+<span class="fc bfc" id="L515" title="All 2 branches covered.">                if (null != defaultWidget) {</span>
+<span class="pc bpc" id="L516" title="1 of 2 branches missed.">                    if (null == defaultWidget.getType()) {</span>
+<span class="nc" id="L517">                        logger.info(&quot;Widget Type null when adding defaulWidget (of pagemodel '{}') on frame '{}' of page '{}'&quot;, model</span>
+<span class="nc" id="L518">                                .getCode(), i, page.getCode());</span>
+<span class="nc" id="L519">                        continue;</span>
+                    }
+<span class="fc" id="L521">                    widgets[i] = defaultWidget;</span>
+                }
+            }
+<span class="fc" id="L524">            page.setWidgets(widgets);</span>
+<span class="fc" id="L525">            this.getPageManager().updatePage(page);</span>
+<span class="nc" id="L526">        } catch (Throwable t) {</span>
+<span class="nc" id="L527">            logger.error(&quot;Error setting default widget to page {}&quot;, this.getPageCode(), t);</span>
+<span class="nc" id="L528">            return FAILURE;</span>
+<span class="fc" id="L529">        }</span>
+<span class="fc" id="L530">        return SUCCESS;</span>
+    }
+
+    public String checkSetOffline() {
+<span class="fc" id="L534">        String selectedPageCode = this.getPageCode();</span>
+        try {
+<span class="pc bpc" id="L536" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(selectedPageCode)) {</span>
+<span class="nc" id="L537">                selectedPageCode = this.getSelectedNode();</span>
+<span class="nc" id="L538">                this.setPageCode(selectedPageCode);</span>
+            }
+<span class="fc" id="L540">            String check = this.checkSetOffline(selectedPageCode);</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L542">                return check;</span>
+            }
+<span class="fc" id="L544">            IPage currentPage = this.getPage(selectedPageCode);</span>
+<span class="fc" id="L545">            this.setSelectedNode(currentPage.getCode());</span>
+<span class="nc" id="L546">        } catch (Throwable t) {</span>
+<span class="nc" id="L547">            logger.error(&quot;error checking before putting page {} offline&quot;, selectedPageCode, t);</span>
+<span class="nc" id="L548">            return FAILURE;</span>
+<span class="fc" id="L549">        }</span>
+<span class="fc" id="L550">        return SUCCESS;</span>
+    }
+
+    public String doSetOffline() {
+<span class="fc" id="L554">        String selectedPageCode = this.getPageCode();</span>
+        try {
+<span class="pc bpc" id="L556" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(selectedPageCode)) {</span>
+<span class="nc" id="L557">                selectedPageCode = this.getSelectedNode();</span>
+<span class="nc" id="L558">                this.setPageCode(selectedPageCode);</span>
+            }
+<span class="fc" id="L560">            IPageManager pageManager = this.getPageManager();</span>
+<span class="fc" id="L561">            String check = this.checkSetOffline(selectedPageCode);</span>
+<span class="fc bfc" id="L562" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L563">                return check;</span>
+            }
+<span class="fc" id="L565">            pageManager.setPageOffline(selectedPageCode);</span>
+<span class="fc" id="L566">            IPage page = this.getPage(selectedPageCode);</span>
+<span class="fc" id="L567">            this.addActionMessage(this.getText(&quot;message.page.set.offline&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="fc" id="L568">                .getTitles())}));</span>
+            // TODO Define a new strutsAction to map &quot;offline&quot; operation
+<span class="fc" id="L570">            this.addActivityStreamInfo(page, PageActionConstants.UNPUBLISH, true);</span>
+<span class="nc" id="L571">        } catch (Throwable t) {</span>
+<span class="nc" id="L572">            logger.error(&quot;error setting page {} offline&quot;, selectedPageCode, t);</span>
+<span class="nc" id="L573">            return FAILURE;</span>
+<span class="fc" id="L574">        }</span>
+<span class="fc" id="L575">        return SUCCESS;</span>
+    }
+
+    public String checkSetOnline() {
+<span class="nc" id="L579">        String selectedPageCode = this.getPageCode();</span>
+        try {
+<span class="nc bnc" id="L581" title="All 2 branches missed.">            if (StringUtils.isEmpty(selectedPageCode)) {</span>
+<span class="nc" id="L582">                selectedPageCode = this.getSelectedNode();</span>
+<span class="nc" id="L583">                this.setPageCode(selectedPageCode);</span>
+            }
+<span class="nc" id="L585">            String check = this.checkSelectedNode(selectedPageCode);</span>
+<span class="nc bnc" id="L586" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L587">                return check;</span>
+            }
+<span class="nc" id="L589">        } catch (Throwable t) {</span>
+<span class="nc" id="L590">            logger.error(&quot;error checking before putting page {} online&quot;, selectedPageCode, t);</span>
+<span class="nc" id="L591">            return FAILURE;</span>
+<span class="nc" id="L592">        }</span>
+<span class="nc" id="L593">        return SUCCESS;</span>
+    }
+
+    public String doSetOnline() {
+<span class="fc" id="L597">        String selectedPageCode = this.getPageCode();</span>
+        try {
+<span class="pc bpc" id="L599" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(selectedPageCode)) {</span>
+<span class="nc" id="L600">                selectedPageCode = this.getSelectedNode();</span>
+<span class="nc" id="L601">                this.setPageCode(selectedPageCode);</span>
+            }
+<span class="fc" id="L603">            IPageManager pageManager = this.getPageManager();</span>
+<span class="fc" id="L604">            String check = this.checkSelectedNode(selectedPageCode);</span>
+<span class="pc bpc" id="L605" title="1 of 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L606">                return check;</span>
+            }
+<span class="fc" id="L608">            IPage page = this.getPage(selectedPageCode);</span>
+<span class="fc" id="L609">            IPage parentPage = this.getPageManager().getDraftPage(page.getParentCode());</span>
+<span class="pc bpc" id="L610" title="1 of 2 branches missed.">            if (!parentPage.isOnline()) {</span>
+<span class="nc" id="L611">                this.addActionError(this.getText(&quot;error.page.parentDraft&quot;));</span>
+<span class="nc" id="L612">                return &quot;pageTree&quot;;</span>
+            }
+<span class="fc" id="L614">            boolean success = this.getPageActionReferencesHelper().checkForSetOnline(page, this);</span>
+<span class="pc bpc" id="L615" title="1 of 2 branches missed.">            if (!success) {</span>
+<span class="nc" id="L616">                this.addActionError(this.getText(&quot;error.page.setOnline.scanContentRefs&quot;));</span>
+<span class="nc" id="L617">                return &quot;pageTree&quot;;</span>
+            }
+<span class="pc bpc" id="L619" title="1 of 2 branches missed.">            if (this.hasErrors()) {</span>
+<span class="nc" id="L620">                return &quot;pageTree&quot;;</span>
+            }
+<span class="fc" id="L622">            pageManager.setPageOnline(selectedPageCode);</span>
+<span class="fc" id="L623">            this.addActionMessage(this.getText(&quot;message.page.set.online&quot;, new String[]{this.getTitle(page.getCode(), page</span>
+<span class="fc" id="L624">                .getTitles())}));</span>
+            // TODO Define a new strutsAction to map &quot;offline&quot; operation
+<span class="fc" id="L626">            this.addActivityStreamInfo(page, PageActionConstants.PUBLISH, true);</span>
+<span class="nc" id="L627">        } catch (Throwable t) {</span>
+<span class="nc" id="L628">            logger.error(&quot;error setting page {} online&quot;, selectedPageCode, t);</span>
+<span class="nc" id="L629">            return FAILURE;</span>
+<span class="fc" id="L630">        }</span>
+<span class="fc" id="L631">        return SUCCESS;</span>
+    }
+
+    public String trash() {
+<span class="fc" id="L635">        String selectedNode = this.getSelectedNode();</span>
+        try {
+<span class="fc" id="L637">            String check = this.checkDelete(selectedNode);</span>
+<span class="fc bfc" id="L638" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L639">                return check;</span>
+            }
+<span class="fc" id="L641">            IPage currentPage = this.getPage(selectedNode);</span>
+<span class="fc" id="L642">            this.setNodeToBeDelete(selectedNode);</span>
+<span class="fc" id="L643">            this.setSelectedNode(currentPage.getParentCode());</span>
+<span class="nc" id="L644">        } catch (Throwable t) {</span>
+<span class="nc" id="L645">            logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L646">            return FAILURE;</span>
+<span class="fc" id="L647">        }</span>
+<span class="fc" id="L648">        return SUCCESS;</span>
+    }
+
+    public String delete() {
+<span class="nc" id="L652">        String selectedNode = this.getNodeToBeDelete();</span>
+        try {
+<span class="nc" id="L654">            IPageManager pageManager = this.getPageManager();</span>
+<span class="nc" id="L655">            String check = this.checkDelete(selectedNode);</span>
+<span class="nc bnc" id="L656" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L657">                return check;</span>
+            }
+<span class="nc" id="L659">            IPage pageToDelete = this.getPage(selectedNode);</span>
+<span class="nc" id="L660">            pageManager.deletePage(selectedNode);</span>
+<span class="nc" id="L661">            this.setSelectedNode(pageToDelete.getParentCode());</span>
+<span class="nc" id="L662">            this.addActivityStreamInfo(pageToDelete, ApsAdminSystemConstants.DELETE, false);</span>
+<span class="nc" id="L663">        } catch (Throwable t) {</span>
+<span class="nc" id="L664">            logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L665">            return FAILURE;</span>
+<span class="nc" id="L666">        }</span>
+<span class="nc" id="L667">        return SUCCESS;</span>
+    }
+
+    protected String checkSetOffline(String selectedNode) throws EntException {
+<span class="fc" id="L671">        String check = this.checkSelectedNode(selectedNode);</span>
+<span class="fc bfc" id="L672" title="All 2 branches covered.">        if (null != check) {</span>
+<span class="fc" id="L673">            return check;</span>
+        }
+<span class="fc" id="L675">        IPage currentPage = this.getPage(selectedNode);</span>
+<span class="fc" id="L676">        String[] children = currentPage.getChildrenCodes();</span>
+<span class="fc" id="L677">        IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc bfc" id="L678" title="All 2 branches covered.">        if (root.getCode().equals(currentPage.getCode())) {</span>
+<span class="fc" id="L679">            this.addActionError(this.getText(&quot;error.page.offlineHome.notAllowed&quot;));</span>
+<span class="fc" id="L680">            return &quot;pageTree&quot;;</span>
+<span class="pc bpc" id="L681" title="1 of 4 branches missed.">        } else if (null != children &amp;&amp; children.length != 0) {</span>
+<span class="fc" id="L682">            boolean hasReferences = false;</span>
+<span class="fc" id="L683">            boolean isOnline = currentPage.isOnline();</span>
+<span class="pc bpc" id="L684" title="1 of 2 branches missed.">            for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="fc" id="L685">                IPage child = PageUtils.getPage(this.getPageManager(), isOnline, children[i]);</span>
+<span class="pc bpc" id="L686" title="2 of 4 branches missed.">                if (null != child &amp;&amp; child.isOnline()) {</span>
+<span class="fc" id="L687">                    this.addActionError(this.getText(&quot;error.page.offline.notAllowed&quot;));</span>
+<span class="fc" id="L688">                    hasReferences = true;</span>
+<span class="fc" id="L689">                    break;</span>
+                }
+            }
+<span class="pc bpc" id="L692" title="1 of 2 branches missed.">            if (hasReferences) {</span>
+<span class="fc" id="L693">                return &quot;pageTree&quot;;</span>
+            }
+        }
+<span class="fc" id="L696">        Map extractedReferences = this.getPageActionHelper().getReferencingObjects(currentPage, this.getRequest());</span>
+<span class="pc bpc" id="L697" title="1 of 2 branches missed.">        if (extractedReferences.size() &gt; 0) {</span>
+<span class="nc" id="L698">            this.addActionError(this.getText(&quot;error.page.offline.references&quot;, new String[]{this.getTitle(currentPage.getCode(),</span>
+<span class="nc" id="L699">                currentPage.getTitles())}));</span>
+<span class="nc" id="L700">            this.setReferences(extractedReferences);</span>
+<span class="nc" id="L701">            return &quot;references&quot;;</span>
+        }
+<span class="fc" id="L703">        return null;</span>
+    }
+
+    protected String checkDelete(String selectedNode) throws EntException {
+<span class="fc" id="L707">        String check = this.checkSelectedNode(selectedNode);</span>
+<span class="pc bpc" id="L708" title="1 of 2 branches missed.">        if (null != check) {</span>
+<span class="nc" id="L709">            return check;</span>
+        }
+<span class="fc" id="L711">        IPage currentPage = this.getPage(selectedNode);</span>
+<span class="fc" id="L712">        IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc" id="L713">        IPage parentPage = this.getPageManager().getDraftPage(currentPage.getParentCode());</span>
+<span class="fc bfc" id="L714" title="All 2 branches covered.">        if (root.getCode().equals(currentPage.getCode())) {</span>
+<span class="fc" id="L715">            this.addActionError(this.getText(&quot;error.page.removeHome.notAllowed&quot;));</span>
+<span class="fc" id="L716">            return &quot;pageTree&quot;;</span>
+<span class="pc bpc" id="L717" title="2 of 4 branches missed.">        } else if (!isUserAllowed(currentPage) || !isUserAllowed(parentPage)) {</span>
+<span class="nc" id="L718">            this.addActionError(this.getText(&quot;error.page.remove.notAllowed&quot;));</span>
+<span class="nc" id="L719">            return &quot;pageTree&quot;;</span>
+<span class="pc bpc" id="L720" title="1 of 4 branches missed.">        } else if (null != currentPage.getChildrenCodes() &amp;&amp; currentPage.getChildrenCodes().length != 0) {</span>
+<span class="fc" id="L721">            this.addActionError(this.getText(&quot;error.page.remove.notAllowed2&quot;));</span>
+<span class="fc" id="L722">            return &quot;pageTree&quot;;</span>
+<span class="fc bfc" id="L723" title="All 2 branches covered.">        } else if (null != this.getOnlinePage(selectedNode)) {</span>
+<span class="fc" id="L724">            this.addActionError(this.getText(&quot;error.page.remove.notAllowed3&quot;));</span>
+<span class="fc" id="L725">            return &quot;pageTree&quot;;</span>
+        } else {
+<span class="fc" id="L727">            Map extractedReferences = this.getPageActionHelper().getReferencingObjects(currentPage, this.getRequest());</span>
+<span class="pc bpc" id="L728" title="1 of 2 branches missed.">            if (extractedReferences.size() &gt; 0) {</span>
+<span class="nc" id="L729">                this.setReferences(extractedReferences);</span>
+<span class="nc" id="L730">                return &quot;references&quot;;</span>
+            }
+        }
+<span class="fc" id="L733">        return null;</span>
+    }
+
+    protected void addActivityStreamInfo(IPage page, int strutsAction, boolean addLink) {
+<span class="fc" id="L737">        ActivityStreamInfo asi = this.getPageActionHelper().createActivityStreamInfo(page, strutsAction, addLink, &quot;edit&quot;);</span>
+<span class="fc" id="L738">        super.addActivityStreamInfo(asi);</span>
+<span class="fc" id="L739">    }</span>
+
+    public PageResponse getPageResponse() {
+<span class="fc" id="L742">        IPage draftPage = null;</span>
+<span class="fc" id="L743">        IPage onlinePage = null;</span>
+<span class="pc bpc" id="L744" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="fc" id="L745">            draftPage = this.getPage(this.getPageCode());</span>
+<span class="fc" id="L746">            onlinePage = this.getOnlinePage(this.getPageCode());</span>
+        }
+<span class="fc" id="L748">        PageResponse pageResponse = new PageResponse(this, draftPage, onlinePage);</span>
+<span class="fc" id="L749">        pageResponse.setReferences(this.getReferences());</span>
+<span class="fc" id="L750">        return pageResponse;</span>
+    }
+
+    /**
+     * Return the list of allowed groups.
+     *
+     * @return The list of allowed groups.
+     */
+    public List&lt;Group&gt; getAllowedGroups() {
+<span class="nc" id="L759">        return super.getActualAllowedGroups();</span>
+    }
+
+    /**
+     * Return the list of system groups.
+     *
+     * @return The list of system groups.
+     */
+    public List&lt;Group&gt; getGroups() {
+<span class="nc" id="L768">        List&lt;Group&gt; groups = this.getGroupManager().getGroups();</span>
+<span class="nc" id="L769">        BeanComparator c = new BeanComparator(&quot;description&quot;);</span>
+<span class="nc" id="L770">        Collections.sort(groups, c);</span>
+<span class="nc" id="L771">        return groups;</span>
+    }
+
+    public List&lt;PageModel&gt; getPageModels() {
+<span class="nc" id="L775">        return new ArrayList&lt;&gt;(this.getPageModelManager().getPageModels());</span>
+    }
+
+    public PageModel getPageModel(String code) {
+<span class="nc" id="L779">        return this.getPageModelManager().getPageModel(code);</span>
+    }
+
+    public String getCopyPageCode() {
+<span class="fc" id="L783">        return copyPageCode;</span>
+    }
+
+    public void setCopyPageCode(String copyPageCode) {
+<span class="fc" id="L787">        this.copyPageCode = copyPageCode;</span>
+<span class="fc" id="L788">    }</span>
+
+    public boolean isDefaultShowlet() {
+<span class="fc" id="L791">        return defaultShowlet;</span>
+    }
+
+    public void setDefaultShowlet(boolean defaultShowlet) {
+<span class="fc" id="L795">        this.defaultShowlet = defaultShowlet;</span>
+<span class="fc" id="L796">    }</span>
+
+    public String getGroup() {
+<span class="fc" id="L799">        return group;</span>
+    }
+
+    public void setGroup(String group) {
+<span class="fc" id="L803">        this.group = group;</span>
+<span class="fc" id="L804">    }</span>
+
+    public boolean isGroupSelectLock() {
+<span class="fc" id="L807">        return groupSelectLock;</span>
+    }
+
+    public void setGroupSelectLock(boolean groupSelectLock) {
+<span class="fc" id="L811">        this.groupSelectLock = groupSelectLock;</span>
+<span class="fc" id="L812">    }</span>
+
+    public void setExtraGroups(Set&lt;String&gt; extraGroups) {
+<span class="fc" id="L815">        this.extraGroups = extraGroups;</span>
+<span class="fc" id="L816">    }</span>
+
+    public Set&lt;String&gt; getExtraGroups() {
+<span class="fc" id="L819">        return extraGroups;</span>
+    }
+
+    public String getModel() {
+<span class="fc" id="L823">        return model;</span>
+    }
+
+    public void setModel(String model) {
+<span class="fc" id="L827">        this.model = model;</span>
+<span class="fc" id="L828">    }</span>
+
+    public String getPageCode() {
+<span class="fc" id="L831">        return pageCode;</span>
+    }
+
+    public void setPageCode(String pageCode) {
+<span class="fc" id="L835">        this.pageCode = pageCode;</span>
+<span class="fc" id="L836">    }</span>
+
+    public String getParentPageCode() {
+<span class="fc" id="L839">        return parentPageCode;</span>
+    }
+
+    public void setParentPageCode(String parentPageCode) {
+<span class="fc" id="L843">        this.parentPageCode = parentPageCode;</span>
+<span class="fc" id="L844">    }</span>
+
+    public boolean isShowable() {
+<span class="fc" id="L847">        return showable;</span>
+    }
+
+    public void setShowable(boolean showable) {
+<span class="fc" id="L851">        this.showable = showable;</span>
+<span class="fc" id="L852">    }</span>
+
+    public boolean isUseExtraTitles() {
+<span class="fc" id="L855">        return useExtraTitles;</span>
+    }
+
+    public void setUseExtraTitles(boolean useExtraTitles) {
+<span class="fc" id="L859">        this.useExtraTitles = useExtraTitles;</span>
+<span class="fc" id="L860">    }</span>
+
+    public int getStrutsAction() {
+<span class="fc" id="L863">        return strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L867">        this.strutsAction = strutsAction;</span>
+<span class="fc" id="L868">    }</span>
+
+    public String getCharset() {
+<span class="fc" id="L871">        return charset;</span>
+    }
+
+    public void setCharset(String charset) {
+<span class="fc" id="L875">        this.charset = charset;</span>
+<span class="fc" id="L876">    }</span>
+
+    public String getMimeType() {
+<span class="fc" id="L879">        return mimeType;</span>
+    }
+
+    public void setMimeType(String mimeType) {
+<span class="fc" id="L883">        this.mimeType = mimeType;</span>
+<span class="fc" id="L884">    }</span>
+
+    public ApsProperties getTitles() {
+<span class="fc" id="L887">        return titles;</span>
+    }
+
+    public void setTitles(ApsProperties titles) {
+<span class="fc" id="L891">        this.titles = titles;</span>
+<span class="fc" id="L892">    }</span>
+
+    public String getNodeToBeDelete() {
+<span class="nc" id="L895">        return nodeToBeDelete;</span>
+    }
+
+    public void setNodeToBeDelete(String nodeToBeDelete) {
+<span class="fc" id="L899">        this.nodeToBeDelete = nodeToBeDelete;</span>
+<span class="fc" id="L900">    }</span>
+
+    public IPage getPageToShow() {
+<span class="fc" id="L903">        return pageToShow;</span>
+    }
+
+    protected void setPageToShow(IPage pageToShow) {
+<span class="fc" id="L907">        this.pageToShow = pageToShow;</span>
+<span class="fc" id="L908">    }</span>
+
+    public Map getReferences() {
+<span class="fc" id="L911">        return references;</span>
+    }
+
+    protected void setReferences(Map references) {
+<span class="fc" id="L915">        this.references = references;</span>
+<span class="fc" id="L916">    }</span>
+
+    public String[] getAllowedCharsets() {
+<span class="nc bnc" id="L919" title="All 2 branches missed.">        if (null == this.getAllowedCharsetsCSV()) {</span>
+<span class="nc" id="L920">            return new String[0];</span>
+        }
+<span class="nc" id="L922">        return this.getAllowedCharsetsCSV().split(&quot;,&quot;);</span>
+    }
+
+    protected String getAllowedCharsetsCSV() {
+<span class="nc" id="L926">        return _allowedCharsetsCSV;</span>
+    }
+
+    public void setAllowedCharsetsCSV(String allowedCharsetsCSV) {
+<span class="fc" id="L930">        this._allowedCharsetsCSV = allowedCharsetsCSV;</span>
+<span class="fc" id="L931">    }</span>
+
+    public String[] getAllowedMimeTypes() {
+<span class="nc bnc" id="L934" title="All 2 branches missed.">        if (null == this.getAllowedMimeTypesCSV()) {</span>
+<span class="nc" id="L935">            return new String[0];</span>
+        }
+<span class="nc" id="L937">        return this.getAllowedMimeTypesCSV().split(&quot;,&quot;);</span>
+    }
+
+    protected String getAllowedMimeTypesCSV() {
+<span class="nc" id="L941">        return _allowedMimeTypesCSV;</span>
+    }
+
+    public void setAllowedMimeTypesCSV(String allowedMimeTypesCSV) {
+<span class="fc" id="L945">        this._allowedMimeTypesCSV = allowedMimeTypesCSV;</span>
+<span class="fc" id="L946">    }</span>
+
+    public String getTargetNode() {
+<span class="nc" id="L949">        return targetNode;</span>
+    }
+
+    public void setTargetNode(String targetNode) {
+<span class="nc" id="L953">        this.targetNode = targetNode;</span>
+<span class="nc" id="L954">    }</span>
+
+    public Set&lt;String&gt; getTreeNodesToOpen() {
+<span class="nc" id="L957">        return treeNodesToOpen;</span>
+    }
+
+    public void setTreeNodesToOpen(Set&lt;String&gt; treeNodesToOpen) {
+<span class="nc" id="L961">        this.treeNodesToOpen = treeNodesToOpen;</span>
+<span class="nc" id="L962">    }</span>
+
+    public String getTreeNodeActionMarkerCode() {
+<span class="nc" id="L965">        return treeNodeActionMarkerCode;</span>
+    }
+
+    public void setTreeNodeActionMarkerCode(String treeNodeActionMarkerCode) {
+<span class="nc" id="L969">        this.treeNodeActionMarkerCode = treeNodeActionMarkerCode;</span>
+<span class="nc" id="L970">    }</span>
+
+    @Override
+    public void setServletResponse(HttpServletResponse response) {
+<span class="fc" id="L974">        this.response = response;</span>
+<span class="fc" id="L975">    }</span>
+
+    public HttpServletResponse getServletResponse() {
+<span class="nc" id="L978">        return this.response;</span>
+    }
+
+    protected IPageActionHelper getPageActionHelper() {
+<span class="fc" id="L982">        return pageActionHelper;</span>
+    }
+
+    public void setPageActionHelper(IPageActionHelper pageActionHelper) {
+<span class="fc" id="L986">        this.pageActionHelper = pageActionHelper;</span>
+<span class="fc" id="L987">    }</span>
+
+    protected IPageModelManager getPageModelManager() {
+<span class="fc" id="L990">        return pageModelManager;</span>
+    }
+
+    public void setPageModelManager(IPageModelManager pageModelManager) {
+<span class="fc" id="L994">        this.pageModelManager = pageModelManager;</span>
+<span class="fc" id="L995">    }</span>
+
+    protected IPageActionReferencesHelper getPageActionReferencesHelper() {
+<span class="fc" id="L998">        return pageActionReferencesHelper;</span>
+    }
+
+    public void setPageActionReferencesHelper(IPageActionReferencesHelper pageActionReferencesHelper) {
+<span class="fc" id="L1002">        this.pageActionReferencesHelper = pageActionReferencesHelper;</span>
+<span class="fc" id="L1003">    }</span>
+
+    public String getExtraGroupNameToRemove() {
+<span class="fc" id="L1006">        return extraGroupNameToRemove;</span>
+    }
+
+    public void setExtraGroupNameToRemove(String extraGroupNameToRemove) {
+<span class="fc" id="L1010">        this.extraGroupNameToRemove = extraGroupNameToRemove;</span>
+<span class="fc" id="L1011">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

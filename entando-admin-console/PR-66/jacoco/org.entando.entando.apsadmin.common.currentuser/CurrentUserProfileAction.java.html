@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CurrentUserProfileAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.common.currentuser</a> &gt; <span class="el_source">CurrentUserProfileAction.java</span></div><h1>CurrentUserProfileAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.common.currentuser;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+
+import com.agiletec.aps.system.services.i18n.II18nManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.user.AbstractUser;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.system.entity.AbstractApsEntityAction;
+
+/**
+ * Action class that manages current user profile editing.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L40">public class CurrentUserProfileAction extends AbstractApsEntityAction implements ICurrentUserProfileAction {</span>
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CurrentUserProfileAction.class);</span>
+	
+	@Override
+    public void validate() {
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        if (this.getUserProfile() != null) {</span>
+<span class="fc" id="L47">            super.validate();</span>
+        }
+<span class="fc" id="L49">    }</span>
+    
+    @Override
+    public IApsEntity getApsEntity() {
+<span class="fc" id="L53">        return this.getUserProfile();</span>
+    }
+    
+    public IUserProfile getUserProfile() {
+<span class="fc" id="L57">        return (IUserProfile) this.getRequest().getSession().getAttribute(SESSION_PARAM_NAME_CURRENT_PROFILE);</span>
+    }
+    
+    @Override
+    public String createNew() {
+        // Operation Not Allowed
+<span class="nc" id="L63">        return null;</span>
+    }
+    
+    @Override
+    public String view() {
+        // Operation Not Allowed
+<span class="nc" id="L69">        return null;</span>
+    }
+    
+    @Override
+    public String edit() {
+        try {
+<span class="fc" id="L75">            IUserProfile userProfile = null;</span>
+<span class="fc" id="L76">            UserDetails currentUser = this.getCurrentUser();</span>
+<span class="fc" id="L77">            Object object = currentUser.getProfile();</span>
+<span class="pc bpc" id="L78" title="1 of 4 branches missed.">            if (null != object &amp;&amp; object instanceof IUserProfile) {</span>
+                //String username = currentUser.getUsername();
+<span class="fc" id="L80">                userProfile = (IUserProfile) object;//this.getUserProfileManager().getProfile(username);</span>
+<span class="fc" id="L81">				this.checkTypeLabels(userProfile);</span>
+            } else {
+<span class="fc" id="L83">				return &quot;currentUserWithoutProfile&quot;;</span>
+            }
+<span class="fc" id="L85">			IUserProfile currentProfile = this.getUserProfile();</span>
+<span class="pc bpc" id="L86" title="3 of 4 branches missed.">			if (null == currentProfile || !currentProfile.getUsername().equals(currentUser.getUsername())) {</span>
+<span class="fc" id="L87">				userProfile.disableAttributes(SystemConstants.USER_PROFILE_ATTRIBUTE_DISABLING_CODE_ON_EDIT);</span>
+<span class="fc" id="L88">				this.getRequest().getSession().setAttribute(SESSION_PARAM_NAME_CURRENT_PROFILE, userProfile);</span>
+			}
+<span class="nc" id="L90">        } catch (Throwable t) {</span>
+<span class="nc" id="L91">        	_logger.error(&quot;error in edit&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;edit&quot;);
+<span class="nc" id="L93">            return FAILURE;</span>
+<span class="fc" id="L94">        }</span>
+<span class="fc" id="L95">        return SUCCESS;</span>
+    }
+    
+	protected void checkTypeLabels(IUserProfile userProfile) {
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">		if (null == userProfile) {</span>
+<span class="nc" id="L100">			return;</span>
+		}
+		try {
+<span class="fc" id="L103">			List&lt;AttributeInterface&gt; attributes = userProfile.getAttributeList();</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">			for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L105">				AttributeInterface attribute = attributes.get(i);</span>
+<span class="fc" id="L106">				String attributeLabelKey = &quot;userprofile_&quot; + userProfile.getTypeCode() + &quot;_&quot; + attribute.getName();</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">				if (null == this.getI18nManager().getLabelGroup(attributeLabelKey)) {</span>
+<span class="nc" id="L108">					String attributeDescription = attribute.getDescription();</span>
+<span class="nc bnc" id="L109" title="All 4 branches missed.">					String value = (null != attributeDescription &amp;&amp; attributeDescription.trim().length() &gt; 0) ? </span>
+<span class="nc" id="L110">							attributeDescription :</span>
+<span class="nc" id="L111">							attribute.getName();</span>
+<span class="nc" id="L112">					this.addLabelGroups(attributeLabelKey, value);</span>
+				}
+			}
+<span class="nc" id="L115">		} catch (Throwable t) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;Error checking label types&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;checkTypeLables&quot;);
+<span class="nc" id="L118">			throw new RuntimeException(&quot;Error checking label types&quot;, t);</span>
+<span class="fc" id="L119">		}</span>
+<span class="fc" id="L120">	}</span>
+	
+	protected void addLabelGroups(String key, String defaultValue) throws EntException {
+		try {
+<span class="nc" id="L124">			ApsProperties properties = new ApsProperties();</span>
+<span class="nc" id="L125">			Lang defaultLang = super.getLangManager().getDefaultLang();</span>
+<span class="nc" id="L126">			properties.put(defaultLang.getCode(), defaultValue);</span>
+<span class="nc" id="L127">			this.getI18nManager().addLabelGroup(key, properties);</span>
+<span class="nc" id="L128">		} catch (Throwable t) {</span>
+<span class="nc" id="L129">			_logger.error(&quot;Error adding label groups - key '{}'&quot;, key, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;addLabelGroups&quot;);
+<span class="nc" id="L131">			throw new RuntimeException(&quot;Error adding label groups - key '&quot; + key + &quot;'&quot;, t);</span>
+<span class="nc" id="L132">		}</span>
+<span class="nc" id="L133">	}</span>
+	
+    @Override
+    public String save() {
+        try {
+<span class="nc" id="L138">            IUserProfile profile = this.getUserProfile();</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            if (profile == null) {</span>
+<span class="nc" id="L140">                return FAILURE;</span>
+            }
+<span class="nc" id="L142">            UserDetails user = this.getCurrentUser();</span>
+<span class="nc" id="L143">            ((AbstractUser) user).setProfile(profile);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (null == this.getUserProfileManager().getProfile(user.getUsername())) {</span>
+<span class="nc" id="L145">                this.getUserProfileManager().addProfile(user.getUsername(), profile);</span>
+            } else {
+<span class="nc" id="L147">                this.getUserProfileManager().updateProfile(user.getUsername(), profile);</span>
+            }
+<span class="nc" id="L149">            this.getRequest().getSession().removeAttribute(SESSION_PARAM_NAME_CURRENT_PROFILE);</span>
+<span class="nc" id="L150">			this.addActionMessage(this.getText(&quot;message.profileUpdated&quot;));</span>
+<span class="nc" id="L151">        } catch (Throwable t) {</span>
+<span class="nc" id="L152">        	_logger.error(&quot;error in save&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;save&quot;);
+<span class="nc" id="L154">            return FAILURE;</span>
+<span class="nc" id="L155">        }</span>
+<span class="nc" id="L156">        return SUCCESS;</span>
+    }
+    
+    public List&lt;IApsEntity&gt; getUserProfileTypes() {
+<span class="nc" id="L160">        List&lt;IApsEntity&gt; userProfileTypes = null;</span>
+        try {
+<span class="nc" id="L162">            userProfileTypes = new ArrayList&lt;IApsEntity&gt;();</span>
+<span class="nc" id="L163">            userProfileTypes.addAll(this.getUserProfileManager().getEntityPrototypes().values());</span>
+<span class="nc" id="L164">        } catch (Throwable t) {</span>
+<span class="nc" id="L165">        	_logger.error(&quot;error in getUserProfileTypes&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;getUserProfileTypes&quot;);
+<span class="nc" id="L167">        }</span>
+<span class="nc" id="L168">        return userProfileTypes;</span>
+    }
+    
+    public String getProfileTypeCode() {
+<span class="nc" id="L172">        return _profileTypeCode;</span>
+    }
+    public void setProfileTypeCode(String profileTypeCode) {
+<span class="nc" id="L175">        this._profileTypeCode = profileTypeCode;</span>
+<span class="nc" id="L176">    }</span>
+    
+	protected II18nManager getI18nManager() {
+<span class="fc" id="L179">		return _i18nManager;</span>
+	}
+	public void setI18nManager(II18nManager i18nManager) {
+<span class="fc" id="L182">		this._i18nManager = i18nManager;</span>
+<span class="fc" id="L183">	}</span>
+	
+    protected IUserProfileManager getUserProfileManager() {
+<span class="nc" id="L186">        return _userProfileManager;</span>
+    }
+    public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="fc" id="L189">        this._userProfileManager = userProfileManager;</span>
+<span class="fc" id="L190">    }</span>
+    
+    private String _profileTypeCode;
+	private II18nManager _i18nManager;
+    private IUserProfileManager _userProfileManager;
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

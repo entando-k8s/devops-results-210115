@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageTreeTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.tags</a> &gt; <span class="el_source">PageTreeTag.java</span></div><h1>PageTreeTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.tags;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.servlet.jsp.JspException;
+
+import org.apache.struts2.views.jsp.StrutsBodyTagSupport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+import com.agiletec.apsadmin.system.ITreeNodeBaseActionHelper;
+import com.opensymphony.xwork2.util.ValueStack;
+
+<span class="nc" id="L32">public class PageTreeTag extends StrutsBodyTagSupport {</span>
+	
+<span class="nc" id="L34">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageTreeTag.class);</span>
+	
+	@Override
+	public int doStartTag() throws JspException {
+		try {
+<span class="nc" id="L39">			IPageActionHelper helper = this.getHelper(this.isOnline());</span>
+<span class="nc" id="L40">			ITreeNode root = this.getAllowedTreeRootNode(helper);</span>
+<span class="nc" id="L41">			ValueStack stack = this.getStack();</span>
+<span class="nc" id="L42">			stack.getContext().put(this.getVar(), root);</span>
+<span class="nc" id="L43">            stack.setValue(&quot;#attr['&quot; + this.getVar() + &quot;']&quot;, root, false);</span>
+<span class="nc" id="L44">		} catch (Throwable t) {</span>
+<span class="nc" id="L45">        	_logger.error(&quot;error in doStartTag&quot;, t);</span>
+<span class="nc" id="L46">            throw new JspException(&quot;Error during tag initialization&quot;, t);</span>
+<span class="nc" id="L47">		}</span>
+<span class="nc" id="L48">		return super.doStartTag();</span>
+	}
+	
+	@Override
+	public void release() {
+<span class="nc" id="L53">		super.release();</span>
+<span class="nc" id="L54">		this.setVar(null);</span>
+<span class="nc" id="L55">		this.setOnline(false);</span>
+<span class="nc" id="L56">		this.setOnDemand(false);</span>
+<span class="nc" id="L57">		this.setOpen(null);</span>
+<span class="nc" id="L58">		this.setTargetNode(null);</span>
+<span class="nc" id="L59">		this.setTreeNodesToOpen(null);</span>
+<span class="nc" id="L60">		this.setAllowedGroups(null);</span>
+<span class="nc" id="L61">	}</span>
+	
+	protected IPageActionHelper getHelper(boolean online) {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">		String beanName = online ? &quot;pageActionHelperOnline&quot; : &quot;pageActionHelperDraft&quot;;</span>
+<span class="nc" id="L65">		IPageActionHelper helper = (IPageActionHelper) ApsWebApplicationUtils.getBean(beanName, this.pageContext);</span>
+<span class="nc" id="L66">		return helper;</span>
+	}
+	
+	public Set&lt;String&gt; getTargetNodes(Collection&lt;String&gt; allowedGroups, ITreeNodeBaseActionHelper helper) {
+<span class="nc" id="L70">		Set&lt;String&gt; targets = this.convertCollection(this.getTreeNodesToOpen());</span>
+		try {
+<span class="nc" id="L72">			String targetNode = this.getTargetNode();</span>
+<span class="nc" id="L73">			Boolean open = this.getOpen();</span>
+<span class="nc bnc" id="L74" title="All 4 branches missed.">			if (open != null &amp;&amp; !open) {</span>
+<span class="nc" id="L75">				targets = helper.checkTargetNodesOnClosing(targetNode, targets, allowedGroups);</span>
+			} else {
+<span class="nc" id="L77">				targets = helper.checkTargetNodes(targetNode, targets, allowedGroups);</span>
+			}
+<span class="nc" id="L79">		} catch (Throwable t) {</span>
+<span class="nc" id="L80">			_logger.error(&quot;error in buildTree&quot;, t);</span>
+<span class="nc" id="L81">		}</span>
+<span class="nc" id="L82">		return targets;</span>
+	}
+	
+	public ITreeNode getAllowedTreeRootNode(ITreeNodeBaseActionHelper helper) {
+<span class="nc" id="L86">		ITreeNode root = null;</span>
+		try {
+<span class="nc" id="L88">			root = helper.getAllowedTreeRoot(this.getAllowedGroups());</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			if (this.isOnDemand()) {</span>
+<span class="nc" id="L90">				Collection&lt;String&gt; allowedGroups = this.convertCollection(this.getAllowedGroups());</span>
+<span class="nc" id="L91">				root = helper.getShowableTree(this.getTargetNodes(allowedGroups, helper), root, allowedGroups);</span>
+			}
+<span class="nc" id="L93">		} catch (Throwable t) {</span>
+<span class="nc" id="L94">			_logger.error(&quot;error in getAllowedTreeRootNode&quot;, t);</span>
+<span class="nc" id="L95">		}</span>
+<span class="nc" id="L96">		return root;</span>
+	}
+	
+	private Set&lt;String&gt; convertCollection(Collection items) {
+<span class="nc" id="L100">		Set&lt;String&gt; itemsSet = new HashSet&lt;String&gt;();</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">		if (items != null) {</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">			for (Object current : items) {</span>
+<span class="nc" id="L103">				itemsSet.add(current.toString());</span>
+<span class="nc" id="L104">			}</span>
+		}
+<span class="nc" id="L106">		return itemsSet;</span>
+	}
+	
+	/**
+	 * Return the name used to reference the required object (or one of its property) pushed into the Value Stack.
+	 * @return The name used to reference the required object.
+	 */
+	protected String getVar() {
+<span class="nc" id="L114">		return _var;</span>
+	}
+	
+	/**
+	 * Set the name used to reference the required object (or one of its property) pushed into the Value Stack.
+	 * @param var The name of the variable
+	 */
+	public void setVar(String var) {
+<span class="nc" id="L122">		this._var = var;</span>
+<span class="nc" id="L123">	}</span>
+	
+	public boolean isOnline() {
+<span class="nc" id="L126">		return _online;</span>
+	}
+	public void setOnline(boolean online) {
+<span class="nc" id="L129">		this._online = online;</span>
+<span class="nc" id="L130">	}</span>
+	
+	public boolean isOnDemand() {
+<span class="nc" id="L133">		return _onDemand;</span>
+	}
+	public void setOnDemand(boolean onDemand) {
+<span class="nc" id="L136">		this._onDemand = onDemand;</span>
+<span class="nc" id="L137">	}</span>
+	
+	public Boolean getOpen() {
+<span class="nc" id="L140">		return _open;</span>
+	}
+	public void setOpen(Boolean open) {
+<span class="nc" id="L143">		this._open = open;</span>
+<span class="nc" id="L144">	}</span>
+	
+	public String getTargetNode() {
+<span class="nc" id="L147">		return _targetNode;</span>
+	}
+	public void setTargetNode(String targetNode) {
+<span class="nc" id="L150">		this._targetNode = targetNode;</span>
+<span class="nc" id="L151">	}</span>
+	
+	public Collection getTreeNodesToOpen() {
+<span class="nc" id="L154">		return _treeNodesToOpen;</span>
+	}
+	public void setTreeNodesToOpen(Collection treeNodesToOpen) {
+<span class="nc" id="L157">		this._treeNodesToOpen = treeNodesToOpen;</span>
+<span class="nc" id="L158">	}</span>
+	
+	public Collection getAllowedGroups() {
+<span class="nc" id="L161">		return _allowedGroups;</span>
+	}
+	public void setAllowedGroups(Collection allowedGroups) {
+<span class="nc" id="L164">		this._allowedGroups = allowedGroups;</span>
+<span class="nc" id="L165">	}</span>
+	
+	private String _var;
+<span class="nc" id="L168">	private boolean _online = false;</span>
+<span class="nc" id="L169">	private boolean _onDemand = false;</span>
+	private Boolean _open;
+	private String _targetNode;
+	private Collection _treeNodesToOpen;
+	private Collection _allowedGroups;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

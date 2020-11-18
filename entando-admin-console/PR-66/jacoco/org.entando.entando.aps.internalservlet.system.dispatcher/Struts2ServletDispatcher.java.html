@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Struts2ServletDispatcher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.internalservlet.system.dispatcher</a> &gt; <span class="el_source">Struts2ServletDispatcher.java</span></div><h1>Struts2ServletDispatcher.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.internalservlet.system.dispatcher;
+
+import java.io.IOException;
+
+import javax.servlet.ServletConfig;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts2.dispatcher.Dispatcher;
+import org.apache.struts2.dispatcher.mapper.ActionMapper;
+import org.apache.struts2.dispatcher.mapper.ActionMapping;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.tags.InternalServletTag;
+
+import com.agiletec.apsadmin.system.dispatcher.EntandoActionUtils;
+import com.agiletec.apsadmin.system.dispatcher.InitOperations;
+import com.agiletec.apsadmin.system.dispatcher.PrepareOperations;
+import org.apache.struts2.dispatcher.ExecuteOperations;
+import org.apache.struts2.dispatcher.servlet.ServletHostConfig;
+
+import org.entando.entando.aps.internalservlet.system.dispatcher.mapper.ExtendedDefaultActionMapper;
+
+/**
+ * Servlet a servizio del widget &quot;Internal Servlet&quot;.
+ * La servlet ha lo scopo di permettere la erogazione nel Front-End di Entando (all'interno dei frames di pagine) 
+ * di funzionalità implementate su base Struts2.
+ * @author E.Santoboni
+ */
+<span class="nc" id="L46">public class Struts2ServletDispatcher extends HttpServlet {</span>
+	
+    private PrepareOperations prepare;
+    private ExecuteOperations execute;
+	
+    @Override
+    public void init(ServletConfig filterConfig) throws ServletException {
+<span class="nc" id="L53">        InitOperations init = new InitOperations();</span>
+<span class="nc" id="L54">        Dispatcher dispatcher = null;</span>
+        try {
+<span class="nc" id="L56">            ServletHostConfig config = new ServletHostConfig(filterConfig);</span>
+<span class="nc" id="L57">            init.initLogging(config);</span>
+<span class="nc" id="L58">            dispatcher = init.initDispatcher(config);</span>
+<span class="nc" id="L59">            init.initStaticContentLoader(config, dispatcher);</span>
+<span class="nc" id="L60">            prepare = new PrepareOperations(dispatcher);</span>
+<span class="nc" id="L61">            execute = new ExecuteOperations(dispatcher);</span>
+        } finally {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (dispatcher != null) {</span>
+<span class="nc" id="L64">                dispatcher.cleanUpAfterInit();</span>
+            }
+<span class="nc" id="L66">            init.cleanup();</span>
+        }
+<span class="nc" id="L68">    }</span>
+	
+    @Override
+    public void service(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+        try {
+<span class="nc" id="L73">			RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc" id="L74">			String currentFrameActionPath = request.getParameter(InternalServletTag.REQUEST_PARAM_FRAMEDEST);</span>
+<span class="nc" id="L75">			Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc" id="L76">			Boolean staticAction = (Boolean) reqCtx.getExtraParam(InternalServletTag.EXTRAPAR_STATIC_ACTION);</span>
+			
+<span class="nc bnc" id="L78" title="All 6 branches missed.">			boolean executeCustomAction = (null == staticAction || !staticAction) </span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">					&amp;&amp; (null == currentFrameActionPath || Integer.parseInt(currentFrameActionPath) == currentFrame.intValue());</span>
+			
+<span class="nc" id="L81">            prepare.createActionContext(request, response);</span>
+<span class="nc" id="L82">            prepare.assignDispatcherToThread();</span>
+<span class="nc" id="L83">            prepare.setEncodingAndLocale(request, response);</span>
+<span class="nc" id="L84">            request = prepare.wrapRequest(request);</span>
+<span class="nc" id="L85">			ActionMapper actionMapper = new ExtendedDefaultActionMapper();</span>
+<span class="nc" id="L86">			Dispatcher dispatcher = prepare.getDispatcher();</span>
+<span class="nc" id="L87">			String entandoActionName = EntandoActionUtils.extractEntandoActionName(request);</span>
+<span class="nc" id="L88">			ActionMapping mapping = actionMapper.getMapping(request, dispatcher.getConfigurationManager());</span>
+<span class="nc bnc" id="L89" title="All 6 branches missed.">			if (mapping != null &amp;&amp; null != entandoActionName &amp;&amp; executeCustomAction) {</span>
+<span class="nc" id="L90">				mapping.setName(entandoActionName);</span>
+			}
+<span class="nc bnc" id="L92" title="All 2 branches missed.">			if (mapping == null) {</span>
+<span class="nc" id="L93">                boolean handled = execute.executeStaticResourceRequest(request, response);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">                if (!handled) {</span>
+<span class="nc" id="L95">					throw new ServletException(&quot;Resource loading not supported, use the StrutsPrepareAndExecuteFilter instead.&quot;);</span>
+				}
+<span class="nc" id="L97">            } else {</span>
+<span class="nc" id="L98">                execute.executeAction(request, response, mapping);</span>
+            }
+        } finally {
+<span class="nc" id="L101">            prepare.cleanupRequest(request);</span>
+        }
+<span class="nc" id="L103">    }</span>
+	
+    @Override
+    public void destroy() {
+<span class="nc" id="L107">        prepare.cleanupDispatcher();</span>
+<span class="nc" id="L108">    }</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

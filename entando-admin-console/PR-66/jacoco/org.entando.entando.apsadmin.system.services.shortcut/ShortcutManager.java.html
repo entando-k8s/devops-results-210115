@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShortcutManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.system.services.shortcut</a> &gt; <span class="el_source">ShortcutManager.java</span></div><h1>ShortcutManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.system.services.shortcut;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.ServletContextAware;
+
+import com.agiletec.aps.system.common.AbstractService;
+
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+
+import org.entando.entando.apsadmin.system.services.shortcut.model.MenuSection;
+import org.entando.entando.apsadmin.system.services.shortcut.model.Shortcut;
+import org.entando.entando.apsadmin.system.services.shortcut.model.UserConfigBean;
+
+/**
+ * Manager of Shortcut catalog and user config.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L44">public class ShortcutManager extends AbstractService implements IShortcutManager, ServletContextAware {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ShortcutManager.class);</span>
+	
+	@Override
+    public void init() throws Exception {
+<span class="fc" id="L50">		_logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L51">	}</span>
+	
+	@Override
+	protected void release() {
+<span class="fc" id="L55">		super.release();</span>
+<span class="fc" id="L56">		this.setMenuSections(null);</span>
+<span class="fc" id="L57">		this.setShortcuts(null);</span>
+<span class="fc" id="L58">	}</span>
+	
+	protected void loadShortcuts() {
+		try {
+<span class="fc" id="L62">			ShortcutLoader loader = new ShortcutLoader(this.getLocationPatterns(), this.getServletContext());</span>
+<span class="fc" id="L63">			this.setMenuSections(loader.getManuSections());</span>
+<span class="fc" id="L64">			this.setShortcuts(loader.getShortcuts());</span>
+<span class="fc" id="L65">			_logger.debug(&quot;{} ready: initialized  Sections menu:{} - Shortcuts:{}&quot;,  this.getClass().getName(), this.getMenuSections().size(), this.getShortcuts().size());</span>
+<span class="nc" id="L66">		} catch (Throwable t) {</span>
+<span class="nc" id="L67">			this.setMenuSections(new HashMap&lt;String, MenuSection&gt;());</span>
+<span class="nc" id="L68">			this.setShortcuts(new HashMap&lt;String, Shortcut&gt;());</span>
+<span class="nc" id="L69">			_logger.error(&quot;Error loading Shortcut definitions&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;loadShortcuts&quot;, &quot;Error loading Shortcut definitions&quot;);
+<span class="fc" id="L71">		}</span>
+<span class="fc" id="L72">	}</span>
+	
+	@Override
+	public UserConfigBean saveUserConfigBean(UserDetails user, UserConfigBean userConfig) throws EntException {
+<span class="nc bnc" id="L76" title="All 4 branches missed.">		if (null == user || null == userConfig </span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">				|| userConfig.getUsername().equals(user.getUsername())) {</span>
+<span class="nc" id="L78">			_logger.info(&quot;Required operation for null user or invalid user config&quot;);</span>
+<span class="nc" id="L79">			return null;</span>
+		}
+<span class="nc" id="L81">		String[] config = this.saveUserConfig(user, userConfig.getConfig());</span>
+<span class="nc" id="L82">		return new UserConfigBean(user.getUsername(), config);</span>
+	}
+	
+	@Override
+	public String[] saveUserConfig(UserDetails user, String[] config) throws EntException {
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">		if (null == user) {</span>
+<span class="nc" id="L88">			_logger.info(&quot;Required operation for null user&quot;);</span>
+<span class="nc" id="L89">			return null;</span>
+		}
+		try {
+<span class="fc" id="L92">			config = this.checkShortcutConfig(user, config);</span>
+<span class="fc" id="L93">			String xml = UserShortcutConfigDOM.createUserConfigXml(config);</span>
+<span class="fc" id="L94">			this.getUserShortcutDAO().saveUserConfig(user.getUsername(), xml);</span>
+<span class="nc" id="L95">		} catch (Throwable t) {</span>
+<span class="nc" id="L96">			_logger.error(&quot;Error saving user config by user &quot;, user.getUsername(), t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;saveUserConfig&quot;);
+<span class="nc" id="L98">			throw new EntException(&quot;Error saving user config by user &quot; + user.getUsername(), t);</span>
+<span class="fc" id="L99">		}</span>
+<span class="fc" id="L100">		return config;</span>
+	}
+	
+	@Override
+	public UserConfigBean getUserConfigBean(UserDetails user) throws EntException {
+<span class="fc" id="L105">		String[] config = this.getUserConfig(user);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">		if (null == config) return null;</span>
+<span class="fc" id="L107">		return new UserConfigBean(user.getUsername(), config);</span>
+	}
+	
+	@Override
+	public String[] getUserConfig(UserDetails user) throws EntException {
+<span class="fc" id="L112">		String[] config = null;</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">		if (null == user) {</span>
+<span class="nc" id="L114">			_logger.info(&quot;Required shortcut config for null user&quot;);</span>
+<span class="nc" id="L115">			return null;</span>
+		}
+		try {
+<span class="fc" id="L118">			String xml = this.getUserShortcutDAO().loadUserConfig(user.getUsername());</span>
+<span class="fc" id="L119">			config = UserShortcutConfigDOM.extractUserConfig(xml, this.getUserShortcutsMaxNumber());</span>
+<span class="fc" id="L120">			config = this.checkShortcutConfig(user, config);</span>
+<span class="nc" id="L121">		} catch (Throwable t) {</span>
+<span class="nc" id="L122">			_logger.error(&quot;Error loading user config&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getUserConfig&quot;);
+<span class="nc" id="L124">			throw new EntException(&quot;Error loading user config&quot;, t);</span>
+<span class="fc" id="L125">		}</span>
+<span class="fc" id="L126">		return config;</span>
+	}
+	
+	private String[] checkShortcutConfig(UserDetails user, String[] config) throws Throwable {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">		if (null == config) {</span>
+<span class="nc" id="L131">			config = new String[this.getUserShortcutsMaxNumber()];</span>
+		}
+		try {
+<span class="fc bfc" id="L134" title="All 2 branches covered.">			if (config.length != this.getUserShortcutsMaxNumber()) {</span>
+<span class="fc" id="L135">				String[] newConfig = new String[this.getUserShortcutsMaxNumber()];</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">				for (int i = 0; i &lt; config.length; i++) {</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">					if (i&gt;=newConfig.length) continue;</span>
+<span class="fc" id="L138">					newConfig[i] = config[i];</span>
+				}
+<span class="fc" id="L140">				config = newConfig;</span>
+			}
+<span class="fc bfc" id="L142" title="All 2 branches covered.">			for (int i = 0; i &lt; config.length; i++) {</span>
+<span class="fc" id="L143">				String code = config[i];</span>
+<span class="fc" id="L144">				Shortcut shortcut = this.getShortcuts().get(code);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">				String reqPerm = (null == shortcut) ? null : shortcut.getRequiredPermission();</span>
+<span class="pc bpc" id="L146" title="1 of 6 branches missed.">				if (null == shortcut || (null != reqPerm &amp;&amp; !this.getAuthorizationManager().isAuthOnPermission(user, reqPerm))) {</span>
+<span class="fc" id="L147">					config[i] = null;</span>
+				}
+			}
+<span class="nc" id="L150">		} catch (Throwable t) {</span>
+<span class="nc" id="L151">			_logger.error(&quot;Error checking Shortcut Config by user {}&quot;, user.getUsername(), t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;checkShortcutConfig&quot;);
+<span class="nc" id="L153">			throw new EntException(&quot;Error checking Shortcut Config by user &quot; + user.getUsername(), t);</span>
+<span class="fc" id="L154">		}</span>
+<span class="fc" id="L155">		return config;</span>
+	}
+	
+	@Override
+	public void deleteUserConfig(String username) throws EntException {
+		try {
+<span class="fc" id="L161">			this.getUserShortcutDAO().deleteUserConfig(username);</span>
+<span class="nc" id="L162">		} catch (Throwable t) {</span>
+<span class="nc" id="L163">			_logger.error(&quot;Error deleting user config by user {}&quot;, username, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;deleteUserConfig&quot;);
+<span class="nc" id="L165">			throw new EntException(&quot;Error deleting user config by user &quot; + username, t);</span>
+<span class="fc" id="L166">		}</span>
+<span class="fc" id="L167">	}</span>
+	
+	@Override
+	public List&lt;Shortcut&gt; getAllowedShortcuts(UserDetails user) throws EntException {
+<span class="fc" id="L171">		List&lt;Shortcut&gt; allowedShortcuts = new ArrayList&lt;Shortcut&gt;();</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">		if (null == user) {</span>
+<span class="nc" id="L173">			_logger.info(&quot;Required allowed shortcut for null user&quot;);</span>
+<span class="nc" id="L174">			return allowedShortcuts;</span>
+		}
+		try {
+<span class="fc" id="L177">			Iterator&lt;Shortcut&gt; shorCutIter = this.getShortcuts().values().iterator();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">			while (shorCutIter.hasNext()) {</span>
+<span class="fc" id="L179">				Shortcut shortcut = shorCutIter.next();</span>
+<span class="fc" id="L180">				String permissionName = shortcut.getRequiredPermission();</span>
+<span class="pc bpc" id="L181" title="1 of 4 branches missed.">				if (null == permissionName || this.getAuthorizationManager().isAuthOnPermission(user, permissionName)) {</span>
+<span class="fc" id="L182">					allowedShortcuts.add(shortcut.clone());</span>
+				}
+<span class="fc" id="L184">			}</span>
+<span class="nc" id="L185">		} catch (Throwable t) {</span>
+<span class="nc" id="L186">			_logger.error(&quot;Error extracting allowed shortcuts by user {}&quot;, user.getUsername(), t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getAllowedShortcuts&quot;);
+<span class="nc" id="L188">			throw new EntException(&quot;Error extracting allowed shortcuts by user &quot; + user.getUsername(), t);</span>
+<span class="fc" id="L189">		}</span>
+<span class="fc" id="L190">		BeanComparator comparator = new BeanComparator(&quot;source&quot;);</span>
+<span class="fc" id="L191">		Collections.sort(allowedShortcuts, comparator);</span>
+<span class="fc" id="L192">		return allowedShortcuts;</span>
+	}
+	
+	@Override
+	public Shortcut getShortcut(String code){
+<span class="fc" id="L197">		Shortcut shortcut = this.getShortcuts().get(code);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (null == shortcut) {</span>
+<span class="fc" id="L199">			return null;</span>
+		}
+<span class="fc" id="L201">		return shortcut.clone();</span>
+	}
+	
+	@Override
+	public Integer getUserShortcutsMaxNumber() {
+<span class="fc" id="L206">		return _userShortcutsMaxNumber;</span>
+	}
+	public void setUserShortcutsMaxNumber(Integer userShortcutsMaxNumber) {
+<span class="fc" id="L209">		this._userShortcutsMaxNumber = userShortcutsMaxNumber;</span>
+<span class="fc" id="L210">	}</span>
+	
+	protected Map&lt;String, Shortcut&gt; getShortcuts() {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (null == this._shortcuts) {</span>
+<span class="fc" id="L214">			this.loadShortcuts();</span>
+		}
+<span class="fc" id="L216">		return _shortcuts;</span>
+	}
+	protected void setShortcuts(Map&lt;String, Shortcut&gt; shortcuts) {
+<span class="fc" id="L219">		this._shortcuts = shortcuts;</span>
+<span class="fc" id="L220">	}</span>
+	
+	protected Map&lt;String, MenuSection&gt; getMenuSections() {
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">		if (null == this._menuSections) {</span>
+<span class="nc" id="L224">			this.loadShortcuts();</span>
+		}
+<span class="fc" id="L226">		return _menuSections;</span>
+	}
+	protected void setMenuSections(Map&lt;String, MenuSection&gt; menuSections) {
+<span class="fc" id="L229">		this._menuSections = menuSections;</span>
+<span class="fc" id="L230">	}</span>
+	
+	protected ServletContext getServletContext() {
+<span class="fc" id="L233">		return this._servletContext;</span>
+	}
+	@Override
+	public void setServletContext(ServletContext servletContext) {
+<span class="fc" id="L237">		this._servletContext = servletContext;</span>
+<span class="fc" id="L238">	}</span>
+	
+	protected String getLocationPatterns() {
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">		if (null == this._locationPatterns) {</span>
+<span class="fc" id="L242">			return DEFAULT_LOCATION_PATTERN;</span>
+		}
+<span class="nc" id="L244">		return _locationPatterns;</span>
+	}
+	public void setLocationPatterns(String locationPatterns) {
+<span class="nc" id="L247">		this._locationPatterns = locationPatterns;</span>
+<span class="nc" id="L248">	}</span>
+	
+	protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L251">		return _authorizationManager;</span>
+	}
+	public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L254">		this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L255">	}</span>
+	
+	protected IUserShortcutDAO getUserShortcutDAO() {
+<span class="fc" id="L258">		return _userShortcutDAO;</span>
+	}
+	public void setUserShortcutDAO(IUserShortcutDAO userShortcutDAO) {
+<span class="fc" id="L261">		this._userShortcutDAO = userShortcutDAO;</span>
+<span class="fc" id="L262">	}</span>
+	
+	private Map&lt;String, Shortcut&gt; _shortcuts;
+	private Map&lt;String, MenuSection&gt; _menuSections;
+	
+	private ServletContext _servletContext;
+	private String _locationPatterns;
+	
+	private IAuthorizationManager _authorizationManager;
+	private IUserShortcutDAO _userShortcutDAO;
+	
+	private Integer _userShortcutsMaxNumber;
+	
+	public static final String DEFAULT_LOCATION_PATTERN = &quot;classpath*:/shortcuts/**/apsadmin/shortcuts.xml&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
