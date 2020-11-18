@@ -1,0 +1,613 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiContentInterface.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services.api</a> &gt; <span class="el_source">ApiContentInterface.java</span></div><h1>ApiContentInterface.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services.api;
+
+import com.agiletec.aps.system.RequestContext;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import javax.ws.rs.core.Response;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.api.IApiErrorCodes;
+import org.entando.entando.aps.system.services.api.model.ApiError;
+import org.entando.entando.aps.system.services.api.model.ApiException;
+import org.entando.entando.aps.system.services.api.model.StringApiResponse;
+import org.entando.entando.aps.system.services.api.server.IResponseBuilder;
+import org.entando.entando.plugins.jacms.aps.system.services.api.model.ApiContentListBean;
+import org.entando.entando.plugins.jacms.aps.system.services.api.model.JAXBContent;
+import org.entando.entando.plugins.jacms.aps.system.services.api.model.JAXBContentAttribute;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentUtilizer;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentListHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.ContentRenderizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.IContentDispenser;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import javax.servlet.http.HttpServletRequest;
+import org.entando.entando.plugins.jacms.aps.system.services.api.model.CmsApiResponse;
+import org.entando.entando.plugins.jacms.aps.system.services.api.model.JAXBCmsResult;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L67">public class ApiContentInterface extends AbstractCmsApiInterface {</span>
+
+<span class="fc" id="L69">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiContentInterface.class);</span>
+
+    public List&lt;String&gt; getContents(Properties properties) throws Throwable {
+<span class="nc" id="L72">        return this.extractContents(properties);</span>
+    }
+
+    protected List&lt;String&gt; extractContents(Properties properties) throws Throwable {
+<span class="nc" id="L76">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="nc" id="L78">            ApiContentListBean bean = this.buildSearchBean(properties);</span>
+<span class="nc" id="L79">            UserDetails user = (UserDetails) properties.get(SystemConstants.API_USER_PARAMETER);</span>
+<span class="nc" id="L80">            contentsId = this.getContentListHelper().getContentsId(bean, user);</span>
+<span class="nc" id="L81">        } catch (ApiException ae) {</span>
+<span class="nc" id="L82">            throw ae;</span>
+<span class="nc" id="L83">        } catch (Throwable t) {</span>
+<span class="nc" id="L84">            _logger.error(&quot;error in extractContents&quot;, t);</span>
+<span class="nc" id="L85">            throw new EntException(&quot;Error into API method&quot;, t);</span>
+<span class="nc" id="L86">        }</span>
+<span class="nc" id="L87">        return contentsId;</span>
+    }
+
+    protected ApiContentListBean buildSearchBean(Properties properties) throws ApiException, Throwable {
+<span class="nc" id="L91">        ApiContentListBean bean = null;</span>
+        try {
+<span class="nc" id="L93">            String contentType = properties.getProperty(&quot;contentType&quot;);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (null == this.getContentManager().getSmallContentTypesMap().get(contentType)) {</span>
+<span class="nc" id="L95">                throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR, &quot;Content Type '&quot; + contentType + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L97">            String langCode = properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER);</span>
+<span class="nc" id="L98">            String filtersParam = properties.getProperty(&quot;filters&quot;);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (!StringUtils.isEmpty(filtersParam)) {</span>
+<span class="nc" id="L100">                filtersParam = URLDecoder.decode(filtersParam, StandardCharsets.UTF_8.toString());</span>
+            }
+<span class="nc" id="L102">            EntitySearchFilter[] filters = this.getContentListHelper().getFilters(contentType, filtersParam, langCode);</span>
+<span class="nc" id="L103">            String[] categoryCodes = null;</span>
+<span class="nc" id="L104">            String categoriesParam = properties.getProperty(&quot;categories&quot;);</span>
+<span class="nc" id="L105">            boolean orClause = false;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (!StringUtils.isEmpty(categoriesParam)) {</span>
+<span class="nc" id="L107">                categoryCodes = categoriesParam.split(IContentListHelper.CATEGORIES_SEPARATOR);</span>
+<span class="nc" id="L108">                String orClauseString = properties.getProperty(&quot;orClauseCategoryFilter&quot;);</span>
+<span class="nc bnc" id="L109" title="All 4 branches missed.">                orClause = !StringUtils.isEmpty(orClauseString) &amp;&amp; orClauseString.trim().equalsIgnoreCase(&quot;true&quot;);</span>
+            }
+<span class="nc" id="L111">            bean = new ApiContentListBean(contentType, filters, categoryCodes, orClause);</span>
+<span class="nc" id="L112">        } catch (ApiException ae) {</span>
+<span class="nc" id="L113">            throw ae;</span>
+<span class="nc" id="L114">        } catch (Throwable t) {</span>
+<span class="nc" id="L115">            _logger.error(&quot;error in buildSearchBean&quot;, t);</span>
+<span class="nc" id="L116">            throw new EntException(&quot;Error into API method&quot;, t);</span>
+<span class="nc" id="L117">        }</span>
+<span class="nc" id="L118">        return bean;</span>
+    }
+
+    public String getContentsToHtml(Properties properties) throws Throwable {
+<span class="nc" id="L122">        StringBuilder render = new StringBuilder();</span>
+        try {
+<span class="nc" id="L124">            String modelId = properties.getProperty(&quot;modelId&quot;);</span>
+<span class="nc bnc" id="L125" title="All 4 branches missed.">            if (null == modelId || modelId.trim().length() == 0) {</span>
+<span class="nc" id="L126">                return null;</span>
+            }
+<span class="nc" id="L128">            String contentType = properties.getProperty(&quot;contentType&quot;);</span>
+<span class="nc" id="L129">            Content prototype = (Content) this.getContentManager().getEntityPrototype(contentType);</span>
+<span class="nc" id="L130">            Integer modelIdInteger = this.checkModel(modelId, prototype);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            if (null == modelIdInteger) {</span>
+<span class="nc" id="L132">                return null;</span>
+            }
+<span class="nc" id="L134">            List&lt;String&gt; contentsId = this.extractContents(properties);</span>
+<span class="nc" id="L135">            HttpServletRequest request = (HttpServletRequest) properties.get(SystemConstants.API_REQUEST_PARAMETER);</span>
+<span class="nc" id="L136">            String langCode = properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER);</span>
+<span class="nc" id="L137">            render.append(this.getItemsStartElement());</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            for (int i = 0; i &lt; contentsId.size(); i++) {</span>
+<span class="nc" id="L139">                render.append(this.getItemStartElement());</span>
+<span class="nc" id="L140">                String renderedContent = this.getRenderedContent(contentsId.get(i), modelIdInteger, langCode, request);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                if (null != renderedContent) {</span>
+<span class="nc" id="L142">                    render.append(renderedContent);</span>
+                }
+<span class="nc" id="L144">                render.append(this.getItemEndElement());</span>
+            }
+<span class="nc" id="L146">            render.append(this.getItemsEndElement());</span>
+<span class="nc" id="L147">        } catch (ApiException ae) {</span>
+<span class="nc" id="L148">            throw ae;</span>
+<span class="nc" id="L149">        } catch (Throwable t) {</span>
+<span class="nc" id="L150">            _logger.error(&quot;error in getContentsToHtml&quot;, t);</span>
+<span class="nc" id="L151">            throw new EntException(&quot;Error into API method&quot;, t);</span>
+<span class="nc" id="L152">        }</span>
+<span class="nc" id="L153">        return render.toString();</span>
+    }
+
+    public JAXBContent getContent(Properties properties) throws ApiException, Throwable {
+<span class="fc" id="L157">        JAXBContent jaxbContent = null;</span>
+<span class="fc" id="L158">        String id = properties.getProperty(&quot;id&quot;);</span>
+        try {
+<span class="fc" id="L160">            String langCode = properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER);</span>
+<span class="fc" id="L161">            Content mainContent = this.getPublicContent(id);</span>
+<span class="fc" id="L162">            jaxbContent = this.getJAXBContentInstance(mainContent, langCode);</span>
+<span class="fc" id="L163">            UserDetails user = (UserDetails) properties.get(SystemConstants.API_USER_PARAMETER);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            if (null == user) {</span>
+<span class="nc" id="L165">                user = this.getUserManager().getGuestUser();</span>
+            }
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">            if (!this.getContentAuthorizationHelper().isAuth(user, mainContent)) {</span>
+<span class="nc" id="L168">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Required content '&quot; + id + &quot;' does not allowed&quot;, Response.Status.FORBIDDEN);</span>
+            }
+<span class="nc" id="L170">        } catch (ApiException ae) {</span>
+<span class="nc" id="L171">            throw ae;</span>
+<span class="nc" id="L172">        } catch (Throwable t) {</span>
+<span class="nc" id="L173">            _logger.error(&quot;error in getContent&quot;, t);</span>
+<span class="nc" id="L174">            throw new EntException(&quot;Error into API method&quot;, t);</span>
+<span class="fc" id="L175">        }</span>
+<span class="fc" id="L176">        return jaxbContent;</span>
+    }
+
+    protected JAXBContent getJAXBContentInstance(Content mainContent, String langCode) {
+<span class="fc" id="L180">        return new JAXBContent(mainContent, langCode);</span>
+    }
+
+    public String getContentToHtml(Properties properties) throws ApiException, Throwable {
+<span class="fc" id="L184">        String render = null;</span>
+<span class="fc" id="L185">        String id = properties.getProperty(&quot;id&quot;);</span>
+<span class="fc" id="L186">        String modelId = properties.getProperty(&quot;modelId&quot;);</span>
+        try {
+<span class="pc bpc" id="L188" title="3 of 4 branches missed.">            if (null == modelId || modelId.trim().length() == 0) {</span>
+<span class="fc" id="L189">                return null;</span>
+            }
+<span class="nc" id="L191">            Content mainContent = this.getPublicContent(id);</span>
+<span class="nc" id="L192">            Integer modelIdInteger = this.checkModel(modelId, mainContent);</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if (null != modelIdInteger) {</span>
+<span class="nc" id="L194">                String langCode = properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER);</span>
+<span class="nc" id="L195">                HttpServletRequest request = (HttpServletRequest) properties.get(SystemConstants.API_REQUEST_PARAMETER);</span>
+<span class="nc" id="L196">                render = this.getRenderedContent(id, modelIdInteger, langCode, request);</span>
+            }
+<span class="nc" id="L198">        } catch (ApiException ae) {</span>
+<span class="nc" id="L199">            throw ae;</span>
+<span class="nc" id="L200">        } catch (Throwable t) {</span>
+<span class="nc" id="L201">            _logger.error(&quot;error in getContentToHtml&quot;, t);</span>
+<span class="nc" id="L202">            throw new EntException(&quot;Error into API method&quot;, t);</span>
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">        return render;</span>
+    }
+
+    protected String getRenderedContent(String id, int modelId, String langCode, HttpServletRequest request) {
+<span class="nc" id="L208">        RequestContext reqCtx = new RequestContext();</span>
+<span class="nc" id="L209">        reqCtx.setRequest(request);</span>
+<span class="nc" id="L210">        Lang currentLang = this.getLangManager().getLang(langCode);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        if (null == currentLang) {</span>
+<span class="nc" id="L212">            currentLang = this.getLangManager().getDefaultLang();</span>
+        }
+<span class="nc" id="L214">        reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG, currentLang);</span>
+<span class="nc" id="L215">        String renderedContent = null;</span>
+<span class="nc" id="L216">        ContentRenderizationInfo renderizationInfo = this.getContentDispenser().getRenderizationInfo(id, modelId, currentLang.getCode(), reqCtx, true);</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if (null != renderizationInfo) {</span>
+<span class="nc" id="L218">            this.getContentDispenser().resolveLinks(renderizationInfo, reqCtx);</span>
+<span class="nc" id="L219">            renderedContent = renderizationInfo.getRenderedContent();</span>
+        }
+<span class="nc" id="L221">        return renderedContent;</span>
+    }
+
+    protected Content getPublicContent(String id) throws ApiException, Throwable {
+<span class="fc" id="L225">        Content content = null;</span>
+        try {
+<span class="fc" id="L227">            content = this.getContentManager().loadContent(id, true);</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">            if (null == content) {</span>
+<span class="nc" id="L229">                throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR, &quot;Null content by id '&quot; + id + &quot;'&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L231">        } catch (ApiException ae) {</span>
+<span class="nc" id="L232">            throw ae;</span>
+<span class="nc" id="L233">        } catch (Throwable t) {</span>
+<span class="nc" id="L234">            _logger.error(&quot;Error extracting content by id '{}'&quot;, id, t);</span>
+<span class="nc" id="L235">            throw new EntException(&quot;Error extracting content by id '&quot; + id + &quot;'&quot;, t);</span>
+<span class="fc" id="L236">        }</span>
+<span class="fc" id="L237">        return content;</span>
+    }
+
+    protected Integer checkModel(String modelId, Content content) throws ApiException, Throwable {
+<span class="nc" id="L241">        Integer modelIdInteger = null;</span>
+        try {
+<span class="nc bnc" id="L243" title="All 4 branches missed.">            if (null == modelId || modelId.trim().length() == 0) {</span>
+<span class="nc" id="L244">                return null;</span>
+            }
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            if (modelId.equals(ContentModel.MODEL_ID_DEFAULT)) {</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                if (null == content.getDefaultModel()) {</span>
+<span class="nc" id="L248">                    throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR,</span>
+<span class="nc" id="L249">                            &quot;Invalid 'default' system model for content type '&quot; + content.getTypeCode() + &quot;' - Contact the administrators&quot;,</span>
+                            Response.Status.ACCEPTED);
+                }
+<span class="nc" id="L252">                modelIdInteger = Integer.parseInt(content.getDefaultModel());</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">            } else if (modelId.equals(ContentModel.MODEL_ID_LIST)) {</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                if (null == content.getListModel()) {</span>
+<span class="nc" id="L255">                    throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR,</span>
+<span class="nc" id="L256">                            &quot;Invalid 'list' system model for content type '&quot; + content.getTypeCode() + &quot;' - Contact the administrators&quot;,</span>
+                            Response.Status.ACCEPTED);
+                }
+<span class="nc" id="L259">                modelIdInteger = Integer.parseInt(content.getListModel());</span>
+            } else {
+                try {
+<span class="nc" id="L262">                    modelIdInteger = Integer.parseInt(modelId);</span>
+<span class="nc" id="L263">                } catch (Throwable t) {</span>
+<span class="nc" id="L264">                    throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR,</span>
+                            &quot;The model id must be an integer or 'default' or 'list' - '&quot; + modelId + &quot;'&quot;,
+                            Response.Status.ACCEPTED);
+<span class="nc" id="L267">                }</span>
+            }
+<span class="nc" id="L269">            ContentModel model = this.getContentModelManager().getContentModel(modelIdInteger);</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">            if (model == null) {</span>
+<span class="nc" id="L271">                throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR, &quot;The content model with id '&quot; + modelId + &quot;' does not exist&quot;, Response.Status.ACCEPTED);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            } else if (!content.getTypeCode().equals(model.getContentType())) {</span>
+<span class="nc" id="L273">                throw new ApiException(IApiErrorCodes.API_PARAMETER_VALIDATION_ERROR,</span>
+<span class="nc" id="L274">                        &quot;The content model with id '&quot; + modelId + &quot;' does not match with content of type '&quot; + content.getTypeDescription() + &quot;' &quot;,</span>
+                        Response.Status.ACCEPTED);
+            }
+<span class="nc" id="L277">        } catch (ApiException ae) {</span>
+<span class="nc" id="L278">            throw ae;</span>
+<span class="nc" id="L279">        } catch (Throwable t) {</span>
+<span class="nc" id="L280">            _logger.error(&quot;Error checking model id '{}'&quot;, modelId, t);</span>
+<span class="nc" id="L281">            throw new EntException(&quot;Error checking model id '&quot; + modelId + &quot;'&quot;, t);</span>
+<span class="nc" id="L282">        }</span>
+<span class="nc" id="L283">        return modelIdInteger;</span>
+    }
+
+    public CmsApiResponse addContent(JAXBContent jaxbContent, Properties properties) throws Throwable {
+<span class="fc" id="L287">        CmsApiResponse response = new CmsApiResponse();</span>
+        try {
+<span class="fc" id="L289">            String typeCode = jaxbContent.getTypeCode();</span>
+<span class="fc" id="L290">            Content prototype = (Content) this.getContentManager().getEntityPrototype(typeCode);</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            if (null == prototype) {</span>
+<span class="nc" id="L292">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Content type with code '&quot; + typeCode + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="fc" id="L294">            Content content = (Content) jaxbContent.buildEntity(prototype, this.getCategoryManager(), null);</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">            if (null != content.getId()) {</span>
+<span class="nc" id="L296">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;You cannot specify Content Id&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="fc" id="L298">            UserDetails user = (UserDetails) properties.get(SystemConstants.API_USER_PARAMETER);</span>
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">            content.setFirstEditor((null != user) ? user.getUsername() : SystemConstants.GUEST_USER_NAME);</span>
+<span class="fc" id="L300">            response = this.validateAndSaveContent(content, properties);</span>
+<span class="nc" id="L301">        } catch (ApiException ae) {</span>
+<span class="nc" id="L302">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L303">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L304">        } catch (Throwable t) {</span>
+<span class="nc" id="L305">            _logger.error(&quot;Error adding content&quot;, t);</span>
+<span class="nc" id="L306">            throw new EntException(&quot;Error adding content&quot;, t);</span>
+<span class="pc" id="L307">        }</span>
+<span class="fc" id="L308">        return response;</span>
+    }
+
+    public CmsApiResponse updateContent(JAXBContent jaxbContent, Properties properties) throws Throwable {
+<span class="nc" id="L312">        CmsApiResponse response = new CmsApiResponse();</span>
+        try {
+<span class="nc" id="L314">            String typeCode = jaxbContent.getTypeCode();</span>
+<span class="nc" id="L315">            Content prototype = (Content) this.getContentManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">            if (null == prototype) {</span>
+<span class="nc" id="L317">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Content type with code '&quot; + typeCode + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L319">            Content masterContent = this.getContentManager().loadContent(jaxbContent.getId(), false);</span>
+<span class="nc" id="L320">            String mergeString = properties.getProperty(&quot;merge&quot;);</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">            boolean merge = (null != mergeString) ? Boolean.parseBoolean(mergeString) : false;</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">            Content contentToFill = (merge) ? masterContent : prototype;</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            String langCode = (merge) ? properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER) : null;</span>
+<span class="nc" id="L324">            Content content = (Content) jaxbContent.buildEntity(contentToFill, this.getCategoryManager(), langCode);</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            if (null == masterContent) {</span>
+<span class="nc" id="L326">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Content with code '&quot; + content.getId() + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">            } else if (!masterContent.getMainGroup().equals(content.getMainGroup())) {</span>
+<span class="nc" id="L328">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+<span class="nc" id="L329">                        &quot;Invalid main group &quot; + content.getMainGroup() + &quot; not equals then master &quot; + masterContent.getMainGroup(),</span>
+                        Response.Status.CONFLICT);
+            }
+<span class="nc" id="L332">            response = this.validateAndSaveContent(content, properties);</span>
+<span class="nc" id="L333">        } catch (ApiException ae) {</span>
+<span class="nc" id="L334">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L335">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L336">        } catch (Throwable t) {</span>
+<span class="nc" id="L337">            _logger.error(&quot;Error updating content&quot;, t);</span>
+<span class="nc" id="L338">            throw new EntException(&quot;Error updating content&quot;, t);</span>
+<span class="nc" id="L339">        }</span>
+<span class="nc" id="L340">        return response;</span>
+    }
+
+    protected CmsApiResponse validateAndSaveContent(Content content, Properties properties) throws ApiException, Throwable {
+<span class="fc" id="L344">        CmsApiResponse response = new CmsApiResponse();</span>
+        try {
+<span class="fc" id="L346">            UserDetails user = (UserDetails) properties.get(SystemConstants.API_USER_PARAMETER);</span>
+<span class="pc bpc" id="L347" title="1 of 2 branches missed.">            if (null == user) {</span>
+<span class="nc" id="L348">                user = this.getUserManager().getGuestUser();</span>
+            }
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">            if (!this.getContentAuthorizationHelper().isAuth(user, content)) {</span>
+<span class="nc" id="L351">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+<span class="nc" id="L352">                        &quot;Content groups makes the new content not allowed for user &quot; + user.getUsername(),</span>
+                        Response.Status.FORBIDDEN);
+            }
+<span class="fc" id="L355">            List&lt;ApiError&gt; errors = this.validate(content);</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">            if (errors.size() &gt; 0) {</span>
+<span class="nc" id="L357">                response.addErrors(errors);</span>
+<span class="nc" id="L358">                response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L359">                return response;</span>
+            }
+<span class="fc" id="L361">            String insertOnLineString = properties.getProperty(&quot;insertOnLine&quot;);</span>
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">            boolean insertOnLine = (null != insertOnLineString) ? Boolean.parseBoolean(insertOnLineString) : false;</span>
+<span class="pc bpc" id="L363" title="1 of 2 branches missed.">            if (!insertOnLine) {</span>
+<span class="fc" id="L364">                this.getContentManager().saveContent(content);</span>
+            } else {
+<span class="nc" id="L366">                this.getContentManager().insertOnLineContent(content);</span>
+            }
+<span class="fc" id="L368">            JAXBCmsResult cms = new JAXBCmsResult();</span>
+
+<span class="fc" id="L370">            cms.setId(content.getId());</span>
+<span class="fc" id="L371">            cms.setStatus(IResponseBuilder.SUCCESS);</span>
+//            response.setResult(IResponseBuilder.SUCCESS, null);
+<span class="fc" id="L373">            response.setResult(cms, null);</span>
+<span class="nc" id="L374">        } catch (ApiException ae) {</span>
+<span class="nc" id="L375">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L376">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L377">        } catch (Throwable t) {</span>
+<span class="nc" id="L378">            _logger.error(&quot;error in validateAndSaveContent&quot;, t);</span>
+<span class="nc" id="L379">            throw new EntException(&quot;Error adding content&quot;, t);</span>
+<span class="pc" id="L380">        }</span>
+<span class="fc" id="L381">        return response;</span>
+    }
+
+    private List&lt;ApiError&gt; validate(Content content) throws EntException {
+<span class="fc" id="L385">        List&lt;ApiError&gt; errors = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">            if (null == content.getMainGroup()) {</span>
+<span class="nc" id="L388">                errors.add(new ApiError(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Main group null&quot;, Response.Status.CONFLICT));</span>
+            }
+<span class="fc" id="L390">            List&lt;FieldError&gt; fieldErrors = content.validate(this.getGroupManager(), this.getLangManager());</span>
+<span class="pc bpc" id="L391" title="1 of 2 branches missed.">            if (null != fieldErrors) {</span>
+<span class="pc bpc" id="L392" title="1 of 2 branches missed.">                for (int i = 0; i &lt; fieldErrors.size(); i++) {</span>
+<span class="nc" id="L393">                    FieldError fieldError = fieldErrors.get(i);</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">                    if (fieldError instanceof AttributeFieldError) {</span>
+<span class="nc" id="L395">                        AttributeFieldError attributeError = (AttributeFieldError) fieldError;</span>
+<span class="nc" id="L396">                        errors.add(new ApiError(IApiErrorCodes.API_VALIDATION_ERROR, attributeError.getFullMessage(), Response.Status.CONFLICT));</span>
+<span class="nc" id="L397">                    } else {</span>
+<span class="nc" id="L398">                        errors.add(new ApiError(IApiErrorCodes.API_VALIDATION_ERROR, fieldError.getMessage(), Response.Status.CONFLICT));</span>
+                    }
+                }
+            }
+<span class="nc" id="L402">        } catch (Exception t) {</span>
+<span class="nc" id="L403">            _logger.error(&quot;Error validating content&quot;, t);</span>
+<span class="nc" id="L404">            throw new EntException(&quot;Error validating content&quot;, t);</span>
+<span class="fc" id="L405">        }</span>
+<span class="fc" id="L406">        return errors;</span>
+    }
+
+    public StringApiResponse deleteContent(Properties properties) throws Throwable {
+<span class="nc" id="L410">        StringApiResponse response = new StringApiResponse();</span>
+        try {
+<span class="nc" id="L412">            String id = properties.getProperty(&quot;id&quot;);</span>
+<span class="nc" id="L413">            Content masterContent = this.getContentManager().loadContent(id, false);</span>
+<span class="nc bnc" id="L414" title="All 2 branches missed.">            if (null == masterContent) {</span>
+<span class="nc" id="L415">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Content with code '&quot; + id + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L417">            UserDetails user = (UserDetails) properties.get(SystemConstants.API_USER_PARAMETER);</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">            if (null == user) {</span>
+<span class="nc" id="L419">                user = this.getUserManager().getGuestUser();</span>
+            }
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            if (!this.getContentAuthorizationHelper().isAuth(user, masterContent)) {</span>
+<span class="nc" id="L422">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+<span class="nc" id="L423">                        &quot;Content groups makes the new content not allowed for user &quot; + user.getUsername(),</span>
+                        Response.Status.FORBIDDEN);
+            }
+<span class="nc" id="L426">            List&lt;String&gt; references = ((ContentUtilizer) this.getContentManager()).getContentUtilizers(id);</span>
+<span class="nc bnc" id="L427" title="All 4 branches missed.">            if (references != null &amp;&amp; references.size() &gt; 0) {</span>
+<span class="nc" id="L428">                boolean found = false;</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">                for (int i = 0; i &lt; references.size(); i++) {</span>
+<span class="nc" id="L430">                    String reference = references.get(i);</span>
+<span class="nc" id="L431">                    ContentRecordVO record = this.getContentManager().loadContentVO(reference);</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">                    if (null != record) {</span>
+<span class="nc" id="L433">                        found = true;</span>
+<span class="nc" id="L434">                        response.addError(new ApiError(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+<span class="nc" id="L435">                                &quot;Content &quot; + id + &quot; referenced to content &quot; + record.getId() + &quot; - '&quot; + record.getDescr() + &quot;'&quot;,</span>
+                                Response.Status.CONFLICT));
+                    }
+                }
+<span class="nc bnc" id="L439" title="All 2 branches missed.">                if (found) {</span>
+<span class="nc" id="L440">                    response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L441">                    return response;</span>
+                }
+            }
+<span class="nc bnc" id="L444" title="All 2 branches missed.">            if (masterContent.isOnLine()) {</span>
+<span class="nc" id="L445">                this.getContentManager().removeOnLineContent(masterContent);</span>
+            }
+<span class="nc" id="L447">            String removeWorkVersionString = properties.getProperty(&quot;removeWorkVersion&quot;);</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            boolean removeWorkVersion = (null != removeWorkVersionString) ? Boolean.parseBoolean(removeWorkVersionString) : false;</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">            if (removeWorkVersion) {</span>
+<span class="nc" id="L450">                this.getContentManager().deleteContent(masterContent);</span>
+            }
+<span class="nc" id="L452">            response.setResult(IResponseBuilder.SUCCESS, null);</span>
+<span class="nc" id="L453">        } catch (ApiException ae) {</span>
+<span class="nc" id="L454">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L455">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L456">        } catch (Throwable t) {</span>
+<span class="nc" id="L457">            _logger.error(&quot;Error deleting content&quot;, t);</span>
+<span class="nc" id="L458">            throw new EntException(&quot;Error deleting content&quot;, t);</span>
+<span class="nc" id="L459">        }</span>
+<span class="nc" id="L460">        return response;</span>
+    }
+
+    public void updateContentText(JAXBContentAttribute jaxbContentAttribute, Properties properties) throws ApiException, Throwable {
+        try {
+<span class="nc" id="L465">            String contentId = jaxbContentAttribute.getContentId();</span>
+<span class="nc" id="L466">            Content masterContent = this.getContentManager().loadContent(jaxbContentAttribute.getContentId(), true);</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">            if (null == masterContent) {</span>
+<span class="nc" id="L468">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Content with code '&quot; + contentId + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L470">            String attributeName = jaxbContentAttribute.getAttributeName();</span>
+<span class="nc" id="L471">            AttributeInterface attribute = (AttributeInterface) masterContent.getAttribute(attributeName);</span>
+<span class="nc bnc" id="L472" title="All 2 branches missed.">            if (null == attribute) {</span>
+<span class="nc" id="L473">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+                        &quot;Content Attribute with code '&quot; + attributeName + &quot;' does not exist into content &quot; + contentId,
+                        Response.Status.CONFLICT);
+<span class="nc bnc" id="L476" title="All 2 branches missed.">            } else if (!(attribute instanceof ITextAttribute)) {</span>
+<span class="nc" id="L477">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR,</span>
+                        &quot;Content Attribute with code '&quot; + attributeName + &quot;' isn't a Text Atttribute&quot;,
+                        Response.Status.CONFLICT);
+            }
+<span class="nc" id="L481">            String langCode = jaxbContentAttribute.getLangCode();</span>
+<span class="nc" id="L482">            String value = jaxbContentAttribute.getValue();</span>
+<span class="nc bnc" id="L483" title="All 4 branches missed.">            if (StringUtils.isEmpty(langCode) || StringUtils.isEmpty(value)) {</span>
+<span class="nc" id="L484">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;LangCode or value is Empty&quot;, Response.Status.CONFLICT);</span>
+            }
+<span class="nc" id="L486">            ((ITextAttribute) attribute).setText(value, langCode);</span>
+<span class="nc" id="L487">            this.getContentManager().insertOnLineContent(masterContent);</span>
+<span class="nc" id="L488">        } catch (ApiException ae) {</span>
+<span class="nc" id="L489">            throw ae;</span>
+<span class="nc" id="L490">        } catch (Throwable t) {</span>
+<span class="nc" id="L491">            _logger.error(&quot;Error updating content attribute&quot;, t);</span>
+<span class="nc" id="L492">            throw new EntException(&quot;Error updating content attribute&quot;, t);</span>
+<span class="nc" id="L493">        }</span>
+<span class="nc" id="L494">    }</span>
+
+    protected IContentListHelper getContentListHelper() {
+<span class="nc" id="L497">        return _contentListHelper;</span>
+    }
+
+    public void setContentListHelper(IContentListHelper contentListHelper) {
+<span class="fc" id="L501">        this._contentListHelper = contentListHelper;</span>
+<span class="fc" id="L502">    }</span>
+
+    protected IUserManager getUserManager() {
+<span class="nc" id="L505">        return _userManager;</span>
+    }
+    public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L508">        this._userManager = userManager;</span>
+<span class="fc" id="L509">    }</span>
+
+    public ILangManager getLangManager() {
+<span class="fc" id="L512">        return _langManager;</span>
+    }
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L515">        this._langManager = langManager;</span>
+<span class="fc" id="L516">    }</span>
+
+    protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L519">        return _categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L523">        this._categoryManager = categoryManager;</span>
+<span class="fc" id="L524">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="fc" id="L527">        return _groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L531">        this._groupManager = groupManager;</span>
+<span class="fc" id="L532">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="nc" id="L535">        return _pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L539">        this._pageManager = pageManager;</span>
+<span class="fc" id="L540">    }</span>
+
+    protected IResourceManager getResourceManager() {
+<span class="nc" id="L543">        return _resourceManager;</span>
+    }
+
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L547">        this._resourceManager = resourceManager;</span>
+<span class="fc" id="L548">    }</span>
+
+    protected IContentAuthorizationHelper getContentAuthorizationHelper() {
+<span class="fc" id="L551">        return _contentAuthorizationHelper;</span>
+    }
+
+    public void setContentAuthorizationHelper(IContentAuthorizationHelper contentAuthorizationHelper) {
+<span class="fc" id="L555">        this._contentAuthorizationHelper = contentAuthorizationHelper;</span>
+<span class="fc" id="L556">    }</span>
+
+    protected IContentDispenser getContentDispenser() {
+<span class="nc" id="L559">        return _contentDispenser;</span>
+    }
+
+    public void setContentDispenser(IContentDispenser contentDispenser) {
+<span class="fc" id="L563">        this._contentDispenser = contentDispenser;</span>
+<span class="fc" id="L564">    }</span>
+
+    public String getItemsStartElement() {
+<span class="nc" id="L567">        return _itemsStartElement;</span>
+    }
+
+    public void setItemsStartElement(String itemsStartElement) {
+<span class="nc" id="L571">        this._itemsStartElement = itemsStartElement;</span>
+<span class="nc" id="L572">    }</span>
+
+    public String getItemStartElement() {
+<span class="nc" id="L575">        return _itemStartElement;</span>
+    }
+
+    public void setItemStartElement(String itemStartElement) {
+<span class="nc" id="L579">        this._itemStartElement = itemStartElement;</span>
+<span class="nc" id="L580">    }</span>
+
+    public String getItemEndElement() {
+<span class="nc" id="L583">        return _itemEndElement;</span>
+    }
+
+    public void setItemEndElement(String itemEndElement) {
+<span class="nc" id="L587">        this._itemEndElement = itemEndElement;</span>
+<span class="nc" id="L588">    }</span>
+
+    public String getItemsEndElement() {
+<span class="nc" id="L591">        return _itemsEndElement;</span>
+    }
+
+    public void setItemsEndElement(String itemsEndElement) {
+<span class="nc" id="L595">        this._itemsEndElement = itemsEndElement;</span>
+<span class="nc" id="L596">    }</span>
+
+    private IContentListHelper _contentListHelper;
+    private ILangManager _langManager;
+    private IUserManager _userManager;
+    private ICategoryManager _categoryManager;
+    private IGroupManager _groupManager;
+    private IPageManager _pageManager;
+    private IResourceManager _resourceManager;
+    private IContentAuthorizationHelper _contentAuthorizationHelper;
+    private IContentDispenser _contentDispenser;
+<span class="fc" id="L607">    private String _itemsStartElement = &quot;&lt;ul&gt;&quot;;</span>
+<span class="fc" id="L608">    private String _itemStartElement = &quot;&lt;li&gt;&quot;;</span>
+<span class="fc" id="L609">    private String _itemEndElement = &quot;&lt;/li&gt;&quot;;</span>
+<span class="fc" id="L610">    private String _itemsEndElement = &quot;&lt;/ul&gt;&quot;;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SymbolicLinkValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.util</a> &gt; <span class="el_source">SymbolicLinkValidator.java</span></div><h1>SymbolicLinkValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.util;
+
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import java.util.Set;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import java.util.HashSet;
+import org.apache.commons.collections4.CollectionUtils;
+
+/**
+ * Classe di utilità per la validazione degli attributi in cui negli elementi
+ * compositivi vi può essere in link rappresentato dal proprio link simbolico.
+ *
+ * @author E.Santoboni
+ */
+public class SymbolicLinkValidator {
+
+<span class="fc" id="L39">    public SymbolicLinkValidator(IContentManager contentManager, IPageManager pageManager, IResourceManager resourceManager) {</span>
+<span class="fc" id="L40">        this.setContentManager(contentManager);</span>
+<span class="fc" id="L41">        this.setPageManager(pageManager);</span>
+<span class="fc" id="L42">        this.setResourceManager(resourceManager);</span>
+<span class="fc" id="L43">    }</span>
+
+    /**
+     * Analizza un link simbolico ne verifica la correttezza e restituisce un
+     * intero rappresentante il codice dell'eventuale errore riscontrato. In
+     * caso di link a pagina ed a contenuto controlla la validità dell'elemento
+     * referenziato.
+     *
+     * @param symbLink Il link simbolico da verificare.
+     * @param content Il contenuto corrente in fase di verifica.
+     * @return Il {@link AttributeFieldError}.
+     */
+    public AttributeFieldError scan(SymbolicLink symbLink, Content content) {
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (symbLink != null) {</span>
+<span class="fc bfc" id="L57" title="All 6 branches covered.">            switch (symbLink.getDestType()) {</span>
+                case SymbolicLink.URL_TYPE:
+<span class="fc" id="L59">                    return null;</span>
+                case SymbolicLink.PAGE_TYPE:
+<span class="fc" id="L61">                    return this.checkPageDest(symbLink, content);</span>
+                case SymbolicLink.CONTENT_TYPE:
+<span class="fc" id="L63">                    return this.checkContentDest(symbLink, content);</span>
+                case SymbolicLink.CONTENT_ON_PAGE_TYPE:
+<span class="fc" id="L65">                    return this.checkContentOnPageDest(symbLink, content);</span>
+                case SymbolicLink.RESOURCE_TYPE:
+<span class="fc" id="L67">                    return this.checkResourceDest(symbLink, content);</span>
+            }
+        }
+<span class="fc" id="L70">        return null;</span>
+    }
+
+    protected AttributeFieldError checkPageDest(SymbolicLink symbLink, Content content) {
+<span class="fc" id="L74">        String pageCode = symbLink.getPageDest();</span>
+<span class="fc" id="L75">        IPage page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (null == page) {</span>
+<span class="fc" id="L77">            AttributeFieldError result = new AttributeFieldError(null, ICmsAttributeErrorCodes.INVALID_PAGE, null);</span>
+<span class="fc" id="L78">            result.setMessage(&quot;The destination page must be published&quot;);</span>
+<span class="fc" id="L79">            return result;</span>
+        } else {
+<span class="fc" id="L81">            Set&lt;String&gt; pageGroups = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L82">            pageGroups.add(page.getGroup());</span>
+<span class="fc" id="L83">            Set&lt;String&gt; extraGroups = page.getMetadata().getExtraGroups();</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            if (null != extraGroups) {</span>
+<span class="nc" id="L85">                pageGroups.addAll(extraGroups);</span>
+            }
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            if (pageGroups.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L88">                return null;</span>
+            }
+<span class="fc" id="L90">            Set&lt;String&gt; linkingContentGroups = this.extractContentGroups(content);</span>
+<span class="fc" id="L91">            boolean check = CollectionUtils.containsAll(pageGroups, linkingContentGroups);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (!check) {</span>
+<span class="fc" id="L93">                boolean first = true;</span>
+<span class="fc" id="L94">                StringBuilder sb = new StringBuilder(&quot;The destination page must belong to the group(s): &quot;);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">                for (String group : linkingContentGroups) {</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">                    if (first) {</span>
+<span class="fc" id="L97">                        first = false;</span>
+                    } else {
+<span class="nc" id="L99">                        sb.append(&quot;, &quot;);</span>
+                    }
+<span class="fc" id="L101">                    sb.append(group);</span>
+<span class="fc" id="L102">                }</span>
+<span class="fc" id="L103">                AttributeFieldError result = new AttributeFieldError(null, ICmsAttributeErrorCodes.INVALID_PAGE_GROUPS, null);</span>
+<span class="fc" id="L104">                result.setMessage(sb.toString());</span>
+<span class="fc" id="L105">                return result;</span>
+            }
+        }
+<span class="nc" id="L108">        return null;</span>
+    }
+
+    protected AttributeFieldError checkContentDest(SymbolicLink symbLink, Content content) {
+<span class="fc" id="L112">        Content linkedContent = null;</span>
+        try {
+<span class="fc" id="L114">            linkedContent = this.getContentManager().loadContent(symbLink.getContentDest(), true);</span>
+<span class="nc" id="L115">        } catch (Throwable e) {</span>
+<span class="nc" id="L116">            throw new RuntimeException(&quot;Errore in caricamento contenuto &quot; + symbLink.getContentDest(), e);</span>
+<span class="fc" id="L117">        }</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (null == linkedContent) {</span>
+<span class="nc" id="L119">            return new AttributeFieldError(null, ICmsAttributeErrorCodes.INVALID_CONTENT, null);</span>
+        }
+<span class="fc" id="L121">        Set&lt;String&gt; linkedContentGroups = this.extractContentGroups(linkedContent);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (linkedContentGroups.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L123">            return null;</span>
+        }
+<span class="fc" id="L125">        Set&lt;String&gt; linkingContentGroups = this.extractContentGroups(content);</span>
+<span class="fc" id="L126">        boolean check = CollectionUtils.containsAll(linkedContentGroups, linkingContentGroups);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (!check) {</span>
+<span class="fc" id="L128">            return new AttributeFieldError(null, ICmsAttributeErrorCodes.INVALID_CONTENT_GROUPS, null);</span>
+        }
+<span class="fc" id="L130">        return null;</span>
+    }
+
+    protected AttributeFieldError checkResourceDest(SymbolicLink symbLink, Content content) {
+<span class="fc" id="L134">        ResourceInterface linkedResource = null;</span>
+        try {
+<span class="fc" id="L136">            linkedResource = _resourceManager.loadResource(symbLink.getResourceDest());</span>
+<span class="nc" id="L137">        } catch (Throwable e) {</span>
+<span class="nc" id="L138">            throw new RuntimeException(&quot;Error loading resource &quot; + symbLink.getResourceDest(), e);</span>
+<span class="fc" id="L139">        }</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (null == linkedResource) {</span>
+<span class="nc" id="L141">            return new AttributeFieldError(null, ICmsAttributeErrorCodes.INVALID_RESOURCE, null);</span>
+        }
+
+<span class="fc" id="L144">        return null;</span>
+    }
+
+
+    private Set&lt;String&gt; extractContentGroups(Content content) {
+<span class="fc" id="L149">        Set&lt;String&gt; groups = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L150">        groups.add(content.getMainGroup());</span>
+<span class="fc" id="L151">        groups.addAll(content.getGroups());</span>
+<span class="fc" id="L152">        return groups;</span>
+    }
+
+    protected AttributeFieldError checkContentOnPageDest(SymbolicLink symbLink, Content content) {
+<span class="fc" id="L156">        AttributeFieldError error = this.checkContentDest(symbLink, content);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">        if (error == null) {</span>
+<span class="fc" id="L158">            error = this.checkPageDest(symbLink, content);</span>
+        }
+<span class="fc" id="L160">        return error;</span>
+    }
+
+    /**
+     * Metodo di servizio: verifica che la pagina abbia dei widget configurate.
+     * Restituisce true nel caso tutti i frame siano vuoti, false in caso che
+     * anche un frame sia occupato da una widget.
+     *
+     * @param page La pagina da controllare.
+     * @return true nel caso tutti i frame siano vuoti, false in caso che anche
+     * un frame sia occupato da una widget.
+     */
+    protected boolean isVoidPage(IPage page) {
+<span class="nc" id="L173">        Widget[] widgets = page.getWidgets();</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        for (int i = 0; i &lt; widgets.length; i++) {</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            if (null != widgets[i]) {</span>
+<span class="nc" id="L176">                return false;</span>
+            }
+        }
+<span class="nc" id="L179">        return true;</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L183">        return _contentManager;</span>
+    }
+
+    protected void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L187">        this._contentManager = contentManager;</span>
+<span class="fc" id="L188">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L191">        return _pageManager;</span>
+    }
+
+    protected void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L195">        this._pageManager = pageManager;</span>
+<span class="fc" id="L196">    }</span>
+
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L199">        this._resourceManager = resourceManager;</span>
+<span class="fc" id="L200">    }</span>
+
+    private IContentManager _contentManager;
+    private IPageManager _pageManager;
+    private IResourceManager _resourceManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

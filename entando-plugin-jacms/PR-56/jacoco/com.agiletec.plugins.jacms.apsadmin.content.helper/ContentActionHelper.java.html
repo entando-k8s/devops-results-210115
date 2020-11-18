@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentActionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content.helper</a> &gt; <span class="el_source">ContentActionHelper.java</span></div><h1>ContentActionHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content.helper;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.struts2.ServletActionContext;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.plugins.jacms.aps.system.services.content.helper.IContentHelper;
+import org.entando.entando.plugins.jacms.aps.util.CmsPageUtil;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.PageMetadata;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.entity.EntityActionHelper;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentUtilizer;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+import com.opensymphony.xwork2.ActionSupport;
+
+/**
+ * Classe Helper della ContentAction.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L56">public class ContentActionHelper extends EntityActionHelper implements IContentActionHelper {</span>
+
+<span class="fc" id="L58">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentActionHelper.class);</span>
+    
+    private static final String MAIN_GROUP = &quot;mainGroup&quot;;
+    private static final String DESCR = &quot;descr&quot;;
+
+    private IContentManager contentManager;
+    private IContentHelper contentHelper;
+
+    private IContentAuthorizationHelper contentAuthorizationHelper;
+
+    @Override
+    public void updateContent(IApsEntity entity, boolean updateMainGroup, HttpServletRequest request) {
+<span class="fc" id="L70">        this.updateEntity(entity, request);</span>
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">        if (null != entity &amp;&amp; updateMainGroup) {</span>
+<span class="fc" id="L72">            Content content = (Content) entity;</span>
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">            if (null == content.getId() &amp;&amp; StringUtils.isEmpty(content.getMainGroup())) {</span>
+<span class="nc" id="L74">                String mainGroup = request.getParameter(MAIN_GROUP);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                if (mainGroup != null) {</span>
+<span class="nc" id="L76">                    content.setMainGroup(mainGroup);</span>
+                }
+            }
+        }
+<span class="fc" id="L80">    }</span>
+
+    @Override
+    public void updateEntity(IApsEntity entity, HttpServletRequest request) {
+<span class="fc" id="L84">        Content content = (Content) entity;</span>
+        try {
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">            if (null != content) {</span>
+<span class="fc" id="L87">                String descr = request.getParameter(DESCR);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                if (descr != null) {</span>
+<span class="fc" id="L89">                    content.setDescription(descr.trim());</span>
+                }
+<span class="fc" id="L91">                String status = request.getParameter(&quot;status&quot;);</span>
+                // The status should never be an empty string, however it could
+                // happen that an issue on JSP produces an empty status.
+                // Because JSP are not so testable, the empty check is kept here
+                // in order to make this method more robust against possible JSP
+                // issues.
+<span class="pc bpc" id="L97" title="3 of 4 branches missed.">                if (status != null &amp;&amp; !status.trim().isEmpty()) {</span>
+<span class="nc" id="L98">                    content.setStatus(status);</span>
+                }
+<span class="fc bfc" id="L100" title="All 2 branches covered.">                if (null == content.getId()) {</span>
+<span class="fc" id="L101">                    String mainGroup = request.getParameter(MAIN_GROUP);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">                    if (mainGroup != null) {</span>
+<span class="fc" id="L103">                        request.getSession().setAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_GROUP, mainGroup);</span>
+                    }
+                }
+<span class="fc" id="L106">                super.updateEntity(content, request);</span>
+<span class="fc" id="L107">                String description = content.getDescription();</span>
+<span class="fc bfc" id="L108" title="All 4 branches covered.">                if (null == description || description.trim().length() == 0) {</span>
+<span class="fc" id="L109">                    ITextAttribute titleAttribute = (ITextAttribute) content.getAttributeByRole(JacmsSystemConstants.ATTRIBUTE_ROLE_TITLE);</span>
+<span class="pc bpc" id="L110" title="1 of 4 branches missed.">                    if (null != titleAttribute &amp;&amp; StringUtils.isNotEmpty(titleAttribute.getText())) {</span>
+<span class="fc" id="L111">                        content.setDescription(titleAttribute.getText());</span>
+                    }
+                }
+            }
+<span class="nc" id="L115">        } catch (Throwable t) {</span>
+<span class="nc" id="L116">            logger.error(&quot;ContentActionHelper - updateContent&quot;, t);</span>
+<span class="nc" id="L117">            throw new RuntimeException(&quot;Error updating Content&quot;, t);</span>
+<span class="fc" id="L118">        }</span>
+<span class="fc" id="L119">    }</span>
+
+    @Override
+    public void scanEntity(IApsEntity entity, ActionSupport action) {
+<span class="fc" id="L123">        Content content = (Content) entity;</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (null == content) {</span>
+<span class="nc" id="L125">            logger.error(&quot;Null Content&quot;);</span>
+<span class="nc" id="L126">            return;</span>
+        }
+<span class="fc" id="L128">        String descr = content.getDescription();</span>
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">        if (descr == null || descr.length() == 0) {</span>
+<span class="fc" id="L130">            action.addFieldError(DESCR, action.getText(&quot;error.content.descr.required&quot;));</span>
+        } else {
+<span class="fc" id="L132">            int maxLength = 250;</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">            if (descr.length() &gt; maxLength) {</span>
+<span class="fc" id="L134">                String[] args = {String.valueOf(maxLength)};</span>
+<span class="fc" id="L135">                action.addFieldError(DESCR, action.getText(&quot;error.content.descr.wrongMaxLength&quot;, args));</span>
+            }
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            if (!descr.matches(&quot;([^\&quot;])+&quot;)) {</span>
+<span class="nc" id="L138">                action.addFieldError(DESCR, action.getText(&quot;error.content.descr.wrongCharacters&quot;));</span>
+            }
+        }
+<span class="pc bpc" id="L141" title="2 of 6 branches missed.">        if (null == content.getId() &amp;&amp; (content.getMainGroup() == null || content.getMainGroup().length() == 0)) {</span>
+<span class="nc" id="L142">            action.addFieldError(MAIN_GROUP, action.getText(&quot;error.content.mainGroup.required&quot;));</span>
+        }
+        try {
+<span class="fc" id="L145">            this.scanReferences(content, action);</span>
+<span class="fc" id="L146">            super.scanEntity(content, action);</span>
+<span class="nc" id="L147">        } catch (Throwable t) {</span>
+<span class="nc" id="L148">            logger.error(&quot;ContentActionHelper - scanEntity&quot;, t);</span>
+<span class="nc" id="L149">            throw new RuntimeException(&quot;Error checking entity&quot;, t);</span>
+<span class="fc" id="L150">        }</span>
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    public EntitySearchFilter getOrderFilter(String groupBy, String order) {
+<span class="fc" id="L155">        String key = null;</span>
+<span class="pc bpc" id="L156" title="1 of 6 branches missed.">        if (null == groupBy || groupBy.trim().length() == 0 || groupBy.equals(&quot;lastModified&quot;)) {</span>
+<span class="fc" id="L157">            key = IContentManager.CONTENT_MODIFY_DATE_FILTER_KEY;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        } else if (groupBy.equals(&quot;code&quot;)) {</span>
+<span class="fc" id="L159">            key = IContentManager.ENTITY_ID_FILTER_KEY;</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">        } else if (groupBy.equals(DESCR)) {</span>
+<span class="nc" id="L161">            key = IContentManager.CONTENT_DESCR_FILTER_KEY;</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        } else if (groupBy.equals(&quot;created&quot;)) {</span>
+<span class="fc" id="L163">            key = IContentManager.CONTENT_CREATION_DATE_FILTER_KEY;</span>
+        } else {
+<span class="nc" id="L165">            throw new RuntimeException(&quot;Invalid Filter '&quot; + groupBy + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L167">        EntitySearchFilter filter = new EntitySearchFilter(key, false);</span>
+<span class="pc bpc" id="L168" title="1 of 4 branches missed.">        if (null == order || order.trim().length() == 0) {</span>
+<span class="fc" id="L169">            filter.setOrder(EntitySearchFilter.DESC_ORDER);</span>
+        } else {
+<span class="fc" id="L171">            filter.setOrder(order);</span>
+        }
+<span class="fc" id="L173">        return filter;</span>
+    }
+
+    /**
+     * Verifica che l'utente corrente possegga i diritti di accesso al contenuto
+     * selezionato.
+     *
+     * @param content Il contenuto.
+     * @param currentUser Il contenuto corrente.
+     * @return True nel caso che l'utente corrente abbia i permessi di
+     * lettura/scrittura sul contenuto, false in caso contrario.
+     */
+    @Override
+    public boolean isUserAllowed(Content content, UserDetails currentUser) {
+        try {
+<span class="fc" id="L188">            return this.getContentAuthorizationHelper().isAuthToEdit(currentUser, content);</span>
+<span class="nc" id="L189">        } catch (Throwable t) {</span>
+<span class="nc" id="L190">            logger.error(&quot;Error checking user authority&quot;, t);</span>
+<span class="nc" id="L191">            throw new RuntimeException(&quot;Error checking user authority&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public Map getReferencingObjects(Content content, HttpServletRequest request) throws EntException {
+<span class="fc" id="L197">        return this.getContentHelper().getReferencingObjects(content);</span>
+    }
+
+    /**
+     * Controlla le referenziazioni di un contenuto. Verifica la referenziazione
+     * di un contenuto con altri contenuti o pagine nel caso di operazioni di
+     * ripubblicazione di contenuti non del gruppo ad accesso libero.
+     * L'operazione si rende necessaria per ovviare a casi nel cui il contenuto,
+     * di un particolare gruppo, sia stato pubblicato precedentemente in una
+     * pagina o referenziato in un'altro contenuto grazie alla associazione di
+     * questo con altri gruppi abilitati alla visualizzazione. Il controllo
+     * evidenzia quali devono essere i gruppi al quale il contenuto deve essere
+     * necessariamente associato (ed il perchè) per salvaguardare le precedenti
+     * relazioni.
+     *
+     * @param content Il contenuto da analizzare.
+     * @param action L'action da valorizzare con i messaggi di errore.
+     * @throws EntException In caso di errore.
+     */
+    @Override
+    public void scanReferences(Content content, ActionSupport action) throws EntException {
+<span class="pc bpc" id="L218" title="1 of 4 branches missed.">        if (!Group.FREE_GROUP_NAME.equals(content.getMainGroup()) &amp;&amp; !content.getGroups().contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L219">            HttpServletRequest request = ServletActionContext.getRequest();</span>
+            try {
+<span class="fc" id="L221">                String[] defNames = ApsWebApplicationUtils.getWebApplicationContext(request).getBeanNamesForType(ContentUtilizer.class);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">                for (int i = 0; i &lt; defNames.length; i++) {</span>
+<span class="fc" id="L223">                    Object service = null;</span>
+                    try {
+<span class="fc" id="L225">                        service = ApsWebApplicationUtils.getWebApplicationContext(request).getBean(defNames[i]);</span>
+<span class="nc" id="L226">                    } catch (Throwable t) {</span>
+<span class="nc" id="L227">                        logger.error(&quot;error loading ReferencingObject &quot;, t);</span>
+<span class="nc" id="L228">                        service = null;</span>
+<span class="fc" id="L229">                    }</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">                    if (service != null) {</span>
+<span class="fc" id="L231">                        ContentUtilizer contentUtilizer = (ContentUtilizer) service;</span>
+<span class="fc" id="L232">                        List&lt;Object&gt; utilizers = contentUtilizer.getContentUtilizers(content.getId());</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">                        if (null == utilizers) {</span>
+<span class="nc" id="L234">                            continue;</span>
+                        }
+<span class="fc" id="L236">                        Lang lang = this.getLangManager().getDefaultLang();</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">                        for (int j = 0; j &lt; utilizers.size(); j++) {</span>
+<span class="fc" id="L238">                            Object object = utilizers.get(j);</span>
+<span class="pc bpc" id="L239" title="1 of 4 branches missed.">                            if (service instanceof IContentManager &amp;&amp; object instanceof String) { // Content</span>
+                                // ID
+<span class="fc" id="L241">                                Content refContent = this.getContentManager().loadContent(object.toString(), true);</span>
+<span class="pc bpc" id="L242" title="2 of 4 branches missed.">                                if (!content.getMainGroup().equals(refContent.getMainGroup()) &amp;&amp; !content.getGroups().contains(refContent</span>
+<span class="fc" id="L243">                                        .getMainGroup())) {</span>
+<span class="fc" id="L244">                                    String[] args = {this.getGroupManager().getGroup(refContent.getMainGroup()).getDescription(), object</span>
+<span class="fc" id="L245">                                        .toString() + &quot; '&quot; + refContent.getDescription() + &quot;'&quot;};</span>
+<span class="fc" id="L246">                                    action.addFieldError(MAIN_GROUP, action.getText(&quot;error.content.referencedContent.wrongGroups&quot;, args));</span>
+                                }
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">                            } else if (object instanceof IPage) { // Content ID</span>
+<span class="fc" id="L249">                                IPage page = (IPage) object;</span>
+                                // Verifies the online version. On putting the
+                                // page online, must be done the same check
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">                                if (!CmsPageUtil.isContentPublishableOnPageOnline(content, page)) {</span>
+<span class="fc" id="L253">                                    PageMetadata metadata = page.getMetadata();</span>
+<span class="fc" id="L254">                                    List&lt;String&gt; pageGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L255">                                    pageGroups.add(page.getGroup());</span>
+<span class="pc bpc" id="L256" title="2 of 4 branches missed.">                                    if (metadata != null &amp;&amp; null != metadata.getExtraGroups()) {</span>
+<span class="nc" id="L257">                                        pageGroups.addAll(metadata.getExtraGroups());</span>
+                                    }
+<span class="fc" id="L259">                                    String[] args = {pageGroups.toString(), page.getTitle(lang.getCode())};</span>
+<span class="fc" id="L260">                                    action.addFieldError(MAIN_GROUP, action.getText(&quot;error.content.referencedPage.wrongGroups&quot;, args));</span>
+                                }
+                            }
+                        }
+                    }
+                }
+<span class="nc" id="L266">            } catch (Throwable t) {</span>
+<span class="nc" id="L267">                throw new EntException(&quot;Error in hasReferencingObject method&quot;, t);</span>
+<span class="fc" id="L268">            }</span>
+        }
+<span class="fc" id="L270">    }</span>
+
+    @Override
+    public ActivityStreamInfo createActivityStreamInfo(Content content, int strutsAction, boolean addLink) {
+<span class="fc" id="L274">        ActivityStreamInfo asi = new ActivityStreamInfo();</span>
+<span class="fc" id="L275">        asi.setActionType(strutsAction);</span>
+<span class="fc" id="L276">        Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="fc" id="L277">        Properties titles = new Properties();</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        titles.setProperty(defaultLang.getCode(), (null != content.getDescription()) ? content.getDescription() : &quot;-&quot;);</span>
+<span class="fc" id="L279">        asi.setObjectTitles(titles);</span>
+<span class="fc bfc" id="L280" title="All 2 branches covered.">        if (addLink) {</span>
+<span class="fc" id="L281">            asi.setLinkNamespace(&quot;/do/jacms/Content&quot;);</span>
+<span class="fc" id="L282">            asi.setLinkActionName(&quot;edit&quot;);</span>
+<span class="fc" id="L283">            asi.addLinkParameter(&quot;contentId&quot;, content.getId());</span>
+<span class="fc" id="L284">            asi.setLinkAuthGroup(content.getMainGroup());</span>
+<span class="fc" id="L285">            asi.setLinkAuthPermission(Permission.CONTENT_EDITOR);</span>
+        }
+<span class="fc" id="L287">        List&lt;String&gt; groupCodes = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">        if (null != content.getMainGroup()) {</span>
+<span class="fc" id="L289">            groupCodes.addAll(content.getGroups());</span>
+        }
+<span class="fc" id="L291">        groupCodes.add(content.getMainGroup());</span>
+<span class="fc" id="L292">        asi.setGroups(groupCodes);</span>
+<span class="fc" id="L293">        return asi;</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L297">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L301">        this.contentManager = contentManager;</span>
+<span class="fc" id="L302">    }</span>
+
+    protected IContentHelper getContentHelper() {
+<span class="fc" id="L305">        return contentHelper;</span>
+    }
+
+    public void setContentHelper(IContentHelper contentHelper) {
+<span class="fc" id="L309">        this.contentHelper = contentHelper;</span>
+<span class="fc" id="L310">    }</span>
+
+    protected IContentAuthorizationHelper getContentAuthorizationHelper() {
+<span class="fc" id="L313">        return contentAuthorizationHelper;</span>
+    }
+
+    public void setContentAuthorizationHelper(IContentAuthorizationHelper contentAuthorizationHelper) {
+<span class="fc" id="L317">        this.contentAuthorizationHelper = contentAuthorizationHelper;</span>
+<span class="fc" id="L318">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
