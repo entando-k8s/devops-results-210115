@@ -1,0 +1,688 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentListViewerWidgetAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.portal.specialwidget.listviewer</a> &gt; <span class="el_source">ContentListViewerWidgetAction.java</span></div><h1>ContentListViewerWidgetAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.portal.specialwidget.listviewer;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.portal.specialwidget.SimpleWidgetConfigAction;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SmallContentType;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.ContentListHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.IContentListWidgetHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.UserFilterOptionBean;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.util.FilterUtils;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.IContentModelManager;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+
+/**
+ * Action per la gestione della configurazione della showlet erogatore avanzato
+ * lista contenuti.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L52">public class ContentListViewerWidgetAction extends SimpleWidgetConfigAction {</span>
+
+<span class="fc" id="L54">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentListViewerWidgetAction.class);</span>
+
+	@Override
+	public void validate() {
+<span class="fc" id="L58">		super.validate();</span>
+		try {
+<span class="fc bfc" id="L60" title="All 2 branches covered.">			if (null == this.getFieldErrors().get(&quot;contentType&quot;)) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">				if (null == this.getContentManager().createContentType(this.getContentType())) {</span>
+<span class="fc" id="L62">					this.addFieldError(&quot;contentType&quot;, this.getText(&quot;error.widget.listViewer.invalidContentType&quot;, new String[]{this.getContentType()}));</span>
+				}
+			}
+<span class="pc bpc" id="L65" title="1 of 4 branches missed.">			if (this.getActionErrors().size() &gt; 0 || this.getFieldErrors().size() &gt; 0) {</span>
+<span class="fc" id="L66">				this.setWidget(super.createNewShowlet());</span>
+<span class="fc" id="L67">				return;</span>
+			}
+<span class="fc" id="L69">			this.createValuedShowlet();</span>
+<span class="fc" id="L70">			this.validateTitle();</span>
+<span class="fc" id="L71">			this.validateLink();</span>
+<span class="nc" id="L72">		} catch (Throwable t) {</span>
+<span class="nc" id="L73">			_logger.error(&quot;Error validating list viewer&quot;, t);</span>
+<span class="fc" id="L74">		}</span>
+<span class="fc" id="L75">	}</span>
+
+	protected void validateTitle() {
+<span class="fc" id="L78">		String titleParamPrefix = IContentListWidgetHelper.WIDGET_PARAM_TITLE + &quot;_&quot;;</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">		if (this.isMultilanguageParamValued(titleParamPrefix)) {</span>
+<span class="nc" id="L80">			Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="nc" id="L81">			String defaultTitleParam = titleParamPrefix + defaultLang.getCode();</span>
+<span class="nc" id="L82">			String defaultTitle = this.getWidget().getConfig().getProperty(defaultTitleParam);</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">			if (defaultTitle == null || defaultTitle.length() == 0) {</span>
+<span class="nc" id="L84">				String[] args = {defaultLang.getDescr()};</span>
+<span class="nc" id="L85">				this.addFieldError(defaultTitleParam, this.getText(&quot;error.widget.listViewer.defaultLangTitle.required&quot;, args));</span>
+			}
+		}
+<span class="fc" id="L88">	}</span>
+
+	protected void validateLink() {
+<span class="fc" id="L91">		String pageLink = this.getWidget().getConfig().getProperty(IContentListWidgetHelper.WIDGET_PARAM_PAGE_LINK);</span>
+<span class="pc bpc" id="L92" title="3 of 4 branches missed.">		boolean existsPageLink = pageLink != null &amp;&amp; this.getPage(pageLink) != null;</span>
+<span class="fc" id="L93">		String linkDescrParamPrefix = IContentListWidgetHelper.WIDGET_PARAM_PAGE_LINK_DESCR + &quot;_&quot;;</span>
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">		if (existsPageLink || this.isMultilanguageParamValued(linkDescrParamPrefix)) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">			if (!existsPageLink) {</span>
+<span class="nc" id="L96">				this.addFieldError(IContentListWidgetHelper.WIDGET_PARAM_PAGE_LINK, this.getText(&quot;error.widget.listViewer.pageLink.required&quot;));</span>
+			}
+<span class="nc" id="L98">			Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="nc" id="L99">			String defaultLinkDescrParam = linkDescrParamPrefix + defaultLang.getCode();</span>
+<span class="nc" id="L100">			String defaultLinkDescr = this.getWidget().getConfig().getProperty(defaultLinkDescrParam);</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">			if (defaultLinkDescr == null || defaultLinkDescr.length() == 0) {</span>
+<span class="nc" id="L102">				String[] args = {defaultLang.getDescr()};</span>
+<span class="nc" id="L103">				this.addFieldError(defaultLinkDescrParam, this.getText(&quot;error.widget.listViewer.defaultLangLink.required&quot;, args));</span>
+			}
+		}
+<span class="fc" id="L106">	}</span>
+
+	private boolean isMultilanguageParamValued(String prefix) {
+<span class="fc" id="L109">		ApsProperties config = this.getWidget().getConfig();</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">		if (null == config) {</span>
+<span class="nc" id="L111">			return false;</span>
+		}
+<span class="fc bfc" id="L113" title="All 2 branches covered.">		for (int i = 0; i &lt; this.getLangs().size(); i++) {</span>
+<span class="fc" id="L114">			Lang lang = this.getLangs().get(i);</span>
+<span class="fc" id="L115">			String paramValue = config.getProperty(prefix + lang.getCode());</span>
+<span class="pc bpc" id="L116" title="3 of 4 branches missed.">			if (null != paramValue &amp;&amp; paramValue.trim().length() &gt; 0) {</span>
+<span class="nc" id="L117">				return true;</span>
+			}
+		}
+<span class="fc" id="L120">		return false;</span>
+	}
+
+	@Override
+	public String init() {
+		try {
+<span class="fc" id="L126">			super.init();</span>
+<span class="fc" id="L127">			ApsProperties config = this.getWidget().getConfig();</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">			if (null == config) {</span>
+<span class="nc" id="L129">				return SUCCESS;</span>
+			}
+<span class="fc" id="L131">			this.extractFiltersProperties(config);</span>
+<span class="fc" id="L132">			this.extractUserFiltersProperties(config);</span>
+<span class="fc" id="L133">			this.extractCategories(config);</span>
+<span class="nc" id="L134">		} catch (Throwable t) {</span>
+<span class="nc" id="L135">			_logger.error(&quot;error in init&quot;, t);</span>
+<span class="nc" id="L136">			return FAILURE;</span>
+<span class="fc" id="L137">		}</span>
+<span class="fc" id="L138">		return SUCCESS;</span>
+	}
+
+	@Override
+	public String save() {
+<span class="nc" id="L143">		this.validateFilters();</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">		if (this.hasFieldErrors()) {</span>
+<span class="nc" id="L145">			return INPUT;</span>
+		}
+<span class="nc" id="L147">		return super.save();</span>
+	}
+
+	protected void validateFilters() {
+<span class="nc" id="L151">		WidgetType type = this.getWidget().getType();</span>
+<span class="nc" id="L152">		ApsProperties config = this.getWidget().getConfig();</span>
+<span class="nc bnc" id="L153" title="All 10 branches missed.">		if (null != config &amp;&amp; null != type &amp;&amp; type.hasParameter(&quot;categories&quot;) &amp;&amp; type.hasParameter(&quot;maxElemForItem&quot;) &amp;&amp; type.hasParameter(&quot;maxElements&quot;)</span>
+<span class="nc bnc" id="L154" title="All 8 branches missed.">				&amp;&amp; StringUtils.isNotEmpty(config.getProperty(&quot;contentType&quot;)) &amp;&amp; StringUtils.isEmpty(config.getProperty(&quot;categories&quot;)) &amp;&amp; StringUtils.isEmpty(config.getProperty(&quot;maxElemForItem&quot;)) &amp;&amp; StringUtils.isEmpty(config.getProperty(&quot;maxElements&quot;))) {</span>
+<span class="nc" id="L155">			this.addFieldError(&quot;categories&quot;, this.getText(&quot;error.widget.listViewer.parameters.invalid&quot;));</span>
+		}
+<span class="nc" id="L157">	}</span>
+
+	public String configContentType() {
+		try {
+<span class="fc" id="L161">			Widget widget = super.createNewShowlet();</span>
+<span class="fc" id="L162">			widget.getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_CONTENT_TYPE, this.getContentType());</span>
+<span class="fc" id="L163">			this.setWidget(widget);</span>
+<span class="nc" id="L164">		} catch (Throwable t) {</span>
+<span class="nc" id="L165">			_logger.error(&quot;error in configContentType&quot;, t);</span>
+<span class="nc" id="L166">			return FAILURE;</span>
+<span class="fc" id="L167">		}</span>
+<span class="fc" id="L168">		return SUCCESS;</span>
+	}
+
+	public String changeContentType() {
+		try {
+<span class="nc" id="L173">			Widget widget = super.createNewShowlet();</span>
+<span class="nc" id="L174">			this.setWidget(widget);</span>
+<span class="nc" id="L175">		} catch (Throwable t) {</span>
+<span class="nc" id="L176">			_logger.error(&quot;error in changeContentType&quot;, t);</span>
+<span class="nc" id="L177">			return FAILURE;</span>
+<span class="nc" id="L178">		}</span>
+<span class="nc" id="L179">		return SUCCESS;</span>
+	}
+
+	public String addCategory() {
+<span class="nc" id="L183">		return this.addRemoveCategory(true);</span>
+	}
+
+	public String removeCategory() {
+<span class="nc" id="L187">		return this.addRemoveCategory(false);</span>
+	}
+
+	protected String addRemoveCategory(boolean add) {
+		try {
+<span class="nc" id="L192">			this.createValuedShowlet();</span>
+<span class="nc" id="L193">			List&lt;String&gt; categoryCodes = this.getCategoryCodes();</span>
+<span class="nc" id="L194">			String category = this.getCategoryCode();</span>
+<span class="nc bnc" id="L195" title="All 6 branches missed.">			if (add &amp;&amp; category != null &amp;&amp; category.length() &gt; 0</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">					&amp;&amp; !categoryCodes.contains(category)</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">					&amp;&amp; this.getCategoryManager().getCategory(category) != null) {</span>
+<span class="nc" id="L198">				categoryCodes.add(category);</span>
+			} else {
+<span class="nc" id="L200">				categoryCodes.remove(category);</span>
+			}
+<span class="nc" id="L202">			String categories = ContentListHelper.concatStrings(categoryCodes, IContentListWidgetHelper.CATEGORIES_SEPARATOR);</span>
+<span class="nc" id="L203">			this.getWidget().getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_CATEGORIES, categories);</span>
+<span class="nc" id="L204">		} catch (Throwable t) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">			String marker = (add) ? &quot;adding&quot; : &quot;removing&quot;;</span>
+<span class="nc" id="L206">			_logger.error(&quot;Error {} category : '{}'&quot;, marker, this.getCategoryCode(), t);</span>
+<span class="nc" id="L207">			return FAILURE;</span>
+<span class="nc" id="L208">		}</span>
+<span class="nc" id="L209">		return SUCCESS;</span>
+	}
+
+	public List&lt;SelectItem&gt; getAllowedUserFilterTypes() throws EntException {
+<span class="nc" id="L213">		List&lt;SelectItem&gt; types = new ArrayList&lt;SelectItem&gt;();</span>
+		try {
+<span class="nc" id="L215">			types.add(new SelectItem(UserFilterOptionBean.KEY_FULLTEXT, this.getText(&quot;label.fulltext&quot;)));</span>
+<span class="nc" id="L216">			types.add(new SelectItem(UserFilterOptionBean.KEY_CATEGORY, this.getText(&quot;label.category&quot;)));</span>
+<span class="nc" id="L217">			String contentType = this.getWidget().getConfig().getProperty(IContentListWidgetHelper.WIDGET_PARAM_CONTENT_TYPE);</span>
+<span class="nc" id="L218">			Content prototype = this.getContentManager().createContentType(contentType);</span>
+<span class="nc" id="L219">			List&lt;AttributeInterface&gt; contentAttributes = prototype.getAttributeList();</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">			for (int i = 0; i &lt; contentAttributes.size(); i++) {</span>
+<span class="nc" id="L221">				AttributeInterface attribute = contentAttributes.get(i);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">				if (attribute.isSearchable()) {</span>
+<span class="nc" id="L223">					types.add(new SelectItem(UserFilterOptionBean.TYPE_ATTRIBUTE + &quot;_&quot; + attribute.getName(), this.getText(&quot;label.attribute&quot;, new String[]{attribute.getName()})));</span>
+				}
+			}
+<span class="nc" id="L226">		} catch (Throwable t) {</span>
+<span class="nc" id="L227">			_logger.error(&quot;Error extracting allowed user filter types&quot;, t);</span>
+<span class="nc" id="L228">			throw new EntException(&quot;Error extracting allowed user filter types&quot;, t);</span>
+<span class="nc" id="L229">		}</span>
+<span class="nc" id="L230">		return types;</span>
+	}
+
+	public List&lt;SelectItem&gt; getAllowedFilterTypes() throws EntException {
+<span class="nc" id="L234">		List&lt;SelectItem&gt; types = new ArrayList&lt;SelectItem&gt;();</span>
+		try {
+<span class="nc" id="L236">			types.add(new SelectItem(IContentListFilterAction.METADATA_KEY_PREFIX + IContentManager.CONTENT_CREATION_DATE_FILTER_KEY, this.getText(&quot;label.creationDate&quot;)));</span>
+<span class="nc" id="L237">			types.add(new SelectItem(IContentListFilterAction.METADATA_KEY_PREFIX + IContentManager.CONTENT_MODIFY_DATE_FILTER_KEY, this.getText(&quot;label.lastModifyDate&quot;)));</span>
+<span class="nc" id="L238">			String contentType = this.getWidget().getConfig().getProperty(IContentListWidgetHelper.WIDGET_PARAM_CONTENT_TYPE);</span>
+<span class="nc" id="L239">			Content prototype = this.getContentManager().createContentType(contentType);</span>
+<span class="nc" id="L240">			List&lt;AttributeInterface&gt; contentAttributes = prototype.getAttributeList();</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">			for (int i = 0; i &lt; contentAttributes.size(); i++) {</span>
+<span class="nc" id="L242">				AttributeInterface attribute = contentAttributes.get(i);</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">				if (attribute.isSearchable()) {</span>
+<span class="nc" id="L244">					types.add(new SelectItem(attribute.getName(), this.getText(&quot;label.attribute&quot;, new String[]{attribute.getName()})));</span>
+				}
+			}
+<span class="nc" id="L247">		} catch (Throwable t) {</span>
+<span class="nc" id="L248">			_logger.error(&quot;Error extracting allowed filter types&quot;, t);</span>
+<span class="nc" id="L249">			throw new EntException(&quot;Error extracting allowed filter types&quot;, t);</span>
+<span class="nc" id="L250">		}</span>
+<span class="nc" id="L251">		return types;</span>
+	}
+
+	public String addUserFilter() {
+		try {
+<span class="nc" id="L256">			this.createValuedShowlet();</span>
+<span class="nc" id="L257">			String filterKey = this.getUserFilterKey();</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">			if (filterKey.equals(UserFilterOptionBean.KEY_CATEGORY)) {</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">				if (null == this.getUserFilterCategoryCode()) {</span>
+<span class="nc" id="L260">					return &quot;userfiltercategory&quot;;</span>
+				}
+			}
+<span class="nc" id="L263">			Properties newUserFilter = this.createUserFilterProperties();</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">			if (null == newUserFilter) {</span>
+<span class="nc" id="L265">				this.addFieldError(&quot;userFilterKey&quot;, this.getText(&quot;error.widget.listViewer.invalidUserFilter&quot;));</span>
+<span class="nc" id="L266">				return INPUT;</span>
+			}
+<span class="nc" id="L268">			List&lt;Properties&gt; userFiltersProperties = this.getUserFiltersProperties();</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">			if (null != newUserFilter) {</span>
+<span class="nc" id="L270">				userFiltersProperties.add(newUserFilter);</span>
+			}
+<span class="nc" id="L272">			String newShowletParam = FilterUtils.getShowletParam(userFiltersProperties);</span>
+<span class="nc" id="L273">			this.getWidget().getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_USER_FILTERS, newShowletParam);</span>
+<span class="nc" id="L274">		} catch (Throwable t) {</span>
+<span class="nc" id="L275">			_logger.error(&quot;error in addUserFilter&quot;, t);</span>
+<span class="nc" id="L276">			return FAILURE;</span>
+<span class="nc" id="L277">		}</span>
+<span class="nc" id="L278">		return SUCCESS;</span>
+	}
+
+	protected Properties createUserFilterProperties() throws EntException {
+<span class="nc" id="L282">		String filterKey = this.getUserFilterKey();</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">		if (null == filterKey) {</span>
+<span class="nc" id="L284">			return null;</span>
+		}
+<span class="nc" id="L286">		Properties properties = new Properties();</span>
+		try {
+<span class="nc bnc" id="L288" title="All 2 branches missed.">			if (filterKey.equals(UserFilterOptionBean.KEY_FULLTEXT)) {</span>
+<span class="nc" id="L289">				properties.put(UserFilterOptionBean.PARAM_KEY, filterKey);</span>
+<span class="nc" id="L290">				properties.put(UserFilterOptionBean.PARAM_IS_ATTRIBUTE_FILTER, String.valueOf(false));</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			} else if (filterKey.equals(UserFilterOptionBean.KEY_CATEGORY)) {</span>
+<span class="nc" id="L292">				properties.put(UserFilterOptionBean.PARAM_KEY, filterKey);</span>
+<span class="nc" id="L293">				properties.put(UserFilterOptionBean.PARAM_IS_ATTRIBUTE_FILTER, String.valueOf(false));</span>
+<span class="nc bnc" id="L294" title="All 4 branches missed.">				if (null != this.getUserFilterCategoryCode() &amp;&amp; this.getUserFilterCategoryCode().trim().length() &gt; 0) {</span>
+<span class="nc" id="L295">					properties.put(UserFilterOptionBean.PARAM_CATEGORY_CODE, this.getUserFilterCategoryCode());</span>
+				}
+
+<span class="nc bnc" id="L298" title="All 2 branches missed.">			} else if (filterKey.startsWith(UserFilterOptionBean.TYPE_ATTRIBUTE + &quot;_&quot;)) {</span>
+<span class="nc" id="L299">				properties.put(UserFilterOptionBean.PARAM_KEY, filterKey.substring((UserFilterOptionBean.TYPE_ATTRIBUTE + &quot;_&quot;).length()));</span>
+<span class="nc" id="L300">				properties.put(UserFilterOptionBean.PARAM_IS_ATTRIBUTE_FILTER, String.valueOf(true));</span>
+			}
+<span class="nc bnc" id="L302" title="All 2 branches missed.">			if (properties.isEmpty()) {</span>
+<span class="nc" id="L303">				return null;</span>
+			}
+<span class="nc" id="L305">		} catch (Throwable t) {</span>
+<span class="nc" id="L306">			_logger.error(&quot;Error creating user filter&quot;, t);</span>
+<span class="nc" id="L307">			throw new EntException(&quot;Error creating user filter&quot;, t);</span>
+<span class="nc" id="L308">		}</span>
+<span class="nc" id="L309">		return properties;</span>
+	}
+
+	public String moveUserFilter() {
+<span class="nc" id="L313">		return this.removeMoveUserFilter(true);</span>
+	}
+
+	public String removeUserFilter() {
+<span class="nc" id="L317">		return this.removeMoveUserFilter(false);</span>
+	}
+
+	protected String removeMoveUserFilter(boolean move) {
+		try {
+<span class="nc" id="L322">			this.createValuedShowlet();</span>
+<span class="nc" id="L323">			List&lt;Properties&gt; userFiltersProperties = this.getUserFiltersProperties();</span>
+<span class="nc" id="L324">			int filterIndex = this.getFilterIndex();</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if (move) {</span>
+<span class="nc" id="L326">				Properties element = userFiltersProperties.get(filterIndex);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">				if (getMovement().equalsIgnoreCase(ApsAdminSystemConstants.MOVEMENT_UP_CODE)) {</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">					if (filterIndex &gt; 0) {</span>
+<span class="nc" id="L329">						userFiltersProperties.remove(filterIndex);</span>
+<span class="nc" id="L330">						userFiltersProperties.add(filterIndex - 1, element);</span>
+					}
+<span class="nc bnc" id="L332" title="All 2 branches missed.">				} else if (getMovement().equalsIgnoreCase(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE)) {</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">					if (filterIndex &lt; userFiltersProperties.size() - 1) {</span>
+<span class="nc" id="L334">						userFiltersProperties.remove(filterIndex);</span>
+<span class="nc" id="L335">						userFiltersProperties.add(filterIndex + 1, element);</span>
+					}
+				}
+<span class="nc" id="L338">			} else {</span>
+<span class="nc" id="L339">				userFiltersProperties.remove(filterIndex);</span>
+			}
+<span class="nc" id="L341">			String newShowletParam = FilterUtils.getShowletParam(userFiltersProperties);</span>
+<span class="nc" id="L342">			this.getWidget().getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_USER_FILTERS, newShowletParam);</span>
+<span class="nc" id="L343">		} catch (Throwable t) {</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">			String marker = (move) ? &quot;moving&quot; : &quot;removing&quot;;</span>
+<span class="nc" id="L345">			_logger.error(&quot;Error {} userFilter&quot;, marker, t);</span>
+<span class="nc" id="L346">			return FAILURE;</span>
+<span class="nc" id="L347">		}</span>
+<span class="nc" id="L348">		return SUCCESS;</span>
+	}
+
+	public String addFilter() {
+		try {
+<span class="fc" id="L353">			this.createValuedShowlet();</span>
+<span class="fc" id="L354">			List&lt;Properties&gt; properties = this.getFiltersProperties();</span>
+<span class="fc" id="L355">			properties.add(this.getNewFilter());</span>
+<span class="fc" id="L356">			String newShowletParam = FilterUtils.getShowletParam(properties);</span>
+<span class="fc" id="L357">			this.getWidget().getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_FILTERS, newShowletParam);</span>
+<span class="nc" id="L358">		} catch (Throwable t) {</span>
+<span class="nc" id="L359">			_logger.error(&quot;error in addFilter&quot;, t);</span>
+<span class="nc" id="L360">			return FAILURE;</span>
+<span class="fc" id="L361">		}</span>
+<span class="fc" id="L362">		return SUCCESS;</span>
+	}
+
+	public String moveFilter() {
+<span class="fc" id="L366">		return this.moveRemoveFilter(true);</span>
+	}
+
+	public String removeFilter() {
+<span class="fc" id="L370">		return this.moveRemoveFilter(false);</span>
+	}
+
+	protected String moveRemoveFilter(boolean move) {
+		try {
+<span class="fc" id="L375">			this.createValuedShowlet();</span>
+<span class="fc" id="L376">			List&lt;Properties&gt; userFiltersProperties = this.getFiltersProperties();</span>
+<span class="fc" id="L377">			int filterIndex = this.getFilterIndex();</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">			if (move) {</span>
+<span class="fc" id="L379">				Properties element = userFiltersProperties.get(filterIndex);</span>
+<span class="fc bfc" id="L380" title="All 2 branches covered.">				if (getMovement().equalsIgnoreCase(ApsAdminSystemConstants.MOVEMENT_UP_CODE)) {</span>
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">					if (filterIndex &gt; 0) {</span>
+<span class="fc" id="L382">						userFiltersProperties.remove(filterIndex);</span>
+<span class="fc" id="L383">						userFiltersProperties.add(filterIndex - 1, element);</span>
+					}
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">				} else if (getMovement().equalsIgnoreCase(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE)) {</span>
+<span class="pc bpc" id="L386" title="1 of 2 branches missed.">					if (filterIndex &lt; userFiltersProperties.size() - 1) {</span>
+<span class="fc" id="L387">						userFiltersProperties.remove(filterIndex);</span>
+<span class="fc" id="L388">						userFiltersProperties.add(filterIndex + 1, element);</span>
+					}
+				}
+<span class="fc" id="L391">			} else {</span>
+<span class="fc" id="L392">				userFiltersProperties.remove(filterIndex);</span>
+			}
+<span class="fc" id="L394">			String newShowletParam = FilterUtils.getShowletParam(userFiltersProperties);</span>
+<span class="fc" id="L395">			this.getWidget().getConfig().setProperty(IContentListWidgetHelper.WIDGET_PARAM_FILTERS, newShowletParam);</span>
+<span class="nc" id="L396">		} catch (Throwable t) {</span>
+<span class="nc bnc" id="L397" title="All 2 branches missed.">			String marker = (move) ? &quot;moving&quot; : &quot;removing&quot;;</span>
+<span class="nc" id="L398">			_logger.error(&quot;Error {} filter&quot;, marker, t);</span>
+<span class="nc" id="L399">			return FAILURE;</span>
+<span class="fc" id="L400">		}</span>
+<span class="fc" id="L401">		return SUCCESS;</span>
+	}
+
+	@Override
+	protected void createValuedShowlet() throws Exception {
+		try {
+<span class="fc" id="L407">			super.createValuedShowlet();</span>
+<span class="fc" id="L408">			ApsProperties config = this.getWidget().getConfig();</span>
+<span class="fc" id="L409">			this.extractFiltersProperties(config);</span>
+<span class="fc" id="L410">			this.extractUserFiltersProperties(config);</span>
+<span class="fc" id="L411">			this.extractCategories(config);</span>
+<span class="nc" id="L412">		} catch (Throwable t) {</span>
+<span class="nc" id="L413">			_logger.error(&quot;Error creating user filter&quot;, t);</span>
+<span class="nc" id="L414">			throw new EntException(&quot;Error creating user filter&quot;, t);</span>
+<span class="fc" id="L415">		}</span>
+<span class="fc" id="L416">	}</span>
+
+	private void extractFiltersProperties(ApsProperties config) {
+<span class="pc bpc" id="L419" title="1 of 2 branches missed.">		if (null == config) {</span>
+<span class="nc" id="L420">			return;</span>
+		}
+<span class="fc" id="L422">		String filters = config.getProperty(IContentListWidgetHelper.WIDGET_PARAM_FILTERS);</span>
+<span class="fc" id="L423">		List&lt;Properties&gt; properties = FilterUtils.getFiltersProperties(filters);</span>
+<span class="fc" id="L424">		this.setFiltersProperties(properties);</span>
+<span class="fc" id="L425">	}</span>
+
+	private void extractUserFiltersProperties(ApsProperties config) {
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">		if (null == config) {</span>
+<span class="nc" id="L429">			return;</span>
+		}
+<span class="fc" id="L431">		String filters = config.getProperty(IContentListWidgetHelper.WIDGET_PARAM_USER_FILTERS);</span>
+<span class="fc" id="L432">		List&lt;Properties&gt; properties = FilterUtils.getFiltersProperties(filters);</span>
+<span class="fc" id="L433">		this.setUserFiltersProperties(properties);</span>
+<span class="fc" id="L434">	}</span>
+
+	protected void extractCategories(ApsProperties config) {
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">		if (null == config) {</span>
+<span class="nc" id="L438">			return;</span>
+		}
+<span class="fc" id="L440">		String categories = config.getProperty(IContentListWidgetHelper.WIDGET_PARAM_CATEGORIES);</span>
+<span class="pc bpc" id="L441" title="1 of 2 branches missed.">		if (null != categories) {</span>
+<span class="nc" id="L442">			List&lt;String&gt; categoryCodes = ContentListHelper.splitValues(categories, IContentListWidgetHelper.CATEGORIES_SEPARATOR);</span>
+<span class="nc" id="L443">			this.setCategoryCodes(categoryCodes);</span>
+		}
+<span class="fc" id="L445">		String category = config.getProperty(IContentListWidgetHelper.SHOWLET_PARAM_CATEGORY);</span>
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">		if (null != category) {</span>
+<span class="nc bnc" id="L447" title="All 2 branches missed.">			if (null == this.getCategoryCodes()) {</span>
+<span class="nc" id="L448">				this.setCategoryCodes(new ArrayList&lt;String&gt;());</span>
+			}
+<span class="nc" id="L450">			this.getCategoryCodes().add(category);</span>
+		}
+<span class="pc bpc" id="L452" title="2 of 4 branches missed.">		if (null != this.getCategoryCodes() &amp;&amp; this.getCategoryCodes().size() &gt; 0) {</span>
+<span class="nc" id="L453">			categories = ContentListHelper.concatStrings(this.getCategoryCodes(), IContentListWidgetHelper.CATEGORIES_SEPARATOR);</span>
+<span class="nc" id="L454">			config.setProperty(IContentListWidgetHelper.WIDGET_PARAM_CATEGORIES, categories);</span>
+		}
+<span class="fc" id="L456">	}</span>
+
+	/**
+	 * Restituisce la lista di contenuti (in forma small) definiti nel sistema.
+	 * Il metodo è a servizio delle jsp che richiedono questo dato per fornire
+	 * una corretta visualizzazione della pagina.
+	 *
+	 * @return La lista di tipi di contenuto (in forma small) definiti nel
+	 * sistema.
+	 */
+	public List&lt;SmallContentType&gt; getContentTypes() {
+<span class="nc" id="L467">		return this.getContentManager().getSmallContentTypes();</span>
+	}
+
+	/**
+	 * Restituisce la lista di categorie definite nel sistema.
+	 *
+	 * @return La lista di categorie definite nel sistema.
+	 */
+	public List&lt;Category&gt; getCategories() {
+<span class="nc" id="L476">		return this.getCategoryManager().getCategoriesList();</span>
+	}
+
+	public Category getCategory(String categoryCode) {
+<span class="nc" id="L480">		return this.getCategoryManager().getCategory(categoryCode);</span>
+	}
+
+	/**
+	 * Restituisce la lista di Modelli di Contenuto compatibili con il tipo di
+	 * contenuto specificato.
+	 *
+	 * @param contentType Il tipo di contenuto cui restituire i modelli
+	 * compatibili.
+	 * @return La lista di Modelli di Contenuto compatibili con il tipo di
+	 * contenuto specificato.
+	 */
+	public List&lt;ContentModel&gt; getModelsForContentType(String contentType) {
+<span class="nc" id="L493">		return this.getContentModelManager().getModelsForContentType(contentType);</span>
+	}
+
+	public List&lt;IPage&gt; getPages() {
+<span class="nc bnc" id="L497" title="All 2 branches missed.">		if (this._pages == null) {</span>
+<span class="nc" id="L498">			this._pages = new ArrayList&lt;IPage&gt;();</span>
+<span class="nc" id="L499">			IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="nc" id="L500">			this.addPages(root, this._pages);</span>
+		}
+<span class="nc" id="L502">		return this._pages;</span>
+	}
+
+	protected void addPages(IPage page, List&lt;IPage&gt; pages) {
+<span class="nc" id="L506">		pages.add(page);</span>
+<span class="nc" id="L507">		String[] children = page.getChildrenCodes();</span>
+<span class="nc bnc" id="L508" title="All 2 branches missed.">		for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="nc" id="L509">			IPage child = this.getPageManager().getOnlinePage(children[i]);</span>
+<span class="nc" id="L510">			this.addPages(child, pages);</span>
+		}
+<span class="nc" id="L512">	}</span>
+
+	public String getContentType() {
+<span class="fc" id="L515">		return _contentType;</span>
+	}
+
+	public void setContentType(String contentType) {
+<span class="fc" id="L519">		this._contentType = contentType;</span>
+<span class="fc" id="L520">	}</span>
+
+	public String getModelId() {
+<span class="nc" id="L523">		return _modelId;</span>
+	}
+
+	public void setModelId(String modelId) {
+<span class="nc" id="L527">		this._modelId = modelId;</span>
+<span class="nc" id="L528">	}</span>
+
+	public String getCategoryCode() {
+<span class="nc" id="L531">		return _categoryCode;</span>
+	}
+
+	public void setCategoryCode(String categoryCode) {
+<span class="nc" id="L535">		this._categoryCode = categoryCode;</span>
+<span class="nc" id="L536">	}</span>
+
+	public List&lt;String&gt; getCategoryCodes() {
+<span class="fc" id="L539">		return _categoryCodes;</span>
+	}
+
+	public void setCategoryCodes(List&lt;String&gt; categoryCodes) {
+<span class="nc" id="L543">		this._categoryCodes = categoryCodes;</span>
+<span class="nc" id="L544">	}</span>
+
+	@Deprecated
+	public String getCategory() {
+<span class="nc" id="L548">		return this.getCategoryCode();</span>
+	}
+
+	@Deprecated
+	public void setCategory(String category) {
+<span class="nc" id="L553">		this.setCategoryCode(category);</span>
+<span class="nc" id="L554">	}</span>
+
+	public String getUserFilterKey() {
+<span class="nc" id="L557">		return _userFilterKey;</span>
+	}
+
+	public void setUserFilterKey(String userFilterKey) {
+<span class="nc" id="L561">		this._userFilterKey = userFilterKey;</span>
+<span class="nc" id="L562">	}</span>
+
+	public void setUserFiltersProperties(List&lt;Properties&gt; userFiltersProperties) {
+<span class="fc" id="L565">		this._userFiltersProperties = userFiltersProperties;</span>
+<span class="fc" id="L566">	}</span>
+
+	public List&lt;Properties&gt; getUserFiltersProperties() {
+<span class="nc" id="L569">		return _userFiltersProperties;</span>
+	}
+
+	public void setUserFilters(String userFilters) {
+<span class="nc" id="L573">		this._userFilters = userFilters;</span>
+<span class="nc" id="L574">	}</span>
+
+	public String getUserFilters() {
+<span class="nc" id="L577">		return _userFilters;</span>
+	}
+
+	public String getMaxElemForItem() {
+<span class="nc" id="L581">		return _maxElemForItem;</span>
+	}
+
+	public void setMaxElemForItem(String maxElemForItem) {
+<span class="nc" id="L585">		this._maxElemForItem = maxElemForItem;</span>
+<span class="nc" id="L586">	}</span>
+
+	public String getFilters() {
+<span class="nc" id="L589">		return _filters;</span>
+	}
+
+	public void setFilters(String filters) {
+<span class="fc" id="L593">		this._filters = filters;</span>
+<span class="fc" id="L594">	}</span>
+
+	public int getFilterIndex() {
+<span class="fc" id="L597">		return _filterIndex;</span>
+	}
+
+	public void setFilterIndex(int filterIndex) {
+<span class="fc" id="L601">		this._filterIndex = filterIndex;</span>
+<span class="fc" id="L602">	}</span>
+
+	public String getMovement() {
+<span class="fc" id="L605">		return _movement;</span>
+	}
+
+	public void setMovement(String movement) {
+<span class="fc" id="L609">		this._movement = movement;</span>
+<span class="fc" id="L610">	}</span>
+
+	public List&lt;Properties&gt; getFiltersProperties() {
+<span class="fc" id="L613">		return _filtersProperties;</span>
+	}
+
+	public void setFiltersProperties(List&lt;Properties&gt; filtersProperties) {
+<span class="fc" id="L617">		this._filtersProperties = filtersProperties;</span>
+<span class="fc" id="L618">	}</span>
+
+	public Properties getNewFilter() {
+<span class="fc" id="L621">		return _newFilter;</span>
+	}
+
+	public void setNewFilter(Properties newFilter) {
+<span class="fc" id="L625">		this._newFilter = newFilter;</span>
+<span class="fc" id="L626">	}</span>
+
+	public String getUserFilterCategoryCode() {
+<span class="nc" id="L629">		return _userFilterCategoryCode;</span>
+	}
+
+	public void setUserFilterCategoryCode(String userFilterCategoryCode) {
+<span class="nc" id="L633">		this._userFilterCategoryCode = userFilterCategoryCode;</span>
+<span class="nc" id="L634">	}</span>
+
+	protected IContentModelManager getContentModelManager() {
+<span class="nc" id="L637">		return _contentModelManager;</span>
+	}
+
+	public void setContentModelManager(IContentModelManager contentModelManager) {
+<span class="fc" id="L641">		this._contentModelManager = contentModelManager;</span>
+<span class="fc" id="L642">	}</span>
+
+	protected IContentManager getContentManager() {
+<span class="fc" id="L645">		return _contentManager;</span>
+	}
+
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L649">		this._contentManager = contentManager;</span>
+<span class="fc" id="L650">	}</span>
+
+	protected ICategoryManager getCategoryManager() {
+<span class="nc" id="L653">		return _categoryManager;</span>
+	}
+
+	public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L657">		this._categoryManager = categoryManager;</span>
+<span class="fc" id="L658">	}</span>
+
+	private String _contentType;
+	private String _modelId;
+
+	private String _categoryCode;
+<span class="fc" id="L664">	private List&lt;String&gt; _categoryCodes = new ArrayList&lt;String&gt;();</span>
+	private String _userFilterCategoryCode;
+
+	private String _userFilterKey;
+	private List&lt;Properties&gt; _userFiltersProperties;
+	private String _userFilters;
+
+	private String _maxElemForItem;
+	private String _filters;
+
+	private int _filterIndex;
+	private String _movement;
+
+	private List&lt;Properties&gt; _filtersProperties;
+
+	private Properties _newFilter;
+
+	private List&lt;IPage&gt; _pages;
+
+	private IContentModelManager _contentModelManager;
+	private IContentManager _contentManager;
+	private ICategoryManager _categoryManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
