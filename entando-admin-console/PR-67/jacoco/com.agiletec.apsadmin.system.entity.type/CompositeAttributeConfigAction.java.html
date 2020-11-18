@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CompositeAttributeConfigAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system.entity.type</a> &gt; <span class="el_source">CompositeAttributeConfigAction.java</span></div><h1>CompositeAttributeConfigAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system.entity.type;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AbstractListAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.CompositeAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.MonoListAttribute;
+
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L40">public class CompositeAttributeConfigAction extends AbstractBaseEntityAttributeConfigAction implements ICompositeAttributeConfigAction, BeanFactoryAware {</span>
+
+<span class="nc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CompositeAttributeConfigAction.class);</span>
+	
+	@Override
+	public void validate() {
+<span class="nc" id="L46">		super.validate();</span>
+<span class="nc" id="L47">		CompositeAttribute composite = this.getCompositeAttributeOnEdit();</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">		if (null != composite.getAttribute(this.getAttributeName())) {</span>
+<span class="nc" id="L49">			String[] args = {this.getAttributeName()};</span>
+<span class="nc" id="L50">			this.addFieldError(&quot;attributeName&quot;, this.getText(&quot;error.entity.attribute.name.already.exists&quot;, args));</span>
+		}
+<span class="nc" id="L52">	}</span>
+	
+	@Override
+	public String addAttributeElement() {
+<span class="nc" id="L56">		this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="nc" id="L57">		return SUCCESS;</span>
+	}
+	
+	@Override
+	public String moveAttributeElement() {
+		try {
+<span class="nc" id="L63">			CompositeAttribute composite = this.getCompositeAttributeOnEdit();</span>
+<span class="nc" id="L64">			int elementIndex = this.getAttributeIndex();</span>
+<span class="nc" id="L65">			String movement = this.getMovement();</span>
+<span class="nc" id="L66">			List&lt;AttributeInterface&gt; attributes = composite.getAttributes();</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">			if (!(elementIndex==0 &amp;&amp; movement.equals(ApsAdminSystemConstants.MOVEMENT_UP_CODE)) &amp;&amp; </span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">					!(elementIndex==attributes.size()-1 &amp;&amp; movement.equals(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE))) {</span>
+<span class="nc" id="L69">				AttributeInterface attributeToMove = attributes.get(elementIndex);</span>
+<span class="nc" id="L70">				attributes.remove(elementIndex);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">				if (movement.equals(ApsAdminSystemConstants.MOVEMENT_UP_CODE)) {</span>
+<span class="nc" id="L72">					attributes.add(elementIndex-1, attributeToMove);</span>
+				}
+<span class="nc bnc" id="L74" title="All 2 branches missed.">				if (movement.equals(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE)) {</span>
+<span class="nc" id="L75">					attributes.add(elementIndex+1, attributeToMove);</span>
+				}
+			}
+<span class="nc" id="L78">		} catch (Throwable t) {</span>
+<span class="nc" id="L79">			_logger.error(&quot;error in moveAttribute&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;moveAttribute&quot;);
+<span class="nc" id="L81">			return FAILURE;</span>
+<span class="nc" id="L82">		}</span>
+<span class="nc" id="L83">		return SUCCESS;</span>
+	}
+	
+	@Override
+	public String removeAttributeElement() {
+		try {
+<span class="nc" id="L89">			int elementIndex = this.getAttributeIndex();</span>
+<span class="nc" id="L90">			CompositeAttribute composite = this.getCompositeAttributeOnEdit();</span>
+<span class="nc" id="L91">			AttributeInterface attributeToRemove = composite.getAttributes().get(elementIndex);</span>
+<span class="nc" id="L92">			composite.getAttributes().remove(elementIndex);</span>
+<span class="nc" id="L93">			composite.getAttributeMap().remove(attributeToRemove.getName());</span>
+<span class="nc" id="L94">		} catch (Throwable t) {</span>
+<span class="nc" id="L95">			_logger.error(&quot;error in removeAttribute&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;removeAttribute&quot;);
+<span class="nc" id="L97">			return FAILURE;</span>
+<span class="nc" id="L98">		}</span>
+<span class="nc" id="L99">		return SUCCESS;</span>
+	}
+	
+	@Override
+	public String saveAttributeElement() {
+		try {
+<span class="nc" id="L105">			CompositeAttribute composite = this.getCompositeAttributeOnEdit();</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="nc" id="L107">				throw new RuntimeException(&quot;The edit operation on this attribute is not supported&quot;);</span>
+			} else {
+<span class="nc" id="L109">				AttributeInterface attribute = this.getAttributePrototype(this.getAttributeTypeCode());</span>
+<span class="nc" id="L110">				attribute.setName(this.getAttributeName());</span>
+<span class="nc" id="L111">				super.fillAttributeFields(attribute);</span>
+<span class="nc" id="L112">				composite.getAttributes().add(attribute);</span>
+<span class="nc" id="L113">				composite.getAttributeMap().put(attribute.getName(), attribute);</span>
+			}
+<span class="nc" id="L115">		} catch (Throwable t) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;error in saveAttributeElement&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;saveAttributeElement&quot;);
+<span class="nc" id="L118">			return FAILURE;</span>
+<span class="nc" id="L119">		}</span>
+<span class="nc" id="L120">		return SUCCESS;</span>
+	}
+	
+	@Override
+	public String saveCompositeAttribute() {
+		try {
+<span class="nc" id="L126">			CompositeAttribute composite = this.getCompositeAttributeOnEdit();</span>
+<span class="nc" id="L127">			IApsEntity entityType = this.getEntityType();</span>
+<span class="nc" id="L128">			AttributeInterface attribute = (AttributeInterface) entityType.getAttribute(composite.getName());</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">			if (attribute instanceof MonoListAttribute) {</span>
+<span class="nc" id="L130">				((MonoListAttribute) attribute).setNestedAttributeType(composite);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">			} else if (!attribute.getName().equals(composite.getName())) {</span>
+<span class="nc" id="L132">				throw new EntException(&quot;Attribute Name '&quot; + attribute.getName() + &quot;' incompatible with composite Attribute name '&quot; + composite.getName() + &quot;'&quot;);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">			} else if (!attribute.getType().equals(composite.getType())) {</span>
+<span class="nc" id="L134">				throw new EntException(&quot;Attribute Type '&quot; + attribute.getType() + &quot;' incompatible with composite Attribute type '&quot; + composite.getType() + &quot;'&quot;);</span>
+			}
+<span class="nc" id="L136">			this.getRequest().getSession().removeAttribute(COMPOSITE_ATTRIBUTE_ON_EDIT_SESSION_PARAM);</span>
+<span class="nc" id="L137">		} catch (Throwable t) {</span>
+<span class="nc" id="L138">			_logger.error(&quot;error in saveAttribute&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;saveAttribute&quot;);
+<span class="nc" id="L140">			return FAILURE;</span>
+<span class="nc" id="L141">		}</span>
+<span class="nc" id="L142">		return SUCCESS;</span>
+	}
+	
+	public List&lt;AttributeInterface&gt; getAllowedAttributeElementTypes() {
+<span class="nc" id="L146">		List&lt;AttributeInterface&gt; attributes = new ArrayList&lt;AttributeInterface&gt;();</span>
+		try {
+<span class="nc" id="L148">			IEntityManager entityManager = this.getEntityManager();</span>
+<span class="nc" id="L149">			Map&lt;String, AttributeInterface&gt; attributeTypes = entityManager.getEntityAttributePrototypes();</span>
+<span class="nc" id="L150">			Iterator&lt;AttributeInterface&gt; attributeIter = attributeTypes.values().iterator();</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">			while (attributeIter.hasNext()) {</span>
+<span class="nc" id="L152">				AttributeInterface attribute = attributeIter.next();</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">				if (attribute.isSimple()) {</span>
+<span class="nc" id="L154">					attributes.add(attribute);</span>
+				}
+<span class="nc" id="L156">			}</span>
+<span class="nc" id="L157">			Collections.sort(attributes, new BeanComparator(&quot;type&quot;));</span>
+<span class="nc" id="L158">		} catch (Throwable t) {</span>
+<span class="nc" id="L159">			_logger.error(&quot;Error extracting the allowed types of attribute elements&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getAllowedAttributeElementTypes&quot;);
+<span class="nc" id="L161">			throw new RuntimeException(&quot;Error extracting the allowed types of attribute elements&quot;, t);</span>
+<span class="nc" id="L162">		}</span>
+<span class="nc" id="L163">		return attributes;</span>
+	}
+	
+	public CompositeAttribute getCompositeAttributeOnEdit() {
+<span class="nc" id="L167">		return (CompositeAttribute) this.getRequest().getSession().getAttribute(COMPOSITE_ATTRIBUTE_ON_EDIT_SESSION_PARAM);</span>
+	}
+	
+	public AbstractListAttribute getListAttribute() {
+<span class="nc" id="L171">		return (AbstractListAttribute) this.getRequest().getSession().getAttribute(IListElementAttributeConfigAction.LIST_ATTRIBUTE_ON_EDIT_SESSION_PARAM);</span>
+	}
+	
+	public int getAttributeIndex() {
+<span class="nc" id="L175">		return _attributeIndex;</span>
+	}
+	public void setAttributeIndex(int attributeIndex) {
+<span class="nc" id="L178">		this._attributeIndex = attributeIndex;</span>
+<span class="nc" id="L179">	}</span>
+	
+	public String getMovement() {
+<span class="nc" id="L182">		return _movement;</span>
+	}
+	public void setMovement(String movement) {
+<span class="nc" id="L185">		this._movement = movement;</span>
+<span class="nc" id="L186">	}</span>
+	
+	private int _attributeIndex;
+	private String _movement;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system</a> &gt; <span class="el_source">BaseAction.java</span></div><h1>BaseAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.system.common.tree.ITreeNodeManager;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.opensymphony.xwork2.ActionSupport;
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.struts2.interceptor.ParameterAware;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.entando.entando.aps.system.init.IComponentManager;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.*;
+
+/**
+ * Class beneath all actions.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L42">public class BaseAction extends ActionSupport implements ServletRequestAware, ParameterAware {</span>
+
+<span class="fc" id="L44">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BaseAction.class);</span>
+	
+	/**
+	 * Check if the current user belongs to the given group. It always returns true if the user
+	 * belongs to the Administrators group.
+	 * @param groupName The name of the group to check against the current user.
+	 * @return true if the user belongs to the given group, false otherwise.
+	 */
+	protected boolean isCurrentUserMemberOf(String groupName) {
+<span class="fc" id="L53">		UserDetails currentUser = this.getCurrentUser();</span>
+<span class="fc" id="L54">		IAuthorizationManager authManager = this.getAuthorizationManager();</span>
+<span class="pc bpc" id="L55" title="1 of 4 branches missed.">		return authManager.isAuthOnGroup(currentUser, groupName) || authManager.isAuthOnGroup(currentUser, Group.ADMINS_GROUP_NAME);</span>
+	}
+	
+	/**
+	 * Check if the current user has the given permission granted. It always returns true if the 
+	 * user has the the &quot;superuser&quot; permission set in some role.
+	 * @param permissionName The name of the permission to check against the current user.
+	 * @return true if the user has the permission granted, false otherwise.
+	 */
+	protected boolean hasCurrentUserPermission(String permissionName) {
+<span class="fc" id="L65">		UserDetails currentUser = this.getCurrentUser();</span>
+<span class="fc" id="L66">		IAuthorizationManager authManager = this.getAuthorizationManager();</span>
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">		return authManager.isAuthOnPermission(currentUser, permissionName) || authManager.isAuthOnPermission(currentUser, Permission.SUPERUSER);</span>
+	}
+	
+	protected UserDetails getCurrentUser() {
+<span class="fc" id="L71">		UserDetails currentUser = (UserDetails) this.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="fc" id="L72">		return currentUser;</span>
+	}
+	
+	@Override
+	public void setParameters(Map&lt;String, String[]&gt; params) {
+<span class="fc" id="L77">		this._params = params;</span>
+<span class="fc" id="L78">	}</span>
+	
+	protected Map&lt;String, String[]&gt; getParameters() {
+<span class="fc" id="L81">		return this._params;</span>
+	}
+	
+	protected String getParameter(String paramName) {
+<span class="nc" id="L85">		Object param = this.getParameters().get(paramName);</span>
+<span class="nc bnc" id="L86" title="All 4 branches missed.">		if (param != null &amp;&amp; param instanceof String[]) {</span>
+<span class="nc" id="L87">			return ((String[])param)[0];</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">		} else if (param instanceof String) {</span>
+<span class="nc" id="L89">			return (String)param;</span>
+		}
+<span class="nc" id="L91">		return null;</span>
+	}
+	
+	protected Set&lt;String&gt; getRequiredPermissions() {
+<span class="fc" id="L95">		return _requiredPermissions;</span>
+	}
+	protected void setRequiredPermissions(Set&lt;String&gt; requiredPermissions) {
+<span class="fc" id="L98">		this._requiredPermissions = requiredPermissions;</span>
+<span class="fc" id="L99">	}</span>
+	
+	protected List&lt;Group&gt; getActualAllowedGroups() {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (null != this._actualAllowedGroups) {</span>
+<span class="fc" id="L103">			return _actualAllowedGroups;</span>
+		}
+<span class="fc" id="L105">		this._actualAllowedGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L106">		UserDetails currentUser = this.getCurrentUser();</span>
+<span class="pc bpc" id="L107" title="2 of 4 branches missed.">		if (null == currentUser || null == this.getRequiredPermissions()) {</span>
+<span class="nc" id="L108">			return this._actualAllowedGroups;</span>
+		}
+<span class="fc" id="L110">		Iterator&lt;String&gt; iter = this.getRequiredPermissions().iterator();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		while (iter.hasNext()) {</span>
+<span class="fc" id="L112">			String permissionName = iter.next();</span>
+<span class="fc" id="L113">			List&lt;Group&gt; groupsByPermission = this.getAuthorizationManager().getGroupsByPermission(currentUser, permissionName);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">			if (null != groupsByPermission) {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">				for (int i = 0; i &lt; groupsByPermission.size(); i++) {</span>
+<span class="fc" id="L116">					Group group = groupsByPermission.get(i);</span>
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">					if (null != group &amp;&amp; !this._actualAllowedGroups.contains(group)) {</span>
+<span class="fc" id="L118">						this._actualAllowedGroups.add(group);</span>
+					}
+				}
+			}
+<span class="fc" id="L122">		}</span>
+<span class="fc" id="L123">		Collections.sort(this._actualAllowedGroups, new BeanComparator(&quot;description&quot;));</span>
+<span class="fc" id="L124">		return this._actualAllowedGroups;</span>
+	}
+	
+	protected List&lt;String&gt; getActualAllowedGroupCodes() {
+<span class="fc" id="L128">		List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L129">		List&lt;Group&gt; groups = this.getActualAllowedGroups();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">		for (int i = 0; i &lt; groups.size(); i++) {</span>
+<span class="fc" id="L131">			Group group = groups.get(i);</span>
+<span class="pc bpc" id="L132" title="2 of 4 branches missed.">			if (null != group &amp;&amp; !codes.contains(group.getName())) {</span>
+<span class="fc" id="L133">				codes.add(group.getName());</span>
+			}
+		}
+<span class="fc" id="L136">		return codes;</span>
+	}
+	
+	/**
+	 * Return the current system language used in the back-end interface. If this language does not
+	 * belong to those known by the system the default language is returned. A log line will 
+	 * report the problem.
+	 * @return The current language.
+	 */
+	public Lang getCurrentLang() {
+<span class="fc" id="L146">		Locale locale = this.getLocale();</span>
+<span class="fc" id="L147">		String langCode = locale.getLanguage();</span>
+<span class="fc" id="L148">		Lang currentLang = this.getLangManager().getLang(langCode);</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">		if (null != currentLang) {</span>
+<span class="fc" id="L150">			return currentLang;</span>
+		} else {
+<span class="nc" id="L152">			_logger.info(&quot;Required Lang '{}' invalid&quot;, langCode);</span>
+<span class="nc" id="L153">			return this.getLangManager().getDefaultLang();</span>
+		}
+	}
+	
+	/**
+	 * Return a title by current lang.
+	 * @param defaultValue The default value returned in case there is no valid title in properties.
+	 * @param titles The titles.
+	 * @return The title.
+	 */
+	public String getTitle(String defaultValue, Properties titles) {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">		if (null == titles) return defaultValue;</span>
+<span class="fc" id="L165">		Lang currentLang = this.getCurrentLang();</span>
+<span class="fc" id="L166">		String title = titles.getProperty(currentLang.getCode());</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (null == title) {</span>
+<span class="fc" id="L168">			Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="fc" id="L169">			title = titles.getProperty(defaultLang.getCode());</span>
+		}
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">		if (null == title) {</span>
+<span class="nc" id="L172">			title = defaultValue;</span>
+		}
+<span class="fc" id="L174">		return title;</span>
+	}
+	
+	/**
+	 * Return the Activity informations (showable to the dashboard) joined to executed action.
+	 * this method has to be extended for custom action.
+	 * @return The Activity informations
+	 */
+	public List&lt;ActivityStreamInfo&gt; getActivityStreamInfos() {
+<span class="fc" id="L183">		return this._activityStreamInfos;</span>
+	}
+	
+	protected void addActivityStreamInfo(ActivityStreamInfo asi) {
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">		if (null == asi) {</span>
+<span class="nc" id="L188">			return;</span>
+		}
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">		if (null == this._activityStreamInfos) {</span>
+<span class="fc" id="L191">			this._activityStreamInfos = new ArrayList&lt;&gt;();</span>
+		}
+<span class="fc" id="L193">		this._activityStreamInfos.add(asi);</span>
+<span class="fc" id="L194">	}</span>
+	
+	public boolean isComponentInstalled(String componentName) {
+<span class="nc" id="L197">		return this.getComponentManager().isComponentInstalled(componentName);</span>
+	}
+    
+    public String getDefaultFullTitle(ITreeNode treeNode) {
+<span class="nc" id="L201">        return this.getFullTitle(treeNode, this.getLangManager().getDefaultLang().getCode());</span>
+    }
+    
+    public String getShortFullTitle(ITreeNode treeNode, String langCode) {
+<span class="nc" id="L205">        return treeNode.getShortFullTitle(langCode, this.getTreeNodeManager(treeNode));</span>
+    }
+    
+    public String getFullTitle(ITreeNode treeNode, String langCode) {
+<span class="nc" id="L209">        return treeNode.getFullTitle(langCode, this.getTreeNodeManager(treeNode));</span>
+    }
+    
+    protected ITreeNodeManager getTreeNodeManager(ITreeNode treeNode) {
+<span class="nc" id="L213">        String beanName = treeNode.getManagerBeanCode();</span>
+<span class="nc" id="L214">        return (ITreeNodeManager) ApsWebApplicationUtils.getBean(beanName, this.getRequest());</span>
+    }
+	
+	@Override
+	public void setServletRequest(HttpServletRequest request) {
+<span class="fc" id="L219">		this._request = request;</span>
+<span class="fc" id="L220">	}</span>
+	protected HttpServletRequest getRequest() {
+<span class="fc" id="L222">		return _request;</span>
+	}
+	
+	protected ILangManager getLangManager() {
+<span class="fc" id="L226">		return _langManager;</span>
+	}
+	public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L229">		this._langManager = langManager;</span>
+<span class="fc" id="L230">	}</span>
+	
+	@Deprecated
+	protected IAuthorizationManager getAuthManager() {
+<span class="nc" id="L234">		return _authorizationManager;</span>
+	}
+	protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L237">		return _authorizationManager;</span>
+	}
+	public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L240">		this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L241">	}</span>
+	
+	protected IComponentManager getComponentManager() {
+<span class="nc" id="L244">		return _componentManager;</span>
+	}
+	public void setComponentManager(IComponentManager componentManager) {
+<span class="fc" id="L247">		this._componentManager = componentManager;</span>
+<span class="fc" id="L248">	}</span>
+	
+	private ILangManager _langManager;
+	
+	private IAuthorizationManager _authorizationManager;
+	private IComponentManager _componentManager;
+	
+	public static final String FAILURE = &quot;failure&quot;;
+	
+	private HttpServletRequest _request;
+	private Map&lt;String, String[]&gt; _params;
+	private Set&lt;String&gt; _requiredPermissions;
+	private List&lt;Group&gt; _actualAllowedGroups;
+	
+	public static final String USER_NOT_ALLOWED = &quot;userNotAllowed&quot;;
+	
+	private List&lt;ActivityStreamInfo&gt; _activityStreamInfos;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
