@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MailConfigDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Email Sender</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpmail.aps.services.mail.parse</a> &gt; <span class="el_source">MailConfigDOM.java</span></div><h1>MailConfigDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpmail.aps.services.mail.parse;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.exception.ApsSystemException;
+import com.agiletec.plugins.jpmail.aps.services.JpmailSystemConstants;
+import com.agiletec.plugins.jpmail.aps.services.mail.MailConfig;
+import java.io.StringReader;
+import java.util.Iterator;
+import java.util.List;
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
+
+/*
+&lt;mailConfig&gt;
+	&lt;active&gt;true&lt;/active&gt;
+	&lt;senders&gt;
+		&lt;sender code=&quot;CODE1&quot;&gt;EMAIL1@EMAIL.COM&lt;/sender&gt;
+		&lt;sender code=&quot;CODE2&quot;&gt;EMAIL2@EMAIL.COM&lt;/sender&gt;
+	&lt;/senders&gt;
+	&lt;smtp debug=&quot;false&quot; &gt;
+		&lt;host&gt;SMTP.EMAIL.COM&lt;/host&gt;
+		&lt;port&gt;25&lt;/port&gt;
+		&lt;timeout&gt;10000&lt;/timeout&gt;
+		&lt;user&gt;USER&lt;/user&gt;
+		&lt;password&gt;PASSWORD&lt;/password&gt;
+		&lt;security&gt;STD|SSL|TLS&lt;/security&gt;
+	&lt;/smtp&gt;
+&lt;/mailConfig&gt;
+ */
+
+/**
+ * Class that provides read and update operations for the jpmail plugin xml configuration.
+ * @author E.Santoboni, E.Mezzano
+ */
+<span class="fc" id="L59">public class MailConfigDOM {</span>
+	
+	/**
+	 * Extract the jpmail configuration from an xml.
+	 * @param xml The xml containing the configuration.
+	 * @return The jpmail configuration.
+	 * @throws ApsSystemException In case of parsing errors.
+	 */
+	public MailConfig extractConfig(String xml) throws ApsSystemException {
+<span class="fc" id="L68">		MailConfig config = new MailConfig();</span>
+<span class="fc" id="L69">		Element root = this.getRootElement(xml);</span>
+<span class="fc" id="L70">		Element activeElem = root.getChild(ACTIVE_ELEM);</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">		if (activeElem != null) {</span>
+<span class="fc" id="L72">			String active = activeElem.getText();</span>
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">			config.setActive(null != active &amp;&amp; active.equalsIgnoreCase(&quot;true&quot;));</span>
+		}
+<span class="fc" id="L75">		this.extractSenders(root, config);</span>
+<span class="fc" id="L76">		this.extractSmtp(root, config);</span>
+<span class="fc" id="L77">		return config;</span>
+	}
+	
+	/**
+	 * Create an xml containing the jpmail configuration.
+	 * @param config The jpmail configuration.
+	 * @return The xml containing the configuration.
+	 * @throws ApsSystemException In case of errors.
+	 */
+	public String createConfigXml(MailConfig config) throws ApsSystemException {
+<span class="fc" id="L87">		Element root = this.createConfigElement(config);</span>
+<span class="fc" id="L88">		Document doc = new Document(root);</span>
+<span class="fc" id="L89">		XMLOutputter out = new XMLOutputter();</span>
+<span class="fc" id="L90">		Format format = Format.getPrettyFormat();</span>
+<span class="fc" id="L91">		format.setIndent(&quot;\t&quot;);</span>
+<span class="fc" id="L92">		out.setFormat(format);</span>
+<span class="fc" id="L93">		return out.outputString(doc);</span>
+	}
+	
+	/**
+	 * Extract the senders from the xml element and save it into the MailConfig object.
+	 * @param root The xml root element containing the senders configuration.
+	 * @param config The configuration.
+	 */
+	private void extractSenders(Element root, MailConfig config) {
+<span class="fc" id="L102">		Element sendersRootElem = root.getChild(SENDERS_ELEM);</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">		if (sendersRootElem!=null) {</span>
+<span class="fc" id="L104">			List sendersElem = sendersRootElem.getChildren(SENDER_CHILD);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">			for (int i=0; i&lt;sendersElem.size(); i++) {</span>
+<span class="fc" id="L106">				Element senderElem = (Element) sendersElem.get(i);</span>
+<span class="fc" id="L107">				String code = senderElem.getAttributeValue(SENDER_CODE_ATTR);</span>
+<span class="fc" id="L108">				String sender = senderElem.getText();</span>
+<span class="fc" id="L109">				config.addSender(code, sender);</span>
+			}
+		}
+<span class="fc" id="L112">	}</span>
+	
+	/**
+	 * Extract the smtp configuration from the xml element and save it into the MailConfig object.
+	 * @param root The xml root element containing the smtp configuration.
+	 * @param config The configuration.
+	 */
+	private void extractSmtp(Element root, MailConfig config) {
+<span class="fc" id="L120">		Element smtpElem = root.getChild(SMTP_ELEM);</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">		if (smtpElem != null) {</span>
+<span class="fc" id="L122">			String debug = smtpElem.getAttributeValue(SMTP_DEBUG_ATTR);</span>
+<span class="fc" id="L123">			config.setDebug(&quot;true&quot;.equalsIgnoreCase(debug));</span>
+<span class="fc" id="L124">			config.setSmtpHost(smtpElem.getChildText(SMTP_HOST_CHILD));</span>
+<span class="fc" id="L125">			String port = smtpElem.getChildText(SMTP_PORT_CHILD);</span>
+<span class="pc bpc" id="L126" title="2 of 4 branches missed.">			if (port != null &amp;&amp; port.trim().length() &gt; 0) {</span>
+<span class="fc" id="L127">				config.setSmtpPort(new Integer(port.trim()));</span>
+			}
+<span class="fc" id="L129">			String timeout = smtpElem.getChildText(SMTP_TIMEOUT_CHILD);</span>
+<span class="pc bpc" id="L130" title="1 of 4 branches missed.">			if (timeout != null &amp;&amp; timeout.trim().length() &gt; 0) {</span>
+<span class="fc" id="L131">				config.setSmtpTimeout(new Integer(timeout.trim()));</span>
+			}
+<span class="fc" id="L133">			config.setSmtpUserName(smtpElem.getChildText(SMTP_USER_CHILD));</span>
+<span class="fc" id="L134">			config.setSmtpPassword(smtpElem.getChildText(SMTP_PASSWORD_CHILD));</span>
+<span class="fc" id="L135">			String proto = smtpElem.getChildText(SMTP_PROTOCOL_CHILD);</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">			if (null != proto) {</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">				if (proto.equalsIgnoreCase(PROTO_SSL)) {</span>
+<span class="nc" id="L138">					config.setSmtpProtocol(JpmailSystemConstants.PROTO_SSL);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">				} else if (proto.equalsIgnoreCase(PROTO_TLS)) {</span>
+<span class="fc" id="L140">					config.setSmtpProtocol(JpmailSystemConstants.PROTO_TLS);</span>
+				} else {
+					// any unknown protocol will disable encryption
+<span class="fc" id="L143">					config.setSmtpProtocol(JpmailSystemConstants.PROTO_STD);</span>
+				}
+
+<span class="fc" id="L146">				String checkServerIdentity = smtpElem.getChildText(CHECK_SERVER_IDENTITY);</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				config.setCheckServerIdentity(!&quot;false&quot;.equalsIgnoreCase(checkServerIdentity));</span>
+			}
+		}
+<span class="fc" id="L150">	}</span>
+	
+	/**
+	 * Extract the smtp configuration from the xml element and save it into the MailConfig object.
+	 * @param root The xml root element containing the smtp configuration.
+	 * @param config The configuration.
+	 */
+	private Element createConfigElement(MailConfig config) {
+<span class="fc" id="L158">		Element configElem = new Element(ROOT);</span>
+<span class="fc" id="L159">		Element activeElement = new Element(ACTIVE_ELEM);</span>
+<span class="fc" id="L160">		activeElement.setText(String.valueOf(config.isActive()));</span>
+<span class="fc" id="L161">		configElem.addContent(activeElement);</span>
+<span class="fc" id="L162">		Element sendersElem = this.createSendersElement(config);</span>
+<span class="fc" id="L163">		configElem.addContent(sendersElem);</span>
+<span class="fc" id="L164">		Element smtpElem = this.createSmtpElement(config);</span>
+<span class="fc" id="L165">		configElem.addContent(smtpElem);</span>
+<span class="fc" id="L166">		return configElem;</span>
+	}
+	
+	/**
+	 * Create the senders element starting from the given MailConfig.
+	 * @param config The configuration.
+	 */
+	private Element createSendersElement(MailConfig config) {
+<span class="fc" id="L174">		Element sendersElem = new Element(SENDERS_ELEM);</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">		if (null != config.getSenders()) {</span>
+<span class="fc" id="L176">			Iterator&lt;String&gt; codeIter = config.getSenders().keySet().iterator();</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">			while (codeIter.hasNext()) {</span>
+<span class="fc" id="L178">				String key = codeIter.next();</span>
+<span class="fc" id="L179">				Element senderElement = new Element(SENDER_CHILD);</span>
+<span class="fc" id="L180">				senderElement.setAttribute(SENDER_CODE_ATTR, key);</span>
+<span class="fc" id="L181">				senderElement.addContent(config.getSenders().get(key));</span>
+<span class="fc" id="L182">				sendersElem.addContent(senderElement);</span>
+<span class="fc" id="L183">			}</span>
+		}
+<span class="fc" id="L185">		return sendersElem;</span>
+	}
+	
+	/**
+	 * Create the smtp element starting from the given MailConfig.
+	 * @param config The configuration.
+	 */
+	private Element createSmtpElement(MailConfig config) {
+<span class="fc" id="L193">		Element smtpElem = new Element(SMTP_ELEM);</span>
+<span class="fc" id="L194">		smtpElem.setAttribute(SMTP_DEBUG_ATTR, String.valueOf(config.isDebug()));</span>
+		
+<span class="fc" id="L196">		Element hostElem = new Element(SMTP_HOST_CHILD);</span>
+<span class="fc" id="L197">		hostElem.addContent(config.getSmtpHost());</span>
+<span class="fc" id="L198">		smtpElem.addContent(hostElem);</span>
+		
+<span class="fc" id="L200">		Integer port = config.getSmtpPort();</span>
+<span class="pc bpc" id="L201" title="1 of 4 branches missed.">		if (null != port &amp;&amp; port.intValue() != 0) {</span>
+<span class="fc" id="L202">			Element portElem = new Element(SMTP_PORT_CHILD);</span>
+<span class="fc" id="L203">			portElem.addContent(config.getSmtpPort().toString());</span>
+<span class="fc" id="L204">			smtpElem.addContent(portElem);</span>
+		}
+		
+<span class="fc" id="L207">		Integer timeout = config.getSmtpTimeout();</span>
+<span class="pc bpc" id="L208" title="1 of 4 branches missed.">		if (null != timeout &amp;&amp; timeout.intValue() != 0) {</span>
+<span class="fc" id="L209">			Element timeoutElem = new Element(SMTP_TIMEOUT_CHILD);</span>
+<span class="fc" id="L210">			timeoutElem.addContent(config.getSmtpTimeout().toString());</span>
+<span class="fc" id="L211">			smtpElem.addContent(timeoutElem);</span>
+		}
+		
+<span class="fc" id="L214">		Element userElem = new Element(SMTP_USER_CHILD);</span>
+<span class="fc" id="L215">		userElem.addContent(config.getSmtpUserName());</span>
+<span class="fc" id="L216">		smtpElem.addContent(userElem);</span>
+		
+<span class="fc" id="L218">		Element passwordElem = new Element(SMTP_PASSWORD_CHILD);</span>
+<span class="fc" id="L219">		passwordElem.addContent(config.getSmtpPassword());</span>
+<span class="fc" id="L220">		smtpElem.addContent(passwordElem);</span>
+		
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">		if (null != config.getSmtpProtocol()) {</span>
+<span class="fc" id="L223">			Element protocolElem = new Element(SMTP_PROTOCOL_CHILD);</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">			if (config.getSmtpProtocol() == JpmailSystemConstants.PROTO_SSL) {</span>
+<span class="nc" id="L225">				protocolElem.addContent(PROTO_SSL);</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">			} else if (config.getSmtpProtocol() == JpmailSystemConstants.PROTO_TLS) {</span>
+<span class="fc" id="L227">				protocolElem.addContent(PROTO_TLS);</span>
+			} else {
+				// any other (unsupported) protocol falls back to STD (no security transport layer)
+<span class="fc" id="L230">				protocolElem.addContent(PROTO_STD);</span>
+			}
+<span class="fc" id="L232">			smtpElem.addContent(protocolElem);</span>
+
+<span class="fc" id="L234">			Element checkServerIdentityElem = new Element(CHECK_SERVER_IDENTITY);</span>
+<span class="fc" id="L235">			checkServerIdentityElem.addContent(String.valueOf(config.isCheckServerIdentity()));</span>
+<span class="fc" id="L236">			smtpElem.addContent(checkServerIdentityElem);</span>
+		}
+		
+<span class="fc" id="L239">		return smtpElem;</span>
+	}
+	
+	/**
+	 * Returns the Xml element from a given text.
+	 * @param xmlText The text containing an Xml.
+	 * @return The Xml element from a given text.
+	 * @throws ApsSystemException In case of parsing exceptions.
+	 */
+	private Element getRootElement(String xmlText) throws ApsSystemException {
+<span class="fc" id="L249">		SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L250">		builder.setValidation(false);</span>
+<span class="fc" id="L251">		StringReader reader = new StringReader(xmlText);</span>
+<span class="fc" id="L252">		Element root = null;</span>
+		try {
+<span class="fc" id="L254">			Document doc = builder.build(reader);</span>
+<span class="fc" id="L255">			root = doc.getRootElement();</span>
+<span class="nc" id="L256">		} catch (Throwable t) {</span>
+<span class="nc" id="L257">			ApsSystemUtils.getLogger().error(&quot;Error parsing xml: &quot; + t.getMessage());</span>
+<span class="nc" id="L258">			throw new ApsSystemException(&quot;Error parsing xml&quot;, t);</span>
+<span class="fc" id="L259">		}</span>
+<span class="fc" id="L260">		return root;</span>
+	}
+	
+<span class="fc" id="L263">	private final String ROOT = &quot;mailConfig&quot;;</span>
+	
+<span class="fc" id="L265">	private final String SENDERS_ELEM = &quot;senders&quot;;</span>
+<span class="fc" id="L266">	private final String SENDER_CHILD = &quot;sender&quot;;</span>
+<span class="fc" id="L267">	private final String SENDER_CODE_ATTR = &quot;code&quot;;</span>
+	
+<span class="fc" id="L269">	private final String ACTIVE_ELEM = &quot;active&quot;;</span>
+	
+<span class="fc" id="L271">	private final String SMTP_ELEM = &quot;smtp&quot;;</span>
+<span class="fc" id="L272">	private final String SMTP_DEBUG_ATTR = &quot;debug&quot;;</span>
+<span class="fc" id="L273">	private final String SMTP_HOST_CHILD = &quot;host&quot;;</span>
+<span class="fc" id="L274">	private final String SMTP_PORT_CHILD = &quot;port&quot;;</span>
+<span class="fc" id="L275">	private final String SMTP_TIMEOUT_CHILD = &quot;timeout&quot;;</span>
+<span class="fc" id="L276">	private final String SMTP_USER_CHILD = &quot;user&quot;;</span>
+<span class="fc" id="L277">	private final String SMTP_PASSWORD_CHILD = &quot;password&quot;;</span>
+<span class="fc" id="L278">	private final String SMTP_PROTOCOL_CHILD = &quot;security&quot;;</span>
+	
+<span class="fc" id="L280">	private final String PROTO_SSL = &quot;ssl&quot;;</span>
+<span class="fc" id="L281">	private final String PROTO_TLS = &quot;tls&quot;;</span>
+<span class="fc" id="L282">	private final String PROTO_STD = &quot;std&quot;;</span>
+
+	private static final String CHECK_SERVER_IDENTITY = &quot;checkServerIdentity&quot;;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
