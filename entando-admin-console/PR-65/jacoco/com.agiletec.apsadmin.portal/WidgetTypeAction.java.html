@@ -1,0 +1,815 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetTypeAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">WidgetTypeAction.java</span></div><h1>WidgetTypeAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal;
+
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.aps.system.services.guifragment.GuiFragment;
+import org.entando.entando.aps.system.services.guifragment.IGuiFragmentManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.aps.system.services.widgettype.WidgetTypeParameter;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import java.util.ArrayList;
+import javax.servlet.ServletContext;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L43">public class WidgetTypeAction extends AbstractPortalAction {</span>
+
+<span class="fc" id="L45">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(WidgetTypeAction.class);</span>
+
+    @Override
+    public void validate() {
+<span class="fc" id="L49">        super.validate();</span>
+        try {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L52">                WidgetType type = this.getWidgetType(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                if (null != type) {</span>
+<span class="nc" id="L54">                    this.addFieldError(&quot;widgetTypeCode&quot;, this.getText(&quot;error.widgetType.guiRequired&quot;));</span>
+                }
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            } else if (this.getStrutsAction() == ApsAdminSystemConstants.PASTE) {</span>
+<span class="fc" id="L57">                this.checkWidgetToCopy();</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">            } else if (this.getStrutsAction() == NEW_USER_WIDGET) {</span>
+<span class="fc" id="L59">                this.checkNewUserWidget();</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            } else if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L61">                WidgetType type = this.getWidgetType(this.getWidgetTypeCode());</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">                if (null == type) {</span>
+<span class="fc" id="L63">                    this.addFieldError(&quot;widgetTypeCode&quot;, this.getText(&quot;error.widgetType.invalid.null&quot;, new String[]{this.getWidgetTypeCode()}));</span>
+<span class="fc" id="L64">                    return;</span>
+                }
+<span class="fc" id="L66">                this.buildGuisFromForm(type);</span>
+            }
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            if (!this.checkGui()) {</span>
+<span class="fc" id="L69">                this.addFieldError(&quot;gui&quot;, this.getText(&quot;error.widgetType.guiRequired&quot;));</span>
+            }
+<span class="nc" id="L71">        } catch (Throwable t) {</span>
+<span class="nc" id="L72">            _logger.error(&quot;error in validate&quot;, t);</span>
+<span class="nc" id="L73">            throw new RuntimeException(t);</span>
+<span class="fc" id="L74">        }</span>
+<span class="fc" id="L75">    }</span>
+
+    private boolean checkGui() throws Throwable {
+<span class="fc bfc" id="L78" title="All 4 branches covered.">        if (this.getStrutsAction() == NEW_USER_WIDGET || this.getStrutsAction() == ApsAdminSystemConstants.PASTE) {</span>
+<span class="fc" id="L79">            return true;</span>
+        }
+<span class="fc" id="L81">        boolean isValuedGui = StringUtils.isNotBlank(this.getGui());</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L83">            return isValuedGui;</span>
+        }
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (this.getStrutsAction() != ApsAdminSystemConstants.EDIT) {</span>
+<span class="nc" id="L86">            throw new RuntimeException(&quot;Invalid Struts Action &quot; + this.getStrutsAction());</span>
+        }
+<span class="fc" id="L88">        WidgetType type = this.getWidgetType(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L89" title="1 of 4 branches missed.">        if (type.isLogic() || this.isInternalServletWidget(this.getWidgetTypeCode())) {</span>
+<span class="fc" id="L90">            return true;</span>
+        }
+<span class="fc" id="L92">        String pluginCode = type.getPluginCode();</span>
+<span class="fc" id="L93">        ServletContext srvCtx = this.getRequest().getSession().getServletContext();</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (WidgetType.existsJsp(srvCtx, this.getWidgetTypeCode(), pluginCode)) {</span>
+<span class="nc" id="L95">            return true;</span>
+        }
+<span class="fc" id="L97">        GuiFragment guiFragment = this.extractUniqueGuiFragment(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L98" title="3 of 6 branches missed.">        if (!isValuedGui &amp;&amp; (guiFragment == null || StringUtils.isBlank(guiFragment.getDefaultGui()))) {</span>
+<span class="fc" id="L99">            return false;</span>
+        } else {
+<span class="fc" id="L101">            return true;</span>
+        }
+    }
+
+    /**
+     * Create of new widget.
+     *
+     * @return The result code.
+     */
+    public String newWidget() {
+        try {
+<span class="nc" id="L112">            this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="nc" id="L113">            this.setMainGroup(Group.FREE_GROUP_NAME);</span>
+<span class="nc" id="L114">            this.setReadonlyPageWidgetConfig(false);</span>
+<span class="nc" id="L115">        } catch (Throwable t) {</span>
+<span class="nc" id="L116">            _logger.error(&quot;error in newWidget&quot;, t);</span>
+<span class="nc" id="L117">            return FAILURE;</span>
+<span class="nc" id="L118">        }</span>
+<span class="nc" id="L119">        return SUCCESS;</span>
+    }
+
+    /**
+     * Create of new user widget.
+     *
+     * @return The result code.
+     * @deprecated use newUserWidget()
+     */
+    public String newUserShowlet() {
+<span class="nc" id="L129">        return newUserWidget();</span>
+    }
+
+    /**
+     * Create of new user widget.
+     *
+     * @return The result code.
+     */
+    public String newUserWidget() {
+        try {
+<span class="fc" id="L139">            String check = this.checkNewUserWidget();</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L141">                return check;</span>
+            }
+<span class="fc" id="L143">            this.setStrutsAction(NEW_USER_WIDGET);</span>
+<span class="fc" id="L144">            this.setMainGroup(Group.FREE_GROUP_NAME);</span>
+<span class="fc" id="L145">            this.setReadonlyPageWidgetConfig(false);</span>
+<span class="nc" id="L146">        } catch (Throwable t) {</span>
+<span class="nc" id="L147">            _logger.error(&quot;error in newUserWidget&quot;, t);</span>
+<span class="nc" id="L148">            return FAILURE;</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">        return SUCCESS;</span>
+    }
+
+    /**
+     * Copy an existing widget (physic and with parameters) and value the form
+     * of creation of new user widget.
+     *
+     * @return The result code.
+     */
+    public String copy() {
+        try {
+<span class="fc" id="L161">            String check = this.checkWidgetToCopy();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L163">                return check;</span>
+            }
+<span class="fc" id="L165">            this.setStrutsAction(ApsAdminSystemConstants.PASTE);</span>
+<span class="fc" id="L166">            this.setMainGroup(Group.FREE_GROUP_NAME);</span>
+<span class="nc" id="L167">        } catch (Throwable t) {</span>
+<span class="nc" id="L168">            _logger.error(&quot;error in copy&quot;, t);</span>
+<span class="nc" id="L169">            return FAILURE;</span>
+<span class="fc" id="L170">        }</span>
+<span class="fc" id="L171">        return SUCCESS;</span>
+    }
+
+    /**
+     * Save a widget type.
+     *
+     * @return The result code.
+     */
+    public String save() {
+        try {
+<span class="fc bfc" id="L181" title="All 4 branches covered.">            if (this.getStrutsAction() != ApsAdminSystemConstants.EDIT &amp;&amp; (this.getStrutsAction() != ApsAdminSystemConstants.ADD)) {</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">                if (!this.hasCurrentUserPermission(Permission.SUPERUSER)) {</span>
+<span class="nc" id="L183">                    return USER_NOT_ALLOWED;</span>
+                }
+<span class="fc" id="L185">                return this.saveUserWidget();</span>
+            }
+<span class="fc" id="L187">            WidgetType type = null;</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L189">                type = new WidgetType();</span>
+<span class="fc" id="L190">                type.setCode(this.getWidgetTypeCode());</span>
+            } else {
+<span class="fc" id="L192">                String check = this.checkWidgetType();</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">                if (null != check) {</span>
+<span class="nc" id="L194">                    return check;</span>
+                }
+<span class="fc" id="L196">                type = this.getWidgetTypeManager().getWidgetType(this.getWidgetTypeCode());</span>
+            }
+<span class="fc" id="L198">            ApsProperties titles = new ApsProperties();</span>
+<span class="fc" id="L199">            titles.put(&quot;it&quot;, this.getItalianTitle());</span>
+<span class="fc" id="L200">            titles.put(&quot;en&quot;, this.getEnglishTitle());</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">            String mainGroupToSet = (this.hasCurrentUserPermission(Permission.SUPERUSER)) ? this.getMainGroup() : type.getMainGroup();</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">            String bundleIdToSet = (this.hasCurrentUserPermission(Permission.SUPERUSER)) ? this.getBundleId() : type.getBundleId();</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            String configUiToSet = (this.hasCurrentUserPermission(Permission.SUPERUSER)) ? this.getConfigUi() : type.getConfigUi();</span>
+
+<span class="fc bfc" id="L205" title="All 2 branches covered.">            Boolean readonlyPageWidgetConf = (this.hasCurrentUserPermission(Permission.SUPERUSER)) ? this.isReadonlyPageWidgetConfig() : type.</span>
+<span class="fc" id="L206">                    isReadonlyPageWidgetConfig();</span>
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L209">                type.setTitles(titles);</span>
+<span class="fc" id="L210">                type.setMainGroup(mainGroupToSet);</span>
+<span class="fc" id="L211">                type.setBundleId(bundleIdToSet);</span>
+<span class="fc" id="L212">                type.setConfigUi(configUiToSet);</span>
+<span class="fc" id="L213">                type.setReadonlyPageWidgetConfig(readonlyPageWidgetConf);</span>
+<span class="fc" id="L214">                this.getWidgetTypeManager().addWidgetType(type);</span>
+            } else {
+<span class="fc" id="L216">                ApsProperties configToSet = type.getConfig();</span>
+<span class="pc bpc" id="L217" title="2 of 8 branches missed.">                if (type.isLogic() &amp;&amp; type.isUserType() &amp;&amp; !type.isLocked() &amp;&amp; this.hasCurrentUserPermission(Permission.SUPERUSER)) {</span>
+<span class="fc" id="L218">                    configToSet = this.extractWidgetTypeConfig(type.getParentType().getTypeParameters());</span>
+                }
+<span class="fc" id="L220">                this.getWidgetTypeManager().updateWidgetType(this.getWidgetTypeCode(), titles, configToSet, mainGroupToSet,</span>
+                        configUiToSet, bundleIdToSet, readonlyPageWidgetConf);
+            }
+<span class="pc bpc" id="L223" title="1 of 4 branches missed.">            if (!type.isLogic() &amp;&amp; !super.isInternalServletWidget(this.getWidgetTypeCode())) {</span>
+<span class="fc" id="L224">                GuiFragment guiFragment = this.extractUniqueGuiFragment(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">                if (StringUtils.isNotBlank(this.getGui())) {</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">                    if (null == guiFragment) {</span>
+<span class="fc" id="L227">                        guiFragment = new GuiFragment();</span>
+<span class="fc" id="L228">                        String code = this.extractUniqueGuiFragmentCode(this.getWidgetTypeCode());</span>
+<span class="fc" id="L229">                        guiFragment.setCode(code);</span>
+<span class="fc" id="L230">                        guiFragment.setPluginCode(type.getPluginCode());</span>
+<span class="fc" id="L231">                        guiFragment.setGui(this.getGui());</span>
+<span class="fc" id="L232">                        guiFragment.setWidgetTypeCode(this.getWidgetTypeCode());</span>
+<span class="fc" id="L233">                        this.getGuiFragmentManager().addGuiFragment(guiFragment);</span>
+<span class="fc" id="L234">                    } else {</span>
+<span class="nc" id="L235">                        guiFragment.setGui(this.getGui());</span>
+<span class="nc" id="L236">                        this.getGuiFragmentManager().updateGuiFragment(guiFragment);</span>
+                    }
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                } else if (null != guiFragment) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                    if (StringUtils.isNotBlank(guiFragment.getDefaultGui())) {</span>
+<span class="nc" id="L240">                        guiFragment.setGui(null);</span>
+<span class="nc" id="L241">                        this.getGuiFragmentManager().updateGuiFragment(guiFragment);</span>
+                    } else {
+<span class="nc" id="L243">                        this.getGuiFragmentManager().deleteGuiFragment(guiFragment.getCode());</span>
+                    }
+                }
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">            } else if (type.isLogic()/* &amp;&amp; super.isInternalServletWidget(type.getParentType().getCode())*/) {</span>
+<span class="fc" id="L247">                this.buildGuisFromForm(type);</span>
+<span class="fc" id="L248">                List&lt;String&gt; guiFragmentCodes = this.extractGuiFragmentCodes(type.getCode());</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">                for (int i = 0; i &lt; guiFragmentCodes.size(); i++) {</span>
+<span class="nc" id="L250">                    String guiFragmentCode = guiFragmentCodes.get(i);</span>
+<span class="nc" id="L251">                    GuiFragment guiFragment = this.getGuiFragment(guiFragmentCode);</span>
+<span class="nc" id="L252">                    String fieldName = type.getCode() + &quot;_&quot; + guiFragmentCode;</span>
+<span class="nc" id="L253">                    String value = this.getGuis().getProperty(fieldName);</span>
+<span class="nc bnc" id="L254" title="All 6 branches missed.">                    if ((null == value &amp;&amp; null != guiFragment.getGui())</span>
+<span class="nc bnc" id="L255" title="All 4 branches missed.">                            || (null != value &amp;&amp; (StringUtils.isBlank(guiFragment.getGui()) || !value.equals(guiFragment.getGui())))) {</span>
+<span class="nc" id="L256">                        guiFragment.setGui(value);</span>
+<span class="nc" id="L257">                        this.getGuiFragmentManager().updateGuiFragment(guiFragment);</span>
+                    }
+                }
+            }
+<span class="nc" id="L261">        } catch (Throwable t) {</span>
+<span class="nc" id="L262">            _logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L263">            return FAILURE;</span>
+<span class="fc" id="L264">        }</span>
+<span class="fc" id="L265">        return SUCCESS;</span>
+    }
+
+    protected String extractUniqueGuiFragmentCode(String widgetTypeCode) throws EntException {
+<span class="fc" id="L269">        String uniqueCode = widgetTypeCode;</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">        if (null != this.getGuiFragmentManager().getGuiFragment(uniqueCode)) {</span>
+<span class="nc" id="L271">            int index = 0;</span>
+<span class="nc" id="L272">            String currentCode = null;</span>
+            do {
+<span class="nc" id="L274">                index++;</span>
+<span class="nc" id="L275">                currentCode = uniqueCode + &quot;_&quot; + index;</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            } while (null != this.getGuiFragmentManager().getGuiFragment(currentCode));</span>
+<span class="nc" id="L277">            uniqueCode = currentCode;</span>
+        }
+<span class="fc" id="L279">        return uniqueCode;</span>
+    }
+
+    @Deprecated
+    protected String saveUserShowlet() {
+<span class="nc" id="L284">        return this.saveUserWidget();</span>
+    }
+
+    protected String saveUserWidget() {
+        try {
+<span class="pc bpc" id="L289" title="1 of 4 branches missed.">            boolean isCopy = (null != this.getPageCode() &amp;&amp; this.getPageCode().trim().length() &gt; 0);</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">            String check = (isCopy) ? this.checkWidgetToCopy() : this.checkNewUserWidget();</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L292">                return check;</span>
+            }
+<span class="fc" id="L294">            WidgetType newType = null;</span>
+<span class="fc" id="L295">            Widget widgetToCopy = this.extractWidgetToCopy();</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">            if (null == widgetToCopy) {</span>
+<span class="fc" id="L297">                this.setReplaceOnPage(false);</span>
+<span class="fc" id="L298">                newType = this.createNewWidgetType();</span>
+<span class="fc" id="L299">                WidgetType parentType = this.getWidgetTypeManager().getWidgetType(this.getParentWidgetTypeCode());</span>
+<span class="fc" id="L300">                newType.setParentType(parentType);</span>
+<span class="fc" id="L301">                ApsProperties config = this.extractWidgetTypeConfig(parentType.getTypeParameters());</span>
+<span class="fc" id="L302">                newType.setConfig(config);</span>
+<span class="fc" id="L303">            } else {</span>
+<span class="fc" id="L304">                newType = this.createCopiedWidget(widgetToCopy);</span>
+            }
+
+            //TODO CHECK MainGroup
+<span class="fc" id="L308">            newType.setMainGroup(this.getMainGroup());</span>
+
+<span class="fc" id="L310">            this.getWidgetTypeManager().addWidgetType(newType);</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            if (this.isReplaceOnPage()) {</span>
+<span class="fc" id="L312">                WidgetType type = this.getWidgetType(this.getWidgetTypeCode());</span>
+<span class="fc" id="L313">                Widget widget = new Widget();</span>
+<span class="fc" id="L314">                widget.setType(type);</span>
+<span class="fc" id="L315">                IPage page = this.getPageManager().getDraftPage(this.getPageCode());</span>
+<span class="fc" id="L316">                page.getWidgets()[this.getFramePos()] = widget;</span>
+<span class="fc" id="L317">                this.getPageManager().updatePage(page);</span>
+<span class="fc" id="L318">                return &quot;replaceOnPage&quot;;</span>
+            }
+<span class="nc" id="L320">        } catch (Throwable t) {</span>
+<span class="nc" id="L321">            _logger.error(&quot;error in saveUserWidget&quot;, t);</span>
+<span class="nc" id="L322">            return FAILURE;</span>
+<span class="fc" id="L323">        }</span>
+<span class="fc" id="L324">        return SUCCESS;</span>
+    }
+
+    private Widget extractWidgetToCopy() throws Throwable {
+<span class="fc" id="L328">        IPage page = this.getPageManager().getDraftPage(this.getPageCode());</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">        if (null == page) {</span>
+<span class="fc" id="L330">            return null;</span>
+        }
+<span class="fc" id="L332">        Widget[] widgets = page.getWidgets();</span>
+<span class="fc" id="L333">        return widgets[this.getFramePos()];</span>
+    }
+
+    private String checkNewUserWidget() throws Throwable {
+<span class="fc" id="L337">        WidgetType parentType = this.getWidgetTypeManager().getWidgetType(this.getParentWidgetTypeCode());</span>
+<span class="pc bpc" id="L338" title="1 of 2 branches missed.">        if (null == parentType) {</span>
+<span class="nc" id="L339">            this.addActionError(this.getText(&quot;error.widgetType.invalid.null&quot;, new String[]{this.getParentWidgetTypeCode()}));</span>
+<span class="nc" id="L340">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="pc bpc" id="L342" title="1 of 4 branches missed.">        if (null == parentType.getTypeParameters() || parentType.getTypeParameters().isEmpty()) {</span>
+<span class="fc" id="L343">            this.addActionError(this.getText(&quot;error.widgetType.invalid.typeWithNoParameters&quot;, new String[]{this.getParentWidgetTypeCode()}));</span>
+<span class="fc" id="L344">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="fc" id="L346">        return null;</span>
+    }
+
+    private String checkWidgetToCopy() throws Throwable {
+<span class="fc" id="L350">        IPage page = this.getPageManager().getDraftPage(this.getPageCode());</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">        if (null == page) {</span>
+<span class="fc" id="L352">            this.addActionError(this.getText(&quot;error.page.invalidPageCode.adv&quot;,</span>
+<span class="fc" id="L353">                    new String[]{this.getPageCode()}));</span>
+<span class="fc" id="L354">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">        if (!this.getAuthorizationManager().isAuth(this.getCurrentUser(), page)) {</span>
+<span class="nc" id="L357">            this.addActionError(this.getText(&quot;error.page.userNotAllowed.adv&quot;,</span>
+<span class="nc" id="L358">                    new String[]{this.getPageCode()}));</span>
+<span class="nc" id="L359">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="fc" id="L361">        Widget[] widgets = page.getWidgets();</span>
+<span class="fc bfc" id="L362" title="All 4 branches covered.">        if (null == this.getFramePos() || widgets.length &lt;= this.getFramePos()) {</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">            String framePos = (null != this.getFramePos()) ? this.getFramePos().toString() : null;</span>
+<span class="fc" id="L364">            this.addActionError(this.getText(&quot;error.page.invalidPageFrame.adv&quot;,</span>
+<span class="fc" id="L365">                    new String[]{this.getPageCode(), framePos}));</span>
+<span class="fc" id="L366">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="fc" id="L368">        Widget widget = widgets[this.getFramePos()];</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">        if (null == widget) {</span>
+<span class="fc" id="L370">            this.addActionError(this.getText(&quot;error.page.nullWidgetOnFrame&quot;,</span>
+<span class="fc" id="L371">                    new String[]{this.getPageCode(), this.getFramePos().toString()}));</span>
+<span class="fc" id="L372">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="fc" id="L374">        this.setWidgetToCopy(widget);</span>
+<span class="fc" id="L375">        return null;</span>
+    }
+
+    private WidgetType createNewWidgetType() {
+<span class="fc" id="L379">        WidgetType type = new WidgetType();</span>
+<span class="fc" id="L380">        type.setCode(this.getWidgetTypeCode());</span>
+<span class="fc" id="L381">        ApsProperties titles = new ApsProperties();</span>
+<span class="fc" id="L382">        titles.setProperty(&quot;it&quot;, this.getItalianTitle());</span>
+<span class="fc" id="L383">        titles.setProperty(&quot;en&quot;, this.getEnglishTitle());</span>
+<span class="fc" id="L384">        type.setTitles(titles);</span>
+<span class="fc" id="L385">        type.setLocked(false);</span>
+<span class="fc" id="L386">        type.setReadonlyPageWidgetConfig(false);</span>
+<span class="fc" id="L387">        return type;</span>
+    }
+
+    private WidgetType createCopiedWidget(Widget widgetToCopy) {
+<span class="fc" id="L391">        WidgetType type = this.createNewWidgetType();</span>
+<span class="fc" id="L392">        WidgetType parentType = widgetToCopy.getType();</span>
+<span class="fc" id="L393">        type.setParentType(parentType);</span>
+<span class="fc" id="L394">        type.setConfig(widgetToCopy.getConfig());</span>
+<span class="fc" id="L395">        return type;</span>
+    }
+
+    private ApsProperties extractWidgetTypeConfig(List&lt;WidgetTypeParameter&gt; parameters) throws Exception {
+<span class="fc" id="L399">        ApsProperties config = new ApsProperties();</span>
+<span class="fc bfc" id="L400" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.size(); i++) {</span>
+<span class="fc" id="L401">            WidgetTypeParameter param = parameters.get(i);</span>
+<span class="fc" id="L402">            String paramName = param.getName();</span>
+<span class="fc" id="L403">            String value = this.getRequest().getParameter(paramName);</span>
+<span class="pc bpc" id="L404" title="1 of 4 branches missed.">            if (value != null &amp;&amp; value.trim().length() &gt; 0) {</span>
+<span class="fc" id="L405">                config.setProperty(paramName, value);</span>
+            }
+        }
+<span class="fc" id="L408">        return config;</span>
+    }
+
+    /**
+     * Edit an exist widget type.
+     *
+     * @return The result code.
+     */
+    public String edit() {
+        try {
+<span class="nc" id="L418">            String check = this.checkWidgetType();</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L420">                return check;</span>
+            }
+<span class="nc" id="L422">            this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="nc" id="L423">            WidgetType type = this.getWidgetTypeManager().getWidgetType(this.getWidgetTypeCode());</span>
+<span class="nc" id="L424">            ApsProperties titles = type.getTitles();</span>
+<span class="nc" id="L425">            this.setItalianTitle(titles.getProperty(&quot;it&quot;));</span>
+<span class="nc" id="L426">            this.setEnglishTitle(titles.getProperty(&quot;en&quot;));</span>
+<span class="nc bnc" id="L427" title="All 2 branches missed.">            String mainGroup = (StringUtils.isBlank(type.getMainGroup())) ? Group.FREE_GROUP_NAME : type.getMainGroup();</span>
+<span class="nc" id="L428">            this.setMainGroup(mainGroup);</span>
+<span class="nc" id="L429">            this.setBundleId(type.getBundleId());</span>
+<span class="nc" id="L430">            this.setConfigUi(type.getConfigUi());</span>
+<span class="nc" id="L431">            this.setReadonlyPageWidgetConfig(type.isReadonlyPageWidgetConfig());</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">            if (type.isLogic()) {</span>
+<span class="nc" id="L433">                List&lt;String&gt; guiFragmentCodes = this.extractGuiFragmentCodes(this.getWidgetTypeCode());</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">                for (int i = 0; i &lt; guiFragmentCodes.size(); i++) {</span>
+<span class="nc" id="L435">                    String guiFragmentCode = guiFragmentCodes.get(i);</span>
+<span class="nc" id="L436">                    GuiFragment guiFragment = this.getGuiFragment(guiFragmentCode);</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">                    if (StringUtils.isNotEmpty(guiFragment.getGui())) {</span>
+<span class="nc" id="L438">                        String fieldName = type.getCode() + &quot;_&quot; + guiFragmentCode;</span>
+<span class="nc" id="L439">                        this.getGuis().setProperty(fieldName, guiFragment.getGui());</span>
+                    }
+                }
+<span class="nc" id="L442">            } else {</span>
+<span class="nc" id="L443">                GuiFragment guiFragment = this.getGuiFragmentManager().getUniqueGuiFragmentByWidgetType(this.getWidgetTypeCode());</span>
+<span class="nc bnc" id="L444" title="All 2 branches missed.">                if (null != guiFragment) {</span>
+<span class="nc" id="L445">                    this.setGui(guiFragment.getGui());</span>
+                }
+            }
+<span class="nc" id="L448">        } catch (Throwable t) {</span>
+<span class="nc" id="L449">            _logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L450">            return FAILURE;</span>
+<span class="nc" id="L451">        }</span>
+<span class="nc" id="L452">        return SUCCESS;</span>
+    }
+
+    public List&lt;String&gt; extractGuiFragmentCodes(String widgetTypeCode) {
+<span class="fc" id="L456">        List&lt;String&gt; ids = null;</span>
+        try {
+<span class="fc" id="L458">            ids = this.getGuiFragmentManager().getGuiFragmentCodesByWidgetType(widgetTypeCode);</span>
+<span class="nc" id="L459">        } catch (Throwable t) {</span>
+<span class="nc" id="L460">            _logger.error(&quot;error extracting gui fragment codes&quot;, t);</span>
+<span class="nc" id="L461">            throw new RuntimeException(&quot;error extracting gui fragment codes&quot;, t);</span>
+<span class="fc" id="L462">        }</span>
+<span class="fc" id="L463">        return ids;</span>
+    }
+
+    public GuiFragment extractUniqueGuiFragment(String widgetTypeCode) {
+<span class="pc bpc" id="L467" title="1 of 2 branches missed.">        if (StringUtils.isBlank(widgetTypeCode)) {</span>
+<span class="nc" id="L468">            return null;</span>
+        }
+<span class="fc" id="L470">        GuiFragment fragment = null;</span>
+        try {
+<span class="fc" id="L472">            fragment = this.getGuiFragmentManager().getUniqueGuiFragmentByWidgetType(widgetTypeCode);</span>
+<span class="nc" id="L473">        } catch (Throwable t) {</span>
+<span class="nc" id="L474">            _logger.error(&quot;error extracting gui fragment by widget '{}'&quot;, widgetTypeCode, t);</span>
+<span class="nc" id="L475">            throw new RuntimeException(&quot;error extracting gui fragment by widget &quot; + widgetTypeCode, t);</span>
+<span class="fc" id="L476">        }</span>
+<span class="fc" id="L477">        return fragment;</span>
+    }
+
+    public GuiFragment getGuiFragment(String guiFragmentCode) {
+        try {
+<span class="nc" id="L482">            return this.getGuiFragmentManager().getGuiFragment(guiFragmentCode);</span>
+<span class="nc" id="L483">        } catch (Throwable t) {</span>
+<span class="nc" id="L484">            _logger.error(&quot;error extracting gui fragment - code '{}'&quot;, guiFragmentCode, t);</span>
+<span class="nc" id="L485">            throw new RuntimeException(&quot;error extracting gui fragment - code &quot; + guiFragmentCode, t);</span>
+        }
+    }
+
+    private String checkWidgetType() {
+<span class="fc" id="L490">        WidgetType type = this.getWidgetTypeManager().getWidgetType(this.getWidgetTypeCode());</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">        if (null == type) {</span>
+<span class="fc" id="L492">            this.addActionError(this.getText(&quot;error.widgetType.invalid.null&quot;, new String[]{this.getWidgetTypeCode()}));</span>
+<span class="fc" id="L493">            return &quot;inputWidgetTypes&quot;;</span>
+        }
+<span class="fc" id="L495">        return null;</span>
+    }
+
+    /**
+     * Start the deletion operations for the given widget type.
+     *
+     * @return The result code.
+     */
+    public String trash() {
+        try {
+<span class="fc" id="L505">            String check = this.checkDeleteWidgetType();</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L507">                return check;</span>
+            }
+<span class="nc" id="L509">        } catch (Throwable t) {</span>
+<span class="nc" id="L510">            _logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L511">            return FAILURE;</span>
+<span class="fc" id="L512">        }</span>
+<span class="fc" id="L513">        return SUCCESS;</span>
+    }
+
+    /**
+     * Delete a widget type from the system.
+     *
+     * @return The result code.
+     */
+    public String delete() {
+        try {
+<span class="fc" id="L523">            String check = this.checkDeleteWidgetType();</span>
+<span class="pc bpc" id="L524" title="1 of 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L525">                return check;</span>
+            }
+<span class="fc" id="L527">            this.getWidgetTypeManager().deleteWidgetType(this.getWidgetTypeCode());</span>
+<span class="nc" id="L528">        } catch (Throwable t) {</span>
+<span class="nc" id="L529">            _logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L530">            return FAILURE;</span>
+<span class="fc" id="L531">        }</span>
+<span class="fc" id="L532">        return SUCCESS;</span>
+    }
+
+    private String checkDeleteWidgetType() {
+        try {
+<span class="fc" id="L537">            List&lt;IPage&gt; utilizers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L538">            String check = this.checkWidgetType();</span>
+<span class="fc bfc" id="L539" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L540">                return check;</span>
+            }
+<span class="fc" id="L542">            WidgetType type = this.getWidgetTypeManager().getWidgetType(this.getWidgetTypeCode());</span>
+<span class="fc bfc" id="L543" title="All 2 branches covered.">            if (type.isLocked()) {</span>
+<span class="fc" id="L544">                this.addActionError(this.getText(&quot;error.widgetType.locked.undeletable&quot;, new String[]{this.getWidgetTypeCode()}));</span>
+<span class="fc" id="L545">                return &quot;inputWidgetTypes&quot;;</span>
+            }
+<span class="fc" id="L547">            List&lt;IPage&gt; draftUtilizers = this.getPageManager().getDraftWidgetUtilizers(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L548" title="1 of 4 branches missed.">            if (null != draftUtilizers &amp;&amp; draftUtilizers.size() &gt; 0) {</span>
+<span class="fc" id="L549">                utilizers.addAll(draftUtilizers);</span>
+            }
+<span class="fc" id="L551">            List&lt;IPage&gt; onlineUtilizers = this.getPageManager().getOnlineWidgetUtilizers(this.getWidgetTypeCode());</span>
+<span class="pc bpc" id="L552" title="2 of 4 branches missed.">            if (null != onlineUtilizers &amp;&amp; onlineUtilizers.size() &gt; 0) {</span>
+<span class="nc" id="L553">                utilizers.addAll(onlineUtilizers);</span>
+            }
+<span class="fc bfc" id="L555" title="All 2 branches covered.">            if (utilizers.size() &gt; 0) {</span>
+<span class="fc" id="L556">                this.addActionError(this.getText(&quot;error.widgetType.used.undeletable&quot;, new String[]{this.getWidgetTypeCode()}));</span>
+<span class="fc" id="L557">                return &quot;inputWidgetTypes&quot;;</span>
+            }
+<span class="nc" id="L559">        } catch (Throwable t) {</span>
+<span class="nc" id="L560">            _logger.error(&quot;Error on checking delete operatione : widget type code {}&quot;, this.getWidgetTypeCode(), t);</span>
+<span class="nc" id="L561">            throw new RuntimeException(&quot;Error on checking delete operatione : widget type code &quot; + this.getWidgetTypeCode(), t);</span>
+<span class="fc" id="L562">        }</span>
+<span class="fc" id="L563">        return null;</span>
+    }
+
+    @Deprecated
+    public WidgetType getShowletType(String code) {
+<span class="nc" id="L568">        return this.getWidgetType(code);</span>
+    }
+
+    public WidgetType getWidgetType(String code) {
+<span class="fc" id="L572">        return this.getWidgetTypeManager().getWidgetType(code);</span>
+    }
+
+    public Group getGroup(String groupCode) {
+<span class="nc" id="L576">        Group group = super.getGroupManager().getGroup(groupCode);</span>
+<span class="nc bnc" id="L577" title="All 2 branches missed.">        if (null == group) {</span>
+<span class="nc" id="L578">            group = super.getGroupManager().getGroup(Group.FREE_GROUP_NAME);</span>
+        }
+<span class="nc" id="L580">        return group;</span>
+    }
+
+    protected void buildGuisFromForm(WidgetType type) throws Throwable {
+<span class="fc bfc" id="L584" title="All 2 branches covered.">        if (type.isLogic()) {</span>
+<span class="fc" id="L585">            List&lt;String&gt; guiFragmentCodes = this.extractGuiFragmentCodes(type.getCode());</span>
+<span class="pc bpc" id="L586" title="1 of 2 branches missed.">            for (int i = 0; i &lt; guiFragmentCodes.size(); i++) {</span>
+<span class="nc" id="L587">                String guiFragmentCode = guiFragmentCodes.get(i);</span>
+<span class="nc" id="L588">                String fieldName = type.getCode() + &quot;_&quot; + guiFragmentCode;</span>
+<span class="nc" id="L589">                String value = this.getRequest().getParameter(fieldName);</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">                if (StringUtils.isNotBlank(value)) {</span>
+<span class="nc" id="L591">                    this.getGuis().setProperty(fieldName, value);</span>
+                }
+            }
+        }
+<span class="fc" id="L595">    }</span>
+
+    public boolean isEditEmptyFragment() {
+<span class="nc" id="L598">        String paramValue = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_EDIT_EMPTY_FRAGMENT_ENABLED);</span>
+        try {
+<span class="nc" id="L600">            return Boolean.parseBoolean(paramValue);</span>
+<span class="nc" id="L601">        } catch (Exception e) {</span>
+<span class="nc" id="L602">            return false;</span>
+        }
+    }
+
+    public List&lt;Group&gt; getGroups() {
+<span class="nc" id="L607">        return this.getGroupManager().getGroups();</span>
+    }
+
+    public int getStrutsAction() {
+<span class="fc" id="L611">        return _strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L615">        this._strutsAction = strutsAction;</span>
+<span class="fc" id="L616">    }</span>
+
+    @Deprecated
+    public String getShowletTypeCode() {
+<span class="fc" id="L620">        return this.getWidgetTypeCode();</span>
+    }
+
+    @Deprecated
+    public void setShowletTypeCode(String widgetTypeCode) {
+<span class="nc" id="L625">        this.setWidgetTypeCode(widgetTypeCode);</span>
+<span class="nc" id="L626">    }</span>
+
+    public String getEnglishTitle() {
+<span class="fc" id="L629">        return _englishTitle;</span>
+    }
+
+    public void setEnglishTitle(String englishTitle) {
+<span class="fc" id="L633">        this._englishTitle = englishTitle;</span>
+<span class="fc" id="L634">    }</span>
+
+    public String getItalianTitle() {
+<span class="fc" id="L637">        return _italianTitle;</span>
+    }
+
+    public void setItalianTitle(String italianTitle) {
+<span class="fc" id="L641">        this._italianTitle = italianTitle;</span>
+<span class="fc" id="L642">    }</span>
+
+    public String getMainGroup() {
+<span class="fc" id="L645">        return _mainGroup;</span>
+    }
+
+    public void setMainGroup(String mainGroup) {
+<span class="fc" id="L649">        this._mainGroup = mainGroup;</span>
+<span class="fc" id="L650">    }</span>
+
+    public String getBundleId() {
+<span class="fc" id="L653">        return bundleId;</span>
+    }
+
+    public void setBundleId(String bundleId) {
+<span class="nc" id="L657">        this.bundleId = bundleId;</span>
+<span class="nc" id="L658">    }</span>
+
+    public String getConfigUi() {
+<span class="fc" id="L661">        return configUi;</span>
+    }
+
+    public void setConfigUi(String configUi) {
+<span class="nc" id="L665">        this.configUi = configUi;</span>
+<span class="nc" id="L666">    }</span>
+
+    @Deprecated
+    public String getParentShowletTypeCode() {
+<span class="nc" id="L670">        return this.getParentWidgetTypeCode();</span>
+    }
+
+    @Deprecated
+    public void setParentShowletTypeCode(String parentWidgetTypeCode) {
+<span class="nc" id="L675">        this.setParentWidgetTypeCode(parentWidgetTypeCode);</span>
+<span class="nc" id="L676">    }</span>
+
+    public String getParentWidgetTypeCode() {
+<span class="fc" id="L679">        return _parentWidgetTypeCode;</span>
+    }
+
+    public void setParentWidgetTypeCode(String parentWidgetTypeCode) {
+<span class="fc" id="L683">        this._parentWidgetTypeCode = parentWidgetTypeCode;</span>
+<span class="fc" id="L684">    }</span>
+
+    public String getGui() {
+<span class="fc" id="L687">        return _gui;</span>
+    }
+
+    public void setGui(String gui) {
+<span class="fc" id="L691">        this._gui = gui;</span>
+<span class="fc" id="L692">    }</span>
+
+    public Properties getGuis() {
+<span class="nc" id="L695">        return _guis;</span>
+    }
+
+    public void setGuis(Properties guis) {
+<span class="nc" id="L699">        this._guis = guis;</span>
+<span class="nc" id="L700">    }</span>
+
+    public String getPageCode() {
+<span class="fc" id="L703">        return _pageCode;</span>
+    }
+
+    public void setPageCode(String pageCode) {
+<span class="fc" id="L707">        this._pageCode = pageCode;</span>
+<span class="fc" id="L708">    }</span>
+
+    public Integer getFramePos() {
+<span class="fc" id="L711">        return _framePos;</span>
+    }
+
+    public void setFramePos(Integer framePos) {
+<span class="fc" id="L715">        this._framePos = framePos;</span>
+<span class="fc" id="L716">    }</span>
+
+    @Deprecated
+    public Widget getShowletToCopy() {
+<span class="nc" id="L720">        return this.getWidgetToCopy();</span>
+    }
+
+    @Deprecated
+    public void setShowletToCopy(Widget showletToCopy) {
+<span class="nc" id="L725">        this.setWidgetToCopy(showletToCopy);</span>
+<span class="nc" id="L726">    }</span>
+
+    public Widget getWidgetToCopy() {
+<span class="nc" id="L729">        return _widgetToCopy;</span>
+    }
+
+    public void setWidgetToCopy(Widget widgetToCopy) {
+<span class="fc" id="L733">        this._widgetToCopy = widgetToCopy;</span>
+<span class="fc" id="L734">    }</span>
+
+    public boolean isReplaceOnPage() {
+<span class="fc" id="L737">        return _replaceOnPage;</span>
+    }
+
+    public void setReplaceOnPage(boolean replaceOnPage) {
+<span class="fc" id="L741">        this._replaceOnPage = replaceOnPage;</span>
+<span class="fc" id="L742">    }</span>
+
+    public String getWidgetTypeCode() {
+<span class="fc" id="L745">        return _widgetTypeCode;</span>
+    }
+
+    public void setWidgetTypeCode(String widgetTypeCode) {
+<span class="fc" id="L749">        this._widgetTypeCode = widgetTypeCode;</span>
+<span class="fc" id="L750">    }</span>
+
+    protected IGuiFragmentManager getGuiFragmentManager() {
+<span class="fc" id="L753">        return _guiFragmentManager;</span>
+    }
+
+    public void setGuiFragmentManager(IGuiFragmentManager guiFragmentManager) {
+<span class="fc" id="L757">        this._guiFragmentManager = guiFragmentManager;</span>
+<span class="fc" id="L758">    }</span>
+
+    protected ConfigInterface getConfigManager() {
+<span class="nc" id="L761">        return _configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L765">        this._configManager = configManager;</span>
+<span class="fc" id="L766">    }</span>
+
+    protected IPageActionHelper getPageActionHelper() {
+<span class="nc" id="L769">        return _pageActionHelper;</span>
+    }
+
+    public void setPageActionHelper(IPageActionHelper pageActionHelper) {
+<span class="fc" id="L773">        this._pageActionHelper = pageActionHelper;</span>
+<span class="fc" id="L774">    }</span>
+
+    public boolean isReadonlyPageWidgetConfig() {
+<span class="fc" id="L777">        return readonlyPageWidgetConfig;</span>
+    }
+
+    public void setReadonlyPageWidgetConfig(boolean readonlyPageWidgetConfig) {
+<span class="fc" id="L781">        this.readonlyPageWidgetConfig = readonlyPageWidgetConfig;</span>
+<span class="fc" id="L782">    }</span>
+
+    private int _strutsAction;
+
+    private String _widgetTypeCode;
+
+    private String _englishTitle;
+    private String _italianTitle;
+
+    private String _mainGroup;
+
+    private String bundleId;
+
+    private String configUi;
+
+    private String _parentWidgetTypeCode;
+
+    private String _gui;
+<span class="fc" id="L800">    private Properties _guis = new Properties();</span>
+
+    private String _pageCode;
+    private Integer _framePos;
+    private Widget _widgetToCopy;
+
+    private boolean _replaceOnPage;
+    private boolean readonlyPageWidgetConfig;
+    private IGuiFragmentManager _guiFragmentManager;
+    private ConfigInterface _configManager;
+
+    public final static int NEW_USER_WIDGET = 5;
+    private IPageActionHelper _pageActionHelper;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

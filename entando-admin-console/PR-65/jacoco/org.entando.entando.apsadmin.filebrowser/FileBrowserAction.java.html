@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileBrowserAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.filebrowser</a> &gt; <span class="el_source">FileBrowserAction.java</span></div><h1>FileBrowserAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.filebrowser;
+
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseAction;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.storage.BasicFileAttributeView;
+import org.entando.entando.aps.system.services.storage.IStorageManager;
+import org.entando.entando.aps.system.services.storage.RootFolderAttributeView;
+import org.entando.entando.aps.system.services.storage.StorageManagerUtil;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author S.Loru - E.Santoboni
+ */
+<span class="fc" id="L40">public class FileBrowserAction extends BaseAction {</span>
+
+<span class="fc" id="L42">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(FileBrowserAction.class);</span>
+
+    public static final int ADD_NEW_FILE = 11;
+    public static final int ADD_NEW_DIRECTORY = 12;
+    public static final int UPLOAD_NEW_FILE = 13;
+
+    private String currentPath;
+<span class="fc" id="L49">    private String protectedFolder = null;</span>
+
+    private String fileText;
+    private String textFileExtension;
+    private String filename;
+    private String dirname;
+    private Boolean deleteFile;
+    private int strutsAction;
+
+    //variables for file upload
+    private List&lt;File&gt; file;
+    private List&lt;String&gt; uploadFileName;
+    private List&lt;InputStream&gt; uploadInputStream;
+
+    private String textFileTypesCSV;
+
+    private InputStream downloadInputStream;
+    private String downloadContentType;
+
+    private IStorageManager storageManager;
+
+    public String list() {
+<span class="fc" id="L71">        return SUCCESS;</span>
+    }
+
+    public String edit() {
+        try {
+<span class="nc" id="L76">            String result = this.validateTextFileExtension(this.getFilename());</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (null != result) {</span>
+<span class="nc" id="L78">                return result;</span>
+            }
+<span class="nc" id="L80">            String validatePath = this.validateFullPath();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (null != validatePath) {</span>
+<span class="nc" id="L82">                return validatePath;</span>
+            }
+<span class="nc" id="L84">            String fullPath = this.getCurrentPath() + this.getFilename();</span>
+<span class="nc" id="L85">            BasicFileAttributeView fileAttributeView = this.getStorageManager().getAttributes(fullPath, this.getProtectedFolderBoolean());</span>
+<span class="nc bnc" id="L86" title="All 4 branches missed.">            if (null == fileAttributeView || fileAttributeView.isDirectory()) {</span>
+<span class="nc" id="L87">                return INPUT;</span>
+            }
+<span class="nc" id="L89">            String text = this.getStorageManager().readFile(fullPath, this.getProtectedFolderBoolean());</span>
+<span class="nc" id="L90">            this.setFileText(text);</span>
+<span class="nc" id="L91">            this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="nc" id="L92">        } catch (Throwable t) {</span>
+<span class="nc" id="L93">            logger.error(&quot;error editing file, fullPath: {}&quot;, this.getCurrentPath(), t);</span>
+<span class="nc" id="L94">            return FAILURE;</span>
+<span class="nc" id="L95">        }</span>
+<span class="nc" id="L96">        return SUCCESS;</span>
+    }
+
+    public String newFile() {
+<span class="nc" id="L100">        this.setStrutsAction(ADD_NEW_FILE);</span>
+<span class="nc" id="L101">        return SUCCESS;</span>
+    }
+
+    public String uploadNewFile() {
+<span class="nc" id="L105">        this.setStrutsAction(UPLOAD_NEW_FILE);</span>
+<span class="nc" id="L106">        return SUCCESS;</span>
+    }
+
+    public String newDirectory() {
+<span class="nc" id="L110">        this.setStrutsAction(ADD_NEW_DIRECTORY);</span>
+<span class="nc" id="L111">        return SUCCESS;</span>
+    }
+
+    public String upload() throws Throwable {
+<span class="nc" id="L115">        logger.debug(&quot;upload :&quot; + this.getUploadFileName());</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">        if (null != this.getFile()) {</span>
+<span class="nc" id="L117">            logger.debug(&quot;Upload {} files &quot;, this.getFile().size());</span>
+        } else {
+<span class="nc" id="L119">            logger.debug(&quot;Upload null files list, nothing to save&quot;);</span>
+        }
+<span class="nc" id="L121">        return uploadFiles(this.getFile(),</span>
+<span class="nc" id="L122">                this.getUploadFileName(),</span>
+<span class="nc" id="L123">                this.getInputStream(),</span>
+<span class="nc" id="L124">                this.getCurrentPath(),</span>
+<span class="nc" id="L125">                this.getProtectedFolderBoolean());</span>
+    }
+
+    public String uploadFiles(List&lt;File&gt; files, List&lt;String&gt; fileNames, List&lt;InputStream&gt; inputStreams, String currentPath, boolean protectedFolder) {
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        if (null != files) {</span>
+<span class="fc" id="L130">            logger.debug(&quot;Upload Files :&quot; + files.size());</span>
+        }
+        try {
+<span class="fc" id="L133">            int index = 0;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            for (File file : files) {</span>
+<span class="fc" id="L135">                logger.debug(&quot;Upload file {} with filename &quot;, index, fileNames.get(index));</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                if (!StorageManagerUtil.isValidDirName(currentPath)) {</span>
+<span class="nc" id="L137">                    this.addActionError(this.getText(&quot;error.filebrowser.filepath.invalid&quot;));</span>
+<span class="nc" id="L138">                    return INPUT;</span>
+                }
+<span class="fc" id="L140">                String result = this.checkExistingFileExtension(currentPath, fileNames.get(index), false, protectedFolder);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                if (null != result) {</span>
+<span class="fc" id="L142">                    return result;</span>
+                }
+
+<span class="fc" id="L145">                this.getStorageManager().saveFile(currentPath + fileNames.get(index), protectedFolder, inputStreams.get(index));</span>
+<span class="fc" id="L146">                index++;</span>
+<span class="fc" id="L147">            }</span>
+<span class="nc" id="L148">        } catch (Throwable t) {</span>
+<span class="nc" id="L149">            logger.error(&quot;error in upload&quot;, t);</span>
+<span class="nc" id="L150">            return FAILURE;</span>
+<span class="fc" id="L151">        }</span>
+<span class="fc" id="L152">        return SUCCESS;</span>
+    }
+
+    public String trash() {
+        try {
+<span class="fc" id="L157">            String validatePath = this.validateFullPath();</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            if (null != validatePath) {</span>
+<span class="fc" id="L159">                return validatePath;</span>
+            }
+<span class="fc" id="L161">            String fullPath = this.getCurrentPath() + this.getFilename();</span>
+<span class="fc" id="L162">            BasicFileAttributeView fileAttributeView = this.getStorageManager().getAttributes(fullPath, this.getProtectedFolderBoolean());</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (null == fileAttributeView) {</span>
+<span class="nc" id="L164">                this.addActionError(this.getText(&quot;error.filebrowser.filepath.null&quot;));</span>
+<span class="nc" id="L165">                return INPUT;</span>
+            }
+<span class="fc" id="L167">            this.setStrutsAction(ApsAdminSystemConstants.DELETE);</span>
+<span class="nc" id="L168">        } catch (Throwable t) {</span>
+<span class="nc" id="L169">            logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L170">            return FAILURE;</span>
+<span class="fc" id="L171">        }</span>
+<span class="fc" id="L172">        return SUCCESS;</span>
+    }
+
+    public String delete() {
+        try {
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">            if (null == this.isDeleteFile()) {</span>
+<span class="nc" id="L178">                this.addActionError(this.getText(&quot;error.filebrowser.delete.missingInformation&quot;));</span>
+<span class="nc" id="L179">                return INPUT;</span>
+            }
+<span class="fc" id="L181">            String validatePath = this.validateFullPath();</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if (null != validatePath) {</span>
+<span class="nc" id="L183">                return validatePath;</span>
+            }
+<span class="fc" id="L185">            String subPath = this.getCurrentPath() + this.getFilename();</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">            if (this.isDeleteFile()) {</span>
+<span class="fc" id="L187">                this.getStorageManager().deleteFile(subPath, this.getProtectedFolderBoolean());</span>
+            } else {
+<span class="nc" id="L189">                this.getStorageManager().deleteDirectory(subPath, this.getProtectedFolderBoolean());</span>
+            }
+<span class="nc" id="L191">        } catch (Throwable t) {</span>
+<span class="nc" id="L192">            logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L193">            return FAILURE;</span>
+<span class="fc" id="L194">        }</span>
+<span class="fc" id="L195">        return SUCCESS;</span>
+    }
+
+    public String save() {
+<span class="fc" id="L199">        logger.debug(&quot;Save file {}&quot;, filename);</span>
+        try {
+<span class="fc" id="L201">            String validatePath = this.validateFullPath();</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">            if (null != validatePath) {</span>
+<span class="fc" id="L203">                return validatePath;</span>
+            }
+<span class="fc" id="L205">            InputStream stream = new ByteArrayInputStream(this.getFileText().getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L206">            String filename = this.getFilename();</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">            if (this.getStrutsAction() == ADD_NEW_FILE) {</span>
+<span class="fc" id="L208">                filename += &quot;.&quot; + this.getTextFileExtension();</span>
+            }
+<span class="fc" id="L210">            String result = this.validateTextFileExtension(filename);</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">            if (null != result) {</span>
+<span class="fc" id="L212">                return result;</span>
+            }
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            boolean expectedExist = (this.getStrutsAction() == ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L215">            result = this.checkExistingFileExtension(this.getCurrentPath(), filename, expectedExist, this.getProtectedFolderBoolean());</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            if (null != result) {</span>
+<span class="fc" id="L217">                return result;</span>
+            }
+<span class="fc" id="L219">            this.getStorageManager().editFile(this.getCurrentPath() + filename, this.getProtectedFolderBoolean(), stream);</span>
+<span class="nc" id="L220">        } catch (Throwable t) {</span>
+<span class="nc" id="L221">            logger.error(&quot;error saving file, fullPath: {} text: {}&quot;, this.getCurrentPath(), this.getFileText(), t);</span>
+<span class="nc" id="L222">            return FAILURE;</span>
+<span class="fc" id="L223">        }</span>
+<span class="fc" id="L224">        return SUCCESS;</span>
+    }
+
+    public boolean isTextFile(String filename) {
+<span class="fc" id="L228">        int index = filename.lastIndexOf(&quot;.&quot;);</span>
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        String extension = (index &gt; 0) ? filename.substring(index + 1) : null;</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        if (StringUtils.isBlank(extension)) {</span>
+<span class="nc" id="L231">            return false;</span>
+        }
+<span class="fc" id="L233">        String[] extensions = this.getTextFileTypes();</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">        for (String allowedExtension : extensions) {</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">            if (allowedExtension.equalsIgnoreCase(extension)) {</span>
+<span class="fc" id="L236">                return true;</span>
+            }
+        }
+<span class="fc" id="L239">        return false;</span>
+    }
+
+    public String createDir() {
+        try {
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (!StorageManagerUtil.isValidDirName(this.getCurrentPath())) {</span>
+<span class="nc" id="L245">                this.addActionError(this.getText(&quot;error.filebrowser.filepath.invalid&quot;));</span>
+<span class="nc" id="L246">                return INPUT;</span>
+            }
+<span class="nc bnc" id="L248" title="All 4 branches missed.">            if (!StorageManagerUtil.isValidDirName(this.getDirname()) || this.getDirname().trim().length() == 0) {</span>
+<span class="nc" id="L249">                this.addActionError(this.getText(&quot;error.filebrowser.dirname.invalid&quot;));</span>
+<span class="nc" id="L250">                return INPUT;</span>
+            }
+<span class="nc" id="L252">            this.getStorageManager().createDirectory(this.getCurrentPath() + this.getDirname(), this.getProtectedFolderBoolean());</span>
+<span class="nc" id="L253">        } catch (Throwable t) {</span>
+<span class="nc" id="L254">            logger.error(&quot;error creating dir, fullPath: {} text: {}&quot;, this.getCurrentPath(), this.getDirname(), t);</span>
+<span class="nc" id="L255">            return FAILURE;</span>
+<span class="nc" id="L256">        }</span>
+<span class="nc" id="L257">        return SUCCESS;</span>
+    }
+
+    public String download() {
+        try {
+<span class="nc" id="L262">            String validatePath = this.validateFullPath();</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">            if (null != validatePath) {</span>
+<span class="nc" id="L264">                return validatePath;</span>
+            }
+<span class="nc" id="L266">            String fullPath = this.getCurrentPath() + this.getFilename();</span>
+<span class="nc" id="L267">            InputStream is = this.getStorageManager().getStream(fullPath, this.getProtectedFolderBoolean());</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (null == is) {</span>
+<span class="nc" id="L269">                this.addActionError(this.getText(&quot;error.filebrowser.file.doesNotExist&quot;, new String[]{fullPath}));</span>
+<span class="nc" id="L270">                return INPUT;</span>
+            }
+<span class="nc" id="L272">            this.setDownloadInputStream(is);</span>
+<span class="nc" id="L273">            String contentType = URLConnection.guessContentTypeFromName(this.getFilename());</span>
+<span class="nc" id="L274">            this.setDownloadContentType(contentType);</span>
+<span class="nc" id="L275">        } catch (Throwable t) {</span>
+<span class="nc" id="L276">            logger.error(&quot;error downloading file, fullPath: '{}' file: '{}'&quot;, this.getCurrentPath(), this.getFilename(), t);</span>
+<span class="nc" id="L277">            return FAILURE;</span>
+<span class="nc" id="L278">        }</span>
+<span class="nc" id="L279">        return SUCCESS;</span>
+    }
+
+    public RootFolderAttributeView getRootFolder(boolean protectedFolder) {
+<span class="fc bfc" id="L283" title="All 2 branches covered.">        String folderName = (protectedFolder) ? &quot;protected&quot; : &quot;public&quot;;</span>
+<span class="fc" id="L284">        return new RootFolderAttributeView(folderName, protectedFolder);</span>
+    }
+
+    public List&lt;SelectItem&gt; getBreadCrumbsTargets() {
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        if (null == this.getProtectedFolder()) {</span>
+<span class="nc" id="L289">            return null;</span>
+        }
+<span class="nc" id="L291">        List&lt;SelectItem&gt; items = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L292">        RootFolderAttributeView rootFolder = this.getRootFolder(this.getProtectedFolderBoolean());</span>
+<span class="nc" id="L293">        items.add(new SelectItem(null, rootFolder.getName()));</span>
+<span class="nc" id="L294">        String currentPath = this.getCurrentPath();</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">        if (StringUtils.isEmpty(currentPath)) {</span>
+<span class="nc" id="L296">            return items;</span>
+        }
+<span class="nc" id="L298">        String[] folders = currentPath.split(&quot;/&quot;);</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">        for (int i = 0; i &lt; folders.length; i++) {</span>
+<span class="nc" id="L300">            String folderName = folders[i];</span>
+<span class="nc" id="L301">            String subpath = null;</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            if (i == 0) {</span>
+<span class="nc" id="L303">                subpath = folderName + &quot;/&quot;;</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">            } else if (i == (folders.length - 1)) {</span>
+<span class="nc" id="L305">                subpath = currentPath;</span>
+            } else {
+<span class="nc" id="L307">                int index = currentPath.indexOf(folderName) + folderName.length();</span>
+<span class="nc" id="L308">                subpath = currentPath.substring(0, index) + &quot;/&quot;;</span>
+            }
+<span class="nc" id="L310">            items.add(new SelectItem(subpath, folderName));</span>
+        }
+<span class="nc" id="L312">        return items;</span>
+    }
+
+    public BasicFileAttributeView[] getFilesAttributes() {
+        try {
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">            if (!StorageManagerUtil.isValidDirName(this.getCurrentPath())) {</span>
+<span class="nc" id="L318">                logger.info(&quot;invalid path specified: {}&quot;, this.getCurrentPath());</span>
+<span class="nc" id="L319">                this.setCurrentPath(&quot;&quot;);</span>
+            }
+<span class="fc bfc" id="L321" title="All 2 branches covered.">            if (null == this.getProtectedFolder()) {</span>
+<span class="fc" id="L322">                BasicFileAttributeView[] bfav = new BasicFileAttributeView[2];</span>
+<span class="fc" id="L323">                bfav[0] = this.getRootFolder(false);</span>
+<span class="fc" id="L324">                bfav[1] = this.getRootFolder(true);</span>
+<span class="fc" id="L325">                return bfav;</span>
+            } else {
+<span class="fc" id="L327">                return this.getStorageManager().listAttributes(this.getCurrentPath(), this.getProtectedFolderBoolean());</span>
+            }
+<span class="nc" id="L329">        } catch (Throwable t) {</span>
+<span class="nc" id="L330">            logger.error(&quot;error extraction file attributes, fullPath: {} &quot;, this.getCurrentPath(), t);</span>
+<span class="nc" id="L331">            return null;</span>
+        }
+    }
+
+    public String getCurrentPath() {
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        if (!StringUtils.isBlank(currentPath)) {</span>
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">            if (!currentPath.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L338">                currentPath = currentPath + &quot;/&quot;;</span>
+            }
+        } else {
+<span class="fc" id="L341">            currentPath = &quot;&quot;;</span>
+        }
+
+<span class="fc" id="L344">        return currentPath;</span>
+    }
+
+    public void setCurrentPath(String currentPath) {
+<span class="fc" id="L348">        this.currentPath = currentPath;</span>
+<span class="fc" id="L349">    }</span>
+
+    public String getProtectedFolder() {
+<span class="fc" id="L352">        return protectedFolder;</span>
+    }
+
+    public void setProtectedFolder(String protectedFolder) {
+<span class="fc" id="L356">        this.protectedFolder = protectedFolder;</span>
+<span class="fc" id="L357">    }</span>
+
+    public String getFileText() {
+<span class="fc" id="L360">        return fileText;</span>
+    }
+
+    public void setFileText(String fileText) {
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">        fileText = (null != fileText) ? fileText : &quot;&quot;;</span>
+<span class="fc" id="L365">        this.fileText = fileText;</span>
+<span class="fc" id="L366">    }</span>
+
+    public String getTextFileExtension() {
+<span class="fc" id="L369">        return textFileExtension;</span>
+    }
+
+    public void setTextFileExtension(String textFileExtension) {
+<span class="fc" id="L373">        this.textFileExtension = textFileExtension;</span>
+<span class="fc" id="L374">    }</span>
+
+    public int getStrutsAction() {
+<span class="fc" id="L377">        return strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L381">        this.strutsAction = strutsAction;</span>
+<span class="fc" id="L382">    }</span>
+
+    public void setUpload(List&lt;File&gt; file) {
+<span class="nc" id="L385">        this.file = file;</span>
+<span class="nc" id="L386">    }</span>
+
+    public List&lt;File&gt; getUpload() {
+<span class="nc" id="L389">        return this.file;</span>
+    }
+
+    public int getFileSize(int index) {
+<span class="nc" id="L393">        return (int) this.file.get(index).length() / 1000;</span>
+    }
+
+    public File getFile(int index) {
+<span class="nc" id="L397">        return file.get(index);</span>
+    }
+
+    public InputStream getInputStream(int index) throws Throwable {
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        if (null == this.getFile(index)) {</span>
+<span class="nc" id="L402">            return null;</span>
+        }
+<span class="nc" id="L404">        return new FileInputStream(this.getFile(index));</span>
+    }
+
+    public List&lt;InputStream&gt; getInputStream() throws Throwable {
+<span class="nc bnc" id="L408" title="All 2 branches missed.">        if (null == this.getFile()) {</span>
+<span class="nc" id="L409">            return null;</span>
+        }
+<span class="nc" id="L411">        List&lt;InputStream&gt; inputStreamList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L412" title="All 2 branches missed.">        for (File file : this.getFile()) {</span>
+<span class="nc" id="L413">            FileInputStream fileInputStream = new FileInputStream(file);</span>
+<span class="nc" id="L414">            inputStreamList.add(fileInputStream);</span>
+<span class="nc" id="L415">        }</span>
+<span class="nc" id="L416">        return inputStreamList;</span>
+    }
+
+    public String getFilename() {
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        if (StringUtils.isBlank(filename)) {</span>
+<span class="fc" id="L421">            filename = &quot;&quot;;</span>
+        }
+<span class="fc" id="L423">        return filename;</span>
+    }
+
+    public void setFilename(String filename) {
+<span class="fc" id="L427">        this.filename = filename;</span>
+<span class="fc" id="L428">    }</span>
+
+    public String getDirname() {
+<span class="fc" id="L431">        return dirname;</span>
+    }
+
+    public void setDirname(String dirname) {
+<span class="nc" id="L435">        this.dirname = dirname;</span>
+<span class="nc" id="L436">    }</span>
+
+    public Boolean isDeleteFile() {
+<span class="fc" id="L439">        return deleteFile;</span>
+    }
+
+    public void setDeleteFile(Boolean deleteFile) {
+<span class="fc" id="L443">        this.deleteFile = deleteFile;</span>
+<span class="fc" id="L444">    }</span>
+
+    public String getUploadFileName(int index) {
+<span class="nc" id="L447">        return uploadFileName.get(index);</span>
+    }
+
+    public List&lt;String&gt; getUploadFileName() {
+<span class="nc" id="L451">        return uploadFileName;</span>
+    }
+
+    public void setUploadFileName(List&lt;String&gt; uploadFileName) {
+<span class="nc" id="L455">        this.uploadFileName = uploadFileName;</span>
+<span class="nc" id="L456">    }</span>
+
+    public InputStream getUploadInputStream(int index) {
+<span class="nc" id="L459">        return this.uploadInputStream.get(index);</span>
+    }
+
+    public void setUploadInputStream(List&lt;InputStream&gt; uploadInputStream) {
+<span class="nc" id="L463">        this.uploadInputStream = uploadInputStream;</span>
+<span class="nc" id="L464">    }</span>
+
+    public String[] getTextFileTypes() {
+<span class="fc" id="L467">        return this.getTextFileTypesCSV().split(&quot;,&quot;);</span>
+    }
+
+    protected String getTextFileTypesCSV() {
+<span class="fc" id="L471">        return textFileTypesCSV;</span>
+    }
+
+    public void setTextFileTypesCSV(String textFileTypesCSV) {
+<span class="fc" id="L475">        this.textFileTypesCSV = textFileTypesCSV;</span>
+<span class="fc" id="L476">    }</span>
+
+    public InputStream getDownloadInputStream() {
+<span class="nc" id="L479">        return downloadInputStream;</span>
+    }
+
+    public void setDownloadInputStream(InputStream downloadInputStream) {
+<span class="nc" id="L483">        this.downloadInputStream = downloadInputStream;</span>
+<span class="nc" id="L484">    }</span>
+
+    public String getDownloadContentType() {
+<span class="nc" id="L487">        return downloadContentType;</span>
+    }
+
+    public void setDownloadContentType(String downloadContentType) {
+<span class="nc" id="L491">        this.downloadContentType = downloadContentType;</span>
+<span class="nc" id="L492">    }</span>
+
+    public void setStorageManager(IStorageManager storageManager) {
+<span class="fc" id="L495">        this.storageManager = storageManager;</span>
+<span class="fc" id="L496">    }</span>
+
+    public List&lt;File&gt; getFile() {
+<span class="nc" id="L499">        return file;</span>
+    }
+
+    public void setFile(List&lt;File&gt; file) {
+<span class="nc" id="L503">        this.file = file;</span>
+<span class="nc" id="L504">    }</span>
+
+    protected IStorageManager getStorageManager() {
+<span class="fc" id="L507">        return storageManager;</span>
+    }
+
+    protected boolean getProtectedFolderBoolean() {
+<span class="pc bpc" id="L511" title="1 of 2 branches missed.">        if (null == this.getProtectedFolder()) {</span>
+<span class="nc" id="L512">            return false;</span>
+        }
+<span class="fc" id="L514">        return Boolean.parseBoolean(this.getProtectedFolder());</span>
+    }
+
+    protected String validateTextFileExtension(String filename) {
+<span class="fc bfc" id="L518" title="All 2 branches covered.">        if (!this.isTextFile(filename)) {</span>
+<span class="fc" id="L519">            this.addFieldError(&quot;textFileExtension&quot;, this.getText(&quot;error.filebrowser.addTextFile.wrongExtension&quot;));</span>
+<span class="fc" id="L520">            return INPUT;</span>
+        }
+<span class="fc" id="L522">        return null;</span>
+    }
+
+    protected String checkExistingFileExtension(String path, String filename, boolean expected, boolean protectedFolder) throws Throwable {
+<span class="fc" id="L526">        boolean exist = this.getStorageManager().exists(path + filename, protectedFolder);</span>
+<span class="fc bfc" id="L527" title="All 2 branches covered.">        if (exist != expected) {</span>
+<span class="fc" id="L528">            String[] args = new String[]{filename};</span>
+<span class="pc bpc" id="L529" title="1 of 2 branches missed.">            if (expected) {</span>
+<span class="nc" id="L530">                this.addFieldError(&quot;filename&quot;, this.getText(&quot;error.filebrowser.file.doesNotExist&quot;, args));</span>
+            } else {
+<span class="fc" id="L532">                this.addFieldError(&quot;filename&quot;, this.getText(&quot;error.filebrowser.file.exist&quot;, args));</span>
+            }
+<span class="fc" id="L534">            return INPUT;</span>
+        }
+<span class="fc" id="L536">        return null;</span>
+    }
+
+    /**
+     * Check the provided filename and currentPath parameters and raises an
+     * error if one of these parameters are invalid
+     *
+     * @return INPUT one or more errors are found. Otherwise null.
+     */
+    protected String validateFullPath() {
+<span class="fc bfc" id="L546" title="All 2 branches covered.">        if (!StorageManagerUtil.isValidFilenameNoExtension(this.getFilename())) {</span>
+<span class="fc" id="L547">            this.addActionError(this.getText(&quot;error.filebrowser.filename.invalid&quot;));</span>
+<span class="fc" id="L548">            return INPUT;</span>
+        }
+<span class="fc bfc" id="L550" title="All 2 branches covered.">        if (!StorageManagerUtil.isValidDirName(this.getCurrentPath())) {</span>
+<span class="fc" id="L551">            this.addActionError(this.getText(&quot;error.filebrowser.filepath.invalid&quot;));</span>
+<span class="fc" id="L552">            return INPUT;</span>
+        }
+<span class="fc" id="L554">        return null;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomTokenInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.system</a> &gt; <span class="el_source">CustomTokenInterceptor.java</span></div><h1>CustomTokenInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.system;
+
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.TextProvider;
+import com.opensymphony.xwork2.TextProviderFactory;
+import com.opensymphony.xwork2.inject.Inject;
+import com.opensymphony.xwork2.interceptor.ValidationAware;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import static org.apache.struts2.interceptor.TokenInterceptor.INVALID_TOKEN_CODE;
+
+/**
+ * This interceptor can make sure that back buttons and double clicks don't
+ * cause un-intended side affects. For example, you can use this to prevent
+ * careless users who might double click on a &quot;checkout&quot; button at an online
+ * store. This interceptor uses a fairly primitive technique for when an invalid
+ * token is found: it returns the result invalid.token.
+ *
+ * TypeMessages parameter to specify the type of message to associate at
+ * invalid.token result The values of type are the following: error: return an
+ * action error message message: return an action message none: don't return
+ * message
+ *
+ * @author Entando
+ */
+<span class="fc" id="L39">public class CustomTokenInterceptor extends org.apache.struts2.interceptor.TokenInterceptor {</span>
+
+<span class="fc" id="L41">    private static final Logger LOG = LogManager.getLogger(CustomTokenInterceptor.class);</span>
+
+    public static final String TYPE_RETURN_ACTION_ERROR_MESSAGE = &quot;error&quot;;
+    public static final String TYPE_RETURN_ACTION_MESSAGE = &quot;message&quot;;
+    public static final String TYPE_RETURN_NONE_MESSAGE = &quot;none&quot;;
+
+    private TextProvider textProvider;
+
+    private String typeMessages;
+
+    protected String getCustomMessage(ActionInvocation invocation, String key, String defaultText) {
+<span class="fc" id="L52">        Object action = invocation.getAction();</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if (action instanceof TextProvider) {</span>
+<span class="fc" id="L54">            return ((TextProvider) action).getText(key, defaultText);</span>
+        }
+<span class="nc" id="L56">        return textProvider.getText(key, defaultText);</span>
+    }
+
+    @Override
+    protected String handleInvalidToken(ActionInvocation invocation) throws Exception {
+<span class="fc" id="L61">        Object action = invocation.getAction();</span>
+<span class="fc" id="L62">        String errorMessage = this.getCustomMessage(invocation, &quot;struts.messages.invalid.token&quot;,</span>
+                &quot;The form has already been processed or no token was supplied, please try again.&quot;);
+<span class="fc" id="L64">        String message = this.getCustomMessage(invocation, &quot;struts.messages.invalid.token.message&quot;,</span>
+                &quot;Stop double-submission of forms.&quot;);
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (action instanceof ValidationAware) {</span>
+<span class="pc bpc" id="L67" title="1 of 4 branches missed.">            if (null == this.getTypeMessages() || this.getTypeMessages().equalsIgnoreCase(TYPE_RETURN_NONE_MESSAGE)) {</span>
+                //nothing to do
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            } else if (this.getTypeMessages().equalsIgnoreCase(TYPE_RETURN_ACTION_ERROR_MESSAGE)) {</span>
+<span class="fc" id="L70">                ((ValidationAware) action).addActionError(errorMessage);</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            } else if (this.getTypeMessages().equalsIgnoreCase(TYPE_RETURN_ACTION_MESSAGE)) {</span>
+<span class="fc" id="L72">                ((ValidationAware) action).addActionMessage(message);</span>
+            } else {
+<span class="nc" id="L74">                LOG.warn(&quot;Invalid message type : {}&quot;, this.getTypeMessages());</span>
+            }
+        } else {
+<span class="nc" id="L77">            LOG.warn(errorMessage);</span>
+        }
+<span class="fc" id="L79">        return INVALID_TOKEN_CODE;</span>
+    }
+
+    @Override
+    @Inject
+    public void setTextProviderFactory(TextProviderFactory textProviderFactory) {
+<span class="nc" id="L85">        super.setTextProviderFactory(textProviderFactory);</span>
+<span class="nc" id="L86">        this.textProvider = textProviderFactory.createInstance(getClass());</span>
+<span class="nc" id="L87">    }</span>
+
+    public void setTypeMessages(String typeMessages) {
+<span class="fc" id="L90">        this.typeMessages = typeMessages;</span>
+<span class="fc" id="L91">    }</span>
+
+    public String getTypeMessages() {
+<span class="fc" id="L94">        return typeMessages;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
