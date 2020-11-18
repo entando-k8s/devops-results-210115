@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NpmBundleDownloader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.downloader</a> &gt; <span class="el_source">NpmBundleDownloader.java</span></div><h1>NpmBundleDownloader.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.downloader;
+
+import static java.nio.file.Files.newInputStream;
+import static java.nio.file.StandardOpenOption.READ;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.io.IOUtils;
+import org.entando.kubernetes.exception.job.JobPackageException;
+import org.entando.kubernetes.model.debundle.EntandoDeBundleTag;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+
+<span class="fc" id="L29">public class NpmBundleDownloader extends BundleDownloader {</span>
+
+    @Override
+    protected Path saveBundleStrategy(EntandoDeBundleTag tag, Path targetPath) {
+        try {
+<span class="fc" id="L34">            InputStream is = downloadComponentPackage(tag);</span>
+<span class="fc" id="L35">            Path tarPath = savePackageStreamLocally(is);</span>
+<span class="fc" id="L36">            unpackTar(tarPath, targetPath);</span>
+<span class="fc" id="L37">            return targetPath;</span>
+<span class="nc" id="L38">        } catch (IOException e) {</span>
+<span class="nc" id="L39">            throw new BundleDownloaderException(e);</span>
+        }
+    }
+
+    private TarArchiveInputStream getGzipTarInputStream(Path p) {
+        try {
+<span class="fc" id="L45">            return new TarArchiveInputStream(new GzipCompressorInputStream(newInputStream(p, READ)));</span>
+<span class="nc" id="L46">        } catch (IOException e) {</span>
+<span class="nc" id="L47">            throw new UncheckedIOException(&quot;An error occurred while reading file &quot; + p.getFileName().toString(), e);</span>
+        }
+    }
+
+    private Path unpackTar(Path tarPath, Path destination) throws IOException {
+
+<span class="fc" id="L53">        TarArchiveInputStream tarInputStream = getGzipTarInputStream(tarPath);</span>
+
+        TarArchiveEntry tae;
+<span class="fc" id="L56">        Map&lt;String, File&gt; tes = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        while ((tae = tarInputStream.getNextTarEntry()) != null) {</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if (!tarInputStream.canReadEntryData(tae)) {</span>
+                // log something?
+<span class="nc" id="L60">                continue;</span>
+            }
+
+<span class="fc" id="L63">            String rebasedName = tae.getName().replaceFirst(&quot;package/&quot;, &quot;&quot;);</span>
+
+<span class="fc" id="L65">            Path filePath = destination.resolve(rebasedName);</span>
+<span class="fc" id="L66">            File tmpf = filePath.toFile();</span>
+<span class="fc" id="L67">            tmpf.deleteOnExit();</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if (tae.isDirectory()) {</span>
+<span class="nc bnc" id="L69" title="All 4 branches missed.">                if (!tmpf.isDirectory() &amp;&amp; !tmpf.mkdirs()) {</span>
+<span class="nc" id="L70">                    throw new IOException(&quot;failed to create directory &quot; + tmpf);</span>
+                }
+            } else {
+<span class="fc" id="L73">                File parent = tmpf.getParentFile();</span>
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">                if (!parent.isDirectory() &amp;&amp; !parent.mkdirs()) {</span>
+<span class="nc" id="L75">                    throw new IOException(&quot;failed to create directory &quot; + parent);</span>
+                }
+<span class="fc" id="L77">                try (OutputStream o = Files.newOutputStream(tmpf.toPath())) {</span>
+<span class="fc" id="L78">                    IOUtils.copy(tarInputStream, o);</span>
+                }
+            }
+<span class="fc" id="L81">            tes.put(tae.getName(), tmpf);</span>
+<span class="fc" id="L82">        }</span>
+<span class="fc" id="L83">        return destination;</span>
+
+    }
+
+
+    private InputStream downloadComponentPackage(EntandoDeBundleTag tag) {
+<span class="fc" id="L89">        String tarballUrl = tag.getTarball();</span>
+
+<span class="fc" id="L91">        RestTemplate restTemplate = new RestTemplate();</span>
+<span class="fc" id="L92">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L93">        headers.add(&quot;user-agent&quot;,</span>
+                &quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36&quot;);
+<span class="fc" id="L95">        headers.add(&quot;Accept&quot;, &quot;*/*&quot;);</span>
+<span class="fc" id="L96">        HttpEntity&lt;String&gt; entity = new HttpEntity&lt;&gt;(&quot;parameters&quot;, headers);</span>
+
+<span class="fc" id="L98">        ResponseEntity&lt;Resource&gt; responseEntity = restTemplate.exchange(</span>
+                tarballUrl, HttpMethod.GET, entity, Resource.class);
+
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        if (responseEntity.getBody() == null) {</span>
+<span class="nc" id="L102">            throw new BundleDownloaderException(&quot;Requested package returned an empty body&quot;);</span>
+        }
+
+        try {
+<span class="fc" id="L106">            return responseEntity.getBody().getInputStream();</span>
+<span class="nc" id="L107">        } catch (IOException ex) {</span>
+<span class="nc" id="L108">            throw new UncheckedIOException(ex);</span>
+        }
+
+    }
+
+    private Path savePackageStreamLocally(InputStream is) {
+<span class="fc" id="L114">        Path tempPath = null;</span>
+        try {
+<span class="fc" id="L116">            tempPath = Files.createTempFile(null, null);</span>
+<span class="fc" id="L117">            Files.copy(is, tempPath, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="fc" id="L118">            return tempPath;</span>
+<span class="nc" id="L119">        } catch (IOException e) {</span>
+<span class="nc" id="L120">            throw new JobPackageException(tempPath,</span>
+                    &quot;An error occurred while copying the package stream locally&quot;, e);
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

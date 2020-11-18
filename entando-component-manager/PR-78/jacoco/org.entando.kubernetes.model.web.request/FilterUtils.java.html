@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FilterUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.web.request</a> &gt; <span class="el_source">FilterUtils.java</span></div><h1>FilterUtils.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.web.request;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.commons.collections4.Transformer;
+import org.apache.commons.collections4.comparators.TransformingComparator;
+
+public class FilterUtils {
+
+    private FilterUtils() {
+    }
+
+    public static TransformingComparator createCaseInsensitiveComparator() {
+<span class="nc bnc" id="L23" title="All 2 branches missed.">        final Transformer caseInsensitiveTransformer = input -&gt; input instanceof String ? ((String) input).toLowerCase()</span>
+<span class="nc" id="L24">                : input;</span>
+<span class="nc" id="L25">        return new TransformingComparator(caseInsensitiveTransformer);</span>
+    }
+
+    public static boolean filterString(final Filter filter, final String value) {
+<span class="fc" id="L29">        final FilterOperator operator = getFilterOperator(filter);</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L31">            return false;</span>
+        }
+
+<span class="fc" id="L34">        boolean result = false;</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        for (final String filterValue : getFilterValues(filter)) {</span>
+<span class="pc bpc" id="L36" title="5 of 6 branches missed.">            switch (operator) {</span>
+                case EQUAL:
+<span class="fc" id="L38">                    result |= value.equals(filterValue);</span>
+<span class="fc" id="L39">                    break;</span>
+                case NOT_EQUAL:
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                    result |= !value.equals(filterValue);</span>
+<span class="nc" id="L42">                    break;</span>
+                case LIKE:
+<span class="nc" id="L44">                    result |= value.toLowerCase().contains(filterValue.toLowerCase());</span>
+<span class="nc" id="L45">                    break;</span>
+                case GREATER:
+<span class="nc bnc" id="L47" title="All 2 branches missed.">                    result |= value.compareTo(filterValue) &gt;= 0;</span>
+<span class="nc" id="L48">                    break;</span>
+                case LOWER:
+<span class="nc bnc" id="L50" title="All 2 branches missed.">                    result |= value.compareTo(filterValue) &lt;= 0;</span>
+<span class="nc" id="L51">                    break;</span>
+                default:
+<span class="nc" id="L53">                    throw new UnsupportedOperationException(getUnsupportedOperatorMessage(filter));</span>
+            }
+<span class="fc" id="L55">        }</span>
+
+<span class="fc" id="L57">        return result;</span>
+    }
+
+    public static boolean filterBoolean(Filter filter, boolean value) {
+<span class="fc" id="L61">        final FilterOperator operator = getFilterOperator(filter);</span>
+<span class="fc" id="L62">        final Iterator&lt;Boolean&gt; iterator = getTypedAllowedValues(filter, v -&gt; Boolean.parseBoolean(v.toLowerCase()))</span>
+<span class="fc" id="L63">                .iterator();</span>
+<span class="fc" id="L64">        boolean result = false;</span>
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        while (iterator.hasNext()) {</span>
+<span class="fc" id="L67">            boolean filterValue = iterator.next();</span>
+<span class="pc bpc" id="L68" title="2 of 3 branches missed.">            switch (operator) {</span>
+                case EQUAL:
+                case LIKE:
+<span class="fc bfc" id="L71" title="All 2 branches covered.">                    result |= value == filterValue;</span>
+<span class="fc" id="L72">                    break;</span>
+                case NOT_EQUAL:
+<span class="nc bnc" id="L74" title="All 2 branches missed.">                    result |= value != filterValue;</span>
+<span class="nc" id="L75">                    break;</span>
+                default:
+<span class="nc" id="L77">                    throw new UnsupportedOperationException(getUnsupportedOperatorMessage(filter));</span>
+            }
+<span class="fc" id="L79">        }</span>
+
+<span class="fc" id="L81">        return result;</span>
+    }
+
+    public static boolean filterInt(Filter filter, Integer value) {
+<span class="nc" id="L85">        return filterDouble(filter, value.doubleValue());</span>
+    }
+
+    public static boolean filterLong(Filter filter, Long value) {
+<span class="nc" id="L89">        return filterDouble(filter, value.doubleValue());</span>
+    }
+
+    public static boolean filterDate(Filter filter, LocalDateTime value) {
+<span class="nc" id="L93">        final List&lt;Double&gt; filterValues = getTypedAllowedValues(filter, v -&gt; {</span>
+            try {
+<span class="nc" id="L95">                return (double) LocalDateTime.parse(v).toEpochSecond(ZoneOffset.UTC);</span>
+<span class="nc" id="L96">            } catch (Exception var3) {</span>
+<span class="nc" id="L97">                throw new EntandoFilterException(var3);</span>
+            }
+        });
+<span class="nc" id="L100">        return filterDouble(filter, filterValues, (double) value.toEpochSecond(ZoneOffset.UTC));</span>
+    }
+
+    public static boolean filterDate(Filter filter, Date value) {
+<span class="nc" id="L104">        final SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L105">        final List&lt;Double&gt; filterValues = getTypedAllowedValues(filter, v -&gt; {</span>
+            try {
+<span class="nc" id="L107">                return (double) sdf.parse(v).getTime();</span>
+<span class="nc" id="L108">            } catch (ParseException var3) {</span>
+<span class="nc" id="L109">                throw new EntandoFilterException(var3);</span>
+            }
+        });
+<span class="nc" id="L112">        return filterDouble(filter, filterValues, (double) value.getTime());</span>
+    }
+
+    public static boolean filterDouble(Filter filter, double value) {
+<span class="nc" id="L116">        return filterDouble(filter, getTypedAllowedValues(filter, Double::parseDouble), value);</span>
+    }
+
+    private static boolean filterDouble(Filter filter, List&lt;Double&gt; filterValues, double value) {
+<span class="nc" id="L120">        final FilterOperator operator = getFilterOperator(filter);</span>
+<span class="nc" id="L121">        boolean result = false;</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        for (final double filterValue : filterValues) {</span>
+<span class="nc bnc" id="L124" title="All 5 branches missed.">            switch (operator) {</span>
+                case EQUAL:
+                case LIKE:
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                    result |= value == filterValue;</span>
+<span class="nc" id="L128">                    break;</span>
+                case NOT_EQUAL:
+<span class="nc bnc" id="L130" title="All 2 branches missed.">                    result |= value != filterValue;</span>
+<span class="nc" id="L131">                    break;</span>
+                case GREATER:
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                    result |= value &gt;= filterValue;</span>
+<span class="nc" id="L134">                    break;</span>
+                case LOWER:
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                    result |= value &lt;= filterValue;</span>
+<span class="nc" id="L137">                    break;</span>
+                default:
+<span class="nc" id="L139">                    throw new UnsupportedOperationException(getUnsupportedOperatorMessage(filter));</span>
+            }
+<span class="nc" id="L141">        }</span>
+
+<span class="nc" id="L143">        return result;</span>
+    }
+
+    private static &lt;T&gt; List&lt;T&gt; getTypedAllowedValues(Filter filter, Function&lt;String, T&gt; converter) {
+<span class="fc" id="L147">        return getFilterValues(filter).stream()</span>
+<span class="fc" id="L148">                .map(converter)</span>
+<span class="fc" id="L149">                .collect(Collectors.toList());</span>
+    }
+
+    private static FilterOperator getFilterOperator(Filter filter) {
+<span class="fc" id="L153">        return FilterOperator.parse(filter.getOperator());</span>
+    }
+
+    private static String getUnsupportedOperatorMessage(Filter filter) {
+<span class="nc" id="L157">        return &quot;Operator '&quot; + filter.getOperator() + &quot;' is not supported&quot;;</span>
+    }
+
+    private static List&lt;String&gt; getFilterValues(Filter filter) {
+<span class="pc bpc" id="L161" title="1 of 4 branches missed.">        if (filter.getAllowedValues() != null &amp;&amp; filter.getAllowedValues().length != 0) {</span>
+<span class="fc" id="L162">            return Arrays.asList(filter.getAllowedValues());</span>
+        } else {
+<span class="fc" id="L164">            final List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            if (filter.getValue() != null) {</span>
+<span class="fc" id="L166">                values.add(filter.getValue());</span>
+            }
+<span class="fc" id="L168">            return values;</span>
+        }
+    }
+
+    public static class EntandoFilterException extends RuntimeException {
+
+        public EntandoFilterException() {
+<span class="nc" id="L175">            super();</span>
+<span class="nc" id="L176">        }</span>
+
+        public EntandoFilterException(String message) {
+<span class="nc" id="L179">            super(message);</span>
+<span class="nc" id="L180">        }</span>
+
+        public EntandoFilterException(String message, Throwable cause) {
+<span class="nc" id="L183">            super(message, cause);</span>
+<span class="nc" id="L184">        }</span>
+
+        public EntandoFilterException(Throwable cause) {
+<span class="nc" id="L187">            super(cause);</span>
+<span class="nc" id="L188">        }</span>
+
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
