@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractContentAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content</a> &gt; <span class="el_source">AbstractContentAction.java</span></div><h1>AbstractContentAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SmallContentType;
+import com.agiletec.plugins.jacms.apsadmin.content.helper.IContentActionHelper;
+import java.util.Collections;
+import org.apache.commons.beanutils.BeanComparator;
+
+/**
+ * Action Astratta Base per la gestione contenuti.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L42">public abstract class AbstractContentAction extends BaseAction {</span>
+
+<span class="fc" id="L44">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractContentAction.class);</span>
+	
+	protected void addActivityStreamInfo(Content content, int strutsAction, boolean addLink) {
+<span class="fc" id="L47">		ActivityStreamInfo asi = this.getContentActionHelper().createActivityStreamInfo(content, strutsAction, addLink);</span>
+<span class="fc" id="L48">		super.addActivityStreamInfo(asi);</span>
+<span class="fc" id="L49">	}</span>
+	
+	/**
+	 * Restituisce il contenuto vo in base all'identificativo.
+	 * @param contentId L'identificativo del contenuto.
+	 * @return Il contenuto vo cercato.
+	 */
+	public ContentRecordVO getContentVo(String contentId) {
+<span class="nc" id="L57">		ContentRecordVO contentVo = null;</span>
+		try {
+<span class="nc" id="L59">			contentVo = this.getContentManager().loadContentVO(contentId);</span>
+<span class="nc" id="L60">		} catch (Throwable t) {</span>
+<span class="nc" id="L61">			_logger.error(&quot;error loading contentVo {}&quot;,contentId, t);</span>
+<span class="nc" id="L62">			throw new RuntimeException(&quot;error loading contentVo&quot;, t);</span>
+<span class="nc" id="L63">		}</span>
+<span class="nc" id="L64">		return contentVo;</span>
+	}
+	
+	/**
+	 * Verifica se l'utente corrente è abilitato all'accesso 
+	 * del contenuto specificato.
+	 * @param content Il contenuto su cui verificare il permesso di accesso.
+	 * @return True se l'utente corrente è abilitato all'eccesso al contenuto,
+	 * false in caso contrario.
+	 */
+	protected boolean isUserAllowed(Content content) {
+<span class="fc" id="L75">		return this.getContentActionHelper().isUserAllowed(content, this.getCurrentUser());</span>
+	}
+	
+	/**
+	 * Restituisce il contenuto in sesione.
+	 * @return Il contenuto in sesione.
+	 */
+	public Content getContent() {
+<span class="fc" id="L83">		return (Content) this.getRequest().getSession().getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + this.getContentOnSessionMarker());</span>
+	}
+	
+	protected Content updateContentOnSession() {
+<span class="fc" id="L87">		return this.updateContentOnSession(false);</span>
+	}
+	
+	protected Content updateContentOnSession(boolean updateMainGroup) {
+<span class="fc" id="L91">		Content content = this.getContent();</span>
+<span class="fc" id="L92">		this.getContentActionHelper().updateContent(content, updateMainGroup, this.getRequest());</span>
+<span class="fc" id="L93">		return content;</span>
+	}
+	
+	/**
+	 * Restituisce la lista di contenuti (in forma small) definiti nel sistema.
+	 * Il metodo è a servizio delle jsp che richiedono questo dato per fornire 
+	 * una corretta visualizzazione della pagina.
+	 * @return La lista di tipi di contenuto (in forma small) definiti nel sistema.
+	 */
+	public List&lt;SmallContentType&gt; getContentTypes() {
+<span class="nc" id="L103">		return this.getContentManager().getSmallContentTypes();</span>
+	}
+	
+	/**
+	 * Restituisce la lista di stati di contenuto definiti nel sistema.
+	 * Il metodo è a servizio delle jsp che richiedono questo dato per fornire 
+	 * una corretta visualizzazione della pagina.
+	 * @return La lista di stati di contenuto definiti nel sistema.
+	 * @deprecated use getAvalaibleStatus()
+	 */
+	public String[] getStatesList() {
+<span class="nc" id="L114">		return Content.AVAILABLE_STATUS;</span>
+	}
+	
+	/**
+	 * Restituisce la lista di stati di contenuto definiti nel sistema, come insieme di chiave e valore
+	 * Il metodo è a servizio delle jsp che richiedono questo dato per fornire 
+	 * una corretta visualizzazione della pagina.
+	 * @return La lista di stati di contenuto definiti nel sistema.
+	 */
+	public List&lt;SelectItem&gt; getAvalaibleStatus() {
+<span class="nc" id="L124">		String[] status = Content.AVAILABLE_STATUS;</span>
+<span class="nc" id="L125">		List&lt;SelectItem&gt; items = new ArrayList&lt;SelectItem&gt;(status.length);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">		for (int i = 0; i &lt; status.length; i++) {</span>
+<span class="nc" id="L127">			SelectItem item = new SelectItem(status[i], &quot;name.contentStatus.&quot; + status[i]);</span>
+<span class="nc" id="L128">			items.add(item);</span>
+		}
+<span class="nc" id="L130">		return items;</span>
+	}
+	
+	/**
+	 * Restituisce la lista di lingue definite nel sistema.
+	 * Il metodo è a servizio delle jsp che richiedono questo dato per fornire 
+	 * una corretta visualizzazione della pagina.
+	 * @return La lista di lingue definite nel sistema.
+	 */
+	public List&lt;Lang&gt; getLangs() {
+<span class="fc" id="L140">		return this.getLangManager().getLangs();</span>
+	}
+	
+	public static String buildContentOnSessionMarker(Content content, int operation) {
+<span class="fc" id="L144">		return buildContentOnSessionMarker(content.getId(), content.getTypeCode(), operation);</span>
+	}
+	
+	public static String buildContentOnSessionMarker(String contentId, String typeCode, int operation) {
+<span class="fc" id="L148">		String marker = null;</span>
+<span class="pc bpc" id="L149" title="1 of 4 branches missed.">		switch (operation) {</span>
+			case ApsAdminSystemConstants.ADD:
+<span class="fc" id="L151">				marker = typeCode + &quot;_newContent&quot;;</span>
+<span class="fc" id="L152">				break;</span>
+			case ApsAdminSystemConstants.EDIT:
+<span class="fc" id="L154">				marker = typeCode + &quot;_editContent_&quot; + contentId;</span>
+<span class="fc" id="L155">				break;</span>
+			case ApsAdminSystemConstants.PASTE:
+<span class="fc" id="L157">				marker = typeCode + &quot;_pasteContent_&quot; + contentId;</span>
+<span class="fc" id="L158">				break;</span>
+			default:
+<span class="nc" id="L160">				throw new RuntimeException(&quot;Unrecognized operation : &quot; + operation);</span>
+		}
+<span class="fc" id="L162">		return marker;</span>
+	}
+	
+	public String getContentOnSessionMarker() {
+<span class="fc" id="L166">		return _contentOnSessionMarker;</span>
+	}
+	public void setContentOnSessionMarker(String contentOnSessionMarker) {
+<span class="fc" id="L169">		this._contentOnSessionMarker = contentOnSessionMarker;</span>
+<span class="fc" id="L170">	}</span>
+	
+	/**
+	 * Restituisce il manager gestore delle operazioni sui contenuti.
+	 * @return Il manager gestore delle operazioni sui contenuti.
+	 */
+	protected IContentManager getContentManager() {
+<span class="fc" id="L177">		return _contentManager;</span>
+	}
+	
+	/**
+	 * Setta il manager gestore delle operazioni sui contenuti.
+	 * @param contentManager Il manager gestore delle operazioni sui contenuti.
+	 */
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L185">		this._contentManager = contentManager;</span>
+<span class="fc" id="L186">	}</span>
+	
+	/**
+	 * Restituisce la classe helper della gestione contenuti.
+	 * @return La classe helper della gestione contenuti.
+	 */
+	protected IContentActionHelper getContentActionHelper() {
+<span class="fc" id="L193">		return _contentActionHelper;</span>
+	}
+	
+	/**
+	 * Setta la classe helper della gestione contenuti.
+	 * @param contentActionHelper La classe helper della gestione contenuti.
+	 */
+	public void setContentActionHelper(IContentActionHelper contentActionHelper) {
+<span class="fc" id="L201">		this._contentActionHelper = contentActionHelper;</span>
+<span class="fc" id="L202">	}</span>
+	
+	/**
+	 * Restituisce la mappa dei gruppi presenti nel sistema. 
+	 * La mappa è indicizzata in base al nome del gruppo.
+	 * @return La mappa dei gruppi presenti nel sistema.
+	 * @deprecated 
+	 */
+	public Map&lt;String, Group&gt; getGroupsMap() {
+<span class="nc" id="L211">		return this.getGroupManager().getGroupsMap();</span>
+	}
+	
+	/**
+	 * Restituisce un gruppo in base al nome.
+	 * @param groupName Il nome del gruppo da restituire.
+	 * @return Il gruppo cercato.
+	 */
+	public Group getGroup(String groupName) {
+<span class="fc" id="L220">		return this.getGroupManager().getGroup(groupName);</span>
+	}
+	
+	/**
+	 * Restituisce un tipo di contenuto in forma small.
+	 * @param typeCode Il codice del tipo di contenuto.
+	 * @return Il tipo di contenuto (in forma small) cercato.
+	 */
+	public SmallContentType getSmallContentType(String typeCode) {
+<span class="nc" id="L229">		Map&lt;String, SmallContentType&gt; smallContentTypes = this.getContentManager().getSmallContentTypesMap();</span>
+<span class="nc" id="L230">		return (SmallContentType) smallContentTypes.get(typeCode);</span>
+	}
+	
+	public List&lt;Group&gt; getAllowedGroups() {
+<span class="fc" id="L234">		return super.getActualAllowedGroups();</span>
+	}
+	
+	/**
+	 * Restituisce la lista ordinata dei gruppi presenti nel sistema.
+	 * @return La lista dei gruppi presenti nel sistema.
+	 */
+	public List&lt;Group&gt; getGroups() {
+<span class="nc" id="L242">		List&lt;Group&gt; groups = this.getGroupManager().getGroups();</span>
+<span class="nc" id="L243">		BeanComparator c = new BeanComparator(&quot;description&quot;);</span>
+<span class="nc" id="L244">		Collections.sort(groups, c);</span>
+<span class="nc" id="L245">		return groups;</span>
+	}
+	
+	/**
+	 * Restituisce il manager dei gruppi.
+	 * @return Il manager dei gruppi.
+	 */
+	protected IGroupManager getGroupManager() {
+<span class="fc" id="L253">		return _groupManager;</span>
+	}
+	
+	/**
+	 * Setta il manager dei gruppi.
+	 * @param groupManager Il manager dei gruppi.
+	 */
+	public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L261">		this._groupManager = groupManager;</span>
+<span class="fc" id="L262">	}</span>
+	
+	private String _contentOnSessionMarker;
+	
+	private IContentManager _contentManager;
+	private IContentActionHelper _contentActionHelper;
+	
+	private IGroupManager _groupManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

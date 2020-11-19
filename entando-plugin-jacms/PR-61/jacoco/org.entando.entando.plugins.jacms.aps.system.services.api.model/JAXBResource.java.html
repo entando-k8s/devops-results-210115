@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JAXBResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services.api.model</a> &gt; <span class="el_source">JAXBResource.java</span></div><h1>JAXBResource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services.api.model;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.BaseResourceDataBean;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlElementWrapper;
+import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlType;
+import java.io.*;
+import java.net.FileNameMap;
+import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.List;
+import java.security.SecureRandom;
+
+/**
+ * @author E.Santoboni
+ */
+@XmlRootElement(name = &quot;resource&quot;)
+@XmlType(propOrder = {&quot;id&quot;, &quot;typeCode&quot;, &quot;description&quot;, &quot;mainGroup&quot;, &quot;fileName&quot;, &quot;categories&quot;, &quot;base64&quot;})
+public class JAXBResource {
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(JAXBResource.class);</span>
+	
+<span class="nc" id="L44">	public JAXBResource() {}</span>
+
+<span class="nc" id="L46">	public JAXBResource(ResourceInterface resource) throws EntException {</span>
+		try {
+<span class="nc" id="L48">			this.setDescription(resource.getDescription());</span>
+<span class="nc" id="L49">			this.setFileName(resource.getMasterFileName());</span>
+<span class="nc" id="L50">			this.setId(resource.getId());</span>
+<span class="nc" id="L51">			this.setMainGroup(resource.getMainGroup());</span>
+<span class="nc" id="L52">			this.setTypeCode(resource.getType());</span>
+<span class="nc" id="L53">			List&lt;Category&gt; resourceCategories = resource.getCategories();</span>
+<span class="nc bnc" id="L54" title="All 4 branches missed.">			if (null != resourceCategories &amp;&amp; !resourceCategories.isEmpty()) {</span>
+<span class="nc" id="L55">				List&lt;String&gt; categories = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">				for (int i = 0; i &lt; resourceCategories.size(); i++) {</span>
+<span class="nc" id="L57">					Category category = resourceCategories.get(i);</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">					if (null != category) {</span>
+<span class="nc" id="L59">						categories.add(category.getCode());</span>
+					}
+				}
+<span class="nc" id="L62">				this.setCategories(categories);</span>
+			}
+<span class="nc" id="L64">			InputStream stream = resource.getResourceStream();</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">			if (null != stream) {</span>
+<span class="nc" id="L66">				File tempFile = this.createTempFile(new SecureRandom().nextInt(100) + resource.getMasterFileName(), stream);</span>
+<span class="nc" id="L67">				byte[] bytes = this.fileToByteArray(tempFile);</span>
+<span class="nc" id="L68">				this.setBase64(bytes);</span>
+<span class="nc" id="L69">				boolean deleted = tempFile.delete();</span>
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">				if(!deleted) {</span>
+<span class="nc" id="L72">					_logger.warn(&quot;Failed to delete temp file {} &quot;,tempFile.getAbsolutePath());</span>
+				}
+
+
+			}
+<span class="nc" id="L77">		} catch (IOException t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error creating jaxb resource&quot;, t);</span>
+<span class="nc" id="L79">			throw new EntException(&quot;Error creating jaxb resource&quot;, t);</span>
+<span class="nc" id="L80">		}</span>
+<span class="nc" id="L81">	}</span>
+	
+	protected File createTempFile(String filename, InputStream is) throws IOException {
+<span class="nc" id="L84">		String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="nc" id="L85">		String filePath = tempDir + File.separator + filename;</span>
+<span class="nc" id="L86">		FileOutputStream outStream = null;</span>
+		try {
+<span class="nc" id="L88">			byte[] buffer = new byte[1024];</span>
+<span class="nc" id="L89">			int length = -1;</span>
+<span class="nc" id="L90">			outStream = new FileOutputStream(filePath);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			while ((length = is.read(buffer)) != -1) {</span>
+<span class="nc" id="L92">				outStream.write(buffer, 0, length);</span>
+<span class="nc" id="L93">				outStream.flush();</span>
+			}
+<span class="nc" id="L95">		} catch (IOException t) {</span>
+<span class="nc" id="L96">			_logger.error(&quot;Error on saving temporary file&quot;, t);</span>
+<span class="nc" id="L97">			throw t;</span>
+		} finally {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">			if (null != outStream) {</span>
+<span class="nc" id="L100">				outStream.close();</span>
+			}
+<span class="nc bnc" id="L102" title="All 2 branches missed.">			if (null != is) {</span>
+<span class="nc" id="L103">				is.close();</span>
+			}
+		}
+<span class="nc" id="L106">		return new File(filePath);</span>
+	}
+	
+	private byte[] fileToByteArray(File file) throws IOException {
+<span class="nc" id="L110">		FileInputStream fis = null;</span>
+<span class="nc" id="L111">		ByteArrayOutputStream bos = new ByteArrayOutputStream();</span>
+		try {
+<span class="nc" id="L113">			fis = new FileInputStream(file);</span>
+<span class="nc" id="L114">			byte[] buf = new byte[1024];</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			for (int readNum; (readNum = fis.read(buf)) != -1;) {</span>
+<span class="nc" id="L116">				bos.write(buf, 0, readNum);</span>
+			}
+<span class="nc" id="L118">		} catch (IOException ex) {</span>
+<span class="nc" id="L119">			_logger.error(&quot;Error creating byte array&quot;, ex);</span>
+<span class="nc" id="L120">			throw ex;</span>
+		} finally {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">			if (null != fis) {</span>
+<span class="nc" id="L123">				fis.close();</span>
+			}
+		}
+<span class="nc" id="L126">		return bos.toByteArray();</span>
+	}
+	
+	public BaseResourceDataBean createBataBean(ICategoryManager categoryManager) throws Throwable {
+<span class="nc" id="L130">		BaseResourceDataBean bean = new BaseResourceDataBean();</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">		if (null != this.getCategories()) {</span>
+<span class="nc" id="L132">			List&lt;Category&gt; categories = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">			for (int i = 0; i &lt; this.getCategories().size(); i++) {</span>
+<span class="nc" id="L134">				String categoryCode = this.getCategories().get(i);</span>
+<span class="nc" id="L135">				Category category = categoryManager.getCategory(categoryCode);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">				if (null != category) {</span>
+<span class="nc" id="L137">					categories.add(category);</span>
+				}
+			}
+<span class="nc" id="L140">			bean.setCategories(categories);</span>
+		}
+<span class="nc" id="L142">		bean.setDescr(this.getDescription());</span>
+<span class="nc" id="L143">		bean.setFileName(this.getFileName());</span>
+<span class="nc" id="L144">		bean.setMainGroup(this.getMainGroup());</span>
+<span class="nc" id="L145">		FileNameMap fileNameMap = URLConnection.getFileNameMap();</span>
+<span class="nc" id="L146">		String mimeType = fileNameMap.getContentTypeFor(this.getFileName());</span>
+<span class="nc" id="L147">		bean.setMimeType(mimeType);</span>
+<span class="nc" id="L148">		bean.setResourceType(this.getTypeCode());</span>
+<span class="nc" id="L149">		bean.setResourceId(this.getId());</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">		if (null != this.getBase64()) {</span>
+<span class="nc" id="L151">			File file = this.byteArrayToFile();</span>
+<span class="nc" id="L152">			bean.setFile(file);</span>
+		}
+<span class="nc" id="L154">		return bean;</span>
+	}
+	
+	private File byteArrayToFile() throws IOException {
+<span class="nc" id="L158">		String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="nc" id="L159">		File file = new File(tempDir + File.separator + this.getFileName());</span>
+<span class="nc" id="L160">		InputStream inputStream = null;</span>
+<span class="nc" id="L161">		OutputStream out = null;</span>
+		try {
+<span class="nc" id="L163">			inputStream = new ByteArrayInputStream(this.getBase64());</span>
+<span class="nc" id="L164">			out = new FileOutputStream(file);</span>
+<span class="nc" id="L165">			byte buf[] = new byte[1024];</span>
+			int len;
+<span class="nc bnc" id="L167" title="All 2 branches missed.">			while ((len = inputStream.read(buf)) &gt; 0) {</span>
+<span class="nc" id="L168">				out.write(buf, 0, len);</span>
+			}
+<span class="nc" id="L170">		} catch (IOException ex) {</span>
+<span class="nc" id="L171">			_logger.error(&quot;Error creating file from byte array&quot;, ex);</span>
+<span class="nc" id="L172">			throw ex;</span>
+		} finally {
+<span class="nc bnc" id="L174" title="All 2 branches missed.">			if (null != out) {</span>
+<span class="nc" id="L175">				out.close();</span>
+			}
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if (null != inputStream) {</span>
+<span class="nc" id="L178">				inputStream.close();</span>
+			}
+		}
+<span class="nc" id="L181">		return file;</span>
+	}
+
+	@XmlElement(name = &quot;id&quot;, required = true)
+	public String getId() {
+<span class="nc" id="L186">		return _id;</span>
+	}
+	public void setId(String id) {
+<span class="nc" id="L189">		this._id = id;</span>
+<span class="nc" id="L190">	}</span>
+
+	@XmlElement(name = &quot;typeCode&quot;, required = true)
+	public String getTypeCode() {
+<span class="nc" id="L194">		return _typeCode;</span>
+	}
+	public void setTypeCode(String typeCode) {
+<span class="nc" id="L197">		this._typeCode = typeCode;</span>
+<span class="nc" id="L198">	}</span>
+
+	@XmlElement(name = &quot;description&quot;, required = true)
+	public String getDescription() {
+<span class="nc" id="L202">		return _description;</span>
+	}
+	public void setDescription(String description) {
+<span class="nc" id="L205">		this._description = description;</span>
+<span class="nc" id="L206">	}</span>
+
+	@XmlElement(name = &quot;mainGroup&quot;, required = true)
+	public String getMainGroup() {
+<span class="nc" id="L210">		return _mainGroup;</span>
+	}
+	public void setMainGroup(String mainGroup) {
+<span class="nc" id="L213">		this._mainGroup = mainGroup;</span>
+<span class="nc" id="L214">	}</span>
+
+	@XmlElement(name = &quot;fileName&quot;, required = true)
+	public String getFileName() {
+<span class="nc" id="L218">		return _fileName;</span>
+	}
+	public void setFileName(String fileName) {
+<span class="nc" id="L221">		this._fileName = fileName;</span>
+<span class="nc" id="L222">	}</span>
+
+	@XmlElement(name = &quot;category&quot;, required = true)
+    @XmlElementWrapper(name = &quot;categories&quot;)
+	public List&lt;String&gt; getCategories() {
+<span class="nc" id="L227">		return _categories;</span>
+	}
+	public void setCategories(List&lt;String&gt; categories) {
+<span class="nc" id="L230">		this._categories = categories;</span>
+<span class="nc" id="L231">	}</span>
+
+	@XmlElement(name = &quot;base64&quot;, required = true)
+	public byte[] getBase64() {
+<span class="nc" id="L235">		return _base64;</span>
+	}
+	public void setBase64(byte[] base64) {
+<span class="nc" id="L238">		this._base64 = base64;</span>
+<span class="nc" id="L239">	}</span>
+
+	private String _id;
+	private String _typeCode;
+	private String _description;
+	private String _mainGroup;
+	private String _fileName;
+	private List&lt;String&gt; _categories;
+	private byte[] _base64;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

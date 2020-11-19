@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.web.content</a> &gt; <span class="el_source">ContentController.java</span></div><h1>ContentController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.web.content;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.parse.ContentDOM;
+import org.entando.entando.aps.util.HttpSessionHelper;
+import org.entando.entando.plugins.jacms.aps.system.services.content.IContentService;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentDto;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.servlet.http.HttpSession;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.*;
+import org.entando.entando.web.entity.validator.EntityValidator;
+import org.entando.entando.plugins.jacms.web.content.validator.ContentValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
+
+import org.entando.entando.plugins.jacms.web.content.validator.BatchContentStatusRequest;
+import org.entando.entando.plugins.jacms.web.content.validator.ContentStatusRequest;
+import org.entando.entando.plugins.jacms.web.content.validator.RestContentListRequest;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.springframework.validation.DataBinder;
+import org.springframework.validation.Errors;
+
+/**
+ * @author E.Santoboni
+ */
+@RestController
+@RequestMapping(value = &quot;/plugins/cms/contents&quot;)
+<span class="fc" id="L58">public class ContentController {</span>
+
+<span class="fc" id="L60">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    public static final String ERRCODE_CONTENT_NOT_FOUND = &quot;1&quot;;
+    public static final String ERRCODE_REFERENCED_ONLINE_CONTENT = &quot;2&quot;;
+    public static final String ERRCODE_UNAUTHORIZED_CONTENT = &quot;3&quot;;
+    public static final String ERRCODE_DELETE_PUBLIC_PAGE = &quot;4&quot;;
+    public static final String ERRCODE_INVALID_MODEL = &quot;5&quot;;
+    public static final String ERRCODE_INVALID_LANG_CODE = &quot;6&quot;;
+    public static final String ERRCODE_CONTENT_REFERENCES = &quot;7&quot;;
+
+    @Autowired
+    private HttpSession httpSession;
+
+    // ?status=draft|published
+    @Autowired
+    private IContentService contentService;
+
+    @Autowired
+    private ContentValidator contentValidator;
+
+    public IContentService getContentService() {
+<span class="fc" id="L81">        return contentService;</span>
+    }
+
+    public void setContentService(IContentService contentService) {
+<span class="fc" id="L85">        this.contentService = contentService;</span>
+<span class="fc" id="L86">    }</span>
+
+    protected AbstractPaginationValidator getPaginationValidator() {
+<span class="fc" id="L89">        return new AbstractPaginationValidator() {</span>
+            @Override
+            public boolean supports(Class&lt;?&gt; type) {
+<span class="nc" id="L92">                return true;</span>
+            }
+
+            @Override
+            public void validate(Object o, Errors errors) {
+                //nothing to do
+<span class="nc" id="L98">            }</span>
+
+            @Override
+            protected String getDefaultSortProperty() {
+<span class="fc" id="L102">                return IContentManager.CONTENT_CREATION_DATE_FILTER_KEY;</span>
+            }
+
+            @Override
+            public boolean isValidField(String fieldName, Class&lt;?&gt; type) {
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">                if (fieldName.contains(&quot;.&quot;)) {</span>
+<span class="nc" id="L108">                    return true;</span>
+                } else {
+<span class="fc" id="L110">                    return Arrays.asList(IContentManager.METADATA_FILTER_KEYS).contains(fieldName);</span>
+                }
+            }
+
+        };
+    }
+
+    public ContentValidator getContentValidator() {
+<span class="fc" id="L118">        return contentValidator;</span>
+    }
+
+    public void setContentValidator(ContentValidator contentValidator) {
+<span class="fc" id="L122">        this.contentValidator = contentValidator;</span>
+<span class="fc" id="L123">    }</span>
+
+    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ContentDto&gt;&gt; getContents(RestContentListRequest requestList) {
+<span class="fc" id="L127">        logger.debug(&quot;getting contents with request {} - status {}&quot;, requestList, requestList.getStatus());</span>
+<span class="fc" id="L128">        requestList.setSort(normalizeAttributeNames(requestList.getSort()));</span>
+<span class="fc" id="L129">        Optional.ofNullable(requestList.getFilters()).map(Arrays::stream).orElseGet(Stream::empty).forEach(filter -&gt; {</span>
+<span class="fc" id="L130">            filter.setAttribute(normalizeAttributeNames(filter.getAttribute()));</span>
+<span class="fc" id="L131">        });</span>
+<span class="fc" id="L132">        this.getPaginationValidator().validateRestListRequest(requestList, ContentDto.class);</span>
+<span class="fc" id="L133">        PagedMetadata&lt;ContentDto&gt; result = this.getContentService().getContents(requestList, HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="fc" id="L134">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    private String normalizeAttributeNames(String attributeName) {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        if (attributeName != null) {</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            if (&quot;lastmodified&quot;.equalsIgnoreCase(attributeName)) {</span>
+<span class="fc" id="L140">                return IContentManager.CONTENT_MODIFY_DATE_FILTER_KEY;</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">            } else if (IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY.equalsIgnoreCase(attributeName)) {</span>
+<span class="fc" id="L142">                return IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY;</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">            } else if (&quot;description&quot;.equalsIgnoreCase(attributeName)) {</span>
+<span class="nc" id="L144">                return IContentManager.CONTENT_DESCR_FILTER_KEY;</span>
+<span class="fc bfc" id="L145" title="All 4 branches covered.">            } else if (&quot;id&quot;.equalsIgnoreCase(attributeName) || IEntityManager.ENTITY_ID_FILTER_KEY.equalsIgnoreCase(attributeName)) {</span>
+<span class="fc" id="L146">                return IEntityManager.ENTITY_ID_FILTER_KEY;</span>
+            }
+<span class="fc" id="L148">            return attributeName.toLowerCase();</span>
+        } else {
+<span class="fc" id="L150">            return null;</span>
+        }
+    }
+
+    @RequestMapping(value = &quot;/{code}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentDto&gt;&gt; getContent(@PathVariable String code,
+            @RequestParam(name = &quot;status&quot;, required = false, defaultValue = IContentService.STATUS_DRAFT) String status,
+            @RequestParam(name = &quot;lang&quot;, required = false) String lang) {
+<span class="fc" id="L158">        return this.getContent(code, null, status, false, lang);</span>
+    }
+
+    @RequestMapping(value = &quot;/{code}/model/{modelId}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentDto&gt;&gt; getContent(@PathVariable String code, @PathVariable String modelId,
+            @RequestParam(name = &quot;status&quot;, required = false, defaultValue = IContentService.STATUS_DRAFT) String status,
+            @RequestParam(name = &quot;resolveLinks&quot;, required = false, defaultValue = &quot;false&quot;) boolean resolveLinks,
+            @RequestParam(name = &quot;lang&quot;, required = false) String lang) {
+<span class="fc" id="L166">        logger.debug(&quot;Requested content -&gt; {} - model {} - status {}&quot;, code, modelId, status);</span>
+        ContentDto dto;
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (!this.getContentValidator().existContent(code, status)) {</span>
+<span class="fc" id="L169">            throw new ResourceNotFoundException(EntityValidator.ERRCODE_ENTITY_DOES_NOT_EXIST, &quot;Content&quot;, code);</span>
+        } else {
+<span class="fc" id="L171">            dto = this.getContentService().getContent(code, modelId, status, lang, resolveLinks, HttpSessionHelper.extractCurrentUser(httpSession));</span>
+        }
+<span class="fc" id="L173">        logger.debug(&quot;Main Response -&gt; {}&quot;, dto);</span>
+<span class="fc" id="L174">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(dto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;ContentDto&gt;&gt;&gt; addContent(@Valid @RequestBody List&lt;ContentDto&gt; bodyRequest, BindingResult bindingResult) {
+<span class="fc" id="L180">        logger.debug(&quot;Add new content -&gt; {}&quot;, bodyRequest);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L182">            throw new ValidationGenericException(bindingResult);</span>
+        }
+
+<span class="fc" id="L185">        List&lt;ContentDto&gt; response = bodyRequest.stream()</span>
+<span class="fc" id="L186">            .map(content -&gt; {</span>
+<span class="fc" id="L187">                this.getContentValidator().validate(content, bindingResult);</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">                if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L189">                    throw new ValidationGenericException(bindingResult);</span>
+                }
+<span class="fc" id="L191">                ContentDto result = this.getContentService().addContent(content, HttpSessionHelper.extractCurrentUser(httpSession), bindingResult);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L193">                    throw new ValidationGenericException(bindingResult);</span>
+                }
+<span class="fc" id="L195">                return result;</span>
+            })
+<span class="fc" id="L197">            .collect(Collectors.toList());</span>
+
+<span class="fc" id="L199">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(response), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(value = &quot;/{code}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentDto&gt;&gt; updateContent(@PathVariable String code,
+                                                                        @Valid @RequestBody ContentDto bodyRequest, BindingResult bindingResult) {
+<span class="nc" id="L206">        logger.debug(&quot;Update content -&gt; {}&quot;, bodyRequest);</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L208">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="nc" id="L210">        this.getContentValidator().validateBodyName(code, bodyRequest, bindingResult);</span>
+<span class="nc" id="L211">        ContentDto response = this.getContentService().updateContent(bodyRequest, HttpSessionHelper.extractCurrentUser(httpSession), bindingResult);</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L213">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="nc" id="L215">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(response), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;ContentDto&gt;&gt;&gt; updateContents(
+            @Valid @RequestBody List&lt;ContentDto&gt; bodyRequest, BindingResult bindingResult) {
+<span class="fc" id="L222">        logger.debug(&quot;Update content -&gt; {}&quot;, bodyRequest);</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L224">            throw new ValidationGenericException(bindingResult);</span>
+        }
+
+<span class="fc" id="L227">        UserDetails userDetails = HttpSessionHelper.extractCurrentUser(httpSession);</span>
+<span class="fc" id="L228">        List&lt;ContentDto&gt; response = bodyRequest.stream()</span>
+<span class="fc" id="L229">            .map(content -&gt; {</span>
+<span class="fc" id="L230">                ContentDto result = this.getContentService().updateContent(content, userDetails, bindingResult);</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">                if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L232">                    throw new ValidationGenericException(bindingResult);</span>
+                }
+<span class="fc" id="L234">                return result;</span>
+            })
+<span class="fc" id="L236">            .collect(Collectors.toList());</span>
+
+<span class="fc" id="L238">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(response), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(value = &quot;/{code}/status&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;ContentDto, Map&lt;String, String&gt;&gt;&gt; updateContentStatus(@PathVariable String code,
+            @Valid @RequestBody ContentStatusRequest contentStatusRequest, BindingResult bindingResult) {
+<span class="fc" id="L245">        logger.debug(&quot;changing status for content {} with request {}&quot;, code, contentStatusRequest);</span>
+<span class="fc" id="L246">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+        //field validations
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L249">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L251">        ContentDto contentDto = this.getContentService().updateContentStatus(code, contentStatusRequest.getStatus(), HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="fc" id="L252">        metadata.put(&quot;status&quot;, contentStatusRequest.getStatus());</span>
+<span class="fc" id="L253">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(contentDto, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(value = &quot;/status&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;List&lt;ContentDto&gt;, Map&lt;String, String&gt;&gt;&gt; updateContentsStatus(
+            @Valid @RequestBody BatchContentStatusRequest batchContentStatusRequest, BindingResult bindingResult) {
+<span class="fc" id="L260">        logger.debug(&quot;changing status for contents with request {}&quot;, batchContentStatusRequest);</span>
+<span class="fc" id="L261">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+        //field validations
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L264">            throw new ValidationGenericException(bindingResult);</span>
+        }
+
+<span class="fc" id="L267">        List&lt;ContentDto&gt; response = this.getContentService().updateContentsStatus(batchContentStatusRequest.getCodes(),</span>
+<span class="fc" id="L268">                batchContentStatusRequest.getStatus(), HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="fc" id="L269">        metadata.put(&quot;status&quot;, batchContentStatusRequest.getStatus());</span>
+
+<span class="fc" id="L271">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(response, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(value = &quot;/{code}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;?&gt;&gt; deleteContent(@PathVariable String code) {
+<span class="nc" id="L277">        logger.debug(&quot;Deleting content -&gt; {}&quot;, code);</span>
+<span class="nc" id="L278">        DataBinder binder = new DataBinder(code);</span>
+<span class="nc" id="L279">        BindingResult bindingResult = binder.getBindingResult();</span>
+        //field validations
+<span class="nc bnc" id="L281" title="All 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L282">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="nc" id="L284">        this.getContentService().deleteContent(code, HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="nc" id="L285">        Map&lt;String, String&gt; payload = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L286">        payload.put(&quot;code&quot;, code);</span>
+<span class="nc" id="L287">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(payload), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.CONTENT_EDITOR)
+    @RequestMapping(method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;?&gt;&gt; deleteContents(@RequestBody List&lt;String&gt; codes) {
+<span class="fc" id="L293">        logger.debug(&quot;Deleting contents -&gt; {}&quot;, codes);</span>
+
+<span class="fc" id="L295">        UserDetails userDetails = HttpSessionHelper.extractCurrentUser(httpSession);</span>
+<span class="fc" id="L296">        List&lt;String&gt; payload = codes.stream()</span>
+<span class="fc" id="L297">            .peek(code -&gt; this.getContentService().deleteContent(code, userDetails))</span>
+<span class="fc" id="L298">            .collect(Collectors.toList());</span>
+
+<span class="fc" id="L300">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(payload), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

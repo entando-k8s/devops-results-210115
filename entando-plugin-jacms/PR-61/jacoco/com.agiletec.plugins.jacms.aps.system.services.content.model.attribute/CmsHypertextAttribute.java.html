@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmsHypertextAttribute.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.model.attribute</a> &gt; <span class="el_source">CmsHypertextAttribute.java</span></div><h1>CmsHypertextAttribute.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.model.attribute;
+
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.attribute.HypertextAttribute;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.CmsAttributeReference;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.util.HypertextAttributeUtil;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.util.SymbolicLinkValidator;
+import org.entando.entando.ent.exception.EntRuntimeException;
+
+/**
+ * Rappresenta una informazione di tipo &quot;ipertesto&quot; specifico per il cms.
+ *
+ * @author W.Ambu - E.Santoboni
+ */
+<span class="fc" id="L42">public class CmsHypertextAttribute extends HypertextAttribute implements IReferenceableAttribute {</span>
+
+<span class="fc" id="L44">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(CmsHypertextAttribute.class);</span>
+
+    @Override
+    public Object getAttributePrototype() {
+<span class="fc" id="L48">        CmsHypertextAttribute prototype = (CmsHypertextAttribute) super.getAttributePrototype();</span>
+<span class="fc" id="L49">        prototype.setContentManager(this.getContentManager());</span>
+<span class="fc" id="L50">        prototype.setPageManager(this.getPageManager());</span>
+<span class="fc" id="L51">        return prototype;</span>
+    }
+
+    /**
+     * Restituisce il testo con modificato con eliminate l'apertura del primo
+     * paragrafo e la chiusura dell'ultimo.
+     *
+     * @return Il testo modificato.
+     */
+    public String getTextPLess() {
+<span class="nc" id="L61">        String masterText = this.getText();</span>
+<span class="nc" id="L62">        String text = masterText.replaceFirst(&quot;&lt;p&gt;&quot;, &quot;&quot;);</span>
+<span class="nc" id="L63">        StringBuilder sbuffer = new StringBuilder(text);</span>
+<span class="nc" id="L64">        int lastIndexOfP = sbuffer.lastIndexOf(&quot;&lt;/p&gt;&quot;);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (lastIndexOfP != -1) {</span>
+<span class="nc" id="L66">            sbuffer.replace(lastIndexOfP, lastIndexOfP + 4, &quot;&quot;);</span>
+        }
+<span class="nc" id="L68">        return sbuffer.toString();</span>
+    }
+
+    /**
+     * Restituisce la porzione di testo totale antecedente ad una eventuale
+     * immagine da inserire internamente all'ipertesto. Il testo viene ricavato
+     * dal testo principale la cui fine è corrispondente all'inizio del
+     * paragrafo (apertura inclusa) più vicino al punto del testo completo
+     * ricavato dalla percentuale specificata.
+     *
+     * @param percent La percentuale, rispetto all'inizio del testo, rispetto al
+     * quale ricavare il punto di taglio.
+     * @return La porzione di testo totale antecedente ad una eventuale
+     * immagine.
+     */
+    public String getTextBeforeImage(int percent) {
+<span class="fc" id="L84">        String text = super.getText();</span>
+<span class="fc" id="L85">        int cutPoint = HypertextAttributeUtil.getIndexCutPoint(text, percent);</span>
+<span class="fc" id="L86">        String textBefore = text.substring(0, cutPoint);</span>
+<span class="fc" id="L87">        return textBefore;</span>
+    }
+
+    /**
+     * Restituisce la porzione di testo totale successivo ad una eventuale
+     * immagine da inserire internamente all'ipertesto. Il testo viene ricavato
+     * dal testo principale il cui inizio è corrispondente all'inizio del
+     * paragrafo (apertura esclusa) più vicino al punto del testo completo
+     * ricavato dalla percentuale specificata.
+     *
+     * @param percent La percentuale, rispetto all'inizio del testo, rispetto al
+     * quale ricavare il punto di taglio.
+     * @return La porzione di testo totale successiva ad una eventuale immagine.
+     */
+    public String getTextAfterImage(int percent) {
+<span class="fc" id="L102">        String text = super.getText();</span>
+<span class="fc" id="L103">        int cutPoint = HypertextAttributeUtil.getIndexCutPoint(text, percent);</span>
+<span class="fc" id="L104">        String textAfter = text.substring(cutPoint);</span>
+<span class="fc" id="L105">        return textAfter;</span>
+    }
+
+    /**
+     * Restituisce la porzione di testo totale interposto tra due eventuali
+     * immagini da inserire internamente all'ipertesto. Il testo viene ricavato
+     * dal testo principale il cui inizio è corrispondente all'inizio del
+     * paragrafo (apertura esclusa) più vicino al punto del testo completo
+     * ricavato dalla percentuale start specificata, e la cui fine è
+     * corrispondente all'inizio del paragrafo (apertura inclusa) più vicina al
+     * punto del testo completo ricavato dalla percentuale percentEnd
+     * specificata.
+     *
+     * @param percentStart La percentuale, rispetto all'inizio del testo,
+     * rispetto al quale ricavare il punto di taglio iniziale.
+     * @param percentEnd La percentuale, rispetto all'inizio del testo, rispetto
+     * al quale ricavare il punto di taglio finale.
+     * @return La porzione di testo totale interposto tra due eventuali
+     * immagini.
+     */
+    public String getTextByRange(int percentStart, int percentEnd) {
+<span class="nc" id="L126">        String text = super.getText();</span>
+<span class="nc" id="L127">        int firstCutPoint = HypertextAttributeUtil.getIndexCutPoint(text, percentStart);</span>
+<span class="nc" id="L128">        int endCutPoint = HypertextAttributeUtil.getIndexCutPoint(text, percentEnd);</span>
+<span class="nc" id="L129">        String textByRange = text.substring(firstCutPoint, endCutPoint);</span>
+<span class="nc" id="L130">        return textByRange;</span>
+    }
+
+    @Override
+    public List&lt;CmsAttributeReference&gt; getReferences(List&lt;Lang&gt; systemLangs) {
+<span class="fc" id="L135">        List&lt;CmsAttributeReference&gt; refs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        for (Lang lang : systemLangs) {</span>
+<span class="fc" id="L137">            String text = this.getTextMap().get(lang.getCode());</span>
+<span class="fc" id="L138">            List&lt;SymbolicLink&gt; links = HypertextAttributeUtil.getSymbolicLinksOnText(text);</span>
+<span class="pc bpc" id="L139" title="2 of 4 branches missed.">            if (null != links &amp;&amp; !links.isEmpty()) {</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                for (SymbolicLink symbLink : links) {</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                    if (symbLink.getDestType() != SymbolicLink.URL_TYPE) {</span>
+<span class="nc" id="L142">                        CmsAttributeReference ref = new CmsAttributeReference(symbLink.getPageDest(),</span>
+<span class="nc" id="L143">                                symbLink.getContentDest(), symbLink.getResourceDest());</span>
+<span class="nc" id="L144">                        refs.add(ref);</span>
+                    }
+<span class="nc" id="L146">                }</span>
+            }
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">        return refs;</span>
+    }
+
+    @Override
+    public List&lt;AttributeFieldError&gt; validate(AttributeTracer tracer, ILangManager langManager) {
+<span class="fc" id="L154">        List&lt;AttributeFieldError&gt; errors = super.validate(tracer, langManager);</span>
+        try {
+<span class="fc" id="L156">            List&lt;Lang&gt; langs = langManager.getLangs();</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">            for (Lang lang : langs) {</span>
+<span class="fc" id="L158">                AttributeTracer textTracer = (AttributeTracer) tracer.clone();</span>
+<span class="fc" id="L159">                textTracer.setLang(lang);</span>
+<span class="fc" id="L160">                String text = this.getTextMap().get(lang.getCode());</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">                if (null == text) {</span>
+<span class="fc" id="L162">                    continue;</span>
+                }
+<span class="fc" id="L164">                List&lt;SymbolicLink&gt; links = HypertextAttributeUtil.getSymbolicLinksOnText(text);</span>
+<span class="pc bpc" id="L165" title="2 of 4 branches missed.">                if (null != links &amp;&amp; !links.isEmpty()) {</span>
+<span class="nc" id="L166">                    SymbolicLinkValidator sler = new SymbolicLinkValidator(this.getContentManager(), this.getPageManager(), this.getResourceManager());</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">                    for (SymbolicLink symbLink : links) {</span>
+<span class="nc" id="L168">                        AttributeFieldError attributeError = sler.scan(symbLink, (Content) this.getParentEntity());</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                        if (null != attributeError) {</span>
+<span class="nc" id="L170">                            AttributeFieldError error = new AttributeFieldError(this, attributeError.getErrorCode(), textTracer);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                            if (attributeError.getMessage() == null) {</span>
+<span class="nc" id="L172">                                attributeError.setMessage(&quot;Invalid link - page &quot; + symbLink.getPageDest()</span>
+<span class="nc" id="L173">                                        + &quot; - content &quot; + symbLink.getContentDest() + &quot; - Error code &quot; + attributeError.getErrorCode());</span>
+                            }
+<span class="nc" id="L175">                            error.setMessage(attributeError.getMessage());</span>
+<span class="nc" id="L176">                            errors.add(error);</span>
+                        }
+<span class="nc" id="L178">                    }</span>
+                }
+<span class="fc" id="L180">            }</span>
+<span class="nc" id="L181">        } catch (Throwable t) {</span>
+<span class="nc" id="L182">            logger.error(&quot;Error validating Attribute '{}'&quot;, this.getName(), t);</span>
+<span class="nc" id="L183">            throw new RuntimeException(&quot;Error validating Attribute '&quot; + this.getName() + &quot;'&quot;, t);</span>
+<span class="fc" id="L184">        }</span>
+<span class="fc" id="L185">        return errors;</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L189">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L193">        this.contentManager = contentManager;</span>
+<span class="fc" id="L194">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L197">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L201">        this.pageManager = pageManager;</span>
+<span class="fc" id="L202">    }</span>
+
+    public IResourceManager getResourceManager() {
+<span class="nc" id="L205">        return resourceManager;</span>
+    }
+
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L209">        this.resourceManager = resourceManager;</span>
+<span class="fc" id="L210">    }</span>
+
+    @Override
+    public boolean isSearchableOptionSupported() {
+<span class="fc" id="L214">        return false;</span>
+    }
+
+    private transient IContentManager contentManager;
+    private transient IPageManager pageManager;
+    private transient IResourceManager resourceManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

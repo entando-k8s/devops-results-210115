@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LinkAttribute.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.model.attribute</a> &gt; <span class="el_source">LinkAttribute.java</span></div><h1>LinkAttribute.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.model.attribute;
+
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.jdom.Element;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.attribute.AbstractJAXBAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.TextAttribute;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.CmsAttributeReference;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.util.SymbolicLinkValidator;
+import com.agiletec.plugins.jacms.aps.system.services.linkresolver.ILinkResolverManager;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.exception.EntRuntimeException;
+
+/**
+ * Rappresenta una informazione di tipo &quot;link&quot;. La destinazione del link è la
+ * stessa per tutte le lingue, ma il testo associato varia con la lingua.
+ *
+ * @author W.Ambu - S.Didaci
+ */
+<span class="fc" id="L50">public class LinkAttribute extends TextAttribute implements IReferenceableAttribute {</span>
+
+<span class="fc" id="L52">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(LinkAttribute.class);</span>
+
+    @Override
+    public Object getAttributePrototype() {
+<span class="fc" id="L56">        LinkAttribute prototype = (LinkAttribute) super.getAttributePrototype();</span>
+<span class="fc" id="L57">        prototype.setContentManager(this.getContentManager());</span>
+<span class="fc" id="L58">        prototype.setLinkResolverManager(this.getLinkResolverManager());</span>
+<span class="fc" id="L59">        prototype.setPageManager(this.getPageManager());</span>
+<span class="fc" id="L60">        prototype.setResourceManager(this.getResourceManager());</span>
+<span class="fc" id="L61">        return prototype;</span>
+    }
+
+    @Override
+    public Element getJDOMElement() {
+<span class="fc" id="L66">        Element attributeElement = this.createRootElement(&quot;attribute&quot;);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (null != this.getSymbolicLink()) {</span>
+<span class="fc" id="L68">            Element linkElement = new Element(&quot;link&quot;);</span>
+<span class="fc" id="L69">            attributeElement.addContent(linkElement);</span>
+            Element dest;
+<span class="fc" id="L71">            int type = this.getSymbolicLink().getDestType();</span>
+<span class="fc bfc" id="L72" title="All 6 branches covered.">            switch (type) {</span>
+                case SymbolicLink.URL_TYPE:
+<span class="fc" id="L74">                    linkElement.setAttribute(&quot;type&quot;, &quot;external&quot;);</span>
+<span class="fc" id="L75">                    dest = new Element(&quot;urldest&quot;);</span>
+<span class="fc" id="L76">                    dest.addContent(this.getSymbolicLink().getUrlDest());</span>
+<span class="fc" id="L77">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L78">                    break;</span>
+                case SymbolicLink.PAGE_TYPE:
+<span class="fc" id="L80">                    linkElement.setAttribute(&quot;type&quot;, &quot;page&quot;);</span>
+<span class="fc" id="L81">                    dest = new Element(&quot;pagedest&quot;);</span>
+<span class="fc" id="L82">                    dest.addContent(this.getSymbolicLink().getPageDest());</span>
+<span class="fc" id="L83">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L84">                    break;</span>
+                case SymbolicLink.CONTENT_TYPE:
+<span class="fc" id="L86">                    linkElement.setAttribute(&quot;type&quot;, &quot;content&quot;);</span>
+<span class="fc" id="L87">                    dest = new Element(&quot;contentdest&quot;);</span>
+<span class="fc" id="L88">                    dest.addContent(this.getSymbolicLink().getContentDest());</span>
+<span class="fc" id="L89">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L90">                    break;</span>
+                case SymbolicLink.CONTENT_ON_PAGE_TYPE:
+<span class="fc" id="L92">                    linkElement.setAttribute(&quot;type&quot;, &quot;contentonpage&quot;);</span>
+<span class="fc" id="L93">                    dest = new Element(&quot;pagedest&quot;);</span>
+<span class="fc" id="L94">                    dest.addContent(this.getSymbolicLink().getPageDest());</span>
+<span class="fc" id="L95">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L96">                    dest = new Element(&quot;contentdest&quot;);</span>
+<span class="fc" id="L97">                    dest.addContent(this.getSymbolicLink().getContentDest());</span>
+<span class="fc" id="L98">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L99">                    break;</span>
+                case SymbolicLink.RESOURCE_TYPE:
+<span class="fc" id="L101">                    linkElement.setAttribute(&quot;type&quot;, &quot;resource&quot;);</span>
+<span class="fc" id="L102">                    dest = new Element(&quot;resourcedest&quot;);</span>
+<span class="fc" id="L103">                    dest.addContent(this.getSymbolicLink().getResourceDest());</span>
+<span class="fc" id="L104">                    linkElement.addContent(dest);</span>
+<span class="fc" id="L105">                    break;</span>
+                default:
+<span class="fc" id="L107">                    linkElement.setAttribute(&quot;type&quot;, &quot;&quot;);</span>
+            }
+        }
+<span class="fc" id="L110">        super.addTextElements(attributeElement);</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (null != this.getLinkProperties()) {</span>
+<span class="fc" id="L112">            Element propertiesElement = new Element(&quot;properties&quot;);</span>
+<span class="fc" id="L113">            Iterator&lt;String&gt; keyIter = this.getLinkProperties().keySet().iterator();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            while (keyIter.hasNext()) {</span>
+<span class="fc" id="L115">                String key = keyIter.next();</span>
+<span class="fc" id="L116">                String value = this.getLinkProperties().get(key);</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">                if (!StringUtils.isBlank(value)) {</span>
+<span class="fc" id="L118">                    Element propertyElement = new Element(&quot;property&quot;);</span>
+<span class="fc" id="L119">                    propertyElement.setAttribute(&quot;key&quot;, key);</span>
+<span class="fc" id="L120">                    propertyElement.setText(value.trim());</span>
+<span class="fc" id="L121">                    propertiesElement.addContent(propertyElement);</span>
+                }
+<span class="fc" id="L123">            }</span>
+<span class="fc" id="L124">            attributeElement.addContent(propertiesElement);</span>
+        }
+<span class="fc" id="L126">        return attributeElement;</span>
+    }
+
+    /**
+     * Restituisce la stringa rappresentante la destinazione simbolica. Il
+     * metodo è atto ad essere utilizzato nel modello di renderizzazione e la
+     * stringa restituita sarà successivamente risolta in fase di
+     * renderizzazione dal servizio linkResolver.
+     *
+     * @return La stringa rappresentante la destinazione simbolica.
+     */
+    public String getDestination() {
+<span class="fc" id="L138">        String destination = &quot;&quot;;</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (null != this.getSymbolicLink()) {</span>
+<span class="fc" id="L140">            destination = this.getSymbolicLink().getSymbolicDestination();</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">            if (this.getSymbolicLink().getDestType() == SymbolicLink.URL_TYPE) {</span>
+<span class="fc" id="L142">                destination = destination.replaceAll(&quot;&amp;(?![a-z]+;)&quot;, &quot;&amp;amp;&quot;);</span>
+            }
+        }
+<span class="fc" id="L145">        return destination;</span>
+    }
+
+    @Override
+    public boolean isSearchableOptionSupported() {
+<span class="fc" id="L150">        return false;</span>
+    }
+
+    @Override
+    public List&lt;CmsAttributeReference&gt; getReferences(List&lt;Lang&gt; systemLangs) {
+<span class="fc" id="L155">        List&lt;CmsAttributeReference&gt; refs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L156">        SymbolicLink symbLink = this.getSymbolicLink();</span>
+<span class="fc bfc" id="L157" title="All 4 branches covered.">        if (null != symbLink &amp;&amp; (symbLink.getDestType() != SymbolicLink.URL_TYPE)) {</span>
+<span class="fc" id="L158">            CmsAttributeReference ref = new CmsAttributeReference(symbLink.getPageDest(),</span>
+<span class="fc" id="L159">                    symbLink.getContentDest(), null);</span>
+<span class="fc" id="L160">            refs.add(ref);</span>
+        }
+<span class="fc" id="L162">        return refs;</span>
+    }
+
+    @Override
+    public Object getValue() {
+<span class="fc" id="L167">        return this.getSymbolicLink();</span>
+    }
+
+    @Override
+    protected AbstractJAXBAttribute getJAXBAttributeInstance() {
+<span class="fc" id="L172">        return new JAXBLinkAttribute();</span>
+    }
+
+    @Override
+    public AbstractJAXBAttribute getJAXBAttribute(String langCode) {
+<span class="fc" id="L177">        JAXBLinkAttribute jaxbAttribute = (JAXBLinkAttribute) super.createJAXBAttribute(langCode);</span>
+<span class="pc bpc" id="L178" title="1 of 4 branches missed.">        if (null == jaxbAttribute || null == this.getSymbolicLink()) {</span>
+<span class="fc" id="L179">            return jaxbAttribute;</span>
+        }
+<span class="fc" id="L181">        JAXBLinkValue value = new JAXBLinkValue();</span>
+<span class="fc" id="L182">        String text = this.getTextForLang(langCode);</span>
+<span class="fc" id="L183">        value.setText(text);</span>
+<span class="fc" id="L184">        value.setUrl(this.getLinkResolverManager().resolveLink(this.getSymbolicLink(), this.getParentEntity().getId(), null));</span>
+<span class="fc" id="L185">        value.setSymbolicLink(this.getSymbolicLink());</span>
+<span class="fc" id="L186">        jaxbAttribute.setLinkValue(value);</span>
+<span class="fc" id="L187">        return jaxbAttribute;</span>
+    }
+
+    @Override
+    public void valueFrom(AbstractJAXBAttribute jaxbAttribute, String langCode) {
+<span class="fc" id="L192">        super.valueFrom(jaxbAttribute, langCode);</span>
+<span class="fc" id="L193">        JAXBLinkValue value = ((JAXBLinkAttribute) jaxbAttribute).getLinkValue();</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (null == value) {</span>
+<span class="nc" id="L195">            return;</span>
+        }
+<span class="fc" id="L197">        this.setSymbolicLink(value.getSymbolicLink());</span>
+<span class="fc" id="L198">        String textValue = value.getText();</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">        if (null == textValue) {</span>
+<span class="nc" id="L200">            return;</span>
+        }
+<span class="fc" id="L202">        this.getTextMap().put(this.getDefaultLangCode(), textValue);</span>
+<span class="fc" id="L203">    }</span>
+
+    @Override
+    public Status getStatus() {
+        Status linkStatus =
+<span class="fc bfc" id="L208" title="All 4 branches covered.">                (null != this.getSymbolicLink() &amp;&amp; this.getSymbolicLink().getDestType() != 0) ? Status.VALUED : Status.EMPTY;</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        if (linkStatus.equals(Status.EMPTY)) {</span>
+<span class="fc" id="L210">            return Status.EMPTY;</span>
+        }
+<span class="fc" id="L212">        Status textStatus = super.getStatus();</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">        if (!textStatus.equals(linkStatus)) {</span>
+<span class="fc" id="L214">            return Status.INCOMPLETE;</span>
+        }
+<span class="pc bpc" id="L216" title="2 of 4 branches missed.">        if (textStatus.equals(linkStatus) &amp;&amp; textStatus.equals(Status.VALUED)) {</span>
+<span class="fc" id="L217">            return Status.VALUED;</span>
+        }
+<span class="nc" id="L219">        return Status.EMPTY;</span>
+    }
+
+    @Override
+    public List&lt;AttributeFieldError&gt; validate(AttributeTracer tracer, ILangManager langManager) {
+<span class="fc" id="L224">        List&lt;AttributeFieldError&gt; errors = super.validate(tracer, langManager);</span>
+        try {
+<span class="fc" id="L226">            SymbolicLink symbolicLink = this.getSymbolicLink();</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">            if (null == symbolicLink) {</span>
+<span class="fc" id="L228">                return errors;</span>
+            }
+<span class="fc" id="L230">            SymbolicLinkValidator sler = new SymbolicLinkValidator(this.getContentManager(), this.getPageManager(), this.getResourceManager());</span>
+<span class="fc" id="L231">            AttributeFieldError attributeError = sler.scan(symbolicLink, (Content) this.getParentEntity());</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">            if (null != attributeError) {</span>
+<span class="fc" id="L233">                AttributeFieldError error = new AttributeFieldError(this, attributeError.getErrorCode(), tracer);</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">                if (attributeError.getMessage() == null) {</span>
+<span class="fc" id="L235">                    attributeError.setMessage(&quot;Invalid link - page &quot; + symbolicLink.getPageDest()</span>
+<span class="fc" id="L236">                            + &quot; - content &quot; + symbolicLink.getContentDest() + &quot; - Error code &quot; + attributeError.getErrorCode());</span>
+                }
+<span class="fc" id="L238">                error.setMessage(attributeError.getMessage());</span>
+<span class="fc" id="L239">                errors.add(error);</span>
+            }
+<span class="nc" id="L241">        } catch (Exception t) {</span>
+<span class="nc" id="L242">            logger.error(&quot;Error validating link attribute&quot;, t);</span>
+<span class="nc" id="L243">            throw new EntRuntimeException(&quot;Error validating link attribute&quot;, t);</span>
+<span class="fc" id="L244">        }</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        for (AttributeFieldError error : errors) {</span>
+<span class="pc bpc" id="L246" title="1 of 4 branches missed.">            if (FieldError.INVALID.equals(error.getErrorCode()) &amp;&amp; Status.INCOMPLETE.equals(this.getStatus())) {</span>
+<span class="fc" id="L247">                error.setMessage(&quot;The Link attribute is invalid or incomplete&quot;);</span>
+            }
+<span class="fc" id="L249">        }</span>
+<span class="fc" id="L250">        return errors;</span>
+    }
+
+    /**
+     * Setta il link simbolico caratterizzante l'attributo.
+     *
+     * @param symbolicLink Il link simbolico.
+     */
+    public void setSymbolicLink(SymbolicLink symbolicLink) {
+<span class="fc" id="L259">        this.symbolicLink = symbolicLink;</span>
+<span class="fc" id="L260">    }</span>
+
+    /**
+     * Restituisce il link simbolico caratterizzante l'attributo.
+     *
+     * @return Il link simbolico.
+     */
+    public SymbolicLink getSymbolicLink() {
+<span class="fc" id="L268">        return symbolicLink;</span>
+    }
+
+    public Map&lt;String, String&gt; getLinkProperties() {
+<span class="fc" id="L272">        return linkProperties;</span>
+    }
+
+    public void setLinkProperties(Map&lt;String, String&gt; linkProperties) {
+<span class="fc" id="L276">        this.linkProperties = linkProperties;</span>
+<span class="fc" id="L277">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L280">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L284">        this.contentManager = contentManager;</span>
+<span class="fc" id="L285">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L288">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L292">        this.pageManager = pageManager;</span>
+<span class="fc" id="L293">    }</span>
+
+    protected ILinkResolverManager getLinkResolverManager() {
+<span class="fc" id="L296">        return linkResolverManager;</span>
+    }
+
+    public void setLinkResolverManager(ILinkResolverManager linkResolverManager) {
+<span class="fc" id="L300">        this.linkResolverManager = linkResolverManager;</span>
+<span class="fc" id="L301">    }</span>
+
+    public IResourceManager getResourceManager() {
+<span class="fc" id="L304">        return resourceManager;</span>
+    }
+
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L308">        this.resourceManager = resourceManager;</span>
+<span class="fc" id="L309">    }</span>
+
+    private SymbolicLink symbolicLink;
+<span class="fc" id="L312">    private Map&lt;String, String&gt; linkProperties = new HashMap&lt;&gt;();</span>
+    private transient IContentManager contentManager;
+    private transient IPageManager pageManager;
+    private transient ILinkResolverManager linkResolverManager;
+    private transient IResourceManager resourceManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
