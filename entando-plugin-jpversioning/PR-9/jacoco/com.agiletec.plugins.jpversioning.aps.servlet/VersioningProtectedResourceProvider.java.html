@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VersioningProtectedResourceProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.aps.servlet</a> &gt; <span class="el_source">VersioningProtectedResourceProvider.java</span></div><h1>VersioningProtectedResourceProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jpversioning.aps.servlet;
+
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.PublicContentAuthorizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.AbstractResourceAttribute;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMonoInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMultiInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInstance;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jpversioning.aps.system.JpversioningSystemConstants;
+import com.agiletec.plugins.jpversioning.aps.system.services.resource.ITrashedResourceManager;
+import com.agiletec.plugins.jpversioning.aps.system.services.resource.TrashedResourceManager;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.servlet.IProtectedResourceProvider;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+<span class="fc" id="L53">public class VersioningProtectedResourceProvider implements IProtectedResourceProvider {</span>
+
+<span class="fc" id="L55">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(VersioningProtectedResourceProvider.class);</span>
+
+    private IUserManager userManager;
+    private IAuthorizationManager authorizationManager;
+    private ITrashedResourceManager trashedResourceManager;
+
+    @Override
+    public boolean provideProtectedResource(HttpServletRequest request, HttpServletResponse response) throws EntException {
+        try {
+<span class="nc" id="L64">            String[] uriSegments = request.getRequestURI().split(&quot;/&quot;);</span>
+<span class="nc" id="L65">            int segments = uriSegments.length;</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">            if (segments &lt; 3) {</span>
+<span class="nc" id="L67">                return false;</span>
+            }
+<span class="nc" id="L69">            String protectedStr = uriSegments[segments - 4];</span>
+<span class="nc" id="L70">            String trashedStr = uriSegments[segments - 3];</span>
+<span class="nc" id="L71">            String resId = uriSegments[segments - 2];</span>
+<span class="nc" id="L72">            String sizeStr = uriSegments[segments - 1];</span>
+
+<span class="nc" id="L74">            String[] matchUri = JpversioningSystemConstants.PROTECTED_TRASH_FOLDER.split(&quot;/&quot;);</span>
+
+<span class="nc bnc" id="L76" title="All 4 branches missed.">            if (!matchUri[0].equalsIgnoreCase(protectedStr) || !matchUri[1].equalsIgnoreCase(trashedStr) || !StringUtils</span>
+<span class="nc bnc" id="L77" title="All 4 branches missed.">                    .isNumeric(resId) || !StringUtils.isNumeric(sizeStr)) {</span>
+<span class="nc" id="L78">                return false;</span>
+            }
+
+<span class="nc" id="L81">            Integer size = Integer.parseInt(sizeStr);</span>
+
+<span class="nc" id="L83">            UserDetails currentUser = (UserDetails) request.getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            if (currentUser == null) {</span>
+<span class="nc" id="L85">                currentUser = this.getUserManager().getGuestUser();</span>
+            }
+
+<span class="nc" id="L88">            ResourceInterface resource = this.getTrashedResourceManager().loadTrashedResource(resId);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (resource == null) {</span>
+<span class="nc" id="L90">                return false;</span>
+            }
+
+<span class="nc" id="L93">            IAuthorizationManager authManager = this.getAuthorizationManager();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if (authManager.isAuthOnGroup(currentUser, resource.getMainGroup())</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                    || authManager.isAuthOnGroup(currentUser, Group.ADMINS_GROUP_NAME)) {</span>
+<span class="nc" id="L96">                ResourceInstance instance = null;</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                if (resource.isMultiInstance()) {</span>
+<span class="nc" id="L98">                    instance = ((AbstractMultiInstanceResource) resource).getInstance(size, null);</span>
+                } else {
+<span class="nc" id="L100">                    instance = ((AbstractMonoInstanceResource) resource).getInstance();</span>
+                }
+<span class="nc" id="L102">                this.createResponse(response, resource, instance, size, currentUser);</span>
+<span class="nc" id="L103">                return true;</span>
+            }
+<span class="nc" id="L105">        } catch (Throwable t) {</span>
+<span class="nc" id="L106">            logger.error(&quot;Error extracting protected resource&quot;, t);</span>
+<span class="nc" id="L107">            throw new EntException(&quot;Error extracting protected resource&quot;, t);</span>
+<span class="nc" id="L108">        }</span>
+<span class="nc" id="L109">        return false;</span>
+    }
+
+    protected void createResponse(HttpServletResponse resp, ResourceInterface resource,
+            ResourceInstance instance, Integer size, UserDetails user) throws IOException, ServletException {
+
+<span class="nc" id="L115">        resp.setContentType(instance.getMimeType());</span>
+<span class="nc" id="L116">        resp.setHeader(&quot;Content-Disposition&quot;, &quot;inline; filename=&quot; + instance.getFileName());</span>
+<span class="nc" id="L117">        ServletOutputStream out = resp.getOutputStream();</span>
+        try {
+<span class="nc" id="L119">            InputStream is = getInputStream(size, user, resource);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (null != is) {</span>
+<span class="nc" id="L121">                byte[] buffer = new byte[2048];</span>
+<span class="nc" id="L122">                int length = -1;</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                while ((length = is.read(buffer)) != -1) {</span>
+<span class="nc" id="L124">                    out.write(buffer, 0, length);</span>
+<span class="nc" id="L125">                    out.flush();</span>
+                }
+<span class="nc" id="L127">                is.close();</span>
+            }
+<span class="nc" id="L129">        } catch (Throwable t) {</span>
+<span class="nc" id="L130">            logger.error(&quot;Error extracting protected resource&quot;, t);</span>
+<span class="nc" id="L131">            throw new ServletException(&quot;Error extracting protected resource&quot;, t);</span>
+        } finally {
+<span class="nc" id="L133">            out.close();</span>
+        }
+<span class="nc" id="L135">    }</span>
+
+    private InputStream getInputStream(Integer size, UserDetails user, ResourceInterface resource)
+            throws EntException {
+<span class="nc" id="L139">        String mainGroup = resource.getMainGroup();</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if (authorizationManager.isAuthOnGroup(user, mainGroup)) {</span>
+<span class="nc" id="L141">            return trashedResourceManager.getTrashFileStream(resource, getResourceInstance(size, resource));</span>
+        }
+<span class="nc" id="L143">        return null;</span>
+    }
+
+    private ResourceInstance getResourceInstance(Integer size, ResourceInterface resource) {
+<span class="nc" id="L147">        ResourceInstance instance = null;</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (resource.isMultiInstance()) {</span>
+<span class="nc" id="L149">            instance = ((AbstractMultiInstanceResource) resource).getInstance(size, null);</span>
+        } else {
+<span class="nc" id="L151">            instance = ((AbstractMonoInstanceResource) resource).getInstance();</span>
+        }
+<span class="nc" id="L153">        return instance;</span>
+    }
+
+    public ITrashedResourceManager getTrashedResourceManager() {
+<span class="nc" id="L157">        return trashedResourceManager;</span>
+    }
+
+    public void setTrashedResourceManager(
+            ITrashedResourceManager trashedResourceManager) {
+<span class="fc" id="L162">        this.trashedResourceManager = trashedResourceManager;</span>
+<span class="fc" id="L163">    }</span>
+
+    protected IUserManager getUserManager() {
+<span class="nc" id="L166">        return userManager;</span>
+    }
+
+    public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L170">        this.userManager = userManager;</span>
+<span class="fc" id="L171">    }</span>
+
+    protected IAuthorizationManager getAuthorizationManager() {
+<span class="nc" id="L174">        return authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L178">        this.authorizationManager = authorizationManager;</span>
+<span class="fc" id="L179">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
