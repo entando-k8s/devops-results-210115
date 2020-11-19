@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentVersioningService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpversioning.services.content</a> &gt; <span class="el_source">ContentVersioningService.java</span></div><h1>ContentVersioningService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jpversioning.services.content;
+
+import java.nio.charset.StandardCharsets;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentDto;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.resource.ResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jpversioning.aps.system.services.resource.TrashedResourceManager;
+import com.agiletec.plugins.jpversioning.aps.system.services.versioning.ContentVersion;
+import com.agiletec.plugins.jpversioning.aps.system.services.versioning.VersioningManager;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.plugins.jacms.aps.system.services.content.ContentService;
+import org.entando.entando.plugins.jpversioning.web.content.model.ContentVersionDTO;
+import org.entando.entando.web.common.model.Filter;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+
+@Service
+<span class="fc" id="L54">public class ContentVersioningService {</span>
+
+<span class="fc" id="L56">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private static final String RESOURCE = &quot;resource&quot;;
+    private static final String RESOURCE_ID = &quot;id&quot;;
+
+    @Autowired
+    private VersioningManager versioningManager;
+
+    @Autowired
+    private ContentService contentService;
+
+    @Autowired
+    private ContentManager contentManager;
+
+    @Autowired
+    private TrashedResourceManager trashedResourceManager;
+
+    @Autowired
+    private ResourceManager resourceManager;
+
+    public PagedMetadata&lt;ContentVersionDTO&gt; getListContentVersions(String contentId, RestListRequest requestList) {
+<span class="fc" id="L77">        logger.debug(&quot;LIST listContentVersions for content {} with req {}&quot;, contentId, requestList);</span>
+<span class="fc" id="L78">        List&lt;ContentVersionDTO&gt; contentVersionDTOs = new ArrayList&lt;&gt;();</span>
+        List&lt;Long&gt; contentVersions;
+        try {
+<span class="fc" id="L81">            contentVersions = versioningManager.getVersions(contentId);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">            if (contentVersions == null) {</span>
+<span class="fc" id="L83">                contentVersions = new ArrayList&lt;&gt;();</span>
+            } else {
+<span class="fc" id="L85">                contentVersionDTOs = requestList.getSublist(contentVersions).stream()</span>
+<span class="fc" id="L86">                        .map(cv -&gt; mapContentVersionToDTO(getContentVersion(cv)))</span>
+<span class="fc" id="L87">                        .collect(Collectors.toList());</span>
+            }
+<span class="nc" id="L89">        } catch (EntException e) {</span>
+<span class="nc" id="L90">            logger.error(&quot;Error reading the list of content versions for content {}&quot;, contentId, e);</span>
+<span class="nc" id="L91">            throw new RestServerError(String.format(&quot;Error while getting content versions for content %s&quot;, contentId),</span>
+                    e);
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">        PagedMetadata&lt;ContentVersionDTO&gt; pagedResults = new PagedMetadata&lt;&gt;(requestList, contentVersions.size());</span>
+<span class="fc" id="L95">        pagedResults.setBody(contentVersionDTOs);</span>
+<span class="fc" id="L96">        return pagedResults;</span>
+    }
+
+    public PagedMetadata&lt;ContentVersionDTO&gt; getLatestVersions(RestListRequest requestList) {
+
+        try {
+<span class="fc" id="L102">            logger.debug(&quot;GET getLatestVersions with req {}&quot;, requestList);</span>
+
+<span class="fc" id="L104">            String contentType = extractAttributeValue(requestList.getFilters(), &quot;contentType&quot;);</span>
+<span class="fc" id="L105">            String description = extractAttributeValue(requestList.getFilters(), &quot;description&quot;);</span>
+
+<span class="fc" id="L107">            List&lt;ContentVersionDTO&gt; result = versioningManager.getLastVersions(contentType, description).stream()</span>
+<span class="fc" id="L108">                    .map(v -&gt; mapContentVersionToDTO(getContentVersion(v))).collect(</span>
+<span class="fc" id="L109">                            Collectors.toList());</span>
+
+<span class="fc" id="L111">            final List&lt;ContentVersionDTO&gt; sublist = requestList.getSublist(result);</span>
+<span class="fc" id="L112">            PagedMetadata&lt;ContentVersionDTO&gt; pagedResults = new PagedMetadata&lt;&gt;(requestList, result.size());</span>
+<span class="fc" id="L113">            pagedResults.setBody(sublist);</span>
+
+<span class="fc" id="L115">            return pagedResults;</span>
+<span class="nc" id="L116">        } catch (EntException e) {</span>
+<span class="nc" id="L117">            logger.error(&quot;Error while getting latest versions for request {}&quot;, requestList, e);</span>
+<span class="nc" id="L118">            throw new RestServerError(String.format(&quot;Error while getting content versions for request %s&quot;, requestList),</span>
+                    e);
+        }
+    }
+
+    private String extractAttributeValue(Filter[] filters, String attributeName) {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (filters != null) {</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">            for (Filter filter : filters) {</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">                if (filter.getAttribute().equals(attributeName)) {</span>
+<span class="fc" id="L127">                    return filter.getValue();</span>
+                }
+            }
+        }
+<span class="fc" id="L131">        return null;</span>
+    }
+
+    public ContentVersion getContentVersion(Long versionId) {
+        try {
+<span class="fc" id="L136">            return versioningManager.getVersion(versionId);</span>
+<span class="nc" id="L137">        } catch (EntException e) {</span>
+<span class="nc" id="L138">            logger.error(&quot;Error reading version {} &quot; + versionId, e);</span>
+        }
+<span class="nc" id="L140">        return null;</span>
+    }
+
+    public ContentDto getContent(Long versionId) {
+        try {
+<span class="fc" id="L145">            final ContentVersion contentVersion = versioningManager.getVersion(versionId);</span>
+<span class="fc" id="L146">            final Content content = versioningManager.getContent(contentVersion);</span>
+<span class="fc" id="L147">            return contentService.getDtoBuilder().convert(content);</span>
+<span class="nc" id="L148">        } catch (EntException e) {</span>
+<span class="nc" id="L149">            logger.error(&quot;Error reading the content from version {} &quot;, versionId, e);</span>
+        }
+<span class="nc" id="L151">        return null;</span>
+    }
+
+    public ContentDto recover(Long versionId) {
+<span class="fc" id="L155">        logger.debug(&quot;recover versionId {}&quot;, versionId);</span>
+        Content content;
+        String lastVersionCode;
+        try {
+<span class="fc" id="L159">            ContentVersion contentVersion = getContentVersion(versionId);</span>
+<span class="fc" id="L160">            List&lt;String&gt; trashedResources = getTrashedResources(versionId);</span>
+<span class="pc bpc" id="L161" title="3 of 4 branches missed.">            if (null != trashedResources &amp;&amp; trashedResources.isEmpty()) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                for (String resourceId : trashedResources) {</span>
+<span class="nc" id="L163">                    trashedResourceManager.restoreResource(resourceId);</span>
+<span class="nc" id="L164">                }</span>
+            }
+<span class="fc" id="L166">            content = versioningManager.getContent(contentVersion);</span>
+<span class="fc" id="L167">            final String contentId = contentVersion.getContentId();</span>
+<span class="fc" id="L168">            ContentRecordVO currentRecordVo = contentManager.loadContentVO(contentId);</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">            if (null != currentRecordVo) {</span>
+<span class="fc" id="L170">                lastVersionCode = currentRecordVo.getVersion();</span>
+
+            } else {
+<span class="nc" id="L173">                ContentVersion lastVersion = versioningManager.getLastVersion(contentId);</span>
+<span class="nc" id="L174">                lastVersionCode = lastVersion.getVersion();</span>
+            }
+
+<span class="fc" id="L177">            content.setVersion(lastVersionCode);</span>
+<span class="fc" id="L178">            contentManager.saveContent(content);</span>
+<span class="nc" id="L179">        } catch (Exception e) {</span>
+<span class="nc" id="L180">            logger.error(&quot;Error recovering version &quot; + versionId, e);</span>
+<span class="nc" id="L181">            throw new RestServerError(String.format(&quot;Error recovering version %s&quot;, versionId), e);</span>
+<span class="fc" id="L182">        }</span>
+<span class="fc" id="L183">        return contentService.getDtoBuilder().convert(content);</span>
+    }
+
+    public List&lt;String&gt; getTrashedResources(Long versionId) {
+        try {
+<span class="fc" id="L188">            List&lt;String&gt; trashedResourcesId = null;</span>
+<span class="fc" id="L189">            ContentVersion contentVersion = getContentVersion(versionId);</span>
+<span class="fc" id="L190">            String contentXml = contentVersion.getXml();</span>
+<span class="fc" id="L191">            Document doc = loadContentDocumentDOM(contentXml);</span>
+<span class="fc" id="L192">            List&lt;String&gt; resourceIds = loadResourcesIdFromContentDocumentDOM(doc);</span>
+<span class="fc" id="L193">            List&lt;String&gt; archivedResources = getArchivedResourcesId(resourceIds);</span>
+<span class="pc bpc" id="L194" title="3 of 4 branches missed.">            if (null != resourceIds &amp;&amp; resourceIds.isEmpty()) {</span>
+<span class="nc" id="L195">                trashedResourcesId = getTrashedResourcesId(resourceIds, archivedResources);</span>
+            }
+<span class="fc" id="L197">            return trashedResourcesId;</span>
+<span class="nc" id="L198">        } catch (Exception e) {</span>
+<span class="nc" id="L199">            logger.error(&quot;Error loading trashed resources for content with version {}&quot;, versionId, e);</span>
+<span class="nc" id="L200">            throw new RestServerError(</span>
+<span class="nc" id="L201">                    String.format(&quot;Error loading trashed resources for content with version %s&quot;, versionId), e);</span>
+        }
+    }
+
+    public void delete(Long versionId) {
+        try {
+<span class="fc" id="L207">            versioningManager.deleteVersion(versionId);</span>
+<span class="nc" id="L208">        } catch (Exception e) {</span>
+<span class="nc" id="L209">            logger.error(&quot;Error deleting version &quot; + versionId, e);</span>
+<span class="nc" id="L210">            throw new RestServerError(</span>
+<span class="nc" id="L211">                    String.format(&quot;Error deleting version for content with version %s&quot;, versionId), e);</span>
+<span class="fc" id="L212">        }</span>
+<span class="fc" id="L213">    }</span>
+
+    private List&lt;String&gt; getArchivedResourcesId(List&lt;String&gt; resourceIds) {
+<span class="fc" id="L216">        List&lt;String&gt; archivedResources = null;</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (null != resourceIds) {</span>
+<span class="nc" id="L218">            Iterator&lt;String&gt; it = resourceIds.iterator();</span>
+            String id;
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+                ResourceInterface resourceInterface;
+<span class="nc" id="L222">                id = it.next();</span>
+                try {
+<span class="nc" id="L224">                    resourceInterface = resourceManager.loadResource(id);</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                    if (null != resourceInterface) {</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                        if (null == archivedResources) {</span>
+<span class="nc" id="L227">                            archivedResources = new ArrayList&lt;&gt;();</span>
+                        }
+<span class="nc" id="L229">                        archivedResources.add(id);</span>
+                    }
+<span class="nc" id="L231">                } catch (Exception t) {</span>
+<span class="nc" id="L232">                    logger.error(&quot;Error checking resource &quot; + id, t);</span>
+<span class="nc" id="L233">                    throw new RestServerError(String.format(&quot;checking resource %s&quot;, id), t);</span>
+<span class="nc" id="L234">                }</span>
+            }
+        }
+<span class="fc" id="L237">        return archivedResources;</span>
+    }
+
+    private List&lt;String&gt; getTrashedResourcesId(List&lt;String&gt; resourceIds, List&lt;String&gt; archivedResources) {
+<span class="nc" id="L241">        List&lt;String&gt; trashedResources = null;</span>
+<span class="nc" id="L242">        Iterator&lt;String&gt; it = resourceIds.iterator();</span>
+        String id;
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        while (it.hasNext()) {</span>
+<span class="nc" id="L245">            id = it.next();</span>
+<span class="nc bnc" id="L246" title="All 4 branches missed.">            if (null == archivedResources || !archivedResources.contains(id)) {</span>
+                ResourceInterface resourceInterface;
+                try {
+<span class="nc" id="L249">                    resourceInterface = trashedResourceManager.loadTrashedResource(id);</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">                    if (null != resourceInterface) {</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">                        if (null == trashedResources) {</span>
+<span class="nc" id="L252">                            trashedResources = new ArrayList&lt;&gt;();</span>
+                        }
+<span class="nc" id="L254">                        trashedResources.add(id);</span>
+                    }
+<span class="nc" id="L256">                } catch (Exception t) {</span>
+<span class="nc" id="L257">                    logger.error(&quot;Error checking resource &quot; + id, t);</span>
+<span class="nc" id="L258">                    throw new RestServerError(String.format(&quot;Error checking resource %s&quot;, id), t);</span>
+<span class="nc" id="L259">                }</span>
+            }
+        }
+<span class="nc" id="L262">        return trashedResources;</span>
+    }
+
+    private List&lt;String&gt; loadResourcesIdFromContentDocumentDOM(Document doc) {
+
+<span class="fc" id="L267">        List&lt;String&gt; resourcesId = null;</span>
+<span class="fc" id="L268">        NodeList listaNodiAttributi = doc.getElementsByTagName(RESOURCE);</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">        for (int i = 0; i &lt; listaNodiAttributi.getLength(); i++) {</span>
+<span class="nc" id="L270">            Node node = listaNodiAttributi.item(i);</span>
+<span class="nc" id="L271">            NamedNodeMap namedNodeMap = node.getAttributes();</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            if (null == resourcesId) {</span>
+<span class="nc" id="L273">                resourcesId = new ArrayList&lt;&gt;();</span>
+            }
+<span class="nc" id="L275">            resourcesId.add(namedNodeMap.getNamedItem(RESOURCE_ID).getNodeValue());</span>
+        }
+<span class="fc" id="L277">        return resourcesId;</span>
+    }
+
+    private Document loadContentDocumentDOM(String contentXml)
+            throws ParserConfigurationException, SAXException, IOException {
+<span class="fc" id="L282">        DocumentBuilderFactory fact = DocumentBuilderFactory.newInstance(&quot;com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl&quot;, null);</span>
+        // *1: Restricts fetching of external XML resources to avoid SSRFs.
+<span class="fc" id="L284">        fact.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, &quot;&quot;);        // *1</span>
+<span class="fc" id="L285">        fact.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, &quot;&quot;);     // *1</span>
+<span class="fc" id="L286">        DocumentBuilder builder = fact.newDocumentBuilder();</span>
+<span class="fc" id="L287">        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(contentXml.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L288">        return builder.parse(byteArrayInputStream);</span>
+    }
+
+    private ContentVersionDTO mapContentVersionToDTO(ContentVersion contentVersion) {
+<span class="fc" id="L292">        ContentVersionDTO contentVersionDTO = new ContentVersionDTO();</span>
+<span class="fc" id="L293">        contentVersionDTO.setApproved(contentVersion.isApproved());</span>
+<span class="fc" id="L294">        contentVersionDTO.setContentType(contentVersion.getContentType());</span>
+<span class="fc" id="L295">        contentVersionDTO.setDescription(contentVersion.getDescr());</span>
+<span class="fc" id="L296">        contentVersionDTO.setId(contentVersion.getId());</span>
+<span class="fc" id="L297">        contentVersionDTO.setOnlineVersion(contentVersion.getOnlineVersion());</span>
+<span class="fc" id="L298">        contentVersionDTO.setUsername(contentVersion.getUsername());</span>
+<span class="fc" id="L299">        contentVersionDTO.setStatus(contentVersion.getStatus());</span>
+<span class="fc" id="L300">        contentVersionDTO.setVersion(contentVersion.getVersion());</span>
+<span class="fc" id="L301">        contentVersionDTO.setVersionDate(contentVersion.getVersionDate());</span>
+<span class="fc" id="L302">        contentVersionDTO.setContentId(contentVersion.getContentId());</span>
+<span class="fc" id="L303">        return contentVersionDTO;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
