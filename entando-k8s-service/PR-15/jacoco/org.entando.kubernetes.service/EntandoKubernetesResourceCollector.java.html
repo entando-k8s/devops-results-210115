@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoKubernetesResourceCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Kubernetes Service</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.service</a> &gt; <span class="el_source">EntandoKubernetesResourceCollector.java</span></div><h1>EntandoKubernetesResourceCollector.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.service;
+
+import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.model.namespace.ObservedNamespaces;
+
+<span class="fc" id="L16">@Slf4j</span>
+@RequiredArgsConstructor
+public abstract class EntandoKubernetesResourceCollector&lt;T extends HasMetadata&gt; {
+
+    protected final KubernetesClient client;
+    protected final ObservedNamespaces observedNamespaces;
+
+    public List&lt;T&gt; getAll() {
+<span class="fc" id="L24">        return collectFromNamespaces(observedNamespaces.getNames());</span>
+    }
+
+    public List&lt;T&gt; getAllInNamespace(String namespace) {
+<span class="fc" id="L28">        observedNamespaces.failIfNotObserved(namespace);</span>
+<span class="fc" id="L29">        return getInNamespaceWithoutChecking(namespace);</span>
+    }
+
+    protected abstract List&lt;T&gt; getInNamespaceWithoutChecking(String namespace);
+
+    public List&lt;T&gt; collectFromNamespaces(List&lt;String&gt; namespaceList) {
+<span class="fc" id="L35">        CompletableFuture&lt;List&lt;T&gt;&gt;[] allRequests = namespaceList.stream()</span>
+<span class="fc" id="L36">                .map(ns -&gt; CompletableFuture.supplyAsync(() -&gt; getAllInNamespace(ns))</span>
+<span class="pc" id="L37">                        .exceptionally(ex -&gt; Collections.emptyList()))</span>
+<span class="fc" id="L38">                .toArray(CompletableFuture[]::new);</span>
+
+<span class="fc" id="L40">        CompletableFuture&lt;List&lt;T&gt;&gt; collectedResources = CompletableFuture.allOf(allRequests)</span>
+<span class="fc" id="L41">                .thenApply(v -&gt; Stream.of(allRequests).map(CompletableFuture::join)</span>
+<span class="fc" id="L42">                        .flatMap(Collection::stream)</span>
+<span class="fc" id="L43">                        .collect(Collectors.toList()));</span>
+
+<span class="fc" id="L45">        return collectedResources.join();</span>
+    }
+
+
+    public Optional&lt;T&gt; findByName(String name) {
+<span class="fc" id="L50">        return getAll().stream().filter(r -&gt; r.getMetadata().getName().equals(name)).findFirst();</span>
+    }
+
+    public Optional&lt;T&gt; findByNameAndNamespace(String name, String namespace) {
+<span class="fc" id="L54">        return getAllInNamespace(namespace)</span>
+<span class="fc" id="L55">                .stream()</span>
+<span class="fc" id="L56">                .filter(r -&gt; r.getMetadata().getName().equals(name))</span>
+<span class="fc" id="L57">                .findFirst();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
