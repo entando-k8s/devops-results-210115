@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VersioningManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.aps.system.services.versioning</a> &gt; <span class="el_source">VersioningManager.java</span></div><h1>VersioningManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpversioning.aps.system.services.versioning;
+
+import java.io.StringReader;
+import java.util.List;
+
+import javax.xml.parsers.SAXParser;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntSafeXmlUtils;
+import org.xml.sax.InputSource;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.parse.EntityHandler;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jpversioning.aps.system.JpversioningSystemConstants;
+import java.io.IOException;
+import javax.xml.parsers.ParserConfigurationException;
+import org.apache.commons.lang3.StringUtils;
+import org.xml.sax.SAXException;
+
+/**
+ * @author E.Santoboni, E.Mezzano
+ */
+@Aspect
+<span class="fc" id="L54">public class VersioningManager extends AbstractService implements IVersioningManager {</span>
+
+<span class="fc" id="L56">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(VersioningManager.class);</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L60">        String deleteMidVersions = this.getConfigManager().getParam(JpversioningSystemConstants.CONFIG_PARAM_DELETE_MID_VERSIONS);</span>
+<span class="fc" id="L61">        this.setDeleteMidVersions(&quot;true&quot;.equalsIgnoreCase(deleteMidVersions));</span>
+<span class="fc" id="L62">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L63">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.plugins.jacms.aps.system.services.content.IContentManager.saveContent(..)) &amp;&amp; args(content)&quot;)
+    public void onSaveContent(Content content) {
+        try {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            if (!this.hasToVersionContent(content)) {</span>
+<span class="fc" id="L69">                return;</span>
+            }
+<span class="fc" id="L71">            this.saveContentVersion(content.getId());</span>
+<span class="nc" id="L72">        } catch (Exception e) {</span>
+<span class="nc" id="L73">            _logger.error(&quot;error in onSaveContent&quot;, e);</span>
+<span class="fc" id="L74">        }</span>
+<span class="fc" id="L75">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.plugins.jacms.aps.system.services.content.IContentManager.insertOnLineContent(..)) &amp;&amp; args(content)&quot;)
+    public void onInsertOnLineContent(Content content) {
+        try {
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (!this.hasToVersionContent(content)) {</span>
+<span class="nc" id="L81">                return;</span>
+            }
+<span class="fc" id="L83">            this.saveContentVersion(content.getId());</span>
+<span class="nc" id="L84">        } catch (Exception e) {</span>
+<span class="nc" id="L85">            _logger.error(&quot;error in onInsertOnLineContent&quot;, e);</span>
+<span class="fc" id="L86">        }</span>
+<span class="fc" id="L87">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.plugins.jacms.aps.system.services.content.IContentManager.removeOnLineContent(..)) &amp;&amp; args(content)&quot;)
+    public void onRemoveOnLineContent(Content content) {
+        try {
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (!this.hasToVersionContent(content)) {</span>
+<span class="nc" id="L93">                return;</span>
+            }
+<span class="fc" id="L95">            this.saveContentVersion(content.getId());</span>
+<span class="nc" id="L96">        } catch (Exception e) {</span>
+<span class="nc" id="L97">            _logger.error(&quot;error in onRemoveOnLineContent&quot;, e);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.plugins.jacms.aps.system.services.content.IContentManager.deleteContent(..)) &amp;&amp; args(content)&quot;)
+    public void onDeleteContent(Content content) {
+        try {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            if (!this.hasToVersionContent(content)) {</span>
+<span class="fc" id="L105">                return;</span>
+            }
+<span class="fc" id="L107">            this.saveContentVersion(content.getId());</span>
+<span class="nc" id="L108">        } catch (Exception e) {</span>
+<span class="nc" id="L109">            _logger.error(&quot;error in onDeleteContent&quot;, e);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">    }</span>
+
+    private boolean hasToVersionContent(Content content) {
+<span class="fc" id="L114">        String contentTypesToIgnoreCsv = this.getConfigManager().getParam(JpversioningSystemConstants.CONFIG_PARAM_CONTENT_TYPES_TO_IGNORE);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (!StringUtils.isBlank(contentTypesToIgnoreCsv)) {</span>
+<span class="fc" id="L116">            String[] codes = contentTypesToIgnoreCsv.split(&quot;,&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            for (String code : codes) {</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                if (code.trim().equalsIgnoreCase(content.getTypeCode())) {</span>
+<span class="fc" id="L119">                    return false;</span>
+                }
+            }
+        }
+<span class="fc" id="L123">        String contentsToIgnoreCsv = this.getConfigManager().getParam(JpversioningSystemConstants.CONFIG_PARAM_CONTENTS_TO_IGNORE);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (!StringUtils.isBlank(contentsToIgnoreCsv)) {</span>
+<span class="fc" id="L125">            String[] codes = contentsToIgnoreCsv.split(&quot;,&quot;);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">            for (String code : codes) {</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">                if (code.trim().equalsIgnoreCase(content.getId())) {</span>
+<span class="fc" id="L128">                    return false;</span>
+                }
+            }
+        }
+<span class="fc" id="L132">        return true;</span>
+    }
+
+    @Override
+    public List&lt;Long&gt; getVersions(String contentId) throws EntException {
+        try {
+<span class="fc" id="L138">            return this.getVersioningDAO().getVersions(contentId);</span>
+<span class="nc" id="L139">        } catch (Exception e) {</span>
+<span class="nc" id="L140">            _logger.error(&quot;Error loading version identifiers&quot;, e);</span>
+<span class="nc" id="L141">            throw new EntException(&quot;Error loading version identifiers&quot;);</span>
+        }
+    }
+
+    @Override
+    public List&lt;Long&gt; getLastVersions(String contentType, String descr) throws EntException {
+        try {
+<span class="fc" id="L148">            return this.getVersioningDAO().getLastVersions(contentType, descr);</span>
+<span class="nc" id="L149">        } catch (Exception e) {</span>
+<span class="nc" id="L150">            _logger.error(&quot;Error loading last version identifiers&quot;, e);</span>
+<span class="nc" id="L151">            throw new EntException(&quot;Error loading last version identifiers&quot;);</span>
+        }
+    }
+
+    @Override
+    public ContentVersion getVersion(long id) throws EntException {
+        try {
+<span class="fc" id="L158">            return this.getVersioningDAO().getVersion(id);</span>
+<span class="nc" id="L159">        } catch (Exception e) {</span>
+<span class="nc" id="L160">            _logger.error(&quot;Error loading version of id {}&quot;, id, e);</span>
+<span class="nc" id="L161">            throw new EntException(&quot;Error loading version of id &quot; + id);</span>
+        }
+    }
+
+    @Override
+    public ContentVersion getLastVersion(String contentId) throws EntException {
+        try {
+<span class="fc" id="L168">            return this.getVersioningDAO().getLastVersion(contentId);</span>
+<span class="nc" id="L169">        } catch (Exception e) {</span>
+<span class="nc" id="L170">            _logger.error(&quot;Error loading last version for content {}&quot;, contentId, e);</span>
+<span class="nc" id="L171">            throw new EntException(&quot;Error loading last version for content&quot; + contentId);</span>
+        }
+    }
+
+    @Override
+    public void saveContentVersion(String contentId) throws EntException {
+        try {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            if (contentId != null) {</span>
+<span class="fc" id="L179">                ContentRecordVO record = this.getContentManager().loadContentVO(contentId);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                if (record != null) {</span>
+<span class="fc" id="L181">                    ContentVersion versionRecord = this.createContentVersion(record);</span>
+                    //CANCELLAZIONE VERSIONE WORK OBSOLETE
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                    if (versionRecord.isApproved()) {</span>
+<span class="fc" id="L184">                        int onlineVersionsToDelete = versionRecord.getOnlineVersion() - 1;</span>
+<span class="fc" id="L185">                        this.deleteWorkVersions(versionRecord.getContentId(), onlineVersionsToDelete);</span>
+                    }
+<span class="fc" id="L187">                    this.getVersioningDAO().addContentVersion(versionRecord);</span>
+                }
+            }
+<span class="nc" id="L190">        } catch (Exception e) {</span>
+<span class="nc" id="L191">            _logger.error(&quot;error in Error saving version for content {}&quot;, contentId, e);</span>
+<span class="nc" id="L192">            throw new EntException(&quot;Error saving version for content&quot; + contentId);</span>
+<span class="fc" id="L193">        }</span>
+<span class="fc" id="L194">    }</span>
+
+    @Override
+    public void deleteWorkVersions(String contentId, int onlineVersion) throws EntException {
+        try {
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">            if (this.isDeleteMidVersions()) {</span>
+<span class="nc" id="L200">                this.getVersioningDAO().deleteWorkVersions(contentId, onlineVersion);</span>
+            }
+<span class="nc" id="L202">        } catch (Exception e) {</span>
+<span class="nc" id="L203">            _logger.error(&quot;Error in delete Work Versions&quot;, e);</span>
+<span class="nc" id="L204">            throw new EntException(&quot;Errore in delete Work Versions&quot;, e);</span>
+<span class="fc" id="L205">        }</span>
+<span class="fc" id="L206">    }</span>
+
+    @Override
+    public Content getContent(ContentVersion contentVersion) throws EntException {
+        try {
+<span class="fc" id="L211">            return this.createContentFromXml(contentVersion.getContentType(), contentVersion.getXml());</span>
+<span class="nc" id="L212">        } catch (Exception e) {</span>
+<span class="nc" id="L213">            _logger.error(&quot;Error loading Content from version xml&quot;, e);</span>
+<span class="nc" id="L214">            throw new EntException(&quot;Error loading Content from version xml&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Crea un'entità specifica valorizzata in base alla sua definizione in xml
+     * ed al tipo.
+     *
+     * @param entityTypeCode Il codice del tipo di entità.
+     * @param xml L'xml dell'entità specifica.
+     * @return L'entità valorizzata.
+     * @throws EntException In caso di errore nella lettura dell'entità.
+     */
+    protected Content createContentFromXml(String entityTypeCode, String xml) throws EntException {
+        try {
+<span class="fc" id="L229">            Content entityPrototype = (Content) this.getContentManager().getEntityPrototype(entityTypeCode);</span>
+<span class="fc" id="L230">            SAXParser parser = EntSafeXmlUtils.newSafeSAXParser();</span>
+<span class="fc" id="L231">            InputSource is = new InputSource(new StringReader(xml));</span>
+<span class="fc" id="L232">            EntityHandler handler = this.getEntityHandler();</span>
+<span class="fc" id="L233">            handler.initHandler(entityPrototype, this.getXmlAttributeRootElementName(), this.getCategoryManager());</span>
+<span class="fc" id="L234">            parser.parse(is, handler);</span>
+<span class="fc" id="L235">            return entityPrototype;</span>
+<span class="nc" id="L236">        } catch (ParserConfigurationException | SAXException | IOException e) {</span>
+<span class="nc" id="L237">            _logger.error(&quot;Error on creation entity. typecode: {} xml: {}&quot;, entityTypeCode, xml, e);</span>
+<span class="nc" id="L238">            throw new EntException(&quot;Error on creation entity&quot;, e);</span>
+        }
+    }
+
+    private ContentVersion createContentVersion(ContentRecordVO record) {
+<span class="fc" id="L243">        ContentVersion versionRecord = new ContentVersion();</span>
+<span class="fc" id="L244">        versionRecord.setContentId(record.getId());</span>
+<span class="fc" id="L245">        versionRecord.setContentType(record.getTypeCode());</span>
+<span class="fc" id="L246">        versionRecord.setDescr(record.getDescription());</span>
+<span class="fc" id="L247">        versionRecord.setStatus(record.getStatus());</span>
+<span class="fc" id="L248">        versionRecord.setXml(record.getXmlWork());</span>
+<span class="fc" id="L249">        versionRecord.setVersionDate(record.getModify());</span>
+<span class="fc" id="L250">        String version = record.getVersion();</span>
+<span class="fc" id="L251">        versionRecord.setVersion(version);</span>
+<span class="fc" id="L252">        String[] versionParts = version.split(&quot;\\.&quot;);</span>
+<span class="fc" id="L253">        int onlineVersion = Integer.parseInt(versionParts[0]);</span>
+<span class="fc" id="L254">        versionRecord.setOnlineVersion(onlineVersion);</span>
+<span class="fc" id="L255">        int workVersion = Integer.parseInt(versionParts[1]);</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        versionRecord.setApproved(workVersion == 0);</span>
+<span class="fc" id="L257">        versionRecord.setUsername(record.getLastEditor());</span>
+<span class="fc" id="L258">        return versionRecord;</span>
+    }
+
+    protected boolean isDeleteMidVersions() {
+<span class="fc" id="L262">        return _deleteMidVersions;</span>
+    }
+
+    protected void setDeleteMidVersions(boolean deleteMidVersions) {
+<span class="fc" id="L266">        this._deleteMidVersions = deleteMidVersions;</span>
+<span class="fc" id="L267">    }</span>
+
+    @Override
+    public void deleteVersion(long versionId) {
+<span class="fc" id="L271">        this.getVersioningDAO().deleteVersion(versionId);</span>
+<span class="fc" id="L272">    }</span>
+
+    protected String getXmlAttributeRootElementName() {
+<span class="fc" id="L275">        return this._xmlAttributeRootElementName;</span>
+    }
+
+    /**
+     * Setta il nome dell'attributo della root dell'xml rappresentante la
+     * singola entità. Il metodo è ad uso della definizione del servizio
+     * nell'xml di configurazione di spring. Di default, la definizione del
+     * servizio astratto nella configurazione di spring presenta una un nome
+     * base &quot;entity&quot;; questa definizione và sostituita nella definizione del
+     * servizio concreto nel caso si desideri specificare un nome particolare.
+     *
+     * @param xmlAttributeRootElementName Il nome dell'attributo della root
+     * dell'xml rappresentante la singola entità.
+     */
+    public void setXmlAttributeRootElementName(String xmlAttributeRootElementName) {
+<span class="fc" id="L290">        this._xmlAttributeRootElementName = xmlAttributeRootElementName;</span>
+<span class="fc" id="L291">    }</span>
+
+    /**
+     * Restituisce la classe handler delegata alla interpretazione degli xml
+     * delle singole entità. Il metodo restituisce un prototipo pronto per la
+     * interpretazione di una entità.
+     *
+     * @return La classe handler delegata alla interpretazione degli xml delle
+     * singole entità.
+     */
+    protected EntityHandler getEntityHandler() {
+<span class="fc" id="L302">        return this._entityHandler.getHandlerPrototype();</span>
+    }
+
+    /**
+     * Setta la classe handler delegata alla interpretazione degli xml delle
+     * singole entità. Il metodo è ad uso della definizione del servizio
+     * nell'xml di configurazione di spring. Di default, la definizione del
+     * servizio astratto nella configurazione di spring presenta una classe
+     * handler base (EntityHandler); questa definizione và sostituita nella
+     * definizione del servizio concreto nel caso si desideri specificare
+     * un'handler particolare (estendente EntityHandler) delegato alla lettura
+     * di entità particolari derivate dalla struttura specifica della classe
+     * entità (estendente ApsEntity) che si desidera gestire nel servizio.
+     *
+     * @param entityHandler La classe handler delegata alla interpretazione
+     * degli xml delle singole entità.
+     */
+    public void setEntityHandler(EntityHandler entityHandler) {
+<span class="fc" id="L320">        this._entityHandler = entityHandler;</span>
+<span class="fc" id="L321">    }</span>
+
+    protected IVersioningDAO getVersioningDAO() {
+<span class="fc" id="L324">        return _versioningDAO;</span>
+    }
+
+    public void setVersioningDAO(IVersioningDAO versioningDAO) {
+<span class="fc" id="L328">        this._versioningDAO = versioningDAO;</span>
+<span class="fc" id="L329">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L332">        return _contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L336">        this._contentManager = contentManager;</span>
+<span class="fc" id="L337">    }</span>
+
+    protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L340">        return _categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L344">        this._categoryManager = categoryManager;</span>
+<span class="fc" id="L345">    }</span>
+
+    protected ConfigInterface getConfigManager() {
+<span class="fc" id="L348">        return _configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L352">        this._configManager = configManager;</span>
+<span class="fc" id="L353">    }</span>
+
+    private boolean _deleteMidVersions;
+
+    private EntityHandler _entityHandler;
+
+    private String _xmlAttributeRootElementName;
+
+    private IVersioningDAO _versioningDAO;
+
+    private IContentManager _contentManager;
+    private ICategoryManager _categoryManager;
+    private ConfigInterface _configManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

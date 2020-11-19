@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrashedResourceDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.aps.system.services.resource</a> &gt; <span class="el_source">TrashedResourceDAO.java</span></div><h1>TrashedResourceDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpversioning.aps.system.services.resource;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceRecordVO;
+
+/**
+ * Data Access Object per gli oggetti risorsa cestinati.
+ * @author G.Cocco
+ */
+<span class="fc" id="L44">public class TrashedResourceDAO extends AbstractDAO implements ITrashedResourceDAO {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(TrashedResourceDAO.class);</span>
+	
+	@Override
+	public ResourceRecordVO getTrashedResource(String id) {
+<span class="fc" id="L50">		ResourceRecordVO resourceVo = null;</span>
+<span class="fc" id="L51">		Connection conn = null;</span>
+<span class="fc" id="L52">		PreparedStatement stat = null;</span>
+<span class="fc" id="L53">		ResultSet res = null;</span>
+		try {
+<span class="fc" id="L55">			conn = this.getConnection();</span>
+<span class="fc" id="L56">			stat = conn.prepareStatement(SELECT_TRASHED_RESOURCE);</span>
+<span class="fc" id="L57">			stat.setString(1, id);</span>
+<span class="fc" id="L58">			res = stat.executeQuery();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">			if (res.next()) {</span>
+<span class="fc" id="L60">				resourceVo = new ResourceRecordVO();</span>
+<span class="fc" id="L61">				resourceVo.setId(id);</span>
+<span class="fc" id="L62">				resourceVo.setResourceType(res.getString(1));</span>
+<span class="fc" id="L63">				resourceVo.setDescr(res.getString(2));</span>
+<span class="fc" id="L64">				resourceVo.setMainGroup(res.getString(3));</span>
+<span class="fc" id="L65">				resourceVo.setXml(res.getString(4));</span>
+			}
+<span class="nc" id="L67">		} catch (Throwable t) {</span>
+<span class="nc" id="L68">			_logger.error(&quot;Error loading record for trashed resource&quot;,  t);</span>
+<span class="nc" id="L69">			throw new RuntimeException(&quot;Error loading record for trashed resource&quot;, t);</span>
+		} finally {
+<span class="fc" id="L71">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L73">		return resourceVo;</span>
+	}
+	
+	@Override
+	public void addTrashedResource(ResourceInterface resource) {
+<span class="fc" id="L78">		Connection conn = null;</span>
+<span class="fc" id="L79">		PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L81">        	conn = this.getConnection();</span>
+<span class="fc" id="L82">        	conn.setAutoCommit(false);</span>
+<span class="fc" id="L83">        	stat = conn.prepareStatement(ADD_RESOURCE);</span>
+<span class="fc" id="L84">			stat.setString(1, resource.getId());</span>
+<span class="fc" id="L85">			stat.setString(2, resource.getType());</span>
+<span class="fc" id="L86">			stat.setString(3, resource.getDescr());</span>
+<span class="fc" id="L87">			stat.setString(4, resource.getMainGroup());</span>
+<span class="fc" id="L88">			stat.setString(5, resource.getXML());</span>
+<span class="fc" id="L89">			stat.executeUpdate();</span>
+<span class="fc" id="L90">			conn.commit();</span>
+<span class="nc" id="L91">        } catch (Throwable t) {</span>
+<span class="nc" id="L92">        	this.executeRollback(conn);</span>
+<span class="nc" id="L93">            _logger.error(&quot;Error adding record for trashed resource&quot;,  t);</span>
+<span class="nc" id="L94">			throw new RuntimeException(&quot;Error adding record for trashed resource&quot;, t);</span>
+        } finally {
+<span class="fc" id="L96">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L98">	}</span>
+	
+	@Override
+	public void delTrashedResource(String id) {
+<span class="fc" id="L102">		Connection conn = null;</span>
+<span class="fc" id="L103">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L105">			conn = this.getConnection();</span>
+<span class="fc" id="L106">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L107">			stat = conn.prepareStatement(DELETE_RESOURCE);</span>
+<span class="fc" id="L108">			stat.setString(1, id);</span>
+<span class="fc" id="L109">			stat.executeUpdate();</span>
+<span class="fc" id="L110">			conn.commit();</span>
+<span class="nc" id="L111">		} catch (Throwable t) {</span>
+<span class="nc" id="L112">			this.executeRollback(conn);</span>
+<span class="nc" id="L113">			_logger.error(&quot;Error removing record for trashed resource&quot;,  t);</span>
+<span class="nc" id="L114">			throw new RuntimeException(&quot;Error removing record for trashed resource&quot;, t);</span>
+		} finally {
+<span class="fc" id="L116">			closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L118">	}</span>
+	
+	@Override
+	public List&lt;String&gt; searchTrashedResourceIds(String resourceTypeCode, String text, List&lt;String&gt; allowedGroups) {
+<span class="fc" id="L122">		Connection conn = null;</span>
+<span class="fc" id="L123">		PreparedStatement stat = null;</span>
+<span class="fc" id="L124">		ResultSet res = null;</span>
+<span class="fc" id="L125">		List&lt;String&gt; resources = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="fc" id="L127">			conn = this.getConnection();</span>
+<span class="fc" id="L128">			stat = this.buildStatement(resourceTypeCode, allowedGroups, conn);</span>
+<span class="fc" id="L129">			res = stat.executeQuery();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			while (res.next()) {</span>
+<span class="fc" id="L131">				String descr = res.getString(3);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">				if (this.checkText(text, descr)) {</span>
+<span class="fc" id="L133">					resources.add(res.getString(1));</span>
+				}
+<span class="fc" id="L135">			}</span>
+<span class="nc" id="L136">		} catch (Throwable t) {</span>
+<span class="nc" id="L137">			_logger.error(&quot;Errore in caricamento id risorse&quot;, t);</span>
+<span class="nc" id="L138">			throw new RuntimeException(&quot;Errore in caricamento id risorse&quot;, t);</span>
+		} finally {
+<span class="fc" id="L140">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L142">		return resources;</span>
+	}
+	
+	/**
+	 * Metodo di servizio. 
+	 * Serve a controllare se il testo immesso testo (insertedText) 
+	 * è contenuto dentro un'altro (descr), ed in caso di esito 
+	 * affermativo restituisce true.
+	 */
+	private boolean checkText(String insertedText, String descr) {
+<span class="fc" id="L152">		boolean validate = false;</span>
+<span class="pc bpc" id="L153" title="1 of 4 branches missed.">		if (insertedText == null || insertedText.trim().length() == 0 || </span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">				descr.toLowerCase().indexOf(insertedText.trim().toLowerCase()) != -1) {</span>
+<span class="fc" id="L155">			validate = true;</span>
+		}
+<span class="fc" id="L157">		return validate;</span>
+	}
+	
+	private PreparedStatement buildStatement(String type, Collection&lt;String&gt; groupCodes, Connection conn) throws EntException {
+<span class="fc" id="L161">		PreparedStatement stat = null;</span>
+<span class="fc" id="L162">		String query = this.createQuery(type, groupCodes);</span>
+		try {
+<span class="fc" id="L164">			stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L165">			int index = 0;</span>
+<span class="fc bfc" id="L166" title="All 4 branches covered.">			if (null != type &amp;&amp; type.trim().length() &gt; 0) {</span>
+<span class="fc" id="L167">				stat.setString(++index, type);</span>
+			}
+<span class="fc bfc" id="L169" title="All 4 branches covered.">			if (groupCodes != null &amp;&amp; groupCodes.size()&gt;0) {</span>
+<span class="fc" id="L170">				Iterator&lt;String&gt; groupIter = groupCodes.iterator();</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">				while (groupIter.hasNext()) {</span>
+<span class="fc" id="L172">					String groupName = (String) groupIter.next();</span>
+<span class="fc" id="L173">					stat.setString(++index, groupName);</span>
+<span class="fc" id="L174">				}</span>
+			}
+<span class="nc" id="L176">		} catch (Throwable t) {</span>
+<span class="nc" id="L177">			_logger.error(&quot;Errore in fase di creazione statement&quot;, t);</span>
+<span class="nc" id="L178">			throw new RuntimeException(&quot;Errore in fase di creazione statement&quot;, t);</span>
+<span class="fc" id="L179">		}</span>
+<span class="fc" id="L180">		return stat;</span>
+	}
+	
+	private String createQuery(String type, Collection&lt;String&gt; groupCodes) {
+<span class="fc" id="L184">		StringBuffer query = new StringBuffer(LOAD_RESOURCES_START_BLOCK);</span>
+<span class="fc" id="L185">		boolean check = false;</span>
+<span class="fc bfc" id="L186" title="All 4 branches covered.">		if (null != type &amp;&amp; type.trim().length() &gt; 0) {</span>
+<span class="fc" id="L187">			query.append(APPEND_STRING_WHERE).append(LOAD_RESOURCES_TYPE_SEARCH_BLOCK);</span>
+<span class="fc" id="L188">			check = true;</span>
+		}
+<span class="fc bfc" id="L190" title="All 4 branches covered.">		if (groupCodes != null &amp;&amp; groupCodes.size()&gt;0) {</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">			if (!check) {</span>
+<span class="nc" id="L192">				query.append(APPEND_STRING_WHERE);</span>
+<span class="nc" id="L193">				check = true;</span>
+			} else {
+<span class="fc" id="L195">				query.append(APPEND_STRING_AND);</span>
+			}
+<span class="fc" id="L197">			query.append(APPEND_STRING_GROUP_SEARCH_START);</span>
+<span class="fc" id="L198">			int size = groupCodes.size();</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">			for (int i=0; i&lt;size; i++) {</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">				if (i!=0) query.append(APPEND_STRING_OR);</span>
+<span class="fc" id="L201">				query.append(APPEND_STRING_GROUP_SEARCH);</span>
+			}
+<span class="fc" id="L203">			query.append(APPEND_STRING_GROUP_SEARCH_END);</span>
+		}
+<span class="fc" id="L205">		query.append(LOAD_RESOURCES_ORDER_STRING_BLOCK);</span>
+<span class="fc" id="L206">		return query.toString();</span>
+	}
+	
+<span class="fc" id="L209">	private final String LOAD_RESOURCES_START_BLOCK = </span>
+		&quot;SELECT resid, restype, descr, maingroup, resxml FROM jpversioning_trashedresources &quot;;
+<span class="fc" id="L211">	private final String APPEND_STRING_WHERE = &quot;WHERE &quot;;</span>
+<span class="fc" id="L212">	private final String LOAD_RESOURCES_TYPE_SEARCH_BLOCK = &quot;restype = ? &quot;;</span>
+<span class="fc" id="L213">	private final String APPEND_STRING_AND = &quot;AND &quot;;</span>
+<span class="fc" id="L214">	private final String APPEND_STRING_GROUP_SEARCH_START = &quot;( &quot;;</span>
+<span class="fc" id="L215">	private final String APPEND_STRING_GROUP_SEARCH = &quot;maingroup = ? &quot;;</span>
+<span class="fc" id="L216">	private final String APPEND_STRING_OR = &quot;OR &quot;;</span>
+<span class="fc" id="L217">	private final String APPEND_STRING_GROUP_SEARCH_END = &quot;) &quot;;</span>
+<span class="fc" id="L218">	private final String LOAD_RESOURCES_ORDER_STRING_BLOCK = &quot;ORDER BY descr &quot;;</span>
+	
+<span class="fc" id="L220">	private final String SELECT_TRASHED_RESOURCE = </span>
+		&quot;SELECT restype, descr, maingroup, resxml FROM jpversioning_trashedresources WHERE resid = ? &quot;;
+	
+<span class="fc" id="L223">	private final String ADD_RESOURCE = </span>
+		&quot;INSERT INTO jpversioning_trashedresources ( resid, restype, descr, maingroup, resxml ) VALUES ( ? , ? , ? , ? , ? )&quot;;
+	
+<span class="fc" id="L226">	private final String DELETE_RESOURCE = </span>
+		&quot;DELETE FROM jpversioning_trashedresources WHERE resid = ? &quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
