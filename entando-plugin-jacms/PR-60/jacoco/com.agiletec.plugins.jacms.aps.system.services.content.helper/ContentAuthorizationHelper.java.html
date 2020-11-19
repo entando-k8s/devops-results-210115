@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentAuthorizationHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.helper</a> &gt; <span class="el_source">ContentAuthorizationHelper.java</span></div><h1>ContentAuthorizationHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.helper;
+
+import java.util.List;
+import java.util.Set;
+
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * Return informations of content authorization
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class ContentAuthorizationHelper implements IContentAuthorizationHelper {</span>
+
+<span class="fc" id="L41">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentAuthorizationHelper.class);</span>
+
+    @Override
+    public boolean isAuth(UserDetails user, Content content) throws EntException {
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (null == content) {</span>
+<span class="nc" id="L46">            _logger.error(&quot;Null content&quot;);</span>
+<span class="nc" id="L47">            return false;</span>
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">        } else if (Content.STATUS_NEW.equals(content.getStatus()) &amp;&amp; null == content.getMainGroup()) {</span>
+<span class="nc" id="L49">            return true;</span>
+        }
+<span class="fc" id="L51">        return this.getAuthorizationManager().isAuth(user, content);</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, PublicContentAuthorizationInfo info) throws EntException {
+<span class="nc" id="L56">        List&lt;Group&gt; userGroups = this.getAuthorizationManager().getUserGroups(user);</span>
+<span class="nc" id="L57">        return info.isUserAllowed(userGroups);</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, String contentId, boolean publicVersion) throws EntException {
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (publicVersion) {</span>
+<span class="nc" id="L63">            PublicContentAuthorizationInfo authorizationInfo = this.getAuthorizationInfo(contentId);</span>
+<span class="nc" id="L64">            return this.isAuth(user, authorizationInfo);</span>
+        }
+<span class="nc" id="L66">        Content content = this.getContentManager().loadContent(contentId, publicVersion);</span>
+<span class="nc" id="L67">        return this.isAuth(user, content);</span>
+    }
+
+    protected boolean isAuth(UserDetails user, Set&lt;String&gt; groupCodes) throws EntException {
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L72">            _logger.error(&quot;Null user&quot;);</span>
+<span class="nc" id="L73">            return false;</span>
+        }
+<span class="nc" id="L75">        return this.getAuthorizationManager().isAuth(user, groupCodes);</span>
+    }
+
+    @Override
+    public boolean isAuthToEdit(UserDetails user, Content content) throws EntException {
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (null == content) {</span>
+<span class="nc" id="L81">            _logger.error(&quot;Null content&quot;);</span>
+<span class="nc" id="L82">            return false;</span>
+<span class="pc bpc" id="L83" title="3 of 4 branches missed.">        } else if (Content.STATUS_NEW.equals(content.getStatus()) &amp;&amp; null == content.getMainGroup()) {</span>
+<span class="nc" id="L84">            return true;</span>
+        }
+<span class="fc" id="L86">        String mainGroupName = content.getMainGroup();</span>
+<span class="fc" id="L87">        return this.isAuthToEdit(user, mainGroupName);</span>
+    }
+
+    @Override
+    public boolean isAuthToEdit(UserDetails user, PublicContentAuthorizationInfo info) throws EntException {
+<span class="nc" id="L92">        String mainGroupName = info.getMainGroup();</span>
+<span class="nc" id="L93">        return this.isAuthToEdit(user, mainGroupName);</span>
+    }
+
+    private boolean isAuthToEdit(UserDetails user, String mainGroupName) throws EntException {
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L98">            _logger.error(&quot;Null user&quot;);</span>
+<span class="nc" id="L99">            return false;</span>
+        }
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        return (this.getAuthorizationManager().isAuthOnPermission(user, JacmsSystemConstants.PERMISSION_EDIT_CONTENTS)</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">                &amp;&amp; this.getAuthorizationManager().isAuthOnGroup(user, mainGroupName));</span>
+    }
+
+    @Override
+    public boolean isAuthToEdit(UserDetails user, String contentId, boolean publicVersion) throws EntException {
+<span class="fc" id="L107">        Content content = this.getContentManager().loadContent(contentId, publicVersion);</span>
+<span class="fc" id="L108">        return this.isAuth(user, content);</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_AUTH_INFO_CACHE_PREFIX.concat(#contentId)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsCsv(#contentId)&quot;)
+    public PublicContentAuthorizationInfo getAuthorizationInfo(String contentId) {
+<span class="fc" id="L116">        PublicContentAuthorizationInfo authInfo = null;</span>
+        try {
+<span class="fc" id="L118">            Content content = this.getContentManager().loadContent(contentId, true);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">            if (null == content) {</span>
+<span class="nc" id="L120">                _logger.debug(&quot;public content {} doesn't exist&quot;, contentId);</span>
+<span class="nc" id="L121">                return null;</span>
+            }
+<span class="fc" id="L123">            authInfo = new PublicContentAuthorizationInfo(content, this.getLangManager().getLangs());</span>
+<span class="nc" id="L124">        } catch (Throwable t) {</span>
+<span class="nc" id="L125">            _logger.error(&quot;error in getAuthorizationInfo for content {}&quot;, contentId, t);</span>
+<span class="fc" id="L126">        }</span>
+<span class="fc" id="L127">        return authInfo;</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, condition = &quot;#cacheable&quot;,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_AUTH_INFO_CACHE_PREFIX.concat(#contentId)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsCsv(#contentId)&quot;)
+    public PublicContentAuthorizationInfo getAuthorizationInfo(String contentId, boolean cacheable) {
+<span class="fc" id="L135">        PublicContentAuthorizationInfo authInfo = null;</span>
+        try {
+<span class="fc" id="L137">            Content content = this.getContentManager().loadContent(contentId, true);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            if (null == content) {</span>
+<span class="fc" id="L139">                _logger.debug(&quot;public content {} doesn't exist&quot;, contentId);</span>
+<span class="fc" id="L140">                return null;</span>
+            }
+<span class="fc" id="L142">            authInfo = new PublicContentAuthorizationInfo(content, this.getLangManager().getLangs());</span>
+<span class="nc" id="L143">        } catch (Throwable t) {</span>
+<span class="nc" id="L144">            _logger.error(&quot;error in getAuthorizationInfo for content {}&quot;, contentId, t);</span>
+<span class="fc" id="L145">        }</span>
+<span class="fc" id="L146">        return authInfo;</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L150">        return _contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L154">        this._contentManager = contentManager;</span>
+<span class="fc" id="L155">    }</span>
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L158">        return _langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L162">        this._langManager = langManager;</span>
+<span class="fc" id="L163">    }</span>
+
+    protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L166">        return _authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L170">        this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L171">    }</span>
+
+    private IContentManager _contentManager;
+    private ILangManager _langManager;
+    private IAuthorizationManager _authorizationManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

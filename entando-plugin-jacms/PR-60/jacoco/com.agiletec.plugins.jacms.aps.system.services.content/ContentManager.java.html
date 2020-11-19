@@ -1,0 +1,695 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content</a> &gt; <span class="el_source">ContentManager.java</span></div><h1>ContentManager.java</h1><pre class="source lang-java linenums">/*
+* Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+*
+* This library is free software; you can redistribute it and/or modify it under
+* the terms of the GNU Lesser General Public License as published by the Free
+* Software Foundation; either version 2.1 of the License, or (at your option)
+* any later version.
+*
+* This library is distributed in the hope that it will be useful, but WITHOUT
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+* FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+* details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.ApsEntityManager;
+import com.agiletec.aps.system.common.entity.IEntityDAO;
+import com.agiletec.aps.system.common.entity.IEntitySearcherDAO;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.category.CategoryUtilizer;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import com.agiletec.aps.system.services.page.PageUtilizer;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.event.PublicContentChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SmallContentType;
+import com.agiletec.plugins.jacms.aps.system.services.resource.ResourceUtilizer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.entando.entando.aps.system.services.cache.CacheInfoEvict;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.springframework.cache.annotation.CacheEvict;
+
+/**
+ * Contents manager. This implements all the methods needed to create and manage
+ * the contents.
+ */
+<span class="fc" id="L54">public class ContentManager extends ApsEntityManager</span>
+                            implements IContentManager, GroupUtilizer&lt;String&gt;, PageUtilizer, ContentUtilizer, ResourceUtilizer, CategoryUtilizer {
+
+<span class="fc" id="L57">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentManager.class);</span>
+    private static final String ERROR_WHILE_LOADING_CONTENTS = &quot;Error while loading contents&quot;;
+
+    private IContentDAO contentDAO;
+
+    private IContentSearcherDAO workContentSearcherDAO;
+
+    private IContentSearcherDAO publicContentSearcherDAO;
+
+    private IContentUpdaterService contentUpdaterService;
+
+    @Override
+    protected String getConfigItemName() {
+<span class="fc" id="L70">        return JacmsSystemConstants.CONFIG_ITEM_CONTENT_TYPES;</span>
+    }
+
+    /**
+     * Create a new instance of the requested content. The new content is forked
+     * (or cloned) from the corresponding prototype, and it's returned empty.
+     *
+     * @param typeCode The code of the requested (proto)type, as declared in the
+     * configuration.
+     * @return The new content.
+     */
+    @Override
+    public Content createContentType(String typeCode) {
+<span class="fc" id="L83">        return (Content) super.getEntityPrototype(typeCode);</span>
+    }
+
+    /**
+     * Return a list of the of the content types in a 'small form'. 'Small form'
+     * mans that the contents returned are purged from all unnecessary
+     * information (eg. attributes).
+     *
+     * @return The list of the types in a (small form).
+     * @deprecated From Entando 4.1.2, use getSmallEntityTypes() method
+     */
+    @Override
+    public List&lt;SmallContentType&gt; getSmallContentTypes() {
+<span class="fc" id="L96">        List&lt;SmallContentType&gt; smallContentTypes = new ArrayList&lt;&gt;(getSmallContentTypesMap().values());</span>
+<span class="fc" id="L97">        Collections.sort(smallContentTypes);</span>
+<span class="fc" id="L98">        return smallContentTypes;</span>
+    }
+
+    /**
+     * Return the map of the prototypes of the contents types. Return a map,
+     * index by the code of the type, of the prototypes of the available content
+     * types.
+     *
+     * @return The map of the prototypes of the content types in a
+     * 'SmallContentType' objects.
+     */
+    @Override
+    public Map&lt;String, SmallContentType&gt; getSmallContentTypesMap() {
+<span class="fc" id="L111">        Map&lt;String, SmallContentType&gt; smallContentTypes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L112">        List&lt;SmallEntityType&gt; entityTypes = super.getSmallEntityTypes();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        for (SmallEntityType entityType : entityTypes) {</span>
+<span class="fc" id="L114">            SmallContentType sct = new SmallContentType();</span>
+<span class="fc" id="L115">            sct.setCode(entityType.getCode());</span>
+<span class="fc" id="L116">            sct.setDescription(entityType.getDescription());</span>
+<span class="fc" id="L117">            smallContentTypes.put(entityType.getCode(), sct);</span>
+<span class="fc" id="L118">        }</span>
+<span class="fc" id="L119">        return smallContentTypes;</span>
+    }
+
+    /**
+     * Return the code of the default page used to display the given content.
+     * The default page is defined at content type level; the type is
+     * extrapolated from the code built following the conventions.
+     *
+     * @param contentId The content ID
+     * @return The page code.
+     */
+    @Override
+    public String getViewPage(String contentId) {
+<span class="fc" id="L132">        Content type = this.getTypeById(contentId);</span>
+<span class="fc" id="L133">        return type.getViewPage();</span>
+    }
+
+    /**
+     * Return the code of the default model of content.
+     *
+     * @param contentId The content code
+     * @return Il requested model code
+     */
+    @Override
+    public String getDefaultModel(String contentId) {
+<span class="fc" id="L144">        Content type = this.getTypeById(contentId);</span>
+<span class="fc" id="L145">        return type.getDefaultModel();</span>
+    }
+
+    /**
+     * Return the code of the model to be used when the content is rendered in
+     * list
+     *
+     * @param contentId The code of the content
+     * @return The code of the model
+     */
+    @Override
+    public String getListModel(String contentId) {
+<span class="fc" id="L157">        Content type = this.getTypeById(contentId);</span>
+<span class="fc" id="L158">        return type.getListModel();</span>
+    }
+
+    /**
+     * Return a complete content given its ID; it is possible to choose to
+     * return the published -unmodifiable!- content or the working copy. It also
+     * returns the data in the form of XML.
+     *
+     * @param id The ID of the content
+     * @param onLine Specifies the type of the content to return: 'true'
+     * references the published content, 'false' the freely modifiable one.
+     * @return The requested content.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public Content loadContent(String id, boolean onLine) throws EntException {
+        try {
+<span class="fc" id="L175">            ContentRecordVO contentVo = this.loadContentVO(id);</span>
+<span class="fc" id="L176">            return this.createContent(contentVo, onLine);</span>
+<span class="nc" id="L177">        } catch (EntException e) {</span>
+<span class="nc" id="L178">            logger.error(&quot;Error while loading content : id {}&quot;, id, e);</span>
+<span class="nc" id="L179">            throw new EntException(&quot;Error while loading content : id &quot; + id, e);</span>
+        }
+    }
+
+    protected Content createContent(ContentRecordVO contentVo, boolean onLine) throws EntException {
+<span class="fc" id="L184">        Content content = null;</span>
+        try {
+<span class="fc bfc" id="L186" title="All 2 branches covered.">            if (contentVo != null) {</span>
+                String xmlData;
+<span class="fc bfc" id="L188" title="All 2 branches covered.">                if (onLine) {</span>
+<span class="fc" id="L189">                    xmlData = contentVo.getXmlOnLine();</span>
+                } else {
+<span class="fc" id="L191">                    xmlData = contentVo.getXmlWork();</span>
+                }
+<span class="fc bfc" id="L193" title="All 2 branches covered.">                if (xmlData != null) {</span>
+<span class="fc" id="L194">                    content = (Content) this.createEntityFromXml(contentVo.getTypeCode(), xmlData);</span>
+<span class="fc" id="L195">                    content.setId(contentVo.getId());</span>
+<span class="fc" id="L196">                    content.setTypeCode(contentVo.getTypeCode());</span>
+<span class="fc" id="L197">                    content.setDescription(contentVo.getDescription());</span>
+<span class="fc" id="L198">                    content.setOnLine(contentVo.isOnLine());</span>
+<span class="fc" id="L199">                    content.setMainGroup(contentVo.getMainGroupCode());</span>
+<span class="fc" id="L200">                    content.setSync(contentVo.isSync());</span>
+<span class="fc" id="L201">                    content.setStatus(contentVo.getStatus());</span>
+<span class="pc bpc" id="L202" title="1 of 4 branches missed.">                    if (null != contentVo.getVersion() &amp;&amp; !onLine) {</span>
+<span class="fc" id="L203">                        content.setVersion(contentVo.getVersion());</span>
+                    }
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                    if (null == content.getFirstEditor()) {</span>
+<span class="fc" id="L206">                        content.setFirstEditor(contentVo.getFirstEditor());</span>
+                    }
+<span class="fc bfc" id="L208" title="All 2 branches covered.">                    if (null == content.getLastEditor()) {</span>
+<span class="fc" id="L209">                        content.setLastEditor(contentVo.getLastEditor());</span>
+                    }
+<span class="fc bfc" id="L211" title="All 2 branches covered.">                    if (null == content.getRestriction()) {</span>
+<span class="fc" id="L212">                        content.setRestriction(contentVo.getRestriction());</span>
+                    }
+<span class="fc bfc" id="L214" title="All 2 branches covered.">                    if (null == content.getCreated()) {</span>
+<span class="fc" id="L215">                        content.setCreated(contentVo.getCreate());</span>
+                    }
+<span class="fc bfc" id="L217" title="All 2 branches covered.">                    if (null == content.getLastModified()) {</span>
+<span class="fc" id="L218">                        content.setLastModified(contentVo.getModify());</span>
+                    }
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">                    if (null == content.getPublished()) {</span>
+<span class="fc" id="L221">                        content.setPublished(contentVo.getPublish());</span>
+                    }
+                }
+            }
+<span class="nc" id="L225">        } catch (EntException e) {</span>
+<span class="nc" id="L226">            logger.error(&quot;Error while creating content by vo&quot;, e);</span>
+<span class="nc" id="L227">            throw new EntException(&quot;Error while creating content by vo&quot;, e);</span>
+<span class="fc" id="L228">        }</span>
+<span class="fc" id="L229">        return content;</span>
+    }
+
+    /**
+     * Return a {@link ContentRecordVO} (shortly: VO) containing the all content
+     * informations stored in the DB.
+     *
+     * @param id The id of the requested content.
+     * @return The VO object corresponding to the wanted content.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public ContentRecordVO loadContentVO(String id) throws EntException {
+        try {
+<span class="fc" id="L243">            return (ContentRecordVO) this.getContentDAO().loadEntityRecord(id);</span>
+<span class="nc" id="L244">        } catch (Throwable t) {</span>
+<span class="nc" id="L245">            logger.error(&quot;Error while loading content vo : id {}&quot;, id, t);</span>
+<span class="nc" id="L246">            throw new EntException(&quot;Error while loading content vo : id &quot; + id, t);</span>
+        }
+    }
+
+    /**
+     * Save a content in the DB.
+     *
+     * @param content The content to add.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public void saveContent(Content content) throws EntException {
+<span class="fc" id="L258">        this.addContent(content);</span>
+<span class="fc" id="L259">    }</span>
+
+    @Override
+    public void saveContentAndContinue(Content content) throws EntException {
+<span class="nc" id="L263">        this.addUpdateContent(content, false);</span>
+<span class="nc" id="L264">    }</span>
+
+    /**
+     * Save a content in the DB. Hopefully this method has no annotation
+     * attached
+     */
+    @Override
+    public void addContent(Content content) throws EntException {
+<span class="fc" id="L272">        this.addUpdateContent(content, true);</span>
+<span class="fc" id="L273">    }</span>
+
+    private void addUpdateContent(Content content, boolean updateDate) throws EntException {
+        try {
+<span class="fc" id="L277">            content.setLastModified(new Date());</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">            if (updateDate) {</span>
+<span class="fc" id="L279">                content.incrementVersion(false);</span>
+            }
+
+<span class="fc" id="L282">            String status = content.getStatus();</span>
+<span class="pc bpc" id="L283" title="1 of 4 branches missed.">            if (null == status || status.equals(Content.STATUS_PUBLIC)) {</span>
+<span class="fc" id="L284">                content.setStatus(Content.STATUS_DRAFT);</span>
+            } else {
+<span class="fc" id="L286">                content.setStatus(status);</span>
+            }
+
+<span class="fc bfc" id="L289" title="All 2 branches covered.">            if (null == content.getId()) {</span>
+<span class="fc" id="L290">                IKeyGeneratorManager keyGenerator = (IKeyGeneratorManager) this.getService(SystemConstants.KEY_GENERATOR_MANAGER);</span>
+<span class="fc" id="L291">                int key = keyGenerator.getUniqueKeyCurrentValue();</span>
+<span class="fc" id="L292">                String id = content.getTypeCode() + key;</span>
+<span class="fc" id="L293">                content.setId(id);</span>
+<span class="fc" id="L294">                this.getContentDAO().addEntity(content);</span>
+<span class="fc" id="L295">            } else {</span>
+<span class="fc" id="L296">                this.getContentDAO().updateContent(content, updateDate);</span>
+            }
+<span class="nc" id="L298">        } catch (Throwable t) {</span>
+<span class="nc" id="L299">            logger.error(&quot;Error while saving content&quot;, t);</span>
+<span class="nc" id="L300">            throw new EntException(&quot;Error while saving content&quot;, t);</span>
+<span class="fc" id="L301">        }</span>
+<span class="fc" id="L302">    }</span>
+
+    /**
+     * Publish a content.
+     *
+     * @param content The ID associated to the content to be displayed in the
+     * portal.
+     * @throws EntException in case of error.
+     */
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_CACHE_PREFIX.concat(#content.id)&quot;, condition = &quot;#content.id != null&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsToEvictCsv(#content.id, #content.typeCode)&quot;)
+    public void insertOnLineContent(Content content) throws EntException {
+        try {
+<span class="fc" id="L318">            content.setLastModified(new Date());</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">            if (null == content.getId()) {</span>
+<span class="fc" id="L320">                content.setCreated(new Date());</span>
+<span class="fc" id="L321">                this.saveContent(content);</span>
+            }
+<span class="fc" id="L323">            content.incrementVersion(true);</span>
+<span class="fc" id="L324">            content.setStatus(Content.STATUS_PUBLIC);</span>
+<span class="fc" id="L325">            this.getContentDAO().insertOnLineContent(content);</span>
+            int operationEventCode;
+<span class="fc bfc" id="L327" title="All 2 branches covered.">            if (content.isOnLine()) {</span>
+<span class="fc" id="L328">                operationEventCode = PublicContentChangedEvent.UPDATE_OPERATION_CODE;</span>
+            } else {
+<span class="fc" id="L330">                operationEventCode = PublicContentChangedEvent.INSERT_OPERATION_CODE;</span>
+            }
+<span class="fc" id="L332">            this.notifyPublicContentChanging(content, operationEventCode);</span>
+<span class="nc" id="L333">        } catch (Throwable t) {</span>
+<span class="nc" id="L334">            logger.error(&quot;Error while inserting content on line&quot;, t);</span>
+<span class="nc" id="L335">            throw new EntException(&quot;Error while inserting content on line&quot;, t);</span>
+<span class="fc" id="L336">        }</span>
+<span class="fc" id="L337">    }</span>
+
+    /**
+     * Return the list of all the content IDs.
+     *
+     * @return The list of all the content IDs.
+     * @throws EntException In case of error
+     * @deprecated Since Entando 2.0 version 2.0.9, use
+     * searchId(EntitySearchFilter[]) method
+     */
+    @Override
+    @Deprecated
+    public List&lt;String&gt; getAllContentsId() throws EntException {
+<span class="nc" id="L350">        return super.getAllEntityId();</span>
+    }
+
+    @Override
+    public void reloadEntityReferences(String entityId) {
+        try {
+<span class="fc" id="L356">            ContentRecordVO contentVo = this.loadContentVO(entityId);</span>
+<span class="fc" id="L357">            Content content = this.createContent(contentVo, true);</span>
+<span class="fc bfc" id="L358" title="All 2 branches covered.">            if (content != null) {</span>
+<span class="fc" id="L359">                this.getContentDAO().reloadPublicContentReferences(content);</span>
+            }
+<span class="fc" id="L361">            Content workcontent = this.createContent(contentVo, false);</span>
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">            if (workcontent != null) {</span>
+<span class="fc" id="L363">                this.getContentDAO().reloadWorkContentReferences(workcontent);</span>
+            }
+<span class="fc" id="L365">            logger.debug(&quot;Reloaded content references for content {}&quot;, entityId);</span>
+<span class="nc" id="L366">        } catch (Throwable t) {</span>
+<span class="nc" id="L367">            logger.error(&quot;Error while reloading content references for content {}&quot;, entityId, t);</span>
+<span class="fc" id="L368">        }</span>
+<span class="fc" id="L369">    }</span>
+
+    /**
+     * Unpublish a content, preventing it from being displayed in the portal.
+     * Obviously the content itself is not deleted.
+     *
+     * @param content the content to unpublish.
+     * @throws EntException in case of error
+     */
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_CACHE_PREFIX.concat(#content.id)&quot;, condition = &quot;#content.id != null&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsToEvictCsv(#content.id, #content.typeCode)&quot;)
+    public void removeOnLineContent(Content content) throws EntException {
+        try {
+<span class="fc" id="L385">            content.setLastModified(new Date());</span>
+<span class="fc" id="L386">            content.incrementVersion(false);</span>
+<span class="pc bpc" id="L387" title="1 of 4 branches missed.">            if (null != content.getStatus() &amp;&amp; content.getStatus().equals(Content.STATUS_PUBLIC)) {</span>
+<span class="fc" id="L388">                content.setStatus(Content.STATUS_DRAFT);</span>
+            }
+<span class="fc" id="L390">            this.getContentDAO().removeOnLineContent(content);</span>
+<span class="fc" id="L391">            this.notifyPublicContentChanging(content, PublicContentChangedEvent.REMOVE_OPERATION_CODE);</span>
+<span class="nc" id="L392">        } catch (Throwable t) {</span>
+<span class="nc" id="L393">            logger.error(&quot;Error while removing onLine content&quot;, t);</span>
+<span class="nc" id="L394">            throw new EntException(&quot;Error while removing onLine content&quot;, t);</span>
+<span class="fc" id="L395">        }</span>
+<span class="fc" id="L396">    }</span>
+
+    /**
+     * Notify the modification of a published content.
+     *
+     * @param content The modified content.
+     * @param operationCode the operation code to notify.
+     */
+    private void notifyPublicContentChanging(Content content, int operationCode) {
+<span class="fc" id="L405">        PublicContentChangedEvent event = new PublicContentChangedEvent();</span>
+<span class="fc" id="L406">        event.setContent(content);</span>
+<span class="fc" id="L407">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L408">        this.notifyEvent(event);</span>
+<span class="fc" id="L409">    }</span>
+
+    /**
+     * Return the content type from the given ID code. The code is extracted
+     * following the coding conventions: the first three characters are the type
+     * of the code.
+     *
+     * @param contentId the content ID whose content type is extracted.
+     * @return The content type requested
+     */
+    private Content getTypeById(String contentId) {
+<span class="fc" id="L420">        String typeCode = contentId.substring(0, 3);</span>
+<span class="fc" id="L421">        return (Content) super.getEntityTypes().get(typeCode);</span>
+    }
+
+    /**
+     * Deletes a content from the DB.
+     *
+     * @param content The content to delete.
+     * @throws EntException in case of error.
+     */
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_CACHE_PREFIX.concat(#content.id)&quot;, condition = &quot;#content.id != null&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsToEvictCsv(#content.id)&quot;)
+    public void deleteContent(Content content) throws EntException {
+<span class="fc" id="L436">        this.deleteContent(content.getId());</span>
+<span class="fc" id="L437">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_CACHE_PREFIX.concat(#contentId)&quot;, condition = &quot;#contentId != null&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsToEvictCsv(#contentId)&quot;)
+    public void deleteContent(String contentId) throws EntException {
+        try {
+<span class="fc" id="L446">            this.getContentDAO().deleteEntity(contentId);</span>
+<span class="nc" id="L447">        } catch (Throwable t) {</span>
+<span class="nc" id="L448">            logger.error(&quot;Error while deleting content {}&quot;, contentId, t);</span>
+<span class="nc" id="L449">            throw new EntException(&quot;Error while deleting content &quot; + contentId, t);</span>
+<span class="fc" id="L450">        }</span>
+<span class="fc" id="L451">    }</span>
+
+    @Override
+    public List&lt;String&gt; loadPublicContentsId(String contentType, String[] categories, EntitySearchFilter[] filters,
+            Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L456">        return this.loadPublicContentsId(contentType, categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadPublicContentsId(String contentType, String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+        try {
+<span class="fc" id="L463">            return this.getPublicContentSearcherDAO().loadContentsId(contentType, categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L464">        } catch (Throwable t) {</span>
+<span class="nc" id="L465">            logger.error(ERROR_WHILE_LOADING_CONTENTS, t);</span>
+<span class="nc" id="L466">            throw new EntException(ERROR_WHILE_LOADING_CONTENTS, t);</span>
+        }
+    }
+
+    @Override
+    public List&lt;String&gt; loadPublicContentsId(String[] categories,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L473">        return this.loadPublicContentsId(categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadPublicContentsId(String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+        try {
+<span class="fc" id="L480">            return this.getPublicContentSearcherDAO().loadContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L481">        } catch (Throwable t) {</span>
+<span class="nc" id="L482">            logger.error(ERROR_WHILE_LOADING_CONTENTS, t);</span>
+<span class="nc" id="L483">            throw new EntException(ERROR_WHILE_LOADING_CONTENTS, t);</span>
+        }
+    }
+
+    @Override
+    public List&lt;String&gt; loadWorkContentsId(EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L489">        return this.loadWorkContentsId(null, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadWorkContentsId(String[] categories, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L494">        return this.loadWorkContentsId(categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadWorkContentsId(String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+        try {
+<span class="fc" id="L501">            return this.getWorkContentSearcherDAO().loadContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L502">        } catch (Throwable t) {</span>
+<span class="nc" id="L503">            logger.error(&quot;Error while loading work contents&quot;, t);</span>
+<span class="nc" id="L504">            throw new EntException(&quot;Error while loading work contents&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public Integer countWorkContents(String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+        try {
+<span class="fc" id="L512">            return this.getWorkContentSearcherDAO().countContents(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L513">        } catch (Throwable t) {</span>
+<span class="nc" id="L514">            logger.error(&quot;Error while counting work contents&quot;, t);</span>
+<span class="nc" id="L515">            throw new EntException(&quot;Error while counting work contents&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedWorkContentsId(String[] categories, boolean orClauseCategoryFilter, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L521">        return this.getPaginatedContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes, this.getWorkContentSearcherDAO());</span>
+    }
+
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedPublicContentsId(String[] categories, boolean orClauseCategoryFilter, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L526">        return this.getPaginatedContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes, this.getPublicContentSearcherDAO());</span>
+    }
+    
+    private SearcherDaoPaginatedResult&lt;String&gt; getPaginatedContentsId(String[] categories, boolean orClauseCategoryFilter, 
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes, IContentSearcherDAO searcherDao) throws EntException {
+<span class="fc" id="L531">        SearcherDaoPaginatedResult&lt;String&gt; pagedResult = null;</span>
+        try {
+<span class="fc" id="L533">            int count = searcherDao.countContents(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="fc" id="L534">            List&lt;String&gt; contentsId = searcherDao.loadContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="fc" id="L535">            pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(count, contentsId);</span>
+<span class="nc" id="L536">        } catch (Throwable t) {</span>
+<span class="nc" id="L537">            logger.error(&quot;Error searching paginated contents id&quot;, t);</span>
+<span class="nc" id="L538">            throw new EntException(&quot;Error searching paginated contents id&quot;, t);</span>
+<span class="fc" id="L539">        }</span>
+<span class="fc" id="L540">        return pagedResult;</span>
+    }
+    
+    @Override
+    public List getPageUtilizers(String pageCode) throws EntException {
+        try {
+<span class="fc" id="L546">            return this.getContentDAO().getPageUtilizers(pageCode);</span>
+<span class="nc" id="L547">        } catch (Throwable t) {</span>
+<span class="nc" id="L548">            throw new EntException(&quot;Error while loading referenced contents : page &quot; + pageCode, t);</span>
+        }
+    }
+
+    @Override
+    public List getContentUtilizers(String contentId) throws EntException {
+        try {
+<span class="fc" id="L555">            return this.getContentDAO().getContentUtilizers(contentId);</span>
+<span class="nc" id="L556">        } catch (Throwable t) {</span>
+<span class="nc" id="L557">            throw new EntException(&quot;Error while loading referenced contents : content &quot; + contentId, t);</span>
+        }
+    }
+
+    @Override
+    public List&lt;String&gt; getGroupUtilizers(String groupName) throws EntException {
+        try {
+<span class="fc" id="L564">            return this.getContentDAO().getGroupUtilizers(groupName);</span>
+<span class="nc" id="L565">        } catch (Throwable t) {</span>
+<span class="nc" id="L566">            throw new EntException(&quot;Error while loading referenced contents : group &quot; + groupName, t);</span>
+        }
+    }
+
+    @Override
+    public List getResourceUtilizers(String resourceId) throws EntException {
+        try {
+<span class="fc" id="L573">            return this.getContentDAO().getResourceUtilizers(resourceId);</span>
+<span class="nc" id="L574">        } catch (Throwable t) {</span>
+<span class="nc" id="L575">            throw new EntException(&quot;Error while loading referenced contents : resource &quot; + resourceId, t);</span>
+        }
+    }
+
+    @Override
+    public List getCategoryUtilizers(String resourceId) throws EntException {
+        try {
+<span class="fc" id="L582">            return this.getContentDAO().getCategoryUtilizers(resourceId);</span>
+<span class="nc" id="L583">        } catch (Throwable t) {</span>
+<span class="nc" id="L584">            throw new EntException(&quot;Error while loading referenced contents : category &quot; + resourceId, t);</span>
+        }
+    }
+
+    @Override
+    public void reloadCategoryReferences(String categoryCode) {
+        try {
+<span class="nc" id="L591">            this.getContentUpdaterService().reloadCategoryReferences(categoryCode);</span>
+<span class="nc" id="L592">        } catch (Throwable t) {</span>
+<span class="nc" id="L593">            ApsSystemUtils.logThrowable(t, this, &quot;reloadCategoryReferences&quot;);</span>
+<span class="nc" id="L594">        }</span>
+<span class="nc" id="L595">    }</span>
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    @Override
+    public List getCategoryUtilizersForReloadReferences(String categoryCode) {
+<span class="nc" id="L600">        List&lt;String&gt; contentIdToReload = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L602">            Set&lt;String&gt; contents = this.getContentUpdaterService().getContentsId(categoryCode);</span>
+<span class="nc bnc" id="L603" title="All 2 branches missed.">            if (null != contents) {</span>
+<span class="nc" id="L604">                contentIdToReload.addAll(contents);</span>
+            }
+<span class="nc" id="L606">        } catch (Throwable t) {</span>
+<span class="nc" id="L607">            ApsSystemUtils.logThrowable(t, this, &quot;getCategoryUtilizersForReloadReferences&quot;);</span>
+<span class="nc" id="L608">        }</span>
+<span class="nc" id="L609">        return contentIdToReload;</span>
+    }
+
+    @Override
+    public boolean isSearchEngineUser() {
+<span class="nc" id="L614">        return true;</span>
+    }
+
+    @Override
+    public ContentsStatus getContentsStatus() {
+<span class="nc" id="L619">        ContentsStatus status = null;</span>
+        try {
+<span class="nc" id="L621">            status = this.getContentDAO().loadContentStatus();</span>
+<span class="nc" id="L622">        } catch (Throwable t) {</span>
+<span class="nc" id="L623">            logger.error(&quot;error in getContentsStatus&quot;, t);</span>
+<span class="nc" id="L624">        }</span>
+<span class="nc" id="L625">        return status;</span>
+    }
+
+    /**
+     * Return the DAO which handles all the operations on the contents.
+     *
+     * @return The DAO managing the contents.
+     */
+    protected IContentDAO getContentDAO() {
+<span class="fc" id="L634">        return contentDAO;</span>
+    }
+
+    /**
+     * Set the DAO which handles the operations on the contents.
+     *
+     * @param contentDao The DAO managing the contents.
+     */
+    public void setContentDAO(IContentDAO contentDao) {
+<span class="fc" id="L643">        this.contentDAO = contentDao;</span>
+<span class="fc" id="L644">    }</span>
+
+    @Override
+    protected IEntitySearcherDAO getEntitySearcherDao() {
+<span class="fc" id="L648">        return this.getWorkContentSearcherDAO();</span>
+    }
+
+    @Override
+    protected IEntityDAO getEntityDao() {
+<span class="nc" id="L653">        return this.getContentDAO();</span>
+    }
+
+    protected IContentSearcherDAO getWorkContentSearcherDAO() {
+<span class="fc" id="L657">        return workContentSearcherDAO;</span>
+    }
+
+    public void setWorkContentSearcherDAO(IContentSearcherDAO workContentSearcherDAO) {
+<span class="fc" id="L661">        this.workContentSearcherDAO = workContentSearcherDAO;</span>
+<span class="fc" id="L662">    }</span>
+
+    public IContentSearcherDAO getPublicContentSearcherDAO() {
+<span class="fc" id="L665">        return publicContentSearcherDAO;</span>
+    }
+
+    public void setPublicContentSearcherDAO(IContentSearcherDAO publicContentSearcherDAO) {
+<span class="fc" id="L669">        this.publicContentSearcherDAO = publicContentSearcherDAO;</span>
+<span class="fc" id="L670">    }</span>
+
+    protected IContentUpdaterService getContentUpdaterService() {
+<span class="nc" id="L673">        return contentUpdaterService;</span>
+    }
+
+    public void setContentUpdaterService(IContentUpdaterService contentUpdaterService) {
+<span class="nc" id="L677">        this.contentUpdaterService = contentUpdaterService;</span>
+<span class="nc" id="L678">    }</span>
+
+    @Override
+    public IApsEntity getEntity(String entityId) throws EntException {
+<span class="fc" id="L682">        return this.loadContent(entityId, false);</span>
+    }
+
+    /**
+     * @deprecated From jAPS 2.0 version 2.0.9, use getStatus()
+     */
+    @Override
+    @Deprecated
+    public int getState() {
+<span class="nc" id="L691">        return super.getStatus();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

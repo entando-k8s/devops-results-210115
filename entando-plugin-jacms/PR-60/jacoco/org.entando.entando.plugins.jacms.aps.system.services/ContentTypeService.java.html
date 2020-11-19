@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentTypeService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services</a> &gt; <span class="el_source">ContentTypeService.java</span></div><h1>ContentTypeService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentDto;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.ContentStatusState;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDto;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDtoBuilder;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDtoRequest;
+import lombok.RequiredArgsConstructor;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.services.IComponentUsageService;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.entity.AbstractEntityTypeService;
+import org.entando.entando.aps.system.services.entity.model.AttributeTypeDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeAttributeFullDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeShortDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypesStatusDto;
+import org.entando.entando.aps.util.HttpSessionHelper;
+import org.entando.entando.plugins.jacms.aps.system.services.content.ContentService;
+import org.entando.entando.plugins.jacms.web.content.validator.RestContentListRequest;
+import org.entando.entando.web.common.assembler.PagedMetadataMapper;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.web.entity.model.EntityTypeDtoRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.validation.BindingResult;
+
+import javax.servlet.http.HttpSession;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import static org.entando.entando.plugins.jacms.web.resource.ResourcesController.ERRCODE_RESOURCE_NOT_FOUND;
+
+@Service
+<span class="fc" id="L53">@RequiredArgsConstructor</span>
+public class ContentTypeService extends AbstractEntityTypeService&lt;Content, ContentTypeDto&gt; implements
+        IComponentUsageService {
+
+    private static final String CONTENT_MODEL_MANAGER = &quot;jacmsContentManager&quot;;
+
+    private final ContentService contentService;
+
+    @Autowired
+    private HttpSession httpSession;
+    @Autowired
+    private PagedMetadataMapper pagedMetadataMapper;
+
+    @Override
+    protected IDtoBuilder&lt;Content, ContentTypeDto&gt; getEntityTypeFullDtoBuilder(
+            IEntityManager masterManager) {
+<span class="fc" id="L69">        return new ContentTypeDtoBuilder(masterManager.getAttributeRoles());</span>
+    }
+
+    public ContentTypeDto create(ContentTypeDtoRequest contentType, BindingResult bindingResult) {
+<span class="fc" id="L73">        return addEntityType(CONTENT_MODEL_MANAGER, contentType, bindingResult, true);</span>
+    }
+
+    public void delete(String code) {
+<span class="fc" id="L77">        super.deleteEntityType(CONTENT_MODEL_MANAGER, code);</span>
+<span class="fc" id="L78">    }</span>
+
+    public PagedMetadata&lt;EntityTypeShortDto&gt; findMany(RestListRequest listRequest) {
+<span class="fc" id="L81">        return getShortEntityTypes(CONTENT_MODEL_MANAGER, listRequest);</span>
+    }
+
+    public Optional&lt;ContentTypeDto&gt; findOne(String code) {
+<span class="fc" id="L85">        return Optional.ofNullable(super.getFullEntityType(CONTENT_MODEL_MANAGER, code));</span>
+    }
+
+    public ContentTypeDto update(ContentTypeDtoRequest contentTypeRequest, BindingResult bindingResult) {
+<span class="fc" id="L89">        String code = contentTypeRequest.getCode();</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (findOne(code).isPresent()) {</span>
+<span class="fc" id="L91">            return updateEntityType(CONTENT_MODEL_MANAGER, contentTypeRequest, bindingResult);</span>
+        } else {
+<span class="nc" id="L93">            throw new ResourceNotFoundException(ERRCODE_RESOURCE_NOT_FOUND, &quot;contentType&quot;, code);</span>
+        }
+    }
+
+
+    public PagedMetadata&lt;String&gt; findManyAttributes(RestListRequest requestList) {
+<span class="fc" id="L99">        return getAttributeTypes(CONTENT_MODEL_MANAGER, requestList);</span>
+    }
+
+    public AttributeTypeDto getAttributeType(String attributeCode) {
+<span class="fc" id="L103">        return getAttributeType(CONTENT_MODEL_MANAGER, attributeCode);</span>
+    }
+
+    public List&lt;EntityTypeAttributeFullDto&gt; getContentTypeAttributes(String contentTypeCode) {
+<span class="fc" id="L107">        return getEntityAttributes(CONTENT_MODEL_MANAGER, contentTypeCode);</span>
+    }
+
+    public EntityTypeAttributeFullDto getContentTypeAttribute(String contentTypeCode, String attributeCode) {
+<span class="fc" id="L111">        return getEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, attributeCode);</span>
+    }
+
+    public EntityTypeAttributeFullDto addContentTypeAttribute(
+            String contentTypeCode,
+            EntityTypeAttributeFullDto bodyRequest,
+            BindingResult bindingResult) {
+
+<span class="fc" id="L119">        return addEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, bodyRequest, bindingResult);</span>
+    }
+
+    public EntityTypeAttributeFullDto updateContentTypeAttribute(
+            String contentTypeCode,
+            EntityTypeAttributeFullDto bodyRequest,
+            BindingResult bindingResult) {
+
+<span class="fc" id="L127">        return updateEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, bodyRequest, bindingResult);</span>
+    }
+
+    public void deleteContentTypeAttribute(String contentTypeCode, String attributeCode) {
+<span class="fc" id="L131">        deleteEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, attributeCode);</span>
+<span class="fc" id="L132">    }</span>
+
+    public void reloadContentTypeReferences(String contentTypeCode) {
+<span class="fc" id="L135">        reloadEntityTypeReferences(CONTENT_MODEL_MANAGER, contentTypeCode);</span>
+<span class="fc" id="L136">    }</span>
+
+    public EntityTypesStatusDto getContentTypesRefreshStatus() {
+<span class="fc" id="L139">        return getEntityTypesRefreshStatus(CONTENT_MODEL_MANAGER);</span>
+    }
+
+    public void moveContentTypeAttributeUp(String contentTypeCode, String attributeCode) {
+<span class="fc" id="L143">        moveEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, attributeCode, true);</span>
+<span class="fc" id="L144">    }</span>
+
+    public void moveContentTypeAttributeDown(String contentTypeCode, String attributeCode) {
+<span class="fc" id="L147">        moveEntityAttribute(CONTENT_MODEL_MANAGER, contentTypeCode, attributeCode, false);</span>
+<span class="fc" id="L148">    }</span>
+
+    public Map&lt;String, Integer&gt; reloadProfileTypesReferences(List&lt;String&gt; profileTypeCodes) {
+<span class="fc" id="L151">        return reloadEntityTypesReferences(CONTENT_MODEL_MANAGER, profileTypeCodes);</span>
+    }
+
+    @Override
+    protected Content createEntityType(IEntityManager entityManager, EntityTypeDtoRequest dto,
+            BindingResult bindingResult) throws Throwable {
+<span class="fc" id="L157">        ContentTypeDtoRequest request = (ContentTypeDtoRequest) dto;</span>
+<span class="fc" id="L158">        Content result = super.createEntityType(entityManager, dto, bindingResult);</span>
+<span class="fc" id="L159">        result.setViewPage(request.getViewPage());</span>
+<span class="fc" id="L160">        result.setDefaultModel(request.getDefaultContentModel());</span>
+<span class="fc" id="L161">        result.setListModel(request.getDefaultContentModelList());</span>
+
+<span class="fc" id="L163">        return result;</span>
+    }
+
+    @Override
+    public Integer getComponentUsage(String componentCode) {
+<span class="fc" id="L168">        return contentService.countContentsByType(componentCode);</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String componentCode, RestListRequest restListRequest) {
+
+<span class="nc" id="L174">        RestContentListRequest contentListRequest = new RestContentListRequest();</span>
+<span class="nc" id="L175">        contentListRequest.setFilters(restListRequest.getFilters());</span>
+<span class="nc" id="L176">        contentListRequest.setSort(&quot;typeCode&quot;);</span>
+
+<span class="nc" id="L178">        PagedMetadata&lt;ContentDto&gt; pagedData = contentService.getContents(contentListRequest, HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="nc" id="L179">        List&lt;ComponentUsageEntity&gt; componentUsageEntityList = pagedData.getBody().stream()</span>
+<span class="nc" id="L180">                .map(contentDto -&gt; new ComponentUsageEntity(</span>
+                        ComponentUsageEntity.TYPE_CONTENT,
+<span class="nc" id="L182">                        contentDto.getId(),</span>
+<span class="nc" id="L183">                        ContentStatusState.calculateState(contentDto).toString()))</span>
+<span class="nc" id="L184">                .collect(Collectors.toList());</span>
+
+<span class="nc" id="L186">        return pagedMetadataMapper.getPagedResult(restListRequest, componentUsageEntityList, &quot;code&quot;, pagedData.getTotalItems());</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
