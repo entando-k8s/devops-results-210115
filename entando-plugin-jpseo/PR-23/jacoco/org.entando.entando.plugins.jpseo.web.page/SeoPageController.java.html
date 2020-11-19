@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SeoPageController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.web.page</a> &gt; <span class="el_source">SeoPageController.java</span></div><h1>SeoPageController.java</h1><pre class="source lang-java linenums">package org.entando.entando.plugins.jpseo.web.page;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.user.UserDetails;
+import java.util.HashMap;
+import java.util.Map;
+import org.entando.entando.aps.system.services.page.IPageService;
+import org.entando.entando.aps.system.services.page.PageAuthorizationService;
+import org.entando.entando.aps.system.services.page.model.PageDto;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageDto;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageService;
+import org.entando.entando.plugins.jpseo.web.page.model.SeoPageRequest;
+import org.entando.entando.plugins.jpseo.web.page.validator.SeoPageValidator;
+import org.entando.entando.web.common.exceptions.ResourcePermissionsException;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.RestResponse;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.web.page.model.PagePositionRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.DataBinder;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.SessionAttributes;
+
+@RestController
+@RequestMapping(value = &quot;/plugins/seo/pages&quot;)
+@SessionAttributes(&quot;user&quot;)
+<span class="fc" id="L35">public class SeoPageController implements ISeoPageController {</span>
+
+<span class="fc" id="L37">    private final EntLogger logger =  EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    @Qualifier(&quot;SeoPageService&quot;)
+    private IPageService pageService;
+
+    @Autowired
+    private SeoPageValidator seoPageValidator;
+
+    @Autowired
+    private PageAuthorizationService authorizationService;
+
+    public IPageService getPageService() {
+<span class="fc" id="L50">        return pageService;</span>
+    }
+
+    public void setPageService(SeoPageService pageService) {
+<span class="nc" id="L54">        this.pageService = pageService;</span>
+<span class="nc" id="L55">    }</span>
+
+    public SeoPageValidator getSeoPageValidator() {
+<span class="fc" id="L58">        return seoPageValidator;</span>
+    }
+
+    public void setSeoPageValidator(SeoPageValidator seoPageValidator) {
+<span class="fc" id="L62">        this.seoPageValidator = seoPageValidator;</span>
+<span class="fc" id="L63">    }</span>
+
+    public PageAuthorizationService getAuthorizationService() {
+<span class="fc" id="L66">        return authorizationService;</span>
+    }
+
+    public void setAuthorizationService(PageAuthorizationService authorizationService) {
+<span class="fc" id="L70">        this.authorizationService = authorizationService;</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    public ResponseEntity&lt;RestResponse&lt;PageDto, Map&lt;String, String&gt;&gt;&gt; getSeoPage(UserDetails user, String pageCode,
+            String status) {
+<span class="fc" id="L76">        logger.debug(&quot;get seo page {}&quot;, pageCode);</span>
+<span class="fc" id="L77">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (!this.getAuthorizationService().isAuth(user, pageCode)) {</span>
+<span class="fc" id="L79">            return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(new PageDto(), metadata), HttpStatus.UNAUTHORIZED);</span>
+        }
+<span class="fc" id="L81">        SeoPageDto page = (SeoPageDto) this.getPageService().getPage(pageCode, status);</span>
+<span class="fc" id="L82">        metadata.put(&quot;status&quot;, status);</span>
+<span class="fc" id="L83">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(page, metadata), HttpStatus.OK);</span>
+    }
+
+    @Override
+    public ResponseEntity&lt;SimpleRestResponse&lt;SeoPageDto&gt;&gt; addPage(UserDetails user,
+            SeoPageRequest pageRequest, BindingResult bindingResult) throws EntException {
+<span class="fc" id="L89">        logger.debug(&quot;creating page with request {}&quot;, pageRequest);</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L91">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L93">        getSeoPageValidator().validate(pageRequest, bindingResult);</span>
+<span class="fc bfc" id="L94" title="All 4 branches covered.">        if ((null!=pageRequest.getSeoData()) &amp;&amp; (null!=pageRequest.getSeoData().getFriendlyCode())) {</span>
+<span class="fc" id="L95">            String friendlyCode = pageRequest.getSeoData().getFriendlyCode();</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">            if (!getSeoPageValidator().checkFriendlyCode(friendlyCode)) {</span>
+<span class="nc" id="L97">                DataBinder binder = new DataBinder(friendlyCode);</span>
+<span class="nc" id="L98">                bindingResult = binder.getBindingResult();</span>
+<span class="nc" id="L99">                bindingResult.reject(&quot;10&quot;,  &quot;Invalid friendly code&quot;);</span>
+<span class="nc" id="L100">                throw new ValidationConflictException(bindingResult);</span>
+            }
+        }
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L104">            throw new ValidationConflictException(bindingResult);</span>
+        }
+<span class="fc" id="L106">        SeoPageDto dto = (SeoPageDto) this.getPageService().addPage(pageRequest);</span>
+<span class="fc" id="L107">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(dto), HttpStatus.OK);</span>
+    }
+
+    @Override
+    public ResponseEntity&lt;RestResponse&lt;SeoPageDto, Map&lt;String, String&gt;&gt;&gt; updatePage(
+            UserDetails user,String pageCode,
+           SeoPageRequest pageRequest, BindingResult bindingResult) {
+<span class="fc" id="L114">        logger.debug(&quot;updating page {} with request {}&quot;, pageCode, pageRequest);</span>
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (!this.getAuthorizationService().isAuth(user, pageCode)) {</span>
+<span class="nc" id="L117">            throw new ResourcePermissionsException(bindingResult, user.getUsername(), pageCode);</span>
+        }
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L120">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L122">        this.getSeoPageValidator().validateBodyCode(pageCode, pageRequest, bindingResult);</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L124">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L126">        getSeoPageValidator().checkFriendlyCode(pageRequest.getSeoData().getFriendlyCode());</span>
+<span class="fc" id="L127">        PagePositionRequest pagePositionRequest = new PagePositionRequest();</span>
+<span class="fc" id="L128">        pagePositionRequest.setParentCode(pageRequest.getParentCode());</span>
+<span class="fc" id="L129">        pagePositionRequest.setCode(pageCode);</span>
+<span class="fc" id="L130">        int position = pageService.getPages(pageCode).size() + 1;</span>
+<span class="fc" id="L131">        pagePositionRequest.setPosition(position);</span>
+<span class="fc" id="L132">        this.getSeoPageValidator().validateMovePage(pageCode, bindingResult, pagePositionRequest);</span>
+<span class="fc" id="L133">        SeoPageDto page = (SeoPageDto) pageService.updatePage(pageCode, pageRequest);</span>
+<span class="fc" id="L134">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L135">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(page, metadata), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

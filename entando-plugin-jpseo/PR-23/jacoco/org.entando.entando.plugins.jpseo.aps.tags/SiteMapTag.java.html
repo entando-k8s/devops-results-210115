@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SiteMapTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.aps.tags</a> &gt; <span class="el_source">SiteMapTag.java</span></div><h1>SiteMapTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.aps.tags;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.tagext.TagSupport;
+
+import org.entando.entando.plugins.jpseo.aps.system.JpseoSystemConstants;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.FriendlyCodeVO;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ISeoMappingManager;
+import org.entando.entando.plugins.jpseo.aps.system.services.url.PageURL;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+
+<span class="nc" id="L51">public class SiteMapTag extends TagSupport {</span>
+
+<span class="nc" id="L53">    private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(SiteMapTag.class);</span>
+
+    @Override
+    public int doStartTag() throws JspException {
+<span class="nc" id="L57">        IURLManager urlManager = (IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, this.pageContext);</span>
+<span class="nc" id="L58">        IPageManager pageManager = (IPageManager) ApsWebApplicationUtils.getBean(SystemConstants.PAGE_MANAGER, this.pageContext);</span>
+<span class="nc" id="L59">        ILangManager langManager = (ILangManager) ApsWebApplicationUtils.getBean(SystemConstants.LANGUAGE_MANAGER, this.pageContext);</span>
+        try {
+<span class="nc" id="L61">            RequestContext reqCtx = (RequestContext) this.pageContext.getRequest().getAttribute(RequestContext.REQCTX);</span>
+<span class="nc" id="L62">            IPage requestPage = null;</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (reqCtx != null) {</span>
+<span class="nc" id="L64">                requestPage = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+            }
+<span class="nc" id="L66">            IPage root = this.getRoot(pageManager, requestPage);</span>
+<span class="nc" id="L67">            List&lt;String&gt; urlList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L68">            Lang lang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if (this.isDefaultLang()) {</span>
+<span class="nc" id="L70">                lang = langManager.getDefaultLang();</span>
+            }
+<span class="nc" id="L72">            this.addPageUrl(root, urlList, requestPage, reqCtx, urlManager, pageManager, lang);</span>
+<span class="nc" id="L73">            this.addContentLinks(urlList, root, lang, reqCtx);</span>
+<span class="nc" id="L74">            String var = this.getVar();</span>
+<span class="nc" id="L75">            this.pageContext.setAttribute(var, urlList);</span>
+<span class="nc" id="L76">        } catch (Throwable t) {</span>
+<span class="nc" id="L77">            _logger.error(&quot;error in doStartTag&quot;, t);</span>
+<span class="nc" id="L78">            throw new JspException(&quot;Error during tag initialization &quot;, t);</span>
+<span class="nc" id="L79">        }</span>
+<span class="nc" id="L80">        return super.doStartTag();</span>
+    }
+
+    private void addContentLinks(List&lt;String&gt; urlList, IPage root, Lang lang, RequestContext reqCtx) throws Throwable {
+<span class="nc" id="L84">        IURLManager urlManager = (IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, this.pageContext);</span>
+<span class="nc" id="L85">        IContentManager contentManager = (IContentManager) ApsWebApplicationUtils.getBean(JacmsSystemConstants.CONTENT_MANAGER, this.pageContext);</span>
+<span class="nc" id="L86">        ISeoMappingManager seoManager = (ISeoMappingManager) ApsWebApplicationUtils.getBean(JpseoSystemConstants.SEO_MAPPING_MANAGER, this.pageContext);</span>
+<span class="nc" id="L87">        IPageManager pageManager = (IPageManager) ApsWebApplicationUtils.getBean(SystemConstants.PAGE_MANAGER, this.pageContext);</span>
+        try {
+<span class="nc" id="L89">            FieldSearchFilter filter = new FieldSearchFilter(&quot;contentid&quot;);</span>
+<span class="nc" id="L90">            FieldSearchFilter langFilter = new FieldSearchFilter(&quot;langcode&quot;, lang.getCode(), false);</span>
+<span class="nc" id="L91">            List&lt;String&gt; friendlyCodes = seoManager.searchFriendlyCode(new FieldSearchFilter[]{filter, langFilter});</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            for (int i = 0; i &lt; friendlyCodes.size(); i++) {</span>
+<span class="nc" id="L93">                String friendlyCode = friendlyCodes.get(i);</span>
+<span class="nc" id="L94">                FriendlyCodeVO vo = seoManager.getReference(friendlyCode);</span>
+<span class="nc" id="L95">                String contentId = vo.getContentId();</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                if (null != contentId) {</span>
+<span class="nc" id="L97">                    String viewPageCode = contentManager.getViewPage(contentId);</span>
+<span class="nc bnc" id="L98" title="All 4 branches missed.">                    if (null != viewPageCode &amp;&amp; null != pageManager.getOnlinePage(viewPageCode)) {</span>
+<span class="nc" id="L99">                        IPage viewPage = pageManager.getOnlinePage(viewPageCode);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                        if (viewPage.isChildOf(root.getCode(), pageManager)) {</span>
+<span class="nc" id="L101">                            PageURL seoUrl = (PageURL) urlManager.createURL(reqCtx);</span>
+<span class="nc" id="L102">                            seoUrl.setPage(viewPage);</span>
+<span class="nc" id="L103">                            seoUrl.setLang(lang);</span>
+<span class="nc" id="L104">                            seoUrl.setFriendlyCode(friendlyCode);</span>
+<span class="nc" id="L105">                            seoUrl.addParam(SystemConstants.K_CONTENT_ID_PARAM, contentId);</span>
+<span class="nc" id="L106">                            urlList.add(seoUrl.getURL());</span>
+                        }
+                    }
+                }
+            }
+<span class="nc" id="L111">        } catch (Throwable t) {</span>
+<span class="nc" id="L112">            _logger.error(&quot;error in addContentLinks&quot;, t);</span>
+<span class="nc" id="L113">            throw new JspException(&quot;Error during tag initialization &quot;, t);</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">    }</span>
+
+    private void addPageUrl(IPage page, List&lt;String&gt; urlList,
+            IPage requestPage, RequestContext reqCtx, IURLManager urlManager, IPageManager pageManager, Lang currentLang) {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L120">            return;</span>
+        }
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (this.isPageAllowed(page, requestPage)) {</span>
+<span class="nc" id="L123">            PageURL seoUrl = new PageURL(urlManager, reqCtx);</span>
+<span class="nc" id="L124">            seoUrl.setLang(currentLang);</span>
+<span class="nc" id="L125">            seoUrl.setPage(page);</span>
+<span class="nc" id="L126">            urlList.add(urlManager.getURLString(seoUrl, reqCtx));</span>
+        }
+<span class="nc" id="L128">        String[] childrenCodes = page.getChildrenCodes();</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for (int i = 0; i &lt; childrenCodes.length; i++) {</span>
+<span class="nc" id="L130">            IPage current = pageManager.getOnlinePage(childrenCodes[i]);</span>
+<span class="nc" id="L131">            this.addPageUrl(current, urlList, requestPage, reqCtx, urlManager, pageManager, currentLang);</span>
+        }
+<span class="nc" id="L133">    }</span>
+
+    @Override
+    public int doEndTag() throws JspException {
+<span class="nc" id="L137">        this.reset();</span>
+<span class="nc" id="L138">        return super.doEndTag();</span>
+    }
+
+    private IPage getRoot(IPageManager pageManager, IPage requestPage) {
+<span class="nc" id="L142">        String pageCode = this.getRootPage();</span>
+<span class="nc" id="L143">        IPage root = null;</span>
+<span class="nc bnc" id="L144" title="All 4 branches missed.">        if (pageCode != null &amp;&amp; pageCode.length() &gt; 0) {</span>
+<span class="nc" id="L145">            root = pageManager.getOnlinePage(pageCode);</span>
+        }
+<span class="nc bnc" id="L147" title="All 2 branches missed.">        if (root == null) {</span>
+<span class="nc" id="L148">            root = pageManager.getOnlineRoot();</span>
+        }
+<span class="nc" id="L150">        return root;</span>
+    }
+
+    private boolean isPageAllowed(IPage page, IPage requestPage) {
+<span class="nc" id="L154">        boolean allowed = false;</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (page.isShowable()) {</span>
+<span class="nc" id="L156">            allowed = Group.FREE_GROUP_NAME.equals(page.getGroup());</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            if (!allowed) {</span>
+<span class="nc" id="L158">                Collection&lt;String&gt; extraGroups = page.getExtraGroups();</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">                allowed = extraGroups != null &amp;&amp; extraGroups.contains(Group.FREE_GROUP_NAME);</span>
+            }
+<span class="nc bnc" id="L161" title="All 4 branches missed.">            if (allowed &amp;&amp; requestPage != null) {</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                allowed = !page.getCode().equals(requestPage.getCode());</span>
+            }
+        }
+<span class="nc" id="L165">        return allowed;</span>
+    }
+
+    private void reset() {
+<span class="nc" id="L169">        this.setVar(null);</span>
+<span class="nc" id="L170">        this.setRootPage(null);</span>
+<span class="nc" id="L171">        this.setDefaultLang(false);</span>
+<span class="nc" id="L172">    }</span>
+
+    public String getVar() {
+<span class="nc" id="L175">        return _var;</span>
+    }
+
+    public void setVar(String var) {
+<span class="nc" id="L179">        this._var = var;</span>
+<span class="nc" id="L180">    }</span>
+
+    public String getRootPage() {
+<span class="nc" id="L183">        return _rootPage;</span>
+    }
+
+    public void setRootPage(String rootPage) {
+<span class="nc" id="L187">        this._rootPage = rootPage;</span>
+<span class="nc" id="L188">    }</span>
+
+    public boolean isDefaultLang() {
+<span class="nc" id="L191">        return defaultLang;</span>
+    }
+
+    public void setDefaultLang(boolean defaultLang) {
+<span class="nc" id="L195">        this.defaultLang = defaultLang;</span>
+<span class="nc" id="L196">    }</span>
+
+    private String _var;
+    private String _rootPage;
+    private boolean defaultLang;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

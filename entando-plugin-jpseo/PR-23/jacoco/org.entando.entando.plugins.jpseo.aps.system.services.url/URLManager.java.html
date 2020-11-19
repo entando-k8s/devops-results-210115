@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>URLManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.aps.system.services.url</a> &gt; <span class="el_source">URLManager.java</span></div><h1>URLManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.aps.system.services.url;
+
+import java.util.Map;
+
+import javax.servlet.http.HttpServletResponse;
+
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ISeoMappingManager;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+
+import javax.servlet.http.HttpServletRequest;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageMetadata;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L46">public class URLManager extends com.agiletec.aps.system.services.url.URLManager {</span>
+	
+<span class="fc" id="L48">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(URLManager.class);</span>
+	
+	private ISeoMappingManager seoMappingManager;
+	private IContentManager contentManager;
+	
+	@Override
+	public PageURL createURL(RequestContext reqCtx) {
+<span class="nc" id="L55">		return new PageURL(this, reqCtx);</span>
+	}
+	
+    @Override
+    public String getURLString(com.agiletec.aps.system.services.url.PageURL pageUrl, RequestContext reqCtx) {
+        try {
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            if (!(pageUrl instanceof PageURL)) {</span>
+<span class="nc" id="L62">                return super.getURLString(pageUrl, reqCtx);</span>
+            }
+<span class="nc" id="L64">            Lang lang = this.extractLang(pageUrl, reqCtx);</span>
+<span class="nc" id="L65">            IPage destPage = this.extractDestPage(pageUrl, reqCtx);</span>
+<span class="nc" id="L66">            String friendlyCode = ((PageURL) pageUrl).getFriendlyCode();</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (StringUtils.isBlank(friendlyCode)) {</span>
+<span class="nc" id="L68">                friendlyCode = this.extractFriendlyCode(destPage, lang, pageUrl);</span>
+            }
+<span class="nc bnc" id="L70" title="All 2 branches missed.">            HttpServletRequest request = (null != reqCtx) ? reqCtx.getRequest() : null;</span>
+<span class="nc" id="L71">            String url = null;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">            if (StringUtils.isBlank(friendlyCode)) {</span>
+<span class="nc" id="L73">                url = super.createURL(destPage, lang, pageUrl.getParams(), pageUrl.isEscapeAmp(), request);</span>
+            } else {
+<span class="nc" id="L75">                url = this.createFriendlyUrl(friendlyCode, lang, pageUrl.getParams(), pageUrl.isEscapeAmp(), request);</span>
+            }
+<span class="nc bnc" id="L77" title="All 6 branches missed.">            if (null != reqCtx &amp;&amp; null != reqCtx.getResponse() &amp;&amp; this.useJsessionId()) {</span>
+<span class="nc" id="L78">                HttpServletResponse resp = reqCtx.getResponse();</span>
+<span class="nc" id="L79">                return resp.encodeURL(url.toString());</span>
+            } else {
+<span class="nc" id="L81">                return url;</span>
+            }
+<span class="nc" id="L83">        } catch (Exception e) {</span>
+<span class="nc" id="L84">            _logger.error(&quot;Error creating url&quot;, e);</span>
+<span class="nc" id="L85">            throw new RuntimeException(&quot;Error creating url&quot;, e);</span>
+        }
+    }
+	
+	private Lang extractLang(com.agiletec.aps.system.services.url.PageURL pageUrl, RequestContext reqCtx) {
+<span class="nc" id="L90">		String langCode = pageUrl.getLangCode();</span>
+<span class="nc" id="L91">		Lang lang = this.getLangManager().getLang(langCode);</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">		if (lang == null &amp;&amp; null != reqCtx) {</span>
+<span class="nc" id="L93">			lang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+		}
+<span class="nc bnc" id="L95" title="All 2 branches missed.">		if (lang == null) {</span>
+<span class="nc" id="L96">			lang = this.getLangManager().getDefaultLang();</span>
+		}
+<span class="nc" id="L98">		return lang;</span>
+	}
+	
+	private IPage extractDestPage(com.agiletec.aps.system.services.url.PageURL pageUrl, RequestContext reqCtx) {
+<span class="nc" id="L102">		String pageCode = pageUrl.getPageCode();</span>
+<span class="nc" id="L103">		IPage page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">		if (page == null &amp;&amp; null != reqCtx) {</span>
+<span class="nc" id="L105">			page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+		}
+<span class="nc bnc" id="L107" title="All 2 branches missed.">		if (page == null) {</span>
+<span class="nc" id="L108">			page = this.getPageManager().getOnlineRoot();</span>
+		}
+<span class="nc" id="L110">		return page;</span>
+	}
+	
+	private String extractFriendlyCode(IPage destPage, Lang lang, com.agiletec.aps.system.services.url.PageURL pageUrl) {
+<span class="nc" id="L114">		Map params = pageUrl.getParams();</span>
+<span class="nc" id="L115">		return this.extractFriendlyCode(destPage, lang, params);</span>
+	}
+	
+	private String extractFriendlyCode(IPage destPage, Lang lang, Map params) {
+<span class="nc" id="L119">		String friendlyCode = null;</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">		if (params != null) {</span>
+<span class="nc" id="L121">			String contentId = (String) params.get(&quot;contentId&quot;);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">			if (contentId!=null) {</span>
+<span class="nc" id="L123">				String viewPageCode = this.getContentManager().getViewPage(contentId);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">				if (destPage.getCode().equals(viewPageCode)) {</span>
+<span class="nc" id="L125">					friendlyCode = this.getSeoMappingManager().getContentReference(contentId, lang.getCode());</span>
+				}
+			}
+		}
+<span class="nc bnc" id="L129" title="All 4 branches missed.">		if (friendlyCode==null &amp;&amp; destPage.getMetadata() instanceof SeoPageMetadata) {</span>
+<span class="nc" id="L130">			friendlyCode = ((SeoPageMetadata) destPage.getMetadata()).getFriendlyCode();</span>
+		}
+<span class="nc" id="L132">		return friendlyCode;</span>
+	}
+	
+	@Override
+	public String createURL(IPage requiredPage, Lang requiredLang, Map&lt;String, String&gt; params, boolean escapeAmp) {
+<span class="nc" id="L137">		return this.createURL(requiredPage, requiredLang, params, escapeAmp, null);</span>
+	}
+	
+	@Override
+	public String createURL(IPage requiredPage, Lang requiredLang, Map&lt;String, String&gt; params, boolean escapeAmp, HttpServletRequest request) {
+		try {
+<span class="nc" id="L143">			String friendlyCode = this.extractFriendlyCode(requiredPage, requiredLang, params);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">			if (StringUtils.isBlank(friendlyCode)) {</span>
+<span class="nc" id="L145">				return super.createURL(requiredPage, requiredLang, params, escapeAmp, request);</span>
+			}
+<span class="nc" id="L147">			return this.createFriendlyUrl(friendlyCode, requiredLang, params, escapeAmp, request);</span>
+<span class="nc" id="L148">		} catch (Throwable t) {</span>
+<span class="nc" id="L149">			_logger.error(&quot;Error creating url&quot;, t);</span>
+<span class="nc" id="L150">			throw new RuntimeException(&quot;Error creating url&quot;, t);</span>
+		}
+	}
+	
+	protected String createFriendlyUrl(String friendlyCode, Lang requiredLang, Map&lt;String, String&gt; params, boolean escapeAmp, HttpServletRequest request) {
+<span class="nc" id="L155">		StringBuilder url = new StringBuilder();</span>
+		try {
+<span class="nc" id="L157">			this.addBaseURL(url, request);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">			if (!url.toString().endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L159">				url.append(&quot;/&quot;);</span>
+			}
+<span class="nc" id="L161">			url.append(&quot;page/&quot;);</span>
+<span class="nc" id="L162">			url.append(requiredLang.getCode()).append('/');</span>
+<span class="nc" id="L163">			url.append(friendlyCode);</span>
+<span class="nc" id="L164">			String queryString = this.createQueryString(params, escapeAmp);</span>
+<span class="nc" id="L165">			url.append(queryString);</span>
+<span class="nc" id="L166">		} catch (Exception t) {</span>
+<span class="nc" id="L167">			_logger.error(&quot;Error creating friendly url&quot;, t);</span>
+<span class="nc" id="L168">            throw new RuntimeException(&quot;Error creating friendly url&quot;, t);</span>
+<span class="nc" id="L169">		}</span>
+<span class="nc" id="L170">		return url.toString();</span>
+	}
+	
+	protected ISeoMappingManager getSeoMappingManager() {
+<span class="nc" id="L174">		return seoMappingManager;</span>
+	}
+	public void setSeoMappingManager(ISeoMappingManager seoMappingManager) {
+<span class="fc" id="L177">		this.seoMappingManager = seoMappingManager;</span>
+<span class="fc" id="L178">	}</span>
+	
+	protected IContentManager getContentManager() {
+<span class="nc" id="L181">		return contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L184">		this.contentManager = contentManager;</span>
+<span class="fc" id="L185">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

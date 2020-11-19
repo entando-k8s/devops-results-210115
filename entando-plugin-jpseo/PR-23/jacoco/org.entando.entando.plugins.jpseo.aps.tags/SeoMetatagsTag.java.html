@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SeoMetatagsTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.aps.tags</a> &gt; <span class="el_source">SeoMetatagsTag.java</span></div><h1>SeoMetatagsTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.aps.tags;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.PageMetadata;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.jsp.JspException;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.tags.ExtendedTagSupport;
+import org.entando.entando.plugins.jpseo.aps.system.JpseoSystemConstants;
+import org.entando.entando.plugins.jpseo.aps.system.services.metatag.Metatag;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.PageMetatag;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageExtraConfigDOM;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageMetadata;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Tag that handles the printing of the entire metatags section in the page
+ * header. The tag must be inserted in the header of each page template, taking
+ * care to set the escapeXml parameter to false. The tag retrieves the values of
+ * the metagags defined in page and print configuration (for each one of them,
+ * for the current language) the corresponding value. In case the value (for
+ * each metatag) in the current language is not present, the value in the
+ * default language is returned.
+ *
+ * @author E.Santoboni
+ */
+<span class="nc" id="L60">public class SeoMetatagsTag extends ExtendedTagSupport {</span>
+
+<span class="nc" id="L62">    private static final EntLogger logger =  EntLogFactory.getSanitizedLogger(SeoMetatagsTag.class);</span>
+
+    private String var;
+
+    @Override
+    public int doEndTag() throws JspException {
+<span class="nc" id="L68">        ServletRequest request = this.pageContext.getRequest();</span>
+<span class="nc" id="L69">        RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc" id="L70">        Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+        try {
+<span class="nc" id="L72">            StringBuilder output = new StringBuilder();</span>
+<span class="nc" id="L73">            IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L74">            PageMetadata pageMetadata = page.getMetadata();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if (!(pageMetadata instanceof SeoPageMetadata)) {</span>
+<span class="nc" id="L76">                this.release();</span>
+<span class="nc" id="L77">                return EVAL_PAGE;</span>
+            }
+<span class="nc" id="L79">            ILangManager langManager</span>
+<span class="nc" id="L80">                    = (ILangManager) ApsWebApplicationUtils.getBean(SystemConstants.LANGUAGE_MANAGER, this.pageContext);</span>
+<span class="nc" id="L81">            Lang defaultLang = langManager.getDefaultLang();</span>
+<span class="nc" id="L82">            Object descriptionObject = reqCtx.getExtraParam(JpseoSystemConstants.EXTRAPAR_EXTRA_PAGE_DESCRIPTIONS);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            String description = (null != descriptionObject) ? descriptionObject.toString() : null;</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            if (null == description) {</span>
+<span class="nc" id="L85">                description = ((SeoPageMetadata) pageMetadata).getDescription(currentLang.getCode());</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                if (StringUtils.isBlank(description)) {</span>
+<span class="nc" id="L87">                    description = ((SeoPageMetadata) pageMetadata).getDescription(defaultLang.getCode());</span>
+                }
+            }
+<span class="nc" id="L90">            this.appendMetadata(output, Metatag.ATTRIBUTE_NAME_NAME, &quot;description&quot;, description);</span>
+<span class="nc" id="L91">            String keywords = ((SeoPageMetadata) pageMetadata).getKeywords().getProperty(defaultLang.getCode());</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if (StringUtils.isBlank(keywords)) {</span>
+<span class="nc" id="L93">                keywords = ((SeoPageMetadata) pageMetadata).getKeywords().getProperty(defaultLang.getCode());</span>
+            }
+<span class="nc" id="L95">            this.appendMetadata(output, Metatag.ATTRIBUTE_NAME_NAME, &quot;keywords&quot;, keywords);</span>
+<span class="nc" id="L96">            Map&lt;String, Map&lt;String, PageMetatag&gt;&gt; complexParameters = ((SeoPageMetadata) pageMetadata).getComplexParameters();</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if (null != complexParameters) {</span>
+<span class="nc" id="L98">                Map&lt;String, Map&lt;String, PageMetatag&gt;&gt; metas = SeoPageExtraConfigDOM.extractRightParams(complexParameters, defaultLang);</span>
+<span class="nc" id="L99">                Map&lt;String, PageMetatag&gt; defaultMap = metas.get(defaultLang.getCode());</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                Map&lt;String, PageMetatag&gt; langMap = (currentLang.getCode().equals(defaultLang.getCode())) ? null : metas.get(currentLang.getCode());</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                if (null != defaultMap) {</span>
+<span class="nc" id="L102">                    Iterator&lt;PageMetatag&gt; iter = defaultMap.values().iterator();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                    while (iter.hasNext()) {</span>
+<span class="nc" id="L104">                        PageMetatag defaultMetatag = iter.next();</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                        PageMetatag metatag = (null != langMap) ? langMap.get(defaultMetatag.getKey()) : null;</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">                        PageMetatag current = (null != metatag &amp;&amp; !metatag.isUseDefaultLangValue()) ? metatag : defaultMetatag;</span>
+<span class="nc" id="L107">                        this.appendMetadata(output, current);</span>
+<span class="nc" id="L108">                    }</span>
+                }
+            }
+<span class="nc" id="L111">            this.evalValue(output.toString());</span>
+<span class="nc" id="L112">        } catch (Throwable t) {</span>
+<span class="nc" id="L113">            logger.error(&quot;error in doStartTag&quot;, t);</span>
+<span class="nc" id="L114">            throw new JspException(&quot;Error during tag initialization &quot;, t);</span>
+<span class="nc" id="L115">        }</span>
+<span class="nc" id="L116">        this.release();</span>
+<span class="nc" id="L117">        return EVAL_PAGE;</span>
+    }
+
+    /**
+     * Print the extracted output, or insert the output in a variable of the
+     * page context with the name provided.
+     *
+     * @param output the extracted output
+     * @throws JspException In case of error
+     */
+    protected void evalValue(String output) throws JspException {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if (this.getVar() != null) {</span>
+<span class="nc" id="L129">            this.pageContext.setAttribute(this.getVar(), output);</span>
+        } else {
+            try {
+<span class="nc bnc" id="L132" title="All 2 branches missed.">                if (this.getEscapeXml()) {</span>
+<span class="nc" id="L133">                    out(this.pageContext, this.getEscapeXml(), output);</span>
+                } else {
+<span class="nc" id="L135">                    this.pageContext.getOut().print(output);</span>
+                }
+<span class="nc" id="L137">            } catch (IOException e) {</span>
+<span class="nc" id="L138">                logger.error(&quot;error in doEndTag&quot;, e);</span>
+<span class="nc" id="L139">                throw new JspException(&quot;Error closing tag &quot;, e);</span>
+<span class="nc" id="L140">            }</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    protected void appendMetadata(StringBuilder output, PageMetatag metatag) {
+<span class="nc" id="L145">        this.appendMetadata(output, metatag.getKeyAttribute(), metatag.getKey(), metatag.getValue());</span>
+<span class="nc" id="L146">    }</span>
+
+    protected void appendMetadata(StringBuilder output, String attributeName, String key, String value) {
+<span class="nc bnc" id="L149" title="All 4 branches missed.">        if (StringUtils.isBlank(attributeName) || StringUtils.isBlank(key)) {</span>
+<span class="nc" id="L150">            return;</span>
+        }
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        String valueToUse = (StringUtils.isBlank(value)) ? &quot;&quot; : value;</span>
+<span class="nc" id="L153">        output.append(&quot;&lt;meta &quot;).append(attributeName)</span>
+<span class="nc" id="L154">                .append(&quot;=\&quot;&quot;).append(key).append(&quot;\&quot; content=\&quot;&quot;).append(valueToUse).append(&quot;\&quot; /&gt;&quot;).append(&quot;\n&quot;);</span>
+<span class="nc" id="L155">    }</span>
+
+    @Override
+    public void release() {
+<span class="nc" id="L159">        this.var = null;</span>
+<span class="nc" id="L160">        super.setEscapeXml(true);</span>
+<span class="nc" id="L161">    }</span>
+
+    public void setVar(String var) {
+<span class="nc" id="L164">        this.var = var;</span>
+<span class="nc" id="L165">    }</span>
+
+    protected String getVar() {
+<span class="nc" id="L168">        return var;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
