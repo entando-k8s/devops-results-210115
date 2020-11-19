@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectModelManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectmodel</a> &gt; <span class="el_source">DataObjectModelManager.java</span></div><h1>DataObjectModelManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectmodel;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+import org.entando.entando.aps.system.services.dataobject.model.SmallDataType;
+import org.entando.entando.aps.system.services.dataobjectmodel.cache.IDataObjectModelCacheWrapper;
+import org.entando.entando.aps.system.services.dataobjectmodel.event.DataObjectModelChangedEvent;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Manager dei modelli di datatype.
+ *
+ * @author S.Didaci - C.Siddi - C.Sirigu
+ */
+<span class="fc" id="L42">public class DataObjectModelManager extends AbstractService implements IDataObjectModelManager {</span>
+
+<span class="fc" id="L44">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private IDataObjectModelDAO dataModelDAO;
+    private IPageManager pageManager;
+    private IDataObjectManager dataObjectManager;
+    private IDataObjectModelCacheWrapper cacheWrapper;
+
+    protected IDataObjectModelDAO getDataModelDAO() {
+<span class="fc" id="L52">        return dataModelDAO;</span>
+    }
+
+    public void setDataModelDAO(IDataObjectModelDAO dataModelDAO) {
+<span class="fc" id="L56">        this.dataModelDAO = dataModelDAO;</span>
+<span class="fc" id="L57">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L60">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L64">        this.pageManager = pageManager;</span>
+<span class="fc" id="L65">    }</span>
+
+    protected IDataObjectManager getDataObjectManager() {
+<span class="fc" id="L68">        return dataObjectManager;</span>
+    }
+
+    public void setDataObjectManager(IDataObjectManager dataObjectManager) {
+<span class="fc" id="L72">        this.dataObjectManager = dataObjectManager;</span>
+<span class="fc" id="L73">    }</span>
+
+    protected IDataObjectModelCacheWrapper getCacheWrapper() {
+<span class="fc" id="L76">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IDataObjectModelCacheWrapper cacheWrapper) {
+<span class="fc" id="L80">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L81">    }</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L85">        this.getCacheWrapper().initCache(this.getDataModelDAO());</span>
+<span class="fc" id="L86">        logger.debug(&quot;{} ready. Initialized {} dataObject models&quot;, this.getClass().getName(), this.getCacheWrapper().getModels().size());</span>
+<span class="fc" id="L87">    }</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L91">        this.getCacheWrapper().release();</span>
+<span class="fc" id="L92">        super.release();</span>
+<span class="fc" id="L93">    }</span>
+
+    @Override
+    public void addDataObjectModel(DataObjectModel model) throws EntException {
+        try {
+<span class="fc" id="L98">            this.getDataModelDAO().addDataModel(model);</span>
+            //Long wrapLongId = new Long(model.getId());
+<span class="fc" id="L100">            this.getCacheWrapper().addModel(model);</span>
+<span class="fc" id="L101">            this.notifyDataModelChanging(model, DataObjectModelChangedEvent.INSERT_OPERATION_CODE);</span>
+<span class="nc" id="L102">        } catch (Throwable t) {</span>
+<span class="nc" id="L103">            logger.error(&quot;Error saving a dataObjectModel&quot;, t);</span>
+<span class="nc" id="L104">            throw new EntException(&quot;Error saving a dataObjectModel&quot;, t);</span>
+<span class="fc" id="L105">        }</span>
+<span class="fc" id="L106">    }</span>
+
+    @Override
+    public void removeDataObjectModel(DataObjectModel model) throws EntException {
+        try {
+<span class="fc" id="L111">            this.getDataModelDAO().deleteDataModel(model);</span>
+<span class="fc" id="L112">            this.getCacheWrapper().removeModel(model);</span>
+<span class="fc" id="L113">            this.notifyDataModelChanging(model, DataObjectModelChangedEvent.REMOVE_OPERATION_CODE);</span>
+<span class="nc" id="L114">        } catch (Throwable t) {</span>
+<span class="nc" id="L115">            logger.error(&quot;Error deleting a dataObject model&quot;, t);</span>
+<span class="nc" id="L116">            throw new EntException(&quot;Error deleting a dataObject model&quot;, t);</span>
+<span class="fc" id="L117">        }</span>
+<span class="fc" id="L118">    }</span>
+
+    @Override
+    public void updateDataObjectModel(DataObjectModel model) throws EntException {
+        try {
+<span class="fc" id="L123">            this.getDataModelDAO().updateDataModel(model);</span>
+<span class="fc" id="L124">            this.getCacheWrapper().updateModel(model);</span>
+<span class="fc" id="L125">            this.notifyDataModelChanging(model, DataObjectModelChangedEvent.UPDATE_OPERATION_CODE);</span>
+<span class="nc" id="L126">        } catch (Throwable t) {</span>
+<span class="nc" id="L127">            logger.error(&quot;Error updating a dataObject model&quot;, t);</span>
+<span class="nc" id="L128">            throw new EntException(&quot;Error updating a dataObject model&quot;, t);</span>
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">    }</span>
+
+    private void notifyDataModelChanging(DataObjectModel dataObjectModel, int operationCode) {
+<span class="fc" id="L133">        DataObjectModelChangedEvent event = new DataObjectModelChangedEvent();</span>
+<span class="fc" id="L134">        event.setDataObjectModel(dataObjectModel);</span>
+<span class="fc" id="L135">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L136">        this.notifyEvent(event);</span>
+<span class="fc" id="L137">    }</span>
+
+    @Override
+    public DataObjectModel getDataObjectModel(long dataObjectModelId) {
+<span class="fc" id="L141">        return (DataObjectModel) this.getCacheWrapper().getModel(String.valueOf(dataObjectModelId));</span>
+    }
+
+    @Override
+    public List&lt;DataObjectModel&gt; getDataObjectModels() {
+<span class="fc" id="L146">        List&lt;DataObjectModel&gt; models = new ArrayList&lt;&gt;(this.getCacheWrapper().getModels());</span>
+<span class="fc" id="L147">        Collections.sort(models);</span>
+<span class="fc" id="L148">        return models;</span>
+    }
+
+    @Override
+    public List&lt;DataObjectModel&gt; getModelsForDataObjectType(String dataType) {
+<span class="fc" id="L153">        List&lt;DataObjectModel&gt; models = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L154">        Object[] allModels = this.getCacheWrapper().getModels().toArray();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        for (int i = 0; i &lt; allModels.length; i++) {</span>
+<span class="fc" id="L156">            DataObjectModel dataObjectModel = (DataObjectModel) allModels[i];</span>
+<span class="pc bpc" id="L157" title="2 of 4 branches missed.">            if (null == dataType || dataObjectModel.getDataType().equals(dataType)) {</span>
+<span class="fc" id="L158">                models.add(dataObjectModel);</span>
+            }
+        }
+<span class="fc" id="L161">        return models;</span>
+    }
+
+    @Override
+    public Map&lt;String, List&lt;IPage&gt;&gt; getReferencingPages(long modelId) {
+<span class="fc" id="L166">        Map&lt;String, List&lt;IPage&gt;&gt; utilizers = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L167">        IPage root = this.getPageManager().getDraftRoot();</span>
+<span class="fc" id="L168">        this.searchReferencingPages(modelId, root, utilizers);</span>
+<span class="fc" id="L169">        root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc" id="L170">        this.searchReferencingPages(modelId, root, utilizers);</span>
+<span class="fc" id="L171">        return utilizers;</span>
+    }
+
+    private void searchReferencingPages(long modelId, IPage page, Map&lt;String, List&lt;IPage&gt;&gt; utilizers) {
+<span class="fc" id="L175">        this.addReferencingPage(modelId, page, utilizers);</span>
+<span class="fc" id="L176">        boolean isOnline = page.isOnline();</span>
+<span class="fc" id="L177">        String[] children = page.getChildrenCodes();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">            IPage child = (isOnline)</span>
+<span class="fc" id="L180">                    ? this.getPageManager().getOnlinePage(children[i])</span>
+<span class="pc" id="L181">                    : this.getPageManager().getDraftPage(children[i]);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if (null != child) {</span>
+<span class="fc" id="L183">                this.searchReferencingPages(modelId, child, utilizers);</span>
+            }
+        }
+<span class="fc" id="L186">    }</span>
+
+    private void addReferencingPage(long modelId, IPage page, Map&lt;String, List&lt;IPage&gt;&gt; utilizers) {
+<span class="pc bpc" id="L189" title="2 of 4 branches missed.">        if (null != page &amp;&amp; null != page.getWidgets()) {</span>
+<span class="fc" id="L190">            Widget[] widgets = page.getWidgets();</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">            for (Widget widget : widgets) {</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                if (null == widget) {</span>
+<span class="fc" id="L193">                    continue;</span>
+                }
+<span class="fc bfc" id="L195" title="All 2 branches covered.">                if (null != widget.getConfig()) {</span>
+<span class="fc" id="L196">                    String id = widget.getConfig().getProperty(&quot;modelId&quot;);</span>
+<span class="fc" id="L197">                    String dataId = widget.getConfig().getProperty(&quot;dataId&quot;);</span>
+<span class="pc bpc" id="L198" title="3 of 4 branches missed.">                    if (null != id &amp;&amp; null != dataId) {</span>
+<span class="nc" id="L199">                        long longId = Long.parseLong(id);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                        if (modelId == longId) {</span>
+<span class="nc" id="L201">                            List&lt;IPage&gt; pages = (List&lt;IPage&gt;) utilizers.get(dataId);</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                            if (null == pages) {</span>
+<span class="nc" id="L203">                                pages = new ArrayList&lt;&gt;();</span>
+                            }
+<span class="nc" id="L205">                            pages.add(page);</span>
+<span class="nc" id="L206">                            utilizers.put(dataId, pages);</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="fc" id="L212">    }</span>
+
+    @Override
+    public SmallDataType getDefaultUtilizer(long modelId) {
+<span class="fc" id="L216">        String modelIdString = String.valueOf(modelId);</span>
+<span class="fc" id="L217">        List&lt;SmallDataType&gt; smallDataTypes = this.getDataObjectManager().getSmallDataTypes();</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">        for (SmallDataType smallDataType : smallDataTypes) {</span>
+<span class="fc" id="L219">            DataObject prototype = this.getDataObjectManager().createDataObject(smallDataType.getCode());</span>
+<span class="fc bfc" id="L220" title="All 6 branches covered.">            if ((null != prototype.getListModel() &amp;&amp; prototype.getListModel().equals(modelIdString)) || (null != prototype.getDefaultModel()</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">                    &amp;&amp; prototype.getDefaultModel().equals(modelIdString))) {</span>
+<span class="fc" id="L222">                return smallDataType;</span>
+            }
+<span class="fc" id="L224">        }</span>
+<span class="nc" id="L225">        return null;</span>
+    }
+
+    @Override
+    public SearcherDaoPaginatedResult&lt;DataObjectModel&gt; getDataObjectModels(List&lt;FieldSearchFilter&gt; filters) throws EntException {
+<span class="fc" id="L230">        SearcherDaoPaginatedResult&lt;DataObjectModel&gt; pagedResult = null;</span>
+        try {
+<span class="fc" id="L232">            List&lt;DataObjectModel&gt; dataObjectModels = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L233">            FieldSearchFilter[] filtersArray = filters.toArray(new FieldSearchFilter[filters.size()]);</span>
+<span class="fc" id="L234">            int count = this.getDataModelDAO().countDataObjectModels(filtersArray);</span>
+<span class="fc" id="L235">            List&lt;Long&gt; codes = this.searchDataObjectModels(filtersArray);</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">            for (Long code : codes) {</span>
+<span class="fc" id="L237">                dataObjectModels.add(this.getDataObjectModel(code));</span>
+<span class="fc" id="L238">            }</span>
+<span class="fc" id="L239">            pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(count, dataObjectModels);</span>
+<span class="nc" id="L240">        } catch (Throwable t) {</span>
+<span class="nc" id="L241">            logger.error(&quot;Error searching models&quot;, t);</span>
+<span class="nc" id="L242">            throw new EntException(&quot;Error searching models&quot;, t);</span>
+<span class="fc" id="L243">        }</span>
+<span class="fc" id="L244">        return pagedResult;</span>
+    }
+
+    @Override
+    public List&lt;Long&gt; searchDataObjectModels(FieldSearchFilter[] filters) throws EntException {
+<span class="fc" id="L249">        List&lt;Long&gt; models = null;</span>
+        try {
+<span class="fc" id="L251">            models = this.getDataModelDAO().searchDataObjectModels(filters);</span>
+<span class="nc" id="L252">        } catch (Throwable t) {</span>
+<span class="nc" id="L253">            logger.error(&quot;Error searching models&quot;, t);</span>
+<span class="nc" id="L254">            throw new EntException(&quot;Error searching models&quot;, t);</span>
+<span class="fc" id="L255">        }</span>
+<span class="fc" id="L256">        return models;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

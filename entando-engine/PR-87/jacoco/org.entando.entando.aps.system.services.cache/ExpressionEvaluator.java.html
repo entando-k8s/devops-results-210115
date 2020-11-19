@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExpressionEvaluator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.cache</a> &gt; <span class="el_source">ExpressionEvaluator.java</span></div><h1>ExpressionEvaluator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.cache;
+
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.springframework.aop.support.AopUtils;
+import org.springframework.cache.Cache;
+import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
+import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.Expression;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.util.Assert;
+import org.springframework.util.ObjectUtils;
+
+/**
+ * Utility class handling the SpEL expression parsing.
+ * Meant to be used as a reusable, thread-safe component.
+ *
+ * &lt;p&gt;Performs internal caching for performance reasons.
+ * 
+ * The private class CacheExpressionRootObject describing the root object used during the expression evaluation.
+ *
+ * Evaluation context class that adds a method parameters as SpEL
+ * variables, in a lazy manner. The lazy nature eliminates unneeded
+ * parsing of classes byte code for parameter discovery.
+ * 
+ * @author Costin Leau
+ * @author Phillip Webb
+ * @since 3.1
+ */
+<span class="fc" id="L48">class ExpressionEvaluator {</span>
+
+<span class="fc" id="L50">	public static final Object NO_RESULT = new Object();</span>
+
+<span class="fc" id="L52">	private final SpelExpressionParser parser = new SpelExpressionParser();</span>
+
+	// shared param discoverer since it caches data internally
+<span class="fc" id="L55">	private final ParameterNameDiscoverer paramNameDiscoverer = new LocalVariableTableParameterNameDiscoverer();</span>
+	
+<span class="fc" id="L57">	private final Map&lt;String, Method&gt; targetMethodCache = new ConcurrentHashMap&lt;String, Method&gt;(64);</span>
+	
+<span class="fc" id="L59">	private final Map&lt;String, Expression&gt; _expressions = new ConcurrentHashMap&lt;String, Expression&gt;(64);</span>
+	
+	/**
+	 * Create an {@link EvaluationContext}.
+	 *
+	 * @param caches the current caches
+	 * @param method the method
+	 * @param args the method arguments
+	 * @param target the target object
+	 * @param targetClass the target class
+	 * @param result the return value (can be {@code null}) or
+	 *        {@link #NO_RESULT} if there is no return at this time
+	 * @return the evalulation context
+	 */
+	public EvaluationContext createEvaluationContext(Collection&lt;Cache&gt; caches,
+			Method method, Object[] args, Object target, Class&lt;?&gt; targetClass,
+			final Object result) {
+<span class="fc" id="L76">		CacheExpressionRootObject rootObject = new CacheExpressionRootObject(caches,</span>
+				method, args, target, targetClass);
+<span class="fc" id="L78">		LazyParamAwareEvaluationContext evaluationContext = new LazyParamAwareEvaluationContext(rootObject,</span>
+				this.paramNameDiscoverer, method, args, targetClass, this.targetMethodCache);
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">		if (result != NO_RESULT) {</span>
+<span class="nc" id="L81">			evaluationContext.setVariable(&quot;result&quot;, result);</span>
+		}
+<span class="fc" id="L83">		return evaluationContext;</span>
+	}
+	
+	public Object evaluateExpression(String keyExpression, Method method, EvaluationContext evalContext) {
+<span class="fc" id="L87">		return getExpression(keyExpression, method).getValue(evalContext);</span>
+	}
+	
+	private Expression getExpression(String expression, Method method) {
+<span class="fc" id="L91">		String key = toString(method, expression);</span>
+<span class="fc" id="L92">		Expression rtn = this._expressions.get(key);</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">		if (rtn == null) {</span>
+<span class="fc" id="L94">			rtn = this.parser.parseExpression(expression);</span>
+<span class="fc" id="L95">			this._expressions.put(key, rtn);</span>
+		}
+<span class="fc" id="L97">		return rtn;</span>
+	}
+
+	private String toString(Method method, String expression) {
+<span class="fc" id="L101">		StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L102">		sb.append(method.getDeclaringClass().getName());</span>
+<span class="fc" id="L103">		sb.append(&quot;#&quot;);</span>
+<span class="fc" id="L104">		sb.append(method.toString());</span>
+<span class="fc" id="L105">		sb.append(&quot;#&quot;);</span>
+<span class="fc" id="L106">		sb.append(expression);</span>
+<span class="fc" id="L107">		return sb.toString();</span>
+	}
+	
+	private class CacheExpressionRootObject {
+		
+		private final Collection&lt;Cache&gt; caches;
+		private final Method method;
+		private final Object[] args;
+		private final Object target;
+		private final Class&lt;?&gt; targetClass;
+		
+		public CacheExpressionRootObject(
+<span class="fc" id="L119">				Collection&lt;Cache&gt; caches, Method method, Object[] args, Object target, Class&lt;?&gt; targetClass) {</span>
+<span class="fc" id="L120">			Assert.notNull(method, &quot;Method is required&quot;);</span>
+<span class="fc" id="L121">			Assert.notNull(targetClass, &quot;targetClass is required&quot;);</span>
+<span class="fc" id="L122">			this.method = method;</span>
+<span class="fc" id="L123">			this.target = target;</span>
+<span class="fc" id="L124">			this.targetClass = targetClass;</span>
+<span class="fc" id="L125">			this.args = args;</span>
+<span class="fc" id="L126">			this.caches = caches;</span>
+<span class="fc" id="L127">		}</span>
+		
+		public Collection&lt;Cache&gt; getCaches() {
+<span class="nc" id="L130">			return this.caches;</span>
+		}
+		
+		public Method getMethod() {
+<span class="nc" id="L134">			return this.method;</span>
+		}
+		
+		public String getMethodName() {
+<span class="nc" id="L138">			return this.method.getName();</span>
+		}
+		
+		public Object[] getArgs() {
+<span class="nc" id="L142">			return this.args;</span>
+		}
+		
+		public Object getTarget() {
+<span class="nc" id="L146">			return this.target;</span>
+		}
+		
+		public Class&lt;?&gt; getTargetClass() {
+<span class="nc" id="L150">			return this.targetClass;</span>
+		}
+		
+	}
+	
+	private class LazyParamAwareEvaluationContext extends StandardEvaluationContext {
+		
+		private final ParameterNameDiscoverer paramDiscoverer;
+		private final Method method;
+		private final Object[] args;
+		private final Class&lt;?&gt; targetClass;
+		private final Map&lt;String, Method&gt; methodCache;
+<span class="fc" id="L162">		private boolean paramLoaded = false;</span>
+		
+		LazyParamAwareEvaluationContext(Object rootObject, ParameterNameDiscoverer paramDiscoverer, Method method,
+<span class="fc" id="L165">				Object[] args, Class&lt;?&gt; targetClass, Map&lt;String, Method&gt; methodCache) {</span>
+<span class="fc" id="L166">			super(rootObject);</span>
+<span class="fc" id="L167">			this.paramDiscoverer = paramDiscoverer;</span>
+<span class="fc" id="L168">			this.method = method;</span>
+<span class="fc" id="L169">			this.args = args;</span>
+<span class="fc" id="L170">			this.targetClass = targetClass;</span>
+<span class="fc" id="L171">			this.methodCache = methodCache;</span>
+<span class="fc" id="L172">		}</span>
+
+		/**
+		 * Load the param information only when needed.
+		 */
+		@Override
+		public Object lookupVariable(String name) {
+<span class="fc" id="L179">			Object variable = super.lookupVariable(name);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">			if (variable != null) {</span>
+<span class="nc" id="L181">				return variable;</span>
+			}
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">			if (!this.paramLoaded) {</span>
+<span class="fc" id="L184">				loadArgsAsVariables();</span>
+<span class="fc" id="L185">				this.paramLoaded = true;</span>
+<span class="fc" id="L186">				variable = super.lookupVariable(name);</span>
+			}
+<span class="fc" id="L188">			return variable;</span>
+		}
+
+		private void loadArgsAsVariables() {
+			// shortcut if no args need to be loaded
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">			if (ObjectUtils.isEmpty(this.args)) {</span>
+<span class="nc" id="L194">				return;</span>
+			}
+<span class="fc" id="L196">			String mKey = toString(this.method);</span>
+<span class="fc" id="L197">			Method targetMethod = this.methodCache.get(mKey);</span>
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">			if (targetMethod == null) {</span>
+<span class="fc" id="L199">				targetMethod = AopUtils.getMostSpecificMethod(this.method, this.targetClass);</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">				if (targetMethod == null) {</span>
+<span class="nc" id="L201">					targetMethod = this.method;</span>
+				}
+<span class="fc" id="L203">				this.methodCache.put(mKey, targetMethod);</span>
+			}
+			// save arguments as indexed variables
+<span class="fc bfc" id="L206" title="All 2 branches covered.">			for (int i = 0; i &lt; this.args.length; i++) {</span>
+<span class="fc" id="L207">				setVariable(&quot;a&quot; + i, this.args[i]);</span>
+<span class="fc" id="L208">				setVariable(&quot;p&quot; + i, this.args[i]);</span>
+			}
+<span class="fc" id="L210">			String[] parameterNames = this.paramDiscoverer.getParameterNames(targetMethod);</span>
+			// save parameter names (if discovered)
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">			if (parameterNames != null) {</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">				for (int i = 0; i &lt; parameterNames.length; i++) {</span>
+<span class="fc" id="L214">					setVariable(parameterNames[i], this.args[i]);</span>
+				}
+			}
+<span class="fc" id="L217">		}</span>
+		
+		private String toString(Method m) {
+<span class="fc" id="L220">			StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L221">			sb.append(m.getDeclaringClass().getName());</span>
+<span class="fc" id="L222">			sb.append(&quot;#&quot;);</span>
+<span class="fc" id="L223">			sb.append(m.toString());</span>
+<span class="fc" id="L224">			return sb.toString();</span>
+		}
+		
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageModelValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.pagemodel.validator</a> &gt; <span class="el_source">PageModelValidator.java</span></div><h1>PageModelValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.pagemodel.validator;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.entando.entando.web.pagemodel.model.PageModelFrameReq;
+import org.entando.entando.web.pagemodel.model.PageModelRequest;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.Errors;
+
+@Component
+<span class="fc" id="L28">public class PageModelValidator extends AbstractPaginationValidator {</span>
+
+    public static final String ERRCODE_PAGEMODEL_NOT_FOUND = &quot;1&quot;;
+    public static final String ERRCODE_CODE_EXISTS = &quot;2&quot;;
+    public static final String ERRCODE_PAGEMODEL_REFERENCES = &quot;3&quot;;
+    public static final String ERRCODE_URINAME_MISMATCH = &quot;4&quot;;
+    public static final String ERRCODE_FRAMES_POS_MISMATCH = &quot;5&quot;;
+    public static final String ERRCODE_DEFAULT_WIDGET_NOT_EXISTS = &quot;6&quot;;
+    public static final String ERRCODE_DEFAULT_WIDGET_INVALID_PARAMETER = &quot;7&quot;;
+
+    @Override
+    public boolean supports(Class&lt;?&gt; paramClass) {
+<span class="nc" id="L40">        return PageModelRequest.class.equals(paramClass);</span>
+    }
+
+    @Override
+    public void validate(Object target, Errors errors) {
+<span class="fc" id="L45">        PageModelRequest request = (PageModelRequest) target;</span>
+<span class="fc" id="L46">        this.validateConfiguration(request, errors);</span>
+<span class="fc" id="L47">    }</span>
+
+    private void validateConfiguration(PageModelRequest request, Errors errors) {
+<span class="fc" id="L50">        List&lt;PageModelFrameReq&gt; conf = request.getConfiguration().getFrames();</span>
+<span class="pc bpc" id="L51" title="2 of 4 branches missed.">        if (null == conf || conf.isEmpty()) {</span>
+<span class="nc" id="L52">            return;</span>
+        }
+        //frame positions should start from 0 and be progressive
+<span class="fc" id="L55">        List&lt;Integer&gt; positions = conf</span>
+<span class="fc" id="L56">                .stream()</span>
+<span class="fc" id="L57">                .sorted((e1, e2) -&gt; Integer.compare(e1.getPos(), e2.getPos()))</span>
+<span class="fc" id="L58">                .map(i -&gt; i.getPos()).collect(Collectors.toList());</span>
+<span class="fc" id="L59">        int firstPosition = positions.get(0);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (firstPosition != 0) {</span>
+<span class="nc" id="L61">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
+<span class="nc" id="L62">            return;</span>
+        }
+
+<span class="fc" id="L65">        int lastPosition = positions.get(positions.size() - 1);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (lastPosition != positions.size() - 1) {</span>
+<span class="fc" id="L67">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
+<span class="fc" id="L68">            return;</span>
+        }
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (positions.size() != new HashSet&lt;Integer&gt;(positions).size()) {</span>
+<span class="fc" id="L71">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
+<span class="fc" id="L72">            return;</span>
+        }
+<span class="fc" id="L74">    }</span>
+
+    public void validateBodyName(String code, PageModelRequest pageModelRequest, Errors errors) {
+
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (!StringUtils.equals(code, pageModelRequest.getCode())) {</span>
+<span class="nc" id="L79">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{code, pageModelRequest.getCode()}, &quot;pageModel.code.mismatch&quot;);</span>
+        }
+
+<span class="fc" id="L82">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

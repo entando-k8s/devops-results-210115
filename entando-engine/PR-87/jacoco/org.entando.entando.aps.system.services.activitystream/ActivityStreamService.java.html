@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityStreamService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.activitystream</a> &gt; <span class="el_source">ActivityStreamService.java</span></div><h1>ActivityStreamService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.activitystream;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.user.UserDetails;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.actionlog.IActionLogManager;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecord;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordApiSearchBean;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordDto;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordDtoBuilder;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordSearchBean;
+import org.entando.entando.web.activitystream.ActivityStreamCommentRequest;
+import org.entando.entando.web.activitystream.valiator.ActivityStreamValidator;
+import org.entando.entando.web.common.model.DateRange;
+import org.entando.entando.web.common.model.Filter;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+<span class="fc" id="L44">public class ActivityStreamService implements IActivityStreamService {</span>
+
+    private static final String KEY_FILTER_CREATION = &quot;createdAt&quot;;
+    private static final String KEY_FILTER_UPDATE = &quot;updatedAt&quot;;
+    private static final String KEY_FILTER_USERNAME = &quot;username&quot;;
+    private static final String KEY_FILTER_NS = &quot;namespace&quot;;
+    private static final String KEY_FILTER_ACTIONNAME = &quot;actionName&quot;;
+    private static final String KEY_FILTER_PARAMS = &quot;params&quot;;
+
+<span class="fc" id="L53">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+<span class="fc" id="L55">    private ActionLogRecordDtoBuilder dtoBuilder = new ActionLogRecordDtoBuilder();</span>
+
+    @Autowired
+    private IActionLogManager actionLogManager;
+
+    @Autowired
+    private ISocialActivityStreamManager socialActivityStreamManager;
+
+    @Autowired
+    private IAuthorizationManager authorizationManager;
+
+    protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L67">        return authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L71">        this.authorizationManager = authorizationManager;</span>
+<span class="fc" id="L72">    }</span>
+
+    protected IActionLogManager getActionLogManager() {
+<span class="fc" id="L75">        return actionLogManager;</span>
+    }
+
+    public void setActionLogManager(IActionLogManager actionLogManager) {
+<span class="fc" id="L79">        this.actionLogManager = actionLogManager;</span>
+<span class="fc" id="L80">    }</span>
+
+    protected ISocialActivityStreamManager getSocialActivityStreamManager() {
+<span class="fc" id="L83">        return socialActivityStreamManager;</span>
+    }
+
+    public void setSocialActivityStreamManager(ISocialActivityStreamManager socialActivityStreamManager) {
+<span class="fc" id="L87">        this.socialActivityStreamManager = socialActivityStreamManager;</span>
+<span class="fc" id="L88">    }</span>
+
+    protected ActionLogRecordDtoBuilder getDtoBuilder() {
+<span class="fc" id="L91">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(ActionLogRecordDtoBuilder dtoBuilder) {
+<span class="nc" id="L95">        this.dtoBuilder = dtoBuilder;</span>
+<span class="nc" id="L96">    }</span>
+
+    @Override
+    public PagedMetadata&lt;ActionLogRecordDto&gt; getActivityStream(RestListRequest requestList, UserDetails userDetails) {
+        try {
+<span class="fc" id="L101">            ActionLogRecordSearchBean searchBean = this.buildSearchBean(requestList, userDetails);</span>
+<span class="fc" id="L102">            SearcherDaoPaginatedResult&lt;ActionLogRecord&gt; pagedResult = getActionLogManager().getPaginatedActionRecords(searchBean);</span>
+<span class="fc" id="L103">            List&lt;ActionLogRecordDto&gt; dtoList = this.getDtoBuilder().convert(pagedResult.getList(), this.getSocialActivityStreamManager());</span>
+<span class="fc" id="L104">            PagedMetadata&lt;ActionLogRecordDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, pagedResult);</span>
+<span class="fc" id="L105">            pagedMetadata.setBody(dtoList);</span>
+<span class="fc" id="L106">            return pagedMetadata;</span>
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">            logger.error(&quot;error searching actionLog &quot;, t);</span>
+<span class="nc" id="L109">            throw new RestServerError(&quot;error searching actionLog &quot;, t);</span>
+        }
+    }
+
+    @Override
+    public ActionLogRecordDto addLike(int recordId, UserDetails userDetails) {
+        try {
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">            if (null == this.getActionLogManager().getActionRecord(recordId)) {</span>
+<span class="nc" id="L117">                logger.warn(&quot;no record found with id {}&quot;, recordId);</span>
+<span class="nc" id="L118">                throw new ResourceNotFoundException(ActivityStreamValidator.ERRCODE_RECORD_NOT_FOUND, &quot;actionLogRecord&quot;, String.valueOf(recordId));</span>
+            }
+<span class="fc" id="L120">            this.getSocialActivityStreamManager().editActionLikeRecord(recordId, userDetails.getUsername(), true);</span>
+<span class="fc" id="L121">            ActionLogRecordDto dto = getFullDto(recordId);</span>
+<span class="fc" id="L122">            return dto;</span>
+<span class="nc" id="L123">        } catch (EntException t) {</span>
+<span class="nc" id="L124">            logger.error(&quot;error add add like for id {}&quot;, recordId, t);</span>
+<span class="nc" id="L125">            throw new RestServerError(&quot;error in add like &quot;, t);</span>
+        }
+    }
+
+    @Override
+    public ActionLogRecordDto removeLike(int recordId, UserDetails userDetails) {
+        try {
+<span class="fc" id="L132">            this.getSocialActivityStreamManager().editActionLikeRecord(recordId, userDetails.getUsername(), false);</span>
+<span class="fc" id="L133">            ActionLogRecordDto dto = getFullDto(recordId);</span>
+<span class="fc" id="L134">            return dto;</span>
+<span class="nc" id="L135">        } catch (Throwable t) {</span>
+<span class="nc" id="L136">            logger.error(&quot;error in remove like for id {}&quot;, recordId, t);</span>
+<span class="nc" id="L137">            throw new RestServerError(&quot;error in remove like &quot;, t);</span>
+        }
+    }
+
+    @Override
+    public ActionLogRecordDto addComment(ActivityStreamCommentRequest commentRequest, UserDetails attribute) {
+        try {
+<span class="fc" id="L144">            int recordId = commentRequest.getRecordId();</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (null == this.getActionLogManager().getActionRecord(recordId)) {</span>
+<span class="nc" id="L146">                logger.warn(&quot;no record found with id {}&quot;, recordId);</span>
+<span class="nc" id="L147">                throw new ResourceNotFoundException(ActivityStreamValidator.ERRCODE_RECORD_NOT_FOUND, &quot;actionLogRecord&quot;, String.valueOf(recordId));</span>
+            }
+<span class="fc" id="L149">            this.getSocialActivityStreamManager().addActionCommentRecord(attribute.getUsername(), commentRequest.getComment(), recordId);</span>
+<span class="fc" id="L150">            ActionLogRecordDto dto = this.getDtoBuilder().toDto(this.getActionLogManager().getActionRecord(recordId),</span>
+<span class="fc" id="L151">                    this.getSocialActivityStreamManager().getActionLikeRecords(recordId),</span>
+<span class="fc" id="L152">                    this.getSocialActivityStreamManager().getActionCommentRecords(recordId));</span>
+<span class="fc" id="L153">            return dto;</span>
+<span class="nc" id="L154">        } catch (EntException t) {</span>
+<span class="nc" id="L155">            logger.error(&quot;error in add comment for id {}&quot;, commentRequest.getRecordId(), t);</span>
+<span class="nc" id="L156">            throw new RestServerError(&quot;error in add comment&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public ActionLogRecordDto removeComment(int recordId, int commentId, UserDetails attribute) {
+        try {
+<span class="nc bnc" id="L163" title="All 2 branches missed.">            if (null == this.getActionLogManager().getActionRecord(recordId)) {</span>
+<span class="nc" id="L164">                logger.warn(&quot;no record found with id {}&quot;, recordId);</span>
+<span class="nc" id="L165">                throw new ResourceNotFoundException(ActivityStreamValidator.ERRCODE_RECORD_NOT_FOUND, &quot;actionLogRecord&quot;, String.valueOf(recordId));</span>
+            }
+
+<span class="nc" id="L168">            this.getSocialActivityStreamManager().deleteActionCommentRecord(commentId, recordId);</span>
+
+<span class="nc" id="L170">            ActionLogRecordDto dto = this.getDtoBuilder().toDto(this.getActionLogManager().getActionRecord(recordId),</span>
+<span class="nc" id="L171">                    this.getSocialActivityStreamManager().getActionLikeRecords(recordId),</span>
+<span class="nc" id="L172">                    this.getSocialActivityStreamManager().getActionCommentRecords(recordId));</span>
+<span class="nc" id="L173">            return dto;</span>
+<span class="nc" id="L174">        } catch (Throwable t) {</span>
+<span class="nc" id="L175">            logger.error(&quot;error in delete comment for id {}&quot;, recordId, t);</span>
+<span class="nc" id="L176">            throw new RestServerError(&quot;error in remove comment&quot;, t);</span>
+        }
+    }
+
+    protected ActionLogRecordDto getFullDto(int recordId) throws EntException {
+<span class="fc" id="L181">        ActionLogRecordDto dto = this.getDtoBuilder().toDto(this.getActionLogManager().getActionRecord(recordId),</span>
+<span class="fc" id="L182">                this.getSocialActivityStreamManager().getActionLikeRecords(recordId),</span>
+<span class="fc" id="L183">                this.getSocialActivityStreamManager().getActionCommentRecords(recordId));</span>
+<span class="fc" id="L184">        return dto;</span>
+    }
+
+    protected ActionLogRecordSearchBean buildSearchBean(RestListRequest requestList, UserDetails userDetails) {
+<span class="fc" id="L188">        ActionLogRecordApiSearchBean searchBean = new ActionLogRecordApiSearchBean();</span>
+        //groups
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (null != requestList.getSort()) {</span>
+<span class="fc" id="L191">            String direction = requestList.getDirection();</span>
+<span class="pc bpc" id="L192" title="2 of 6 branches missed.">            direction = (null != direction &amp;&amp; (direction.equalsIgnoreCase(&quot;ASC&quot;) || direction.equalsIgnoreCase(&quot;DESC&quot;))) ? direction : &quot;DESC&quot;;</span>
+<span class="fc" id="L193">            searchBean.setOrderBy(ActionLogRecordDto.getEntityFieldName(requestList.getSort()));</span>
+<span class="fc" id="L194">            searchBean.setDirection(direction);</span>
+        }
+<span class="fc" id="L196">        int offset = 0;</span>
+<span class="fc" id="L197">        int page = requestList.getPage() - 1;</span>
+<span class="pc bpc" id="L198" title="2 of 4 branches missed.">        if (null != requestList.getPage() &amp;&amp; requestList.getPage() != 0) {</span>
+<span class="fc" id="L199">            offset = requestList.getPageSize() * page;</span>
+        }
+<span class="fc" id="L201">        searchBean.setOffset(offset);</span>
+<span class="fc" id="L202">        searchBean.setPageSize(requestList.getPageSize());</span>
+<span class="fc" id="L203">        List&lt;Group&gt; userGroups = this.getAuthorizationManager().getUserGroups(userDetails);</span>
+<span class="fc" id="L204">        searchBean.setUserGroupCodes(userGroups.stream().map(i -&gt; i.getAuthority()).collect(Collectors.toList()));</span>
+<span class="pc bpc" id="L205" title="1 of 4 branches missed.">        if (null == requestList.getFilters() || requestList.getFilters().length == 0) {</span>
+<span class="fc" id="L206">            return searchBean;</span>
+        }
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        for (Filter f : requestList.getFilters()) {</span>
+            //creation date range
+<span class="fc bfc" id="L210" title="All 2 branches covered.">            if (f.getAttributeName().equals(KEY_FILTER_CREATION)) {</span>
+<span class="fc" id="L211">                DateRange range = new DateRange(f.getValue());</span>
+<span class="fc" id="L212">                searchBean.setStartCreation(range.getStart());</span>
+<span class="fc" id="L213">                searchBean.setEndCreation(range.getEnd());</span>
+            }
+            //update date range
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">            if (f.getAttributeName().equals(KEY_FILTER_UPDATE)) {</span>
+<span class="nc" id="L217">                DateRange range = new DateRange(f.getValue());</span>
+<span class="nc" id="L218">                searchBean.setStartCreation(range.getStart());</span>
+<span class="nc" id="L219">                searchBean.setEndCreation(range.getEnd());</span>
+            }
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">            if (f.getAttributeName().equals(KEY_FILTER_USERNAME)) {</span>
+<span class="nc" id="L222">                searchBean.setUsername(f.getValue());</span>
+            }
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">            if (f.getAttributeName().equals(KEY_FILTER_NS)) {</span>
+<span class="nc" id="L225">                searchBean.setNamespace(f.getValue());</span>
+            }
+<span class="fc bfc" id="L227" title="All 2 branches covered.">            if (f.getAttributeName().equals(KEY_FILTER_ACTIONNAME)) {</span>
+<span class="fc" id="L228">                searchBean.setActionName(f.getValue());</span>
+            }
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">            if (f.getAttributeName().equals(KEY_FILTER_PARAMS)) {</span>
+<span class="nc" id="L231">                searchBean.setParams(f.getValue());</span>
+            }
+        }
+<span class="fc" id="L234">        return searchBean;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

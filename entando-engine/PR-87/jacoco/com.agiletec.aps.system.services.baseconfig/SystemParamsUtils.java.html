@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SystemParamsUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.baseconfig</a> &gt; <span class="el_source">SystemParamsUtils.java</span></div><h1>SystemParamsUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.baseconfig;
+
+import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * DOM support class used to handle the configuration parameters.
+ *
+ * @author E.Santoboni
+ */
+<span class="nc" id="L37">public class SystemParamsUtils {</span>
+
+<span class="fc" id="L39">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(SystemParamsUtils.class);</span>
+
+    /**
+     * Return the configuration params contained in the given XML.
+     *
+     * @param xmlParams XML string containing the parameters to fetch.
+     * @return The resulting parameters map.
+     * @throws Exception if errors are detected.
+     */
+    public static Map&lt;String, String&gt; getParams(String xmlParams) throws Exception {
+<span class="fc" id="L49">        Map&lt;String, String&gt; params = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L50">        Document doc = decodeDOM(xmlParams);</span>
+<span class="fc" id="L51">        Element element = doc.getRootElement();</span>
+<span class="fc" id="L52">        insertParams(element, params);</span>
+<span class="fc" id="L53">        return params;</span>
+    }
+
+    private static void insertParams(Element currentElement, Map&lt;String, String&gt; params) {
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (&quot;Param&quot;.equals(currentElement.getName())) {</span>
+<span class="fc" id="L58">            String key = currentElement.getAttributeValue(&quot;name&quot;);</span>
+<span class="fc" id="L59">            String value = currentElement.getText();</span>
+<span class="fc" id="L60">            params.put(key, value);</span>
+        }
+<span class="fc" id="L62">        List&lt;Element&gt; elements = currentElement.getChildren();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        for (int i = 0; i &lt; elements.size(); i++) {</span>
+<span class="fc" id="L64">            Element element = elements.get(i);</span>
+<span class="fc" id="L65">            insertParams(element, params);</span>
+        }
+<span class="fc" id="L67">    }</span>
+
+    /**
+     * Return the XML of the configuration with updated parameters. NOTE: All
+     * the values contained in the map but NOT in the given XML are NOT ignored
+     * and will be added into the new xml.
+     *
+     * @param oldXmlParams The old configuration XML.
+     * @param newSystemParams The map with updated values
+     * @return The new system configuration string.
+     * @throws Exception if errors are detected.
+     */
+    public static String getNewXmlParams(String oldXmlParams, Map&lt;String, String&gt; newSystemParams) throws Exception {
+<span class="fc" id="L80">        return getNewXmlParams(oldXmlParams, newSystemParams, true);</span>
+    }
+
+    /**
+     * Return the XML of the configuration with updated parameters.
+     *
+     * @param oldXmlParams The old configuration XML.
+     * @param newSystemParams The map with updated values
+     * @param addNewParams True if the new parameters have to be added into the
+     * xml, otherwise false.
+     * @return The new system configuration string.
+     * @throws Exception if errors are detected.
+     */
+    public static String getNewXmlParams(String oldXmlParams, Map&lt;String, String&gt; newSystemParams, boolean addNewParams) throws Exception {
+<span class="fc" id="L94">        Document doc = decodeDOM(oldXmlParams);</span>
+<span class="fc" id="L95">        Element element = doc.getRootElement();</span>
+<span class="fc" id="L96">        updateParameters(element, newSystemParams, addNewParams);</span>
+<span class="fc" id="L97">        return getXMLDocument(doc);</span>
+    }
+
+    private static void updateParameters(Element rootElement, Map&lt;String, String&gt; parameters, boolean addNewParams) {
+<span class="fc" id="L101">        Iterator&lt;String&gt; newParamsName = parameters.keySet().iterator();</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        while (newParamsName.hasNext()) {</span>
+<span class="fc" id="L103">            String paramName = newParamsName.next();</span>
+<span class="fc" id="L104">            Element paramElement = searchParamElement(rootElement, paramName);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (null != paramElement) {</span>
+<span class="fc" id="L106">                String value = parameters.get(paramName);</span>
+<span class="fc" id="L107">                paramElement.setText(value);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            } else if (addNewParams) {</span>
+<span class="fc" id="L109">                Element extraParamsElement = rootElement.getChild(EXTRA_PARAMS_ELEMENT);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">                if (null == extraParamsElement) {</span>
+<span class="fc" id="L111">                    extraParamsElement = new Element(EXTRA_PARAMS_ELEMENT);</span>
+<span class="fc" id="L112">                    rootElement.addContent(extraParamsElement);</span>
+                }
+<span class="fc" id="L114">                Element extraParamElement = new Element(PARAM_ELEMENT);</span>
+<span class="fc" id="L115">                extraParamElement.setText(parameters.get(paramName));</span>
+<span class="fc" id="L116">                extraParamElement.setAttribute(&quot;name&quot;, paramName);</span>
+<span class="fc" id="L117">                extraParamsElement.addContent(extraParamElement);</span>
+            }
+<span class="fc" id="L119">        }</span>
+<span class="fc" id="L120">    }</span>
+
+    public static String getXMLDocument(Document doc) {
+<span class="fc" id="L123">        XMLOutputter out = new XMLOutputter();</span>
+<span class="fc" id="L124">        Format format = Format.getPrettyFormat();</span>
+<span class="fc" id="L125">        format.setIndent(&quot;\t&quot;);</span>
+<span class="fc" id="L126">        out.setFormat(format);</span>
+<span class="fc" id="L127">        return out.outputString(doc);</span>
+    }
+
+    private static Element searchParamElement(Element currentElement, String paramName) {
+<span class="fc" id="L131">        String elementName = currentElement.getName();</span>
+<span class="fc" id="L132">        String key = currentElement.getAttributeValue(&quot;name&quot;);</span>
+<span class="fc bfc" id="L133" title="All 4 branches covered.">        if (PARAM_ELEMENT.equals(elementName) &amp;&amp; paramName.equals(key)) {</span>
+<span class="fc" id="L134">            return currentElement;</span>
+        } else {
+<span class="fc" id="L136">            List&lt;Element&gt; elements = currentElement.getChildren();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">            for (int i = 0; i &lt; elements.size(); i++) {</span>
+<span class="fc" id="L138">                Element element = elements.get(i);</span>
+<span class="fc" id="L139">                Element result = searchParamElement(element, paramName);</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">                if (null != result) {</span>
+<span class="fc" id="L141">                    return result;</span>
+                }
+            }
+        }
+<span class="fc" id="L145">        return null;</span>
+    }
+
+    private static Document decodeDOM(String xmlText) throws EntException {
+<span class="fc" id="L149">        Document doc = null;</span>
+        try {
+<span class="fc" id="L151">            SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L152">            builder.setValidation(false);</span>
+<span class="fc" id="L153">            StringReader reader = new StringReader(xmlText);</span>
+<span class="fc" id="L154">            doc = builder.build(reader);</span>
+<span class="nc" id="L155">        } catch (Throwable t) {</span>
+<span class="nc" id="L156">            _logger.error(&quot;Error parsing xml: {} &quot;, xmlText, t);</span>
+<span class="nc" id="L157">            throw new EntException(&quot;Error parsing document&quot;, t);</span>
+<span class="fc" id="L158">        }</span>
+<span class="fc" id="L159">        return doc;</span>
+    }
+
+    public static final String PARAMS_ELEMENT = &quot;Params&quot;;
+    public static final String PARAM_ELEMENT = &quot;Param&quot;;
+    public static final String EXTRA_PARAMS_ELEMENT = &quot;ExtraParams&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SocialActivityStreamManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.activitystream</a> &gt; <span class="el_source">SocialActivityStreamManager.java</span></div><h1>SocialActivityStreamManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.activitystream;
+
+import java.util.List;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import org.aspectj.lang.annotation.Before;
+import org.entando.entando.aps.system.services.actionlog.IActionLogManager;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecord;
+import org.entando.entando.aps.system.services.activitystream.model.ActivityStreamComment;
+import org.entando.entando.aps.system.services.activitystream.model.ActivityStreamLikeInfo;
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.event.ProfileChangedEvent;
+import org.entando.entando.aps.system.services.userprofile.event.ProfileChangedObserver;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * @author E.Santoboni - S.Puddu
+ */
+<span class="fc" id="L41">public class SocialActivityStreamManager extends AbstractService implements ISocialActivityStreamManager, ProfileChangedObserver {</span>
+
+<span class="fc" id="L43">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(SocialActivityStreamManager.class);</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L47">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActivityStreamLikeRecords_id_'.concat(#id)&quot;)
+    public void editActionLikeRecord(int id, String username, boolean add) throws EntException {
+        try {
+<span class="fc" id="L54">            this.getSocialActivityStreamDAO().editActionLikeRecord(id, username, add);</span>
+<span class="fc" id="L55">            this.getActionLogManager().updateRecordDate(id);</span>
+<span class="nc" id="L56">        } catch (Throwable t) {</span>
+<span class="nc" id="L57">            _logger.error(&quot;Error editing activity stream like records&quot;, t);</span>
+<span class="nc" id="L58">            throw new EntException(&quot;Error editing activity stream like records&quot;, t);</span>
+<span class="fc" id="L59">        }</span>
+<span class="fc" id="L60">    }</span>
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActivityStreamLikeRecords_id_'.concat(#id)&quot;)
+    @CacheableInfo(groups = &quot;'ActivityStreamLikeRecords_cacheGroup'&quot;)
+    public List&lt;ActivityStreamLikeInfo&gt; getActionLikeRecords(int id) throws EntException {
+<span class="fc" id="L66">        List&lt;ActivityStreamLikeInfo&gt; infos = null;</span>
+        try {
+<span class="fc" id="L68">            infos = this.getSocialActivityStreamDAO().getActionLikeRecords(id);</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">            if (null != infos) {</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                for (int i = 0; i &lt; infos.size(); i++) {</span>
+<span class="fc" id="L71">                    ActivityStreamLikeInfo asli = infos.get(i);</span>
+<span class="fc" id="L72">                    String username = asli.getUsername();</span>
+<span class="fc" id="L73">                    IUserProfile profile = this.getUserProfileManager().getProfile(username);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                    String displayName = (null != profile) ? profile.getDisplayName() : username;</span>
+<span class="fc" id="L75">                    asli.setDisplayName(displayName);</span>
+                }
+            }
+<span class="nc" id="L78">        } catch (Throwable t) {</span>
+<span class="nc" id="L79">            _logger.error(&quot;Error extracting activity stream like records&quot;, t);</span>
+<span class="nc" id="L80">            throw new EntException(&quot;Error extracting activity stream like records&quot;, t);</span>
+<span class="fc" id="L81">        }</span>
+<span class="fc" id="L82">        return infos;</span>
+    }
+
+    @Override
+    public void updateFromProfileChanged(ProfileChangedEvent event) {
+        try {
+<span class="fc" id="L88">            ICacheInfoManager cacheInfoManager = (ICacheInfoManager) this.getBeanFactory().getBean(SystemConstants.CACHE_INFO_MANAGER);</span>
+<span class="fc" id="L89">            cacheInfoManager.flushGroup(ICacheInfoManager.DEFAULT_CACHE_NAME, &quot;ActivityStreamLikeRecords_cacheGroup&quot;);</span>
+<span class="nc" id="L90">        } catch (Throwable t) {</span>
+<span class="nc" id="L91">            _logger.error(&quot;Error flushing cache group&quot;, t);</span>
+<span class="fc" id="L92">        }</span>
+<span class="fc" id="L93">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActivityStreamCommentRecords_id_'.concat(#streamId)&quot;)
+    public void addActionCommentRecord(String username, String commentText, int streamId) throws EntException {
+        try {
+<span class="fc" id="L99">            Integer key = null;</span>
+<span class="fc" id="L100">            ActionLogRecord record = null;</span>
+            do {
+<span class="fc" id="L102">                key = this.getKeyGeneratorManager().getUniqueKeyCurrentValue();</span>
+<span class="fc" id="L103">                record = this.getActionLogManager().getActionRecord(key);</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">            } while (null != record);</span>
+<span class="fc" id="L105">            this.getSocialActivityStreamDAO().addActionCommentRecord(key, streamId, username, commentText);</span>
+<span class="fc" id="L106">            this.getActionLogManager().updateRecordDate(streamId);</span>
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">            _logger.error(&quot;Error adding a comment record to stream with id:{}&quot;, streamId, t);</span>
+<span class="nc" id="L109">            throw new EntException(&quot;Error adding a comment record&quot;, t);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActivityStreamCommentRecords_id_'.concat(#streamId)&quot;)
+    public void deleteActionCommentRecord(int id, int streamId) throws EntException {
+        try {
+<span class="fc" id="L117">            this.getSocialActivityStreamDAO().deleteActionCommentRecord(id);</span>
+<span class="fc" id="L118">            this.getActionLogManager().updateRecordDate(streamId);</span>
+<span class="nc" id="L119">        } catch (Throwable t) {</span>
+<span class="nc" id="L120">            _logger.error(&quot;Error deleting comment with id {} from stream with id {}&quot;, id, streamId, t);</span>
+<span class="nc" id="L121">            throw new EntException(&quot;Error deleting comment&quot;, t);</span>
+<span class="fc" id="L122">        }</span>
+<span class="fc" id="L123">    }</span>
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActivityStreamCommentRecords_id_'.concat(#id)&quot;)
+    @CacheableInfo(groups = &quot;'ActivityStreamCommentRecords_cacheGroup'&quot;)
+    public List&lt;ActivityStreamComment&gt; getActionCommentRecords(int id) throws EntException {
+<span class="fc" id="L129">        List&lt;ActivityStreamComment&gt; infos = null;</span>
+        try {
+<span class="fc" id="L131">            infos = this.getSocialActivityStreamDAO().getActionCommentRecords(id);</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">            if (null != infos) {</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">                for (int i = 0; i &lt; infos.size(); i++) {</span>
+<span class="fc" id="L134">                    ActivityStreamComment comment = infos.get(i);</span>
+<span class="fc" id="L135">                    String username = comment.getUsername();</span>
+<span class="fc" id="L136">                    IUserProfile profile = this.getUserProfileManager().getProfile(username);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">                    String displayName = (null != profile) ? profile.getDisplayName() : username;</span>
+<span class="fc" id="L138">                    comment.setDisplayName(displayName);</span>
+                }
+            }
+<span class="nc" id="L141">        } catch (Throwable t) {</span>
+<span class="nc" id="L142">            _logger.error(&quot;Error extracting activity stream like records for stream with id {}&quot;, id, t);</span>
+<span class="nc" id="L143">            throw new EntException(&quot;Error extracting activity stream like records&quot;, t);</span>
+<span class="fc" id="L144">        }</span>
+<span class="fc" id="L145">        return infos;</span>
+    }
+
+    @Before(&quot;execution(* org.entando.entando.aps.system.services.actionlog.IActionLogManager.deleteActionRecord(..)) &amp;&amp; args(id,..)&quot;)
+    public void listenDeleteActionRecord(Integer id) {
+        try {
+<span class="nc" id="L151">            ICacheInfoManager cacheInfoManager = (ICacheInfoManager) this.getBeanFactory().getBean(SystemConstants.CACHE_INFO_MANAGER);</span>
+<span class="nc" id="L152">            cacheInfoManager.flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, &quot;ActivityStreamCommentRecords_id_&quot; + id);</span>
+<span class="nc" id="L153">            cacheInfoManager.flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, &quot;ActivityStreamLikeRecords_id_&quot; + id);</span>
+<span class="nc" id="L154">            this.getSocialActivityStreamDAO().deleteSocialRecordsRecord(id);</span>
+<span class="nc" id="L155">        } catch (Throwable t) {</span>
+<span class="nc" id="L156">            _logger.error(&quot;Error deleting action record&quot;, t);</span>
+<span class="nc" id="L157">        }</span>
+<span class="nc" id="L158">    }</span>
+
+    protected IActionLogManager getActionLogManager() {
+<span class="fc" id="L161">        return _actionLogManager;</span>
+    }
+
+    public void setActionLogManager(IActionLogManager actionLogManager) {
+<span class="fc" id="L165">        this._actionLogManager = actionLogManager;</span>
+<span class="fc" id="L166">    }</span>
+
+    protected ISocialActivityStreamDAO getSocialActivityStreamDAO() {
+<span class="fc" id="L169">        return _socialActivityStreamDAO;</span>
+    }
+
+    public void setSocialActivityStreamDAO(ISocialActivityStreamDAO socialActivityStreamDAO) {
+<span class="fc" id="L173">        this._socialActivityStreamDAO = socialActivityStreamDAO;</span>
+<span class="fc" id="L174">    }</span>
+
+    protected IKeyGeneratorManager getKeyGeneratorManager() {
+<span class="fc" id="L177">        return _keyGeneratorManager;</span>
+    }
+
+    public void setKeyGeneratorManager(IKeyGeneratorManager keyGeneratorManager) {
+<span class="fc" id="L181">        this._keyGeneratorManager = keyGeneratorManager;</span>
+<span class="fc" id="L182">    }</span>
+
+    protected IUserProfileManager getUserProfileManager() {
+<span class="fc" id="L185">        return _userProfileManager;</span>
+    }
+
+    public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="fc" id="L189">        this._userProfileManager = userProfileManager;</span>
+<span class="fc" id="L190">    }</span>
+
+    private IActionLogManager _actionLogManager;
+
+    private ISocialActivityStreamDAO _socialActivityStreamDAO;
+    private IKeyGeneratorManager _keyGeneratorManager;
+    private IUserProfileManager _userProfileManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

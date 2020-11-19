@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiResourcesDefDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api</a> &gt; <span class="el_source">ApiResourcesDefDOM.java</span></div><h1>ApiResourcesDefDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api;
+
+import org.entando.entando.ent.util.EntSafeXmlUtils;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.xml.XMLConstants;
+import javax.xml.transform.Source;
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import javax.xml.validation.Validator;
+
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @author E.Santoboni
+ */
+public class ApiResourcesDefDOM {
+
+<span class="fc" id="L48">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ApiResourcesDefDOM.class);</span>
+	
+<span class="fc" id="L50">    public ApiResourcesDefDOM(String xmlText, String definitionPath) throws EntException {</span>
+<span class="fc" id="L51">        this.validate(xmlText, definitionPath);</span>
+<span class="fc" id="L52">        _logger.debug(&quot;Loading Resources from file : {}&quot;, definitionPath);</span>
+<span class="fc" id="L53">        this.decodeDOM(xmlText);</span>
+<span class="fc" id="L54">    }</span>
+    
+    private void validate(String xmlText, String definitionPath) throws EntException {
+<span class="fc" id="L57">        InputStream schemaIs = null;</span>
+<span class="fc" id="L58">        InputStream xmlIs = null;</span>
+
+        try {
+<span class="fc" id="L61">            SchemaFactory factory = EntSafeXmlUtils.newSafeSchemaFactory(XMLConstants.W3C_XML_SCHEMA_NS_URI);</span>
+<span class="fc" id="L62">            schemaIs = this.getClass().getResourceAsStream(&quot;apiMethodsDef-4.0.xsd&quot;);</span>
+<span class="fc" id="L63">            Source schemaSource = new StreamSource(schemaIs);</span>
+<span class="fc" id="L64">            Schema schema = factory.newSchema(schemaSource);</span>
+<span class="fc" id="L65">            Validator validator = schema.newValidator();</span>
+<span class="fc" id="L66">            xmlIs = new ByteArrayInputStream(xmlText.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L67">            Source source = new StreamSource(xmlIs);</span>
+<span class="fc" id="L68">            validator.validate(source);</span>
+<span class="fc" id="L69">            _logger.debug(&quot;Valid api methods definition : {}&quot;, definitionPath);</span>
+<span class="nc" id="L70">        } catch (Throwable t) {</span>
+<span class="nc" id="L71">            String message = &quot;Error validating api methods definition : &quot; + definitionPath;</span>
+<span class="nc" id="L72">            _logger.error(&quot;Error validating api methods definition : {}&quot;, definitionPath, t);</span>
+<span class="nc" id="L73">            throw new EntException(message, t);</span>
+        } finally {
+            try {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                if (null != schemaIs) {</span>
+<span class="fc" id="L77">                    schemaIs.close();</span>
+                }
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                if (null != xmlIs) {</span>
+<span class="fc" id="L80">                    xmlIs.close();</span>
+                }
+<span class="nc" id="L82">            } catch (IOException e) {</span>
+<span class="nc" id="L83">                _logger.error(&quot;error in validate&quot;, e);</span>
+<span class="fc" id="L84">            }</span>
+        }
+<span class="fc" id="L86">    }</span>
+    
+    public Map&lt;String, ApiResource&gt; getResources() {
+<span class="fc" id="L89">        Map&lt;String, ApiResource&gt; apiResources = new HashMap&lt;String, ApiResource&gt;();</span>
+        try {
+<span class="fc" id="L91">            List&lt;Element&gt; methodElements = this._doc.getRootElement().getChildren(METHOD_ELEMENT_NAME);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (null != methodElements) {</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">                for (int i = 0; i &lt; methodElements.size(); i++) {</span>
+<span class="nc" id="L94">                    Element methodElement = methodElements.get(i);</span>
+<span class="nc" id="L95">                    ApiMethod apiMethod = new ApiMethod(methodElement);</span>
+<span class="nc" id="L96">                    ApiResource resource = new ApiResource();</span>
+<span class="nc" id="L97">                    resource.setResourceName(apiMethod.getResourceName());</span>
+<span class="nc" id="L98">                    resource.setNamespace(apiMethod.getNamespace());</span>
+<span class="nc" id="L99">                    resource.setDescription(apiMethod.getDescription());</span>
+<span class="nc" id="L100">                    resource.setPluginCode(apiMethod.getPluginCode());</span>
+<span class="nc" id="L101">                    resource.setSource(apiMethod.getSource());</span>
+<span class="nc" id="L102">                    resource.setMethod(apiMethod);</span>
+<span class="nc" id="L103">                    this.checkResource(resource, apiResources);</span>
+                }
+            }
+<span class="fc" id="L106">            List&lt;Element&gt; resourceElements = this._doc.getRootElement().getChildren(RESOURCE_ELEMENT_NAME);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">            if (null != resourceElements) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">                for (int j = 0; j &lt; resourceElements.size(); j++) {</span>
+<span class="fc" id="L109">                    Element resourceElement = resourceElements.get(j);</span>
+<span class="fc" id="L110">                    String resourceName = resourceElement.getAttributeValue(RESOURCE_ATTRIBUTE_NAME);</span>
+<span class="fc" id="L111">                    String namespace = resourceElement.getAttributeValue(RESOURCE_ATTRIBUTE_NAMESPACE);</span>
+<span class="fc" id="L112">                    Element descriptionElement = resourceElement.getChild(RESOURCE_DESCRIPTION_ELEMENT_NAME);</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">                    String resourceDescription = (null != descriptionElement) ? descriptionElement.getText() : null;</span>
+<span class="fc" id="L114">                    Element sourceElement = resourceElement.getChild(ApiResourcesDefDOM.SOURCE_ELEMENT_NAME);</span>
+<span class="fc" id="L115">                    String source = null;</span>
+<span class="fc" id="L116">                    String pluginCode = null;</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">                    if (null != sourceElement) {</span>
+<span class="fc" id="L118">                        source = sourceElement.getText();</span>
+<span class="fc" id="L119">                        pluginCode = sourceElement.getAttributeValue(PLUGIN_CODE_ATTRIBUTE_NAME);</span>
+                    }
+<span class="fc" id="L121">                    ApiResource resource = new ApiResource();</span>
+<span class="fc" id="L122">                    resource.setResourceName(resourceName);</span>
+<span class="fc" id="L123">					resource.setNamespace(namespace);</span>
+<span class="fc" id="L124">                    resource.setDescription(resourceDescription);</span>
+<span class="fc" id="L125">                    resource.setPluginCode(pluginCode);</span>
+<span class="fc" id="L126">                    resource.setSource(source);</span>
+<span class="fc" id="L127">                    List&lt;Element&gt; resourceMethodElements = resourceElement.getChildren(METHOD_ELEMENT_NAME);</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">                    for (int k = 0; k &lt; resourceMethodElements.size(); k++) {</span>
+<span class="fc" id="L129">                        Element methodElement = resourceMethodElements.get(k);</span>
+<span class="fc" id="L130">                        ApiMethod apiMethod = new ApiMethod(resourceName, namespace, source, pluginCode, methodElement);</span>
+<span class="fc" id="L131">                        this.checkMethod(apiMethod, resource);</span>
+                    }
+<span class="fc" id="L133">                    this.checkResource(resource, apiResources);</span>
+                }
+            }
+<span class="nc" id="L136">        } catch (Throwable t) {</span>
+<span class="nc" id="L137">        	_logger.error(&quot;Error building api resources&quot;, t);</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return apiResources;</span>
+    }
+    
+    private void checkResource(ApiResource resource, Map&lt;String, ApiResource&gt; apiResources) {
+        try {
+<span class="fc" id="L144">			ApiResource extractedResource = apiResources.get(resource.getCode());</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (null != extractedResource) {</span>
+<span class="nc" id="L146">                _logger.error(&quot;ALERT: There is more than one API with namespace '{}', resource '{}' into the same definitions file - The second definition will be ignored!!!&quot;, resource.getNamespace(), resource.getResourceName());</span>
+            } else {
+<span class="fc" id="L148">                apiResources.put(resource.getCode(), resource);</span>
+            }
+<span class="nc" id="L150">        } catch (Exception e) {</span>
+<span class="nc" id="L151">        	_logger.error(&quot;Error checking api resource&quot;, e);</span>
+<span class="fc" id="L152">        }</span>
+<span class="fc" id="L153">    }</span>
+    
+    private void checkMethod(ApiMethod apiMethod, ApiResource resource) {
+        try {
+<span class="fc" id="L157">            ApiMethod extractedMethod = resource.getMethod(apiMethod.getHttpMethod());</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">            if (null != extractedMethod) {</span>
+<span class="nc" id="L159">                _logger.error(&quot;ALERT: There is more than one API method {} for resource '{}' into the same definitions file - The second definition will be ignored!!!&quot;, apiMethod.getHttpMethod(), apiMethod.getResourceName() );</span>
+            } else {
+<span class="fc" id="L161">                resource.setMethod(apiMethod);</span>
+            }
+<span class="nc" id="L163">        } catch (Exception e) {</span>
+<span class="nc" id="L164">        	_logger.error(&quot;Error checking api method&quot;, e);</span>
+<span class="fc" id="L165">        }</span>
+<span class="fc" id="L166">    }</span>
+    
+    private void decodeDOM(String xmlText) throws EntException {
+<span class="fc" id="L169">        SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L170">        builder.setValidation(false);</span>
+<span class="fc" id="L171">        StringReader reader = new StringReader(xmlText);</span>
+        try {
+<span class="fc" id="L173">            this._doc = builder.build(reader);</span>
+<span class="nc" id="L174">        } catch (Throwable t) {</span>
+<span class="nc" id="L175">            _logger.error(&quot;Error while parsing xml: {}&quot;, xmlText, t);</span>
+<span class="nc" id="L176">            throw new EntException(&quot;Error detected while parsing the XML&quot;, t);</span>
+<span class="fc" id="L177">        }</span>
+<span class="fc" id="L178">    }</span>
+    
+    private Document _doc;
+    public static final String ROOT_ELEMENT_NAME = &quot;apiMethodDefinitions&quot;;
+    public static final String METHOD_ELEMENT_NAME = &quot;method&quot;;
+    public static final String RESOURCE_ELEMENT_NAME = &quot;resource&quot;;
+    public static final String RESOURCE_ATTRIBUTE_NAME = &quot;name&quot;;
+	public static final String RESOURCE_ATTRIBUTE_NAMESPACE = &quot;namespace&quot;;
+    public static final String RESOURCE_DESCRIPTION_ELEMENT_NAME = &quot;description&quot;;
+    public static final String METHOD_DESCRIPTION_ELEMENT_NAME = &quot;description&quot;;
+    public static final String ACTIVE_ATTRIBUTE_NAME = &quot;active&quot;;
+    public static final String HIDDEN_ATTRIBUTE_NAME = &quot;hidden&quot;;
+    public static final String CAN_SPAWN_OTHER_ATTRIBUTE_NAME = &quot;canSpawnOthers&quot;;
+    public static final String SOURCE_ELEMENT_NAME = &quot;source&quot;;
+    public static final String PLUGIN_CODE_ATTRIBUTE_NAME = &quot;pluginCode&quot;;
+    public static final String SPRING_BEAN_ELEMENT_NAME = &quot;springBean&quot;;
+    public static final String SPRING_BEAN_NAME_ATTRIBUTE_NAME = &quot;name&quot;;
+    public static final String SPRING_BEAN_METHOD_ATTRIBUTE_NAME = &quot;method&quot;;
+    public static final String RESPONSE_CLASS_ELEMENT_NAME = &quot;responseClass&quot;;
+    public static final String PARAMETERS_ELEMENT_NAME = &quot;parameters&quot;;
+    public static final String PARAMETER_ELEMENT_NAME = &quot;parameter&quot;;
+    public static final String PARAMETER_KEY_ATTRIBUTE_NAME = &quot;key&quot;;
+    public static final String PARAMETER_REQUIRED_ATTRIBUTE_NAME = &quot;required&quot;;
+    public static final String PARAMETER_OVERRIDABLE_ATTRIBUTE_NAME = &quot;override&quot;;
+    public static final String PARAMETER_TYPE_ATTRIBUTE_NAME = &quot;type&quot;;
+    public static final String PARAMETER_OVERRIDE_ATTRIBUTE_NAME = &quot;override&quot;;
+    public static final String PARAMETER_DESCRIPTION_ELEMENT_NAME = &quot;description&quot;;
+    public static final String RELATED_WIDGET_ELEMENT_NAME = &quot;relatedWidget&quot;;
+    public static final String RELATED_WIDGET_CODE_ATTRIBUTE_NAME = &quot;code&quot;;
+    public static final String RELATED_WIDGET_MAP_PARAMETER_ELEMENT_NAME = &quot;mapParameter&quot;;
+    public static final String RELATED_WIDGET_MAP_PARAMETER_WIDGET_ATTRIBUTE_NAME = &quot;widget&quot;;
+    public static final String RELATED_WIDGET_MAP_PARAMETER_METHOD_ATTRIBUTE_NAME = &quot;method&quot;;
+        
+	/**
+	 * @deprecated Use {@link #RELATED_WIDGET_ELEMENT_NAME} instead
+	 */
+	public static final String RELATED_SHOWLET_ELEMENT_NAME = RELATED_WIDGET_ELEMENT_NAME;
+	/**
+	 * @deprecated Use {@link #RELATED_WIDGET_CODE_ATTRIBUTE_NAME} instead
+	 */
+	public static final String RELATED_SHOWLET_CODE_ATTRIBUTE_NAME = RELATED_WIDGET_CODE_ATTRIBUTE_NAME;
+	/**
+	 * @deprecated Use {@link #RELATED_WIDGET_MAP_PARAMETER_ELEMENT_NAME} instead
+	 */
+	public static final String RELATED_SHOWLET_MAP_PARAMETER_ELEMENT_NAME = RELATED_WIDGET_MAP_PARAMETER_ELEMENT_NAME;
+	/**
+	 * @deprecated Use {@link #RELATED_WIDGET_MAP_PARAMETER_WIDGET_ATTRIBUTE_NAME} instead
+	 */
+	public static final String RELATED_SHOWLET_MAP_PARAMETER_SHOWLET_ATTRIBUTE_NAME = RELATED_WIDGET_MAP_PARAMETER_WIDGET_ATTRIBUTE_NAME;
+	/**
+	 * @deprecated Use {@link #RELATED_WIDGET_MAP_PARAMETER_METHOD_ATTRIBUTE_NAME} instead
+	 */
+	public static final String RELATED_SHOWLET_MAP_PARAMETER_METHOD_ATTRIBUTE_NAME = RELATED_WIDGET_MAP_PARAMETER_METHOD_ATTRIBUTE_NAME;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
