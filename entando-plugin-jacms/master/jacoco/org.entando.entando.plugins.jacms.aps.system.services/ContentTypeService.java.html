@@ -13,6 +13,8 @@
  */
 package org.entando.entando.plugins.jacms.aps.system.services;
 
+import static org.entando.entando.plugins.jacms.web.resource.ResourcesController.ERRCODE_RESOURCE_NOT_FOUND;
+
 import com.agiletec.aps.system.common.entity.IEntityManager;
 import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
 import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentDto;
@@ -20,8 +22,14 @@ import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.Co
 import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDto;
 import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDtoBuilder;
 import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentTypeDtoRequest;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import javax.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.services.IComponentExistsService;
 import org.entando.entando.aps.system.services.IComponentUsageService;
 import org.entando.entando.aps.system.services.IDtoBuilder;
 import org.entando.entando.aps.system.services.entity.AbstractEntityTypeService;
@@ -41,18 +49,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.BindingResult;
 
-import javax.servlet.http.HttpSession;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import static org.entando.entando.plugins.jacms.web.resource.ResourcesController.ERRCODE_RESOURCE_NOT_FOUND;
-
 @Service
 <span class="fc" id="L53">@RequiredArgsConstructor</span>
 public class ContentTypeService extends AbstractEntityTypeService&lt;Content, ContentTypeDto&gt; implements
-        IComponentUsageService {
+        IComponentExistsService, IComponentUsageService {
 
     private static final String CONTENT_MODEL_MANAGER = &quot;jacmsContentManager&quot;;
 
@@ -169,23 +169,29 @@ public class ContentTypeService extends AbstractEntityTypeService&lt;Content, Co
     }
 
     @Override
-    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String componentCode, RestListRequest restListRequest) {
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String componentCode,
+            RestListRequest restListRequest) {
 
-<span class="nc" id="L174">        RestContentListRequest contentListRequest = new RestContentListRequest();</span>
-<span class="nc" id="L175">        contentListRequest.setFilters(restListRequest.getFilters());</span>
-<span class="nc" id="L176">        contentListRequest.setSort(&quot;typeCode&quot;);</span>
+<span class="nc" id="L175">        RestContentListRequest contentListRequest = new RestContentListRequest();</span>
+<span class="nc" id="L176">        contentListRequest.setFilters(restListRequest.getFilters());</span>
+<span class="nc" id="L177">        contentListRequest.setSort(&quot;typeCode&quot;);</span>
 
-<span class="nc" id="L178">        PagedMetadata&lt;ContentDto&gt; pagedData = contentService.getContents(contentListRequest, HttpSessionHelper.extractCurrentUser(httpSession));</span>
-<span class="nc" id="L179">        List&lt;ComponentUsageEntity&gt; componentUsageEntityList = pagedData.getBody().stream()</span>
-<span class="nc" id="L180">                .map(contentDto -&gt; new ComponentUsageEntity(</span>
+<span class="nc" id="L179">        PagedMetadata&lt;ContentDto&gt; pagedData = contentService</span>
+<span class="nc" id="L180">                .getContents(contentListRequest, HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="nc" id="L181">        List&lt;ComponentUsageEntity&gt; componentUsageEntityList = pagedData.getBody().stream()</span>
+<span class="nc" id="L182">                .map(contentDto -&gt; new ComponentUsageEntity(</span>
                         ComponentUsageEntity.TYPE_CONTENT,
-<span class="nc" id="L182">                        contentDto.getId(),</span>
-<span class="nc" id="L183">                        ContentStatusState.calculateState(contentDto).toString()))</span>
-<span class="nc" id="L184">                .collect(Collectors.toList());</span>
+<span class="nc" id="L184">                        contentDto.getId(),</span>
+<span class="nc" id="L185">                        ContentStatusState.calculateState(contentDto).toString()))</span>
+<span class="nc" id="L186">                .collect(Collectors.toList());</span>
 
-<span class="nc" id="L186">        return pagedMetadataMapper.getPagedResult(restListRequest, componentUsageEntityList, &quot;code&quot;, pagedData.getTotalItems());</span>
+<span class="nc" id="L188">        return pagedMetadataMapper</span>
+<span class="nc" id="L189">                .getPagedResult(restListRequest, componentUsageEntityList, &quot;code&quot;, pagedData.getTotalItems());</span>
     }
 
-
+    public boolean exists(String code) {
+<span class="fc" id="L193">        IEntityManager entityManager = this.extractEntityManager(CONTENT_MODEL_MANAGER);</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        return entityManager.getEntityPrototype(code) != null;</span>
+    }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
