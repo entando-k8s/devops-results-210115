@@ -3,19 +3,28 @@
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.controller.digitalexchange.job.model.AnalysisReport;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallActionsByComponentType;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest.InstallAction;
 import org.entando.kubernetes.exception.EntandoComponentManagerException;
 import org.entando.kubernetes.model.bundle.BundleProperty;
 import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
 import org.entando.kubernetes.model.bundle.descriptor.DirectoryDescriptor;
 import org.entando.kubernetes.model.bundle.installable.DirectoryInstallable;
 import org.entando.kubernetes.model.bundle.installable.Installable;
 import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.bundle.reportable.EntandoEngineReportableProcessor;
+import org.entando.kubernetes.model.bundle.reportable.Reportable;
 import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
 import org.springframework.stereotype.Service;
 
@@ -26,58 +35,98 @@ import org.springframework.stereotype.Service;
  *
  * @author Sergio Marcelino
  */
-<span class="fc" id="L29">@Slf4j</span>
+<span class="fc" id="L38">@Slf4j</span>
 @Service
 @RequiredArgsConstructor
-public class DirectoryProcessor implements ComponentProcessor&lt;DirectoryDescriptor&gt; {
+public class DirectoryProcessor extends BaseComponentProcessor&lt;DirectoryDescriptor&gt;
+        implements EntandoEngineReportableProcessor {
 
     private final EntandoCoreClient engineService;
 
     @Override
     public ComponentType getSupportedComponentType() {
-<span class="fc" id="L38">        return ComponentType.DIRECTORY;</span>
+<span class="fc" id="L48">        return ComponentType.DIRECTORY;</span>
     }
 
     @Override
-    public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(BundleReader npr) {
-<span class="fc" id="L43">        final List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+    public Class&lt;DirectoryDescriptor&gt; getDescriptorClass() {
+<span class="nc" id="L53">        return DirectoryDescriptor.class;</span>
+    }
+
+    @Override
+    public Optional&lt;Function&lt;ComponentSpecDescriptor, List&lt;String&gt;&gt;&gt; getComponentSelectionFn() {
+<span class="nc" id="L58">        return Optional.empty();</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(BundleReader bundleReader) {
+<span class="fc" id="L63">        return this.process(bundleReader, InstallAction.CREATE, new InstallActionsByComponentType(),</span>
+                new AnalysisReport());
+    }
+
+    @Override
+    public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(BundleReader bundleReader, InstallAction conflictStrategy,
+            InstallActionsByComponentType actions, AnalysisReport report) {
+<span class="fc" id="L70">        final List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
 
         try {
-<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            if (npr.containsResourceFolder()) {</span>
-<span class="fc" id="L47">                final String componentFolder = &quot;/&quot; + npr.getBundleCode();</span>
-<span class="fc" id="L48">                installables.add(new DirectoryInstallable(engineService, new DirectoryDescriptor(componentFolder, true)));</span>
-
-<span class="fc" id="L50">                List&lt;String&gt; resourceFolders = npr.getResourceFolders().stream().sorted().collect(Collectors.toList());</span>
-<span class="fc bfc" id="L51" title="All 2 branches covered.">                for (final String resourceFolder : resourceFolders) {</span>
-<span class="fc" id="L52">                    Path fileFolder = Paths.get(BundleProperty.RESOURCES_FOLDER_PATH.getValue())</span>
-<span class="fc" id="L53">                            .relativize(Paths.get(resourceFolder));</span>
-<span class="fc" id="L54">                    String folder = Paths.get(componentFolder).resolve(fileFolder).toString();</span>
-<span class="fc" id="L55">                    installables.add(new DirectoryInstallable(engineService, new DirectoryDescriptor(folder, false)));</span>
-<span class="fc" id="L56">                }</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">            if (bundleReader.containsResourceFolder()) {</span>
+<span class="fc" id="L74">                final String componentFolder = &quot;/&quot; + bundleReader.getBundleCode();</span>
+<span class="fc" id="L75">                InstallAction rootDirectoryAction = extractInstallAction(componentFolder, actions, conflictStrategy,</span>
+                        report);
+<span class="fc" id="L77">                installables.add(new DirectoryInstallable(engineService, new DirectoryDescriptor(componentFolder, true),</span>
+                        rootDirectoryAction));
             }
-<span class="nc" id="L58">        } catch (IOException e) {</span>
-<span class="nc" id="L59">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
-<span class="fc" id="L60">        }</span>
+<span class="nc" id="L80">        } catch (IOException e) {</span>
+<span class="nc" id="L81">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+<span class="fc" id="L82">        }</span>
 
-<span class="fc" id="L62">        return installables;</span>
+<span class="fc" id="L84">        return installables;</span>
     }
 
     @Override
     public List&lt;Installable&lt;DirectoryDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
-<span class="fc" id="L67">        return components.stream()</span>
-<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.DIRECTORY)</span>
-<span class="fc" id="L69">                .map(c -&gt; new DirectoryInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
-<span class="fc" id="L70">                .collect(Collectors.toList());</span>
+<span class="fc" id="L89">        return components.stream()</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == getSupportedComponentType())</span>
+<span class="fc" id="L91">                .map(c -&gt; new DirectoryInstallable(engineService, this.buildDescriptorFromComponentJob(c),</span>
+<span class="fc" id="L92">                        c.getAction()))</span>
+<span class="fc" id="L93">                .collect(Collectors.toList());</span>
     }
 
     @Override
     public DirectoryDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
-<span class="fc" id="L75">        Path dirPath = Paths.get(component.getComponentId());</span>
-<span class="fc" id="L76">        boolean isRoot = false;</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (dirPath.getParent().equals(dirPath.getRoot())) {</span>
-<span class="fc" id="L78">            isRoot = true;</span>
+<span class="fc" id="L98">        Path dirPath = Paths.get(component.getComponentId());</span>
+<span class="fc" id="L99">        boolean isRoot = false;</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if (dirPath.getParent().equals(dirPath.getRoot())) {</span>
+<span class="fc" id="L101">            isRoot = true;</span>
         }
-<span class="fc" id="L80">        return new DirectoryDescriptor(component.getComponentId(), isRoot);</span>
+<span class="fc" id="L103">        return new DirectoryDescriptor(component.getComponentId(), isRoot);</span>
+    }
+
+    @Override
+    public Reportable getReportable(BundleReader bundleReader, ComponentProcessor&lt;?&gt; componentProcessor) {
+
+<span class="fc" id="L109">        List&lt;String&gt; idList = new ArrayList&lt;&gt;();</span>
+
+        try {
+<span class="fc" id="L112">            final String componentFolder = &quot;/&quot; + bundleReader.getBundleCode();</span>
+<span class="fc" id="L113">            idList.add(componentFolder);</span>
+
+<span class="fc" id="L115">            List&lt;String&gt; resourceFolders = bundleReader.getResourceFolders().stream().sorted()</span>
+<span class="fc" id="L116">                    .collect(Collectors.toList());</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            for (final String resourceFolder : resourceFolders) {</span>
+<span class="fc" id="L118">                Path fileFolder = Paths.get(BundleProperty.RESOURCES_FOLDER_PATH.getValue())</span>
+<span class="fc" id="L119">                        .relativize(Paths.get(resourceFolder));</span>
+<span class="fc" id="L120">                String folder = Paths.get(componentFolder).resolve(fileFolder).toString();</span>
+<span class="fc" id="L121">                idList.add(folder);</span>
+<span class="fc" id="L122">            }</span>
+
+<span class="fc" id="L124">            return new Reportable(componentProcessor.getSupportedComponentType(), idList,</span>
+<span class="fc" id="L125">                    this.getReportableRemoteHandler());</span>
+
+<span class="nc" id="L127">        } catch (IOException e) {</span>
+<span class="nc" id="L128">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

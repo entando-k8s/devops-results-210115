@@ -1,79 +1,102 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">CategoryProcessor.java</span></div><h1>CategoryProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
 
-import static java.util.Optional.ofNullable;
-
 import java.io.IOException;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.controller.digitalexchange.job.model.AnalysisReport;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallActionsByComponentType;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest.InstallAction;
 import org.entando.kubernetes.exception.EntandoComponentManagerException;
 import org.entando.kubernetes.model.bundle.ComponentType;
-import org.entando.kubernetes.model.bundle.descriptor.BundleDescriptor;
 import org.entando.kubernetes.model.bundle.descriptor.CategoryDescriptor;
 import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
 import org.entando.kubernetes.model.bundle.installable.CategoryInstallable;
 import org.entando.kubernetes.model.bundle.installable.Installable;
 import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.bundle.reportable.EntandoEngineReportableProcessor;
 import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
 import org.springframework.stereotype.Service;
 
 /**
  * Processor to create Groups.
  */
-<span class="fc" id="L27">@Slf4j</span>
+<span class="fc" id="L29">@Slf4j</span>
 @Service
 @RequiredArgsConstructor
-public class CategoryProcessor implements ComponentProcessor&lt;CategoryDescriptor&gt; {
+public class CategoryProcessor extends BaseComponentProcessor&lt;CategoryDescriptor&gt;
+        implements EntandoEngineReportableProcessor {
 
     private final EntandoCoreClient engineService;
 
     @Override
     public ComponentType getSupportedComponentType() {
-<span class="fc" id="L36">        return ComponentType.CATEGORY;</span>
+<span class="fc" id="L39">        return ComponentType.CATEGORY;</span>
     }
 
     @Override
-    public List&lt;Installable&lt;CategoryDescriptor&gt;&gt; process(BundleReader npr) {
+    public Class&lt;CategoryDescriptor&gt; getDescriptorClass() {
+<span class="fc" id="L44">        return CategoryDescriptor.class;</span>
+    }
+
+    @Override
+    public Optional&lt;Function&lt;ComponentSpecDescriptor, List&lt;String&gt;&gt;&gt; getComponentSelectionFn() {
+<span class="fc" id="L49">        return Optional.of(ComponentSpecDescriptor::getCategories);</span>
+    }
+
+    @Override
+    public boolean doesComponentDscriptorContainMoreThanOneSingleEntity() {
+<span class="fc" id="L54">        return true;</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;CategoryDescriptor&gt;&gt; process(BundleReader bundleReader) {
+<span class="nc" id="L59">        return this.process(bundleReader, InstallAction.CREATE, new InstallActionsByComponentType(),</span>
+                new AnalysisReport());
+    }
+
+    @Override
+    public List&lt;Installable&lt;CategoryDescriptor&gt;&gt; process(BundleReader bundleReader, InstallAction conflictStrategy,
+            InstallActionsByComponentType actions, AnalysisReport report) {
         try {
-<span class="fc" id="L42">            BundleDescriptor descriptor = npr.readBundleDescriptor();</span>
+<span class="fc" id="L67">            final List&lt;String&gt; descriptorList = getDescriptorList(bundleReader);</span>
 
-<span class="fc" id="L44">            List&lt;String&gt; categoryDescriptorFiles = ofNullable(descriptor.getComponents())</span>
-<span class="fc" id="L45">                    .map(ComponentSpecDescriptor::getCategories)</span>
-<span class="fc" id="L46">                    .orElse(Collections.emptyList());</span>
+<span class="fc" id="L69">            List&lt;Installable&lt;CategoryDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
 
-<span class="fc" id="L48">            List&lt;Installable&lt;CategoryDescriptor&gt;&gt; installables = new LinkedList&lt;&gt;();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            for (String fileName : descriptorList) {</span>
+<span class="fc" id="L72">                List&lt;CategoryDescriptor&gt; categoryDescriptorList = bundleReader</span>
+<span class="fc" id="L73">                        .readListOfDescriptorFile(fileName, CategoryDescriptor.class);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                for (CategoryDescriptor cd : categoryDescriptorList) {</span>
+<span class="fc" id="L75">                    InstallAction action = extractInstallAction(cd.getCode(), actions, conflictStrategy, report);</span>
+<span class="fc" id="L76">                    installables.add(new CategoryInstallable(engineService, cd, action));</span>
+<span class="fc" id="L77">                }</span>
+<span class="fc" id="L78">            }</span>
 
-<span class="fc bfc" id="L50" title="All 2 branches covered.">            for (String fileName : categoryDescriptorFiles) {</span>
-<span class="fc" id="L51">                List&lt;CategoryDescriptor&gt; categoryDescriptorList = npr.readListOfDescriptorFile(fileName, CategoryDescriptor.class);</span>
-<span class="fc bfc" id="L52" title="All 2 branches covered.">                for (CategoryDescriptor cd: categoryDescriptorList) {</span>
-<span class="fc" id="L53">                    installables.add(new CategoryInstallable(engineService, cd));</span>
-<span class="fc" id="L54">                }</span>
-<span class="fc" id="L55">            }</span>
-
-<span class="fc" id="L57">            return installables;</span>
-<span class="nc" id="L58">        } catch (IOException e) {</span>
-<span class="nc" id="L59">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+<span class="fc" id="L80">            return installables;</span>
+<span class="nc" id="L81">        } catch (IOException e) {</span>
+<span class="nc" id="L82">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
         }
     }
 
     @Override
     public List&lt;Installable&lt;CategoryDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
-<span class="fc" id="L65">        return components.stream()</span>
-<span class="pc bpc" id="L66" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == ComponentType.CATEGORY)</span>
-<span class="fc" id="L67">                .map(c -&gt; new CategoryInstallable(engineService, this.buildDescriptorFromComponentJob(c)))</span>
-<span class="fc" id="L68">                .collect(Collectors.toList());</span>
+<span class="fc" id="L88">        return components.stream()</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == getSupportedComponentType())</span>
+<span class="fc" id="L90">                .map(c -&gt; new CategoryInstallable(engineService, this.buildDescriptorFromComponentJob(c),</span>
+<span class="fc" id="L91">                        c.getAction()))</span>
+<span class="fc" id="L92">                .collect(Collectors.toList());</span>
     }
 
     @Override
     public CategoryDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
-<span class="fc" id="L73">        return CategoryDescriptor.builder()</span>
-<span class="fc" id="L74">                .code(component.getComponentId())</span>
-<span class="fc" id="L75">                .build();</span>
+<span class="fc" id="L97">        return CategoryDescriptor.builder()</span>
+<span class="fc" id="L98">                .code(component.getComponentId())</span>
+<span class="fc" id="L99">                .build();</span>
     }
-
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

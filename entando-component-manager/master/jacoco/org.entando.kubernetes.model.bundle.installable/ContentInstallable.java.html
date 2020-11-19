@@ -3,43 +3,61 @@
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest.InstallAction;
 import org.entando.kubernetes.model.bundle.ComponentType;
 import org.entando.kubernetes.model.bundle.descriptor.content.ContentDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.content.ContentDescriptor.ContentStatus;
 
-<span class="fc" id="L9">@Slf4j</span>
+<span class="fc" id="L11">@Slf4j</span>
 public class ContentInstallable extends Installable&lt;ContentDescriptor&gt; {
 
     private final EntandoCoreClient engineService;
 
-    public ContentInstallable(EntandoCoreClient service, ContentDescriptor contentDescriptor) {
-<span class="fc" id="L15">        super(contentDescriptor);</span>
-<span class="fc" id="L16">        this.engineService = service;</span>
-<span class="fc" id="L17">    }</span>
+    public ContentInstallable(EntandoCoreClient service, ContentDescriptor contentDescriptor, InstallAction action) {
+<span class="fc" id="L17">        super(contentDescriptor, action);</span>
+<span class="fc" id="L18">        this.engineService = service;</span>
+<span class="fc" id="L19">    }</span>
 
     @Override
     public CompletableFuture&lt;Void&gt; install() {
-<span class="fc" id="L21">        return CompletableFuture.runAsync(() -&gt; {</span>
-<span class="fc" id="L22">            log.info(&quot;Registering Content {}&quot;, getName());</span>
-<span class="fc" id="L23">            engineService.registerContent(representation);</span>
-<span class="fc" id="L24">        });</span>
+<span class="fc" id="L23">        return CompletableFuture.runAsync(() -&gt; {</span>
+
+<span class="fc" id="L25">            logConflictStrategyAction();</span>
+
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">            if (shouldSkip()) {</span>
+<span class="nc" id="L28">                return; //Do nothing</span>
+            }
+
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">            if (shouldCreate()) {</span>
+<span class="fc" id="L32">                engineService.createContent(representation);</span>
+            } else {
+<span class="nc" id="L34">                engineService.updateContent(representation);</span>
+            }
+
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">            if (representation.getStatus().equals(ContentStatus.PUBLIC.toString())) {</span>
+<span class="fc" id="L38">                engineService.publishContent(representation);</span>
+            }
+<span class="fc" id="L40">        });</span>
     }
 
     @Override
     public CompletableFuture&lt;Void&gt; uninstall() {
-<span class="fc" id="L29">        return CompletableFuture.runAsync(() -&gt; {</span>
-<span class="fc" id="L30">            log.info(&quot;Removing Content {}&quot;, getName());</span>
-<span class="fc" id="L31">            engineService.deleteContent(getName());</span>
-<span class="fc" id="L32">        });</span>
+<span class="fc" id="L45">        return CompletableFuture.runAsync(() -&gt; {</span>
+<span class="fc" id="L46">            log.info(&quot;Removing Content {}&quot;, getName());</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">            if (shouldCreate()) {</span>
+<span class="fc" id="L48">                engineService.deleteContent(getName());</span>
+            }
+<span class="fc" id="L50">        });</span>
     }
 
     @Override
     public ComponentType getComponentType() {
-<span class="fc" id="L37">        return ComponentType.CONTENT;</span>
+<span class="fc" id="L55">        return ComponentType.CONTENT;</span>
     }
 
     @Override
     public String getName() {
-<span class="fc" id="L42">        return representation.getId();</span>
+<span class="fc" id="L60">        return representation.getId();</span>
     }
 
 

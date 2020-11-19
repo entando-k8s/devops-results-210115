@@ -2,6 +2,7 @@
 
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest.InstallAction;
 import org.entando.kubernetes.exception.EntandoComponentManagerException;
 import org.entando.kubernetes.model.bundle.ComponentType;
 import org.entando.kubernetes.model.bundle.descriptor.plugin.PluginDescriptor;
@@ -10,50 +11,68 @@ import org.entando.kubernetes.service.KubernetesService;
 import org.entando.kubernetes.service.digitalexchange.BundleUtilities;
 import org.springframework.util.StringUtils;
 
-<span class="fc" id="L13">@Slf4j</span>
+<span class="fc" id="L14">@Slf4j</span>
 public class PluginInstallable extends Installable&lt;PluginDescriptor&gt; {
 
     private final KubernetesService kubernetesService;
 
-    public PluginInstallable(KubernetesService kubernetesService, PluginDescriptor plugin) {
-<span class="fc" id="L19">        super(plugin);</span>
-<span class="fc" id="L20">        this.kubernetesService = kubernetesService;</span>
-<span class="fc" id="L21">    }</span>
+    public PluginInstallable(KubernetesService kubernetesService, PluginDescriptor plugin, InstallAction action) {
+<span class="fc" id="L20">        super(plugin, action);</span>
+<span class="fc" id="L21">        this.kubernetesService = kubernetesService;</span>
+<span class="fc" id="L22">    }</span>
 
     @Override
     public CompletableFuture&lt;Void&gt; install() {
-<span class="fc" id="L25">        return CompletableFuture.runAsync(() -&gt; {</span>
-<span class="fc" id="L26">            log.info(&quot;Deploying plugin {}&quot;, getName());</span>
-<span class="fc" id="L27">            EntandoPlugin plugin = BundleUtilities.generatePluginFromDescriptor(representation);</span>
-<span class="fc" id="L28">            kubernetesService.linkPluginAndWaitForSuccess(plugin);</span>
-<span class="fc" id="L29">        });</span>
+<span class="fc" id="L26">        return CompletableFuture.runAsync(() -&gt; {</span>
+
+<span class="fc" id="L28">            logConflictStrategyAction();</span>
+
+
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">            if (shouldSkip()) {</span>
+<span class="nc" id="L32">                return; //Do nothing</span>
+            }
+
+<span class="fc" id="L35">            EntandoPlugin plugin = BundleUtilities.generatePluginFromDescriptor(representation);</span>
+
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">            if (shouldCreate()) {</span>
+<span class="fc" id="L38">                kubernetesService.linkPluginAndWaitForSuccess(plugin);</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">            } else if (shouldOverride()) {</span>
+<span class="nc" id="L40">                kubernetesService.updatePlugin(plugin);</span>
+            } else {
+<span class="nc" id="L42">                throw new EntandoComponentManagerException(&quot;Illegal state detected&quot;);</span>
+            }
+<span class="fc" id="L44">        });</span>
     }
 
 
     @Override
     public CompletableFuture&lt;Void&gt; uninstall() {
-<span class="fc" id="L35">        return CompletableFuture.runAsync(() -&gt; {</span>
-<span class="fc" id="L36">            log.info(&quot;Removing link to plugin {}&quot;, getName());</span>
-<span class="fc" id="L37">            kubernetesService.unlinkPlugin(BundleUtilities.extractNameFromDescriptor(representation));</span>
-<span class="fc" id="L38">        });</span>
+<span class="fc" id="L50">        return CompletableFuture.runAsync(() -&gt; {</span>
+<span class="fc" id="L51">            log.info(&quot;Removing link to plugin {}&quot;, getName());</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">            if (shouldSkip()) {</span>
+<span class="nc" id="L53">                return; //Do nothing</span>
+            }
+
+<span class="fc" id="L56">            kubernetesService.unlinkPlugin(representation.getComponentKey().getKey());</span>
+<span class="fc" id="L57">        });</span>
     }
 
     @Override
     public ComponentType getComponentType() {
-<span class="fc" id="L43">        return ComponentType.PLUGIN;</span>
+<span class="fc" id="L62">        return ComponentType.PLUGIN;</span>
     }
 
     @Override
     public String getName() {
 
-<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (! StringUtils.isEmpty(this.representation.getDeploymentBaseName())) {</span>
-<span class="fc" id="L50">            return this.representation.getDeploymentBaseName();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!StringUtils.isEmpty(this.representation.getDeploymentBaseName())) {</span>
+<span class="fc" id="L69">            return this.representation.getDeploymentBaseName();</span>
         } else {
             // TODO when we'll introduce a validation step, remove this try catch and move the check
             try {
-<span class="fc" id="L54">                return this.representation.getDockerImage().toString();</span>
-<span class="nc" id="L55">            } catch (Exception e) {</span>
-<span class="nc" id="L56">                throw new EntandoComponentManagerException(&quot;There is an error in the build of the docker image. Please &quot;</span>
+<span class="fc" id="L73">                return this.representation.getDockerImage().toString();</span>
+<span class="nc" id="L74">            } catch (Exception e) {</span>
+<span class="nc" id="L75">                throw new EntandoComponentManagerException(&quot;There is an error in the build of the docker image. Please &quot;</span>
                         + &quot;check to have supplied a valid docker image in the dedicated descriptor field&quot;);
             }
         }
