@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObservedNamespaceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Kubernetes Service</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller</a> &gt; <span class="el_source">ObservedNamespaceController.java</span></div><h1>ObservedNamespaceController.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.controller;
+
+import static org.springframework.hateoas.MediaTypes.HAL_JSON_VALUE;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import org.entando.kubernetes.exception.BadRequestExceptionFactory;
+import org.entando.kubernetes.model.namespace.ObservedNamespace;
+import org.entando.kubernetes.model.namespace.ObservedNamespaces;
+import org.entando.kubernetes.service.assembler.KubernetesNamespaceResourceAssembler;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping(&quot;/namespaces&quot;)
+@RequiredArgsConstructor
+public class ObservedNamespaceController {
+
+    private final KubernetesNamespaceResourceAssembler resAssembler;
+    private final ObservedNamespaces observedNamespaces;
+
+
+    @GetMapping(produces = {APPLICATION_JSON_VALUE, HAL_JSON_VALUE})
+    public ResponseEntity&lt;CollectionModel&lt;EntityModel&lt;ObservedNamespace&gt;&gt;&gt; list() {
+<span class="fc" id="L33">        CollectionModel&lt;EntityModel&lt;ObservedNamespace&gt;&gt; nsCollection = getNamespaceCollectionModel();</span>
+<span class="fc" id="L34">        addNamespaceLinks(nsCollection);</span>
+<span class="fc" id="L35">        return ResponseEntity.ok(nsCollection);</span>
+    }
+
+    @GetMapping(value = &quot;/{name}&quot;, produces = {APPLICATION_JSON_VALUE, HAL_JSON_VALUE})
+    public ResponseEntity&lt;EntityModel&lt;ObservedNamespace&gt;&gt; getByName(@PathVariable String name) {
+<span class="fc" id="L40">        String validNamespace = validateNamespace(name);</span>
+<span class="fc" id="L41">        observedNamespaces.failIfNotObserved(validNamespace);</span>
+<span class="fc" id="L42">        return ResponseEntity.ok(resAssembler.toModel(new ObservedNamespace(validNamespace)));</span>
+    }
+
+    public String validateNamespace(String namespace) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (!namespace.matches(&quot;[a-z0-9]([-a-z0-9]*[a-z0-9])?&quot;)) {</span>
+<span class="fc" id="L47">            throw BadRequestExceptionFactory.invalidNamespace(namespace);</span>
+        }
+<span class="fc" id="L49">        return namespace;</span>
+    }
+
+    private void addNamespaceLinks(CollectionModel&lt;EntityModel&lt;ObservedNamespace&gt;&gt; nsCollection) {
+<span class="fc" id="L53">        nsCollection.add(linkTo(methodOn(this.getClass()).getByName(null)).withRel(&quot;namespace&quot;));</span>
+<span class="fc" id="L54">        nsCollection.add(linkTo(methodOn(EntandoAppController.class).listInNamespace(null)).withRel(&quot;apps-in-namespace&quot;));</span>
+<span class="fc" id="L55">        nsCollection.add(linkTo(methodOn(EntandoPluginController.class).listInNamespace(null)).withRel(&quot;plugins-in-namespace&quot;));</span>
+<span class="fc" id="L56">        nsCollection.add(linkTo(methodOn(EntandoDeBundleController.class).listInNamespace(null)).withRel(&quot;bundles-in-namespace&quot;));</span>
+<span class="fc" id="L57">        nsCollection.add(linkTo(methodOn(EntandoLinksController.class).listInNamespace(null)).withRel(&quot;app-plugin-links-in-namespace&quot;));</span>
+<span class="fc" id="L58">    }</span>
+
+
+    private CollectionModel&lt;EntityModel&lt;ObservedNamespace&gt;&gt; getNamespaceCollectionModel() {
+<span class="fc" id="L62">        return new CollectionModel&lt;&gt;(</span>
+<span class="fc" id="L63">                observedNamespaces.getList().stream().map(resAssembler::toModel).collect(Collectors.toList())</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
