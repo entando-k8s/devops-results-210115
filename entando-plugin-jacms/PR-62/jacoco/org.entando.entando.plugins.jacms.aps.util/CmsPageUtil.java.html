@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmsPageUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.util</a> &gt; <span class="el_source">CmsPageUtil.java</span></div><h1>CmsPageUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.util;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.PageMetadata;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Properties;
+import org.entando.entando.aps.util.PageUtils;
+import org.entando.entando.plugins.jacms.aps.system.services.content.widget.RowContentListHelper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.context.ApplicationContext;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L40">public class CmsPageUtil extends PageUtils {</span>
+
+<span class="fc" id="L42">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(CmsPageUtil.class);</span>
+
+    /**
+     * Check if is possible to publish the content in the given page, checking
+     * its online configuration.
+     *
+     * @param publishingContent The publishing content.
+     * @param page The page where you want to publish the content.
+     * @return True/false if is possible to publish the content in the given
+     * page.
+     */
+    public static boolean isContentPublishableOnPageOnline(Content publishingContent, IPage page) {
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (!page.isOnlineInstance()) {</span>
+<span class="nc" id="L55">            logger.warn(&quot;this check expects an online instance of the page&quot;);</span>
+<span class="nc" id="L56">            return false;</span>
+        }
+<span class="fc" id="L58">        return isContentPublishableOnPage(publishingContent, page);</span>
+    }
+
+    /**
+     * Check if is possible to publish the content in the given page, checking
+     * its draft configuration.
+     *
+     * @param publishingContent The publishing content.
+     * @param page The page where you want to publish the content.
+     * @return True/false if is possible to publish the content in the given
+     * page.
+     */
+    public static boolean isContentPublishableOnPageDraft(Content publishingContent, IPage page) {
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L72">            logger.error(&quot;Null page&quot;);</span>
+<span class="nc" id="L73">            return false;</span>
+        }
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (page.isOnlineInstance()) {</span>
+<span class="nc" id="L76">            logger.warn(&quot;this check expects a draft instance of the page {}&quot;, page.getCode());</span>
+<span class="nc" id="L77">            return false;</span>
+        }
+<span class="fc" id="L79">        return isContentPublishableOnPage(publishingContent, page);</span>
+    }
+
+    /**
+     * Check if is possible to publish the content in the given page, checking
+     * the given page metadata.
+     *
+     * @param publishingContent The publishing content.
+     * @param page The page where you want to publish the content.
+     * @return True/false if is possible to publish the content in the given
+     * page.
+     */
+    public static boolean isContentPublishableOnPage(Content publishingContent, IPage page) {
+<span class="fc bfc" id="L92" title="All 4 branches covered.">        if (publishingContent.getMainGroup().equals(Group.FREE_GROUP_NAME) || publishingContent.getGroups().contains(</span>
+                Group.FREE_GROUP_NAME)) {
+<span class="fc" id="L94">            return true;</span>
+        }
+        // tutti i gruppi posseduti dalla pagina devono essere contemplati nel
+        // contenuto.
+<span class="fc" id="L98">        List&lt;String&gt; pageGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L99">        pageGroups.add(page.getGroup());</span>
+<span class="fc" id="L100">        PageMetadata metadata = page.getMetadata();</span>
+<span class="pc bpc" id="L101" title="1 of 4 branches missed.">        if (metadata != null &amp;&amp; null != metadata.getExtraGroups()) {</span>
+<span class="fc" id="L102">            pageGroups.addAll(metadata.getExtraGroups());</span>
+        }
+<span class="fc" id="L104">        List&lt;String&gt; contentGroups = getContentGroups(publishingContent);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        for (int i = 0; i &lt; pageGroups.size(); i++) {</span>
+<span class="fc" id="L106">            String pageGroup = pageGroups.get(i);</span>
+<span class="pc bpc" id="L107" title="1 of 4 branches missed.">            if (!pageGroup.equals(Group.ADMINS_GROUP_NAME) &amp;&amp; !contentGroups.contains(pageGroup)) {</span>
+<span class="fc" id="L108">                return false;</span>
+            }
+        }
+<span class="fc" id="L111">        return true;</span>
+    }
+
+    /**
+     * Check if is possible to link a page by the given content, checking the
+     * page in its online configuration.
+     *
+     * @param page The page to link.
+     * @param content The content where link the given page.
+     * @return True/false if is possible to link the page in the given content.
+     */
+    public static boolean isPageLinkableByContentOnline(IPage page, Content content) {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (!page.isOnlineInstance()) {</span>
+<span class="nc" id="L124">            logger.warn(&quot;this check expects an online instance of the page&quot;);</span>
+<span class="nc" id="L125">            return false;</span>
+        }
+<span class="nc" id="L127">        return isPageLinkableByContent(page, page.getMetadata(), content);</span>
+    }
+
+    /**
+     * Check if is possible to link a page by the given content, checking the
+     * page in its draft configuration.
+     *
+     * @param page The page to link.
+     * @param content The content where link the given page.
+     * @return True/false if is possible to link the page in the given content.
+     */
+    public static boolean isPageLinkableByContentDraft(IPage page, Content content) {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (page.isOnlineInstance()) {</span>
+<span class="nc" id="L140">            logger.warn(&quot;this check expects a draft instance of the page&quot;);</span>
+<span class="nc" id="L141">            return false;</span>
+        }
+<span class="nc" id="L143">        return isPageLinkableByContent(page, page.getMetadata(), content);</span>
+    }
+
+    /**
+     * Check if is possible to link a page by the given content, checking the
+     * given page metadata.
+     *
+     * @param page The page to link.
+     * @param metadata The metadata of the page you want to link in the given
+     * content.
+     * @param content The content where link the given page.
+     * @return True/false if is possible to link the page in the given content.
+     */
+    public static boolean isPageLinkableByContent(IPage page, PageMetadata metadata, Content content) {
+<span class="nc" id="L157">        Collection&lt;String&gt; extraPageGroups = metadata.getExtraGroups();</span>
+<span class="nc bnc" id="L158" title="All 6 branches missed.">        if (page.getGroup().equals(Group.FREE_GROUP_NAME) || (null != extraPageGroups &amp;&amp; extraPageGroups.contains(Group.FREE_GROUP_NAME))) {</span>
+<span class="nc" id="L159">            return true;</span>
+        }
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if (content.getMainGroup().equals(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="nc" id="L162">            return true;</span>
+        }
+<span class="nc" id="L164">        List&lt;String&gt; contentGroups = getContentGroups(content);</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        for (String contentGroup : contentGroups) {</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (contentGroup.equals(page.getGroup())) {</span>
+<span class="nc" id="L167">                return true;</span>
+            }
+<span class="nc" id="L169">        }</span>
+<span class="nc" id="L170">        return false;</span>
+    }
+
+    public static List&lt;String&gt; getContentGroups(Content content) {
+<span class="fc" id="L174">        List&lt;String&gt; contentGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L175">        contentGroups.add(content.getMainGroup());</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if (null != content.getGroups()) {</span>
+<span class="fc" id="L177">            contentGroups.addAll(content.getGroups());</span>
+        }
+<span class="fc" id="L179">        return contentGroups;</span>
+    }
+
+    public static Collection&lt;Content&gt; getPublishedContents(String pageCode, boolean draftPage, ApplicationContext applicationContext) {
+<span class="fc" id="L183">        IPageManager pageManager = applicationContext.getBean(SystemConstants.PAGE_MANAGER, IPageManager.class);</span>
+<span class="fc" id="L184">        Collection&lt;Content&gt; contents = new HashSet&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">            IPage page = (draftPage) ? pageManager.getDraftPage(pageCode) : pageManager.getOnlinePage(pageCode);</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">            if (null == page) {</span>
+<span class="fc" id="L188">                return contents;</span>
+            }
+<span class="fc" id="L190">            addPublishedContents(page.getWidgets(), contents, applicationContext);</span>
+<span class="nc" id="L191">        } catch (Throwable t) {</span>
+<span class="nc" id="L192">            String msg = &quot;Error extracting published contents on page '&quot; + pageCode + &quot;'&quot;;</span>
+<span class="nc" id="L193">            logger.error(msg, t);</span>
+<span class="nc" id="L194">            throw new RuntimeException(msg, t);</span>
+<span class="fc" id="L195">        }</span>
+<span class="fc" id="L196">        return contents;</span>
+    }
+
+    private static void addPublishedContents(Widget[] widgets, Collection&lt;Content&gt; contents, ApplicationContext applicationContext) {
+        try {
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">            if (widgets != null) {</span>
+<span class="fc" id="L202">                IContentManager contentManager = applicationContext.getBean(JacmsSystemConstants.CONTENT_MANAGER, IContentManager.class);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">                for (Widget widget : widgets) {</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">                    ApsProperties config = (null != widget) ? widget.getConfig() : null;</span>
+<span class="pc bpc" id="L205" title="1 of 4 branches missed.">                    if (null == config || config.isEmpty()) {</span>
+<span class="nc" id="L206">                        continue;</span>
+                    }
+<span class="fc" id="L208">                    String extracted = config.getProperty(&quot;contentId&quot;);</span>
+<span class="fc" id="L209">                    addContent(contents, extracted, contentManager);</span>
+<span class="fc" id="L210">                    String contentsParam = config.getProperty(&quot;contents&quot;);</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">                    List&lt;Properties&gt; properties = (null != contentsParam) ? RowContentListHelper.fromParameterToContents(contentsParam) : null;</span>
+<span class="pc bpc" id="L212" title="3 of 4 branches missed.">                    if (null == properties || properties.isEmpty()) {</span>
+<span class="nc" id="L213">                        continue;</span>
+                    }
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                    for (int j = 0; j &lt; properties.size(); j++) {</span>
+<span class="nc" id="L216">                        Properties widgProp = properties.get(j);</span>
+<span class="nc" id="L217">                        String extracted2 = widgProp.getProperty(&quot;contentId&quot;);</span>
+<span class="nc" id="L218">                        addContent(contents, extracted2, contentManager);</span>
+                    }
+                }
+            }
+<span class="nc" id="L222">        } catch (Throwable t) {</span>
+<span class="nc" id="L223">            String msg = &quot;Error extracting published contents on page&quot;;</span>
+<span class="nc" id="L224">            logger.error(msg, t);</span>
+<span class="nc" id="L225">            throw new RuntimeException(msg, t);</span>
+<span class="fc" id="L226">        }</span>
+<span class="fc" id="L227">    }</span>
+
+    private static void addContent(Collection&lt;Content&gt; contents, String contentId, IContentManager contentManager) {
+        try {
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">            if (null != contentId) {</span>
+<span class="fc" id="L232">                Content content = contentManager.loadContent(contentId, true);</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">                if (null != content) {</span>
+<span class="fc" id="L234">                    contents.add(content);</span>
+                }
+            }
+<span class="nc" id="L237">        } catch (Throwable t) {</span>
+<span class="nc" id="L238">            logger.error(&quot;Error extracting published content '{}'&quot;, contentId, t);</span>
+<span class="fc" id="L239">        }</span>
+<span class="fc" id="L240">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
