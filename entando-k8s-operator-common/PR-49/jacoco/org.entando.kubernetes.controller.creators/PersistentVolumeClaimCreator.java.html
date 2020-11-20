@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PersistentVolumeClaimCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.creators</a> &gt; <span class="el_source">PersistentVolumeClaimCreator.java</span></div><h1>PersistentVolumeClaimCreator.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.creators;
+
+import static java.util.Collections.singletonMap;
+
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimStatus;
+import io.fabric8.kubernetes.api.model.Quantity;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.controller.EntandoOperatorConfig;
+import org.entando.kubernetes.controller.common.ConfigurableStorageCalculator;
+import org.entando.kubernetes.controller.common.StorageCalculator;
+import org.entando.kubernetes.controller.k8sclient.PersistentVolumeClaimClient;
+import org.entando.kubernetes.controller.spi.ConfigurableResourceContainer;
+import org.entando.kubernetes.controller.spi.Deployable;
+import org.entando.kubernetes.controller.spi.PersistentVolumeAware;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentSpec;
+
+public class PersistentVolumeClaimCreator&lt;T extends EntandoDeploymentSpec&gt; extends AbstractK8SResourceCreator&lt;T&gt; {
+
+    private List&lt;PersistentVolumeClaim&gt; persistentVolumeClaims;
+
+    public PersistentVolumeClaimCreator(EntandoBaseCustomResource&lt;T&gt; entandoCustomResource) {
+<span class="fc" id="L44">        super(entandoCustomResource);</span>
+<span class="fc" id="L45">    }</span>
+
+    public boolean needsPersistentVolumeClaaims(Deployable&lt;?, ?&gt; deployable) {
+<span class="fc" id="L48">        return deployable.getContainers().stream()</span>
+<span class="fc" id="L49">                .anyMatch(PersistentVolumeAware.class::isInstance);</span>
+    }
+
+    public void createPersistentVolumeClaimsFor(PersistentVolumeClaimClient k8sClient, Deployable&lt;?, ?&gt; deployable) {
+<span class="fc" id="L53">        this.persistentVolumeClaims = deployable.getContainers().stream()</span>
+<span class="fc" id="L54">                .filter(PersistentVolumeAware.class::isInstance)</span>
+<span class="fc" id="L55">                .map(PersistentVolumeAware.class::cast)</span>
+<span class="fc" id="L56">                .map(deployableContainer -&gt; k8sClient</span>
+<span class="fc" id="L57">                        .createPersistentVolumeClaimIfAbsent(entandoCustomResource,</span>
+<span class="fc" id="L58">                                newPersistentVolumeClaim(deployable, deployableContainer)))</span>
+<span class="fc" id="L59">                .collect(Collectors.toList());</span>
+
+<span class="fc" id="L61">    }</span>
+
+    public List&lt;PersistentVolumeClaimStatus&gt; reloadPersistentVolumeClaims(PersistentVolumeClaimClient k8sClient) {
+<span class="fc" id="L64">        return Optional.ofNullable(persistentVolumeClaims).orElse(Collections.emptyList()).stream()</span>
+<span class="fc" id="L65">                .map(persistentVolumeClaim -&gt; k8sClient.loadPersistentVolumeClaim(entandoCustomResource,</span>
+<span class="fc" id="L66">                        persistentVolumeClaim.getMetadata().getName()).getStatus())</span>
+<span class="fc" id="L67">                .collect(Collectors.toList());</span>
+    }
+
+    private PersistentVolumeClaim newPersistentVolumeClaim(Deployable&lt;?, ?&gt; deployable, PersistentVolumeAware container) {
+<span class="fc" id="L71">        StorageCalculator resourceCalculator = buildStorageCalculator(container);</span>
+<span class="fc" id="L72">        return new PersistentVolumeClaimBuilder()</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                .withMetadata(fromCustomResource(!EntandoOperatorConfig.disablePvcGarbageCollection(),</span>
+<span class="fc" id="L74">                        resolveName(container.getNameQualifier(), &quot;-pvc&quot;),</span>
+<span class="fc" id="L75">                        deployable.getNameQualifier()))</span>
+<span class="fc" id="L76">                .withNewSpec().withAccessModes(&quot;ReadWriteOnce&quot;)</span>
+<span class="fc" id="L77">                .withNewResources()</span>
+<span class="fc" id="L78">                .withRequests(singletonMap(&quot;storage&quot;, new Quantity(resourceCalculator.getStorageRequest())))</span>
+<span class="fc" id="L79">                .withLimits(singletonMap(&quot;storage&quot;, new Quantity(resourceCalculator.getStorageLimit())))</span>
+<span class="fc" id="L80">                .endResources().endSpec()</span>
+<span class="fc" id="L81">                .build();</span>
+    }
+
+    private StorageCalculator buildStorageCalculator(PersistentVolumeAware deployableContainer) {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        return deployableContainer instanceof ConfigurableResourceContainer</span>
+<span class="fc" id="L86">                ? new ConfigurableStorageCalculator((ConfigurableResourceContainer) deployableContainer)</span>
+<span class="fc" id="L87">                : new StorageCalculator(deployableContainer);</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
