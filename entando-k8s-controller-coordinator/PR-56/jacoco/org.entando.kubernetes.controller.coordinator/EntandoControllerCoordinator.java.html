@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoControllerCoordinator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller Coordinator</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.coordinator</a> &gt; <span class="el_source">EntandoControllerCoordinator.java</span></div><h1>EntandoControllerCoordinator.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.coordinator;
+
+import io.fabric8.kubernetes.client.CustomResourceList;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.Watcher.Action;
+import io.fabric8.kubernetes.client.dsl.internal.CustomResourceOperationsImpl;
+import io.quarkus.runtime.StartupEvent;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import org.entando.kubernetes.controller.EntandoOperatorConfig;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.common.ControllerExecutor;
+import org.entando.kubernetes.model.DoneableEntandoCustomResource;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoResourceOperationsRegistry;
+import org.entando.kubernetes.model.app.EntandoApp;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeApp;
+import org.entando.kubernetes.model.externaldatabase.EntandoDatabaseService;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructure;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServer;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+
+public class EntandoControllerCoordinator {
+
+    public static final String ALL_NAMESPACES = &quot;*&quot;;
+    private final KubernetesClient client;
+<span class="fc" id="L50">    private final Map&lt;Class&lt;? extends EntandoBaseCustomResource&gt;, List&lt;?&gt;&gt; observers =</span>
+            new ConcurrentHashMap&lt;&gt;();
+    private final EntandoResourceOperationsRegistry entandoResourceOperationsRegistry;
+
+    @Inject
+<span class="fc" id="L55">    public EntandoControllerCoordinator(KubernetesClient client) {</span>
+<span class="fc" id="L56">        this.entandoResourceOperationsRegistry = new EntandoResourceOperationsRegistry(client);</span>
+<span class="fc" id="L57">        this.client = client;</span>
+<span class="fc" id="L58">    }</span>
+
+    public void onStartup(@Observes StartupEvent event) {
+        //TODO extract TLS and CA certs and write them to the standard secret names
+
+<span class="fc" id="L63">        addObservers(EntandoKeycloakServer.class, this::startImage);</span>
+<span class="fc" id="L64">        addObservers(EntandoClusterInfrastructure.class, this::startImage);</span>
+<span class="fc" id="L65">        addObservers(EntandoApp.class, this::startImage);</span>
+<span class="fc" id="L66">        addObservers(EntandoPlugin.class, this::startImage);</span>
+<span class="fc" id="L67">        addObservers(EntandoAppPluginLink.class, this::startImage);</span>
+<span class="fc" id="L68">        addObservers(EntandoCompositeApp.class, this::startImage);</span>
+<span class="fc" id="L69">        addObservers(EntandoDatabaseService.class, this::startImage);</span>
+<span class="fc" id="L70">        KubeUtils.ready(EntandoControllerCoordinator.class.getSimpleName());</span>
+<span class="fc" id="L71">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;R extends EntandoBaseCustomResource,
+            L extends CustomResourceList&lt;R&gt;,
+            D extends DoneableEntandoCustomResource&lt;D, R&gt;&gt; List&lt;EntandoResourceObserver&lt;R, L, D&gt;&gt; getObserver(Class&lt;R&gt; clss) {
+<span class="fc" id="L77">        return (List&lt;EntandoResourceObserver&lt;R, L, D&gt;&gt;) observers.get(clss);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private &lt;R extends EntandoBaseCustomResource&gt; void addObservers(Class&lt;R&gt; type, BiConsumer&lt;Action, R&gt; consumer) {
+<span class="fc" id="L82">        CustomResourceOperationsImpl operations = this.entandoResourceOperationsRegistry.getOperations(type);</span>
+<span class="fc" id="L83">        List&lt;String&gt; namespaces = new ArrayList&lt;&gt;(EntandoOperatorConfig.getNamespacesToObserve());</span>
+<span class="fc" id="L84">        EntandoOperatorConfig.getOperatorNamespaceToObserve().ifPresent(s -&gt; namespaces.add(s));</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (namespaces.isEmpty()) {</span>
+<span class="nc" id="L86">            namespaces.add(client.getNamespace());</span>
+        }
+<span class="fc" id="L88">        List&lt;EntandoResourceObserver&lt;?, ?, ?&gt;&gt; observersForType = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (namespaces.stream().anyMatch(s -&gt; s.equals(ALL_NAMESPACES))) {</span>
+            //This code is essentially impossible to test in a shared cluster
+<span class="nc" id="L91">            observersForType.add(new EntandoResourceObserver&lt;&gt;((CustomResourceOperationsImpl) operations.inAnyNamespace(), consumer));</span>
+        } else {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">            for (String namespace : namespaces) {</span>
+<span class="fc" id="L94">                CustomResourceOperationsImpl namespacedOperations = (CustomResourceOperationsImpl) operations.inNamespace(namespace);</span>
+<span class="fc" id="L95">                observersForType.add(new EntandoResourceObserver&lt;&gt;(namespacedOperations, consumer));</span>
+<span class="fc" id="L96">            }</span>
+        }
+<span class="fc" id="L98">        observers.put(type, observersForType);</span>
+<span class="fc" id="L99">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private &lt;T extends EntandoBaseCustomResource&gt; void startImage(Action action, T resource) {
+<span class="fc" id="L103">        ControllerExecutor executor = new ControllerExecutor(client.getNamespace(), client);</span>
+<span class="fc" id="L104">        executor.startControllerFor(action, resource, executor.resolveLatestImageFor(</span>
+<span class="fc" id="L105">                (Class&lt;? extends EntandoBaseCustomResource&lt;? extends Serializable&gt;&gt;) resource.getClass()).orElseThrow(</span>
+                IllegalStateException::new));
+<span class="fc" id="L107">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
