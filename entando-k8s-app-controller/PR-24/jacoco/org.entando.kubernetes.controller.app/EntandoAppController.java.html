@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoAppController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando App Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.app</a> &gt; <span class="el_source">EntandoAppController.java</span></div><h1>EntandoAppController.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.app;
+
+import static java.util.Optional.of;
+
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.quarkus.runtime.StartupEvent;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import org.entando.kubernetes.controller.AbstractDbAwareController;
+import org.entando.kubernetes.controller.IngressingDeployCommand;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.SimpleKeycloakClient;
+import org.entando.kubernetes.controller.common.InfrastructureConfig;
+import org.entando.kubernetes.controller.database.DatabaseServiceResult;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.model.DbmsVendor;
+import org.entando.kubernetes.model.app.EntandoApp;
+
+public class EntandoAppController extends AbstractDbAwareController&lt;EntandoApp&gt; {
+
+    @Inject
+    public EntandoAppController(KubernetesClient kubernetesClient) {
+<span class="nc" id="L39">        super(kubernetesClient);</span>
+<span class="nc" id="L40">    }</span>
+
+    public EntandoAppController(SimpleK8SClient&lt;?&gt; k8sClient, SimpleKeycloakClient keycloakClient) {
+<span class="fc" id="L43">        super(k8sClient, keycloakClient);</span>
+<span class="fc" id="L44">    }</span>
+
+    public EntandoAppController(KubernetesClient kubernetesClient, boolean exitAutomatically) {
+<span class="nc" id="L47">        super(kubernetesClient, exitAutomatically);</span>
+<span class="nc" id="L48">    }</span>
+
+    public void onStartup(@Observes StartupEvent event) {
+<span class="fc" id="L51">        processCommand();</span>
+<span class="fc" id="L52">    }</span>
+
+    @Override
+    protected void synchronizeDeploymentState(EntandoApp entandoApp) {
+<span class="fc" id="L56">        EntandoAppServerDeployable deployable = buildEntandoAppServerDeployable(entandoApp);</span>
+<span class="fc" id="L57">        performDeployCommand(deployable);</span>
+<span class="fc" id="L58">    }</span>
+
+    private void performDeployCommand(EntandoAppServerDeployable deployable) {
+<span class="fc" id="L61">        EntandoAppDeploymentResult result = new IngressingDeployCommand&lt;&gt;(deployable).execute(k8sClient, of(keycloakClient));</span>
+<span class="fc" id="L62">        k8sClient.entandoResources().updateStatus(deployable.getCustomResource(), result.getStatus());</span>
+<span class="fc" id="L63">    }</span>
+
+    private EntandoAppServerDeployable buildEntandoAppServerDeployable(EntandoApp entandoApp) {
+<span class="fc" id="L66">        KeycloakConnectionConfig keycloakConnectionConfig = k8sClient.entandoResources().findKeycloak(entandoApp);</span>
+<span class="fc" id="L67">        InfrastructureConfig infrastructureConfig = k8sClient.entandoResources().findInfrastructureConfig(entandoApp).orElse(null);</span>
+<span class="fc" id="L68">        DatabaseServiceResult databaseServiceResult = prepareDatabaseService(entandoApp, entandoApp.getSpec().getDbms().orElse(</span>
+                DbmsVendor.EMBEDDED), &quot;db&quot;);
+<span class="fc" id="L70">        return new EntandoAppServerDeployable(</span>
+                entandoApp,
+                keycloakConnectionConfig,
+                infrastructureConfig,
+                databaseServiceResult);
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
