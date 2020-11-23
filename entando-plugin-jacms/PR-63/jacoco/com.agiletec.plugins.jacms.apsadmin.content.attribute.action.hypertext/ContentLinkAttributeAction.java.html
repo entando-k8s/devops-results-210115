@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentLinkAttributeAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content.attribute.action.hypertext</a> &gt; <span class="el_source">ContentLinkAttributeAction.java</span></div><h1>ContentLinkAttributeAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content.attribute.action.hypertext;
+
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentFinderAction;
+import org.apache.commons.lang3.ArrayUtils;
+
+/**
+ * Classe action delegata alla gestione dei jAPSLinks (link interni al testo degli attributi Hypertext) su contenuto.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L34">public class ContentLinkAttributeAction extends ContentFinderAction {</span>
+
+<span class="fc" id="L36">	private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentLinkAttributeAction.class);</span>
+	
+	private String contentOnSessionMarker;
+    
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedContentsId(Integer limit) {
+<span class="nc" id="L42">        SearcherDaoPaginatedResult&lt;String&gt; result = null;</span>
+		try {
+<span class="nc" id="L44">			List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="nc" id="L45">            EntitySearchFilter[] filters = this.getFilters();</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">            if (null != limit) {</span>
+<span class="nc" id="L47">                filters = ArrayUtils.add(filters, this.getPagerFilter(limit));</span>
+            }
+<span class="nc" id="L49">			result = this.getContentManager().getPaginatedPublicContentsId(null, false, filters, allowedGroups);</span>
+<span class="nc" id="L50">		} catch (Exception e) {</span>
+<span class="nc" id="L51">			logger.error(&quot;error loading paginated contents&quot;, e);</span>
+<span class="nc" id="L52">			throw new RuntimeException(&quot;error loading paginated contents&quot;, e);</span>
+<span class="nc" id="L53">		}</span>
+<span class="nc" id="L54">		return result;</span>
+    }
+	
+    @Deprecated
+	@Override
+	public List&lt;String&gt; getContents() {
+<span class="fc" id="L60">		List&lt;String&gt; result = null;</span>
+		try {
+<span class="fc" id="L62">			List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="fc" id="L63">			result = this.getContentManager().loadPublicContentsId(null, this.getFilters(), allowedGroups);</span>
+<span class="nc" id="L64">		} catch (Exception e) {</span>
+<span class="nc" id="L65">			logger.error(&quot;error in getContents&quot;, e);</span>
+<span class="nc" id="L66">			throw new RuntimeException(&quot;error in getContents&quot;, e);</span>
+<span class="fc" id="L67">		}</span>
+<span class="fc" id="L68">		return result;</span>
+	}
+	
+	/**
+	 * Sovrascrittura del metodo della {@link ContentFinderAction}.
+	 * Il metodo fà in modo di ricercare i contenuti che hanno, come gruppo proprietario o gruppo abilitato alla visualizzazione, 
+	 * o il gruppo &quot;free&quot; o il gruppo proprietario del contenuto in redazione.
+	 * @return La lista dei codici dei gruppi del contenuto.
+	 */
+	@Override
+	protected List&lt;String&gt; getContentGroupCodes() {
+<span class="fc" id="L79">		List&lt;String&gt; allowedGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L80">		allowedGroups.add(Group.FREE_GROUP_NAME);</span>
+<span class="fc" id="L81">		Content currentContent = this.getContent();</span>
+<span class="fc" id="L82">		allowedGroups.add(currentContent.getMainGroup());</span>
+<span class="fc" id="L83">		return allowedGroups;</span>
+	}
+	
+	public Content getContent() {
+<span class="fc" id="L87">		return (Content) this.getRequest().getSession()</span>
+<span class="fc" id="L88">				.getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + this.getContentOnSessionMarker());</span>
+	}
+	
+	public String getContentOnSessionMarker() {
+<span class="fc" id="L92">		return contentOnSessionMarker;</span>
+	}
+	public void setContentOnSessionMarker(String contentOnSessionMarker) {
+<span class="fc" id="L95">		this.contentOnSessionMarker = contentOnSessionMarker;</span>
+<span class="fc" id="L96">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

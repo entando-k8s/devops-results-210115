@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreviewWidgetExecutorAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.executor</a> &gt; <span class="el_source">PreviewWidgetExecutorAspect.java</span></div><h1>PreviewWidgetExecutorAspect.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.executor;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Aspect;
+import org.entando.entando.aps.system.services.controller.executor.WidgetExecutorService;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+
+/**
+ * @author E.Santoboni
+ */
+@Aspect
+<span class="fc" id="L35">public class PreviewWidgetExecutorAspect extends WidgetExecutorService {</span>
+
+<span class="fc" id="L37">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PreviewWidgetExecutorAspect.class);</span>
+
+	@After(&quot;execution(* org.entando.entando.aps.system.services.controller.executor.WidgetExecutorService.service(..)) &amp;&amp; args(reqCtx)&quot;)
+	public void checkContentPreview(RequestContext reqCtx) {
+<span class="nc" id="L41">		HttpServletRequest request = reqCtx.getRequest();</span>
+<span class="nc" id="L42">		String contentOnSessionMarker = (String) request.getAttribute(&quot;contentOnSessionMarker&quot;);</span>
+<span class="nc bnc" id="L43" title="All 4 branches missed.">		if (null == contentOnSessionMarker || contentOnSessionMarker.trim().length() == 0) {</span>
+<span class="nc" id="L44">			contentOnSessionMarker = request.getParameter(&quot;contentOnSessionMarker&quot;);</span>
+		}
+<span class="nc bnc" id="L46" title="All 2 branches missed.">		if (null == contentOnSessionMarker) {</span>
+<span class="nc" id="L47">			return;</span>
+		}
+<span class="nc" id="L49">		Content contentOnSession = (Content) request.getSession().getAttribute(</span>
+				ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + contentOnSessionMarker);
+<span class="nc bnc" id="L51" title="All 2 branches missed.">		if (null == contentOnSession) {</span>
+<span class="nc" id="L52">			return;</span>
+		}
+		try {
+<span class="nc" id="L55">			IPage currentPage = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L56">			Widget[] widgets = currentPage.getWidgets();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">			for (int frame = 0; frame &lt; widgets.length; frame++) {</span>
+<span class="nc" id="L58">				Widget widget = widgets[frame];</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">				if (widget != null &amp;&amp; &quot;viewerConfig&quot;.equals(widget.getType().getAction())) {</span>
+<span class="nc bnc" id="L60" title="All 4 branches missed.">					if ((currentPage.getCode().equals(contentOnSession.getViewPage()) &amp;&amp; (widget.getConfig() == null || widget.getConfig()</span>
+<span class="nc bnc" id="L61" title="All 6 branches missed.">							.size() == 0)) || (widget.getConfig() != null &amp;&amp; widget.getConfig().get(&quot;contentId&quot;) != null &amp;&amp; widget</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">									.getConfig().get(&quot;contentId&quot;).equals(contentOnSession.getId()))) {</span>
+<span class="nc" id="L63">						reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET, widget);</span>
+<span class="nc" id="L64">						reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME, new Integer(frame));</span>
+<span class="nc" id="L65">						String output = super.extractJspOutput(reqCtx, CONTENT_VIEWER_JSP);</span>
+<span class="nc" id="L66">						String[] widgetOutput = (String[]) reqCtx.getExtraParam(&quot;ShowletOutput&quot;);</span>
+<span class="nc" id="L67">						widgetOutput[frame] = output;</span>
+<span class="nc" id="L68">						return;</span>
+					}
+				}
+			}
+<span class="nc" id="L72">		} catch (Throwable t) {</span>
+<span class="nc" id="L73">			String msg = &quot;Error detected while include content preview&quot;;</span>
+<span class="nc" id="L74">			_logger.error(msg, t);</span>
+<span class="nc" id="L75">			throw new RuntimeException(msg, t);</span>
+<span class="nc" id="L76">		}</span>
+<span class="nc" id="L77">	}</span>
+
+<span class="fc" id="L79">	private final String CONTENT_VIEWER_JSP = &quot;/WEB-INF/plugins/jacms/apsadmin/jsp/content/preview/content_viewer.jsp&quot;;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
