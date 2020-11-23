@@ -82,107 +82,111 @@ public class ComponentManagerDeployableContainer implements SpringBootDeployable
 
     @Override
     public void addEnvironmentVariables(List&lt;EnvVar&gt; vars) {
-<span class="fc" id="L85">        String entandoUrl = format(&quot;http://localhost:%s%s&quot;, EntandoAppDeployableContainer.PORT,</span>
-<span class="fc" id="L86">                entandoApp.getSpec().getIngressPath().orElse(EntandoAppDeployableContainer.INGRESS_WEB_CONTEXT));</span>
-<span class="fc" id="L87">        vars.add(new EnvVar(&quot;ENTANDO_APP_NAME&quot;, entandoApp.getMetadata().getName(), null));</span>
-<span class="fc" id="L88">        vars.add(new EnvVar(&quot;ENTANDO_URL&quot;, entandoUrl, null));</span>
-<span class="fc" id="L89">        vars.add(new EnvVar(&quot;SERVER_PORT&quot;, String.valueOf(getPrimaryPort()), null));</span>
-<span class="pc" id="L90">        infrastructureConfig.ifPresent(c -&gt; vars.add(new EnvVar(&quot;ENTANDO_K8S_SERVICE_URL&quot;, c.getK8SExternalServiceUrl(), null)));</span>
+        //Temporary workaround because some of the images don't bind to localhost anymore
+<span class="fc" id="L86">        String entandoUrl = format(&quot;http://%s-server-service:%s%s&quot;,</span>
+<span class="fc" id="L87">                entandoApp.getMetadata().getName(),</span>
+<span class="fc" id="L88">                EntandoAppDeployableContainer.PORT,</span>
+<span class="fc" id="L89">                entandoApp.getSpec().getIngressPath().orElse(EntandoAppDeployableContainer.INGRESS_WEB_CONTEXT)</span>
+        );
+<span class="fc" id="L91">        vars.add(new EnvVar(&quot;ENTANDO_APP_NAME&quot;, entandoApp.getMetadata().getName(), null));</span>
+<span class="fc" id="L92">        vars.add(new EnvVar(&quot;ENTANDO_URL&quot;, entandoUrl, null));</span>
+<span class="fc" id="L93">        vars.add(new EnvVar(&quot;SERVER_PORT&quot;, String.valueOf(getPrimaryPort()), null));</span>
+<span class="pc" id="L94">        infrastructureConfig.ifPresent(c -&gt; vars.add(new EnvVar(&quot;ENTANDO_K8S_SERVICE_URL&quot;, c.getK8SExternalServiceUrl(), null)));</span>
         //The ssh files will be copied to /opt/.ssh and chmod to 400. This can only happen at runtime because Openshift generates a
         // random userid
-<span class="fc" id="L93">        entandoApp.getSpec().getEcrGitSshSecretName().ifPresent(s -&gt; vars.add(new EnvVar(&quot;GIT_SSH_COMMAND&quot;, &quot;ssh &quot;</span>
+<span class="fc" id="L97">        entandoApp.getSpec().getEcrGitSshSecretName().ifPresent(s -&gt; vars.add(new EnvVar(&quot;GIT_SSH_COMMAND&quot;, &quot;ssh &quot;</span>
                 + &quot;-o UserKnownHostsFile=/opt/.ssh/known_hosts &quot;
                 + &quot;-i /opt/.ssh/id_rsa &quot;
                 + &quot;-o IdentitiesOnly=yes&quot;, null)));
-<span class="fc" id="L97">    }</span>
+<span class="fc" id="L101">    }</span>
 
     @Override
     public void addDatabaseConnectionVariables(List&lt;EnvVar&gt; vars) {
-<span class="fc" id="L101">        SpringBootDeployableContainer.super.addDatabaseConnectionVariables(vars);</span>
+<span class="fc" id="L105">        SpringBootDeployableContainer.super.addDatabaseConnectionVariables(vars);</span>
 
-<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (getDatabaseSchema() == null) {</span>
-<span class="fc" id="L104">            vars.add(new EnvVar(SpringProperty.SPRING_JPA_DATABASE_PLATFORM.name(), DEFAULT_EMBEDDED_VENDOR.getHibernateDialect(), null));</span>
-<span class="fc" id="L105">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_USERNAME.name(), DEFAULT_EMBEDDED_VENDOR.getDefaultUser(), null));</span>
-<span class="fc" id="L106">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_PASSWORD.name(), DEFAULT_EMBEDDED_VENDOR.getDefaultPassword(), null));</span>
-<span class="fc" id="L107">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_URL.name(), DEFAULT_EMBEDDED_VENDOR.getConnectionStringBuilder()</span>
-<span class="fc" id="L108">                    .toHost(&quot;/entando-data/databases/&quot; + COMPONENT_MANAGER_QUALIFIER)</span>
-<span class="fc" id="L109">                    .usingDatabase(DEFAULT_EMBEDDED_VENDOR.toString().toLowerCase() + &quot;.db&quot;)</span>
-<span class="fc" id="L110">                    .buildConnectionString(), null));</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (getDatabaseSchema() == null) {</span>
+<span class="fc" id="L108">            vars.add(new EnvVar(SpringProperty.SPRING_JPA_DATABASE_PLATFORM.name(), DEFAULT_EMBEDDED_VENDOR.getHibernateDialect(), null));</span>
+<span class="fc" id="L109">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_USERNAME.name(), DEFAULT_EMBEDDED_VENDOR.getDefaultUser(), null));</span>
+<span class="fc" id="L110">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_PASSWORD.name(), DEFAULT_EMBEDDED_VENDOR.getDefaultPassword(), null));</span>
+<span class="fc" id="L111">            vars.add(new EnvVar(SpringProperty.SPRING_DATASOURCE_URL.name(), DEFAULT_EMBEDDED_VENDOR.getConnectionStringBuilder()</span>
+<span class="fc" id="L112">                    .toHost(&quot;/entando-data/databases/&quot; + COMPONENT_MANAGER_QUALIFIER)</span>
+<span class="fc" id="L113">                    .usingDatabase(DEFAULT_EMBEDDED_VENDOR.toString().toLowerCase() + &quot;.db&quot;)</span>
+<span class="fc" id="L114">                    .buildConnectionString(), null));</span>
         }
-<span class="fc" id="L112">    }</span>
+<span class="fc" id="L116">    }</span>
 
     @Override
     public List&lt;SecretToMount&gt; getSecretsToMount() {
-<span class="fc" id="L116">        List&lt;SecretToMount&gt; result = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L117">        entandoApp.getSpec().getEcrGitSshSecretName().ifPresent(s -&gt; result.add(new SecretToMount(s, ECR_GIT_CONFIG_DIR)));</span>
-<span class="fc" id="L118">        return result;</span>
+<span class="fc" id="L120">        List&lt;SecretToMount&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L121">        entandoApp.getSpec().getEcrGitSshSecretName().ifPresent(s -&gt; result.add(new SecretToMount(s, ECR_GIT_CONFIG_DIR)));</span>
+<span class="fc" id="L122">        return result;</span>
     }
 
     @Override
     public int getMemoryLimitMebibytes() {
-<span class="fc" id="L123">        return 768;</span>
+<span class="fc" id="L127">        return 768;</span>
     }
 
     @Override
     public DatabaseSchemaCreationResult getDatabaseSchema() {
-<span class="fc" id="L128">        return dbSchemas.get(DEDB);</span>
+<span class="fc" id="L132">        return dbSchemas.get(DEDB);</span>
     }
 
     @Override
     public int getCpuLimitMillicores() {
-<span class="fc" id="L133">        return 750;</span>
+<span class="fc" id="L137">        return 750;</span>
     }
 
     public KeycloakConnectionConfig getKeycloakConnectionConfig() {
-<span class="fc" id="L137">        return keycloakConnectionConfig;</span>
+<span class="fc" id="L141">        return keycloakConnectionConfig;</span>
     }
 
     @Override
     public KeycloakClientConfig getKeycloakClientConfig() {
-<span class="fc" id="L142">        String entandoAppClientId = EntandoAppDeployableContainer.clientIdOf(entandoApp);</span>
-<span class="fc" id="L143">        String clientId = entandoApp.getMetadata().getName() + &quot;-&quot; + getNameQualifier();</span>
-<span class="fc" id="L144">        List&lt;Permission&gt; permissions = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L145">        permissions.add(new Permission(entandoAppClientId, &quot;superuser&quot;));</span>
-<span class="pc" id="L146">        this.infrastructureConfig.ifPresent(c -&gt; permissions.add(new Permission(c.getK8sServiceClientId(), KubeUtils.ENTANDO_APP_ROLE)));</span>
-<span class="fc" id="L147">        return new KeycloakClientConfig(determineRealm(), clientId, clientId,</span>
-<span class="fc" id="L148">                Collections.emptyList(),</span>
+<span class="fc" id="L146">        String entandoAppClientId = EntandoAppDeployableContainer.clientIdOf(entandoApp);</span>
+<span class="fc" id="L147">        String clientId = entandoApp.getMetadata().getName() + &quot;-&quot; + getNameQualifier();</span>
+<span class="fc" id="L148">        List&lt;Permission&gt; permissions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L149">        permissions.add(new Permission(entandoAppClientId, &quot;superuser&quot;));</span>
+<span class="pc" id="L150">        this.infrastructureConfig.ifPresent(c -&gt; permissions.add(new Permission(c.getK8sServiceClientId(), KubeUtils.ENTANDO_APP_ROLE)));</span>
+<span class="fc" id="L151">        return new KeycloakClientConfig(determineRealm(), clientId, clientId,</span>
+<span class="fc" id="L152">                Collections.emptyList(),</span>
                 permissions);
     }
 
     @Override
     public KeycloakAwareSpec getKeycloakAwareSpec() {
-<span class="fc" id="L154">        return entandoApp.getSpec();</span>
+<span class="fc" id="L158">        return entandoApp.getSpec();</span>
     }
 
     @Override
     public String getWebContextPath() {
-<span class="fc" id="L159">        return &quot;/digital-exchange&quot;;</span>
+<span class="fc" id="L163">        return &quot;/digital-exchange&quot;;</span>
     }
 
     @Override
     public Optional&lt;String&gt; getHealthCheckPath() {
-<span class="fc" id="L164">        return Optional.of(getWebContextPath() + &quot;/actuator/health&quot;);</span>
+<span class="fc" id="L168">        return Optional.of(getWebContextPath() + &quot;/actuator/health&quot;);</span>
     }
 
     @Override
     public List&lt;String&gt; getDbSchemaQualifiers() {
-<span class="fc" id="L169">        return Arrays.asList(DEDB);</span>
+<span class="fc" id="L173">        return Arrays.asList(DEDB);</span>
     }
 
     @Override
     public Optional&lt;DatabasePopulator&gt; useDatabaseSchemas(Map&lt;String, DatabaseSchemaCreationResult&gt; dbSchemas) {
-<span class="fc" id="L174">        this.dbSchemas = Optional.ofNullable(dbSchemas).orElse(new ConcurrentHashMap&lt;&gt;());</span>
-<span class="fc" id="L175">        return Optional.empty();</span>
+<span class="fc" id="L178">        this.dbSchemas = Optional.ofNullable(dbSchemas).orElse(new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L179">        return Optional.empty();</span>
     }
 
     @Override
     public String getVolumeMountPath() {
-<span class="fc" id="L180">        return &quot;/entando-data&quot;;</span>
+<span class="fc" id="L184">        return &quot;/entando-data&quot;;</span>
     }
 
     @Override
     public EntandoIngressingDeploymentSpec getCustomResourceSpec() {
-<span class="fc" id="L185">        return getKeycloakAwareSpec();</span>
+<span class="fc" id="L189">        return getKeycloakAwareSpec();</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
