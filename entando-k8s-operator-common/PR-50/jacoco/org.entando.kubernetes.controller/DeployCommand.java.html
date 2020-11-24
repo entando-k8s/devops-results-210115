@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeployCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller</a> &gt; <span class="el_source">DeployCommand.java</span></div><h1>DeployCommand.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller;
+
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimStatus;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import java.util.List;
+import java.util.Optional;
+import org.entando.kubernetes.controller.creators.DatabasePreparationPodCreator;
+import org.entando.kubernetes.controller.creators.DeploymentCreator;
+import org.entando.kubernetes.controller.creators.KeycloakClientCreator;
+import org.entando.kubernetes.controller.creators.PersistentVolumeClaimCreator;
+import org.entando.kubernetes.controller.creators.SecretCreator;
+import org.entando.kubernetes.controller.creators.ServiceAccountCreator;
+import org.entando.kubernetes.controller.creators.ServiceCreator;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.controller.spi.DbAwareDeployable;
+import org.entando.kubernetes.controller.spi.Deployable;
+import org.entando.kubernetes.controller.spi.IngressingDeployable;
+import org.entando.kubernetes.controller.spi.ServiceBackingContainer;
+import org.entando.kubernetes.controller.spi.ServiceDeploymentResult;
+import org.entando.kubernetes.model.AbstractServerStatus;
+import org.entando.kubernetes.model.DbServerStatus;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentSpec;
+import org.entando.kubernetes.model.WebServerStatus;
+
+public class DeployCommand&lt;T extends ServiceDeploymentResult, S extends EntandoDeploymentSpec&gt; {
+
+    public static final String DEPLOYMENT_LABEL_NAME = &quot;deployment&quot;;
+    protected final Deployable&lt;T, S&gt; deployable;
+    protected final PersistentVolumeClaimCreator&lt;S&gt; persistentVolumeClaimCreator;
+    protected final ServiceCreator&lt;S&gt; serviceCreator;
+    protected final DeploymentCreator&lt;S&gt; deploymentCreator;
+    protected final SecretCreator&lt;S&gt; secretCreator;
+    protected final DatabasePreparationPodCreator&lt;S&gt; databasePreparationJobCreator;
+    protected final KeycloakClientCreator keycloakClientCreator;
+    protected final ServiceAccountCreator&lt;S&gt; serviceAccountCreator;
+    protected final AbstractServerStatus status;
+    protected final EntandoBaseCustomResource&lt;S&gt; entandoCustomResource;
+    private Pod pod;
+
+<span class="fc" id="L60">    public DeployCommand(Deployable&lt;T, S&gt; deployable) {</span>
+<span class="fc" id="L61">        this.deployable = deployable;</span>
+<span class="fc" id="L62">        this.entandoCustomResource = deployable.getCustomResource();</span>
+<span class="fc" id="L63">        persistentVolumeClaimCreator = new PersistentVolumeClaimCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc" id="L64">        serviceCreator = new ServiceCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc" id="L65">        deploymentCreator = new DeploymentCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc" id="L66">        secretCreator = new SecretCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc" id="L67">        databasePreparationJobCreator = new DatabasePreparationPodCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc" id="L68">        keycloakClientCreator = new KeycloakClientCreator(entandoCustomResource);</span>
+<span class="fc" id="L69">        serviceAccountCreator = new ServiceAccountCreator&lt;&gt;(entandoCustomResource);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (deployable instanceof IngressingDeployable) {</span>
+<span class="fc" id="L71">            status = new WebServerStatus();</span>
+        } else {
+<span class="fc" id="L73">            status = new DbServerStatus();</span>
+        }
+<span class="fc" id="L75">        status.setQualifier(deployable.getNameQualifier());</span>
+<span class="fc" id="L76">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public T execute(SimpleK8SClient&lt;?&gt; k8sClient, Optional&lt;SimpleKeycloakClient&gt; keycloakClient) {
+<span class="fc" id="L80">        EntandoImageResolver entandoImageResolver = new EntandoImageResolver(</span>
+<span class="fc" id="L81">                k8sClient.secrets().loadControllerConfigMap(EntandoOperatorConfig.getEntandoDockerImageInfoConfigMap()));</span>
+<span class="pc bpc" id="L82" title="1 of 4 branches missed.">        if (deployable instanceof DbAwareDeployable &amp;&amp; ((DbAwareDeployable) deployable).hasContainersExpectingSchemas()) {</span>
+<span class="fc" id="L83">            prepareDbSchemas(k8sClient, entandoImageResolver, (DbAwareDeployable) deployable);</span>
+        }
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (persistentVolumeClaimCreator.needsPersistentVolumeClaaims(deployable)) {</span>
+            //NB!!! it seems there is some confusion in K8S when a patch is done without any changes.
+            //K8Sseems to increment either the resourceVersion or generation or both and then
+            //subsequent updates fail
+<span class="fc" id="L89">            createPersistentVolumeClaims(k8sClient);</span>
+        }
+<span class="fc" id="L91">        secretCreator.createSecrets(k8sClient.secrets(), deployable);</span>
+<span class="fc" id="L92">        serviceAccountCreator.prepareServiceAccountAccess(k8sClient.serviceAccounts(), deployable);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (shouldCreateService(deployable)) {</span>
+<span class="fc" id="L94">            createService(k8sClient);</span>
+        }
+<span class="fc" id="L96">        Ingress ingress = maybeCreateIngress(k8sClient);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (keycloakClientCreator.requiresKeycloakClients(deployable)) {</span>
+<span class="fc" id="L98">            keycloakClientCreator.createKeycloakClients(</span>
+<span class="fc" id="L99">                    k8sClient.secrets(),</span>
+<span class="fc" id="L100">                    keycloakClient.orElseThrow(IllegalStateException::new),</span>
+                    deployable,
+<span class="fc" id="L102">                    Optional.ofNullable(ingress));</span>
+        }
+<span class="fc" id="L104">        createDeployment(k8sClient, entandoImageResolver);</span>
+<span class="fc" id="L105">        waitForPod(k8sClient);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (status.hasFailed()) {</span>
+<span class="nc" id="L107">            throw new EntandoControllerException(&quot;Creation of Kubernetes resources has failed&quot;);</span>
+        }
+<span class="fc" id="L109">        return (T) deployable.createResult(getDeployment(), getService(), ingress, getPod()).withStatus(getStatus());</span>
+    }
+
+    @SuppressWarnings(&quot;java:S1172&quot;)//because this parameter is required for the subclass
+    protected Ingress maybeCreateIngress(SimpleK8SClient&lt;?&gt; k8sClient) {
+<span class="fc" id="L114">        return null;</span>
+    }
+
+    private boolean shouldCreateService(Deployable&lt;T, S&gt; deployable) {
+<span class="fc" id="L118">        return deployable.getContainers().stream().anyMatch(ServiceBackingContainer.class::isInstance);</span>
+    }
+
+    private void waitForPod(SimpleK8SClient&lt;?&gt; k8sClient) {
+<span class="fc" id="L122">        pod = k8sClient.pods()</span>
+<span class="fc" id="L123">                .waitForPod(entandoCustomResource.getMetadata().getNamespace(), DEPLOYMENT_LABEL_NAME, resolveName(deployable));</span>
+<span class="fc" id="L124">        status.setPodStatus(pod.getStatus());</span>
+<span class="fc" id="L125">        k8sClient.entandoResources().updateStatus(entandoCustomResource, status);</span>
+<span class="fc" id="L126">    }</span>
+
+    private String resolveName(Deployable&lt;T, S&gt; deployable) {
+<span class="fc" id="L129">        return entandoCustomResource.getMetadata().getName() + &quot;-&quot; + deployable.getNameQualifier();</span>
+    }
+
+    private void createDeployment(SimpleK8SClient&lt;?&gt; k8sClient, EntandoImageResolver entandoImageResolver) {
+<span class="fc" id="L133">        deploymentCreator.createDeployment(entandoImageResolver, k8sClient.deployments(), deployable);</span>
+<span class="fc" id="L134">        status.setDeploymentStatus(deploymentCreator.reloadDeployment(k8sClient.deployments()));</span>
+<span class="fc" id="L135">        k8sClient.entandoResources().updateStatus(entandoCustomResource, status);</span>
+<span class="fc" id="L136">    }</span>
+
+    private void createService(SimpleK8SClient&lt;?&gt; k8sClient) {
+<span class="fc" id="L139">        serviceCreator.createService(k8sClient.services(), deployable);</span>
+<span class="fc" id="L140">        status.setServiceStatus(serviceCreator.reloadPrimaryService(k8sClient.services()));</span>
+<span class="fc" id="L141">        k8sClient.entandoResources().updateStatus(entandoCustomResource, status);</span>
+<span class="fc" id="L142">    }</span>
+
+    private void createPersistentVolumeClaims(SimpleK8SClient&lt;?&gt; k8sClient) {
+<span class="fc" id="L145">        persistentVolumeClaimCreator.createPersistentVolumeClaimsFor(k8sClient.persistentVolumeClaims(), deployable);</span>
+<span class="fc" id="L146">        List&lt;PersistentVolumeClaimStatus&gt; statuses = persistentVolumeClaimCreator</span>
+<span class="fc" id="L147">                .reloadPersistentVolumeClaims(k8sClient.persistentVolumeClaims());</span>
+<span class="fc" id="L148">        status.setPersistentVolumeClaimStatuses(statuses);</span>
+<span class="fc" id="L149">        k8sClient.entandoResources().updateStatus(entandoCustomResource, status);</span>
+<span class="fc" id="L150">    }</span>
+
+    private void prepareDbSchemas(SimpleK8SClient&lt;?&gt; k8sClient, EntandoImageResolver entandoImageResolver,
+            DbAwareDeployable dbAwareDeployable) {
+<span class="fc" id="L154">        Pod completedPod = databasePreparationJobCreator.runToCompletion(k8sClient, dbAwareDeployable, entandoImageResolver);</span>
+<span class="fc" id="L155">        status.setInitPodStatus(completedPod.getStatus());</span>
+<span class="fc" id="L156">        k8sClient.entandoResources().updateStatus(entandoCustomResource, status);</span>
+<span class="fc" id="L157">        PodResult podResult = PodResult.of(completedPod);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (podResult.hasFailed()) {</span>
+<span class="nc" id="L159">            throw new EntandoControllerException(&quot;Could not init database schemas&quot;);</span>
+        }
+<span class="fc" id="L161">    }</span>
+
+    public Service getService() {
+<span class="fc" id="L164">        return serviceCreator.getService();</span>
+    }
+
+    public AbstractServerStatus getStatus() {
+<span class="fc" id="L168">        return status;</span>
+    }
+
+    public Pod getPod() {
+<span class="fc" id="L172">        return pod;</span>
+    }
+
+    public Deployment getDeployment() {
+<span class="fc" id="L176">        return deploymentCreator.getDeployment();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
