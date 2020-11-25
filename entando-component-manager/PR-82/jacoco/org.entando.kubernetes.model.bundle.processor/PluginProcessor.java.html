@@ -21,6 +21,7 @@ import org.entando.kubernetes.model.bundle.reader.BundleReader;
 import org.entando.kubernetes.model.bundle.reportable.EntandoK8SServiceReportableProcessor;
 import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
 import org.entando.kubernetes.service.KubernetesService;
+import org.entando.kubernetes.service.digitalexchange.BundleUtilities;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,38 +32,40 @@ import org.springframework.stereotype.Service;
  *
  * @author Sergio Marcelino
  */
-<span class="fc" id="L34">@Slf4j</span>
+<span class="fc" id="L35">@Slf4j</span>
 @Service
 @RequiredArgsConstructor
 public class PluginProcessor extends BaseComponentProcessor&lt;PluginDescriptor&gt; implements
         EntandoK8SServiceReportableProcessor {
 
-    private static final String DEPLOYMENT_BASE_NAME_TOO_LONG_TRUNCATING = &quot;The descriptor for plugin with docker image &quot;
-            + &quot;'{}' uses a deprecated format. In order to solve a Kubernetes pod name constraint, the plugin pods names&quot;
-            + &quot; could be truncated. To have full control over plugin pods names we encourage you to migrate to the new &quot;
-            + &quot;plugin descriptor format. You can find more infos at http://dev.entando.org searching for &quot;
-            + &quot;'Plugin Descriptor'&quot;;
+    public static final String DEPRECATED_DESCRIPTOR = &quot;The descriptor for plugin with docker image &quot;
+            + &quot;'{}' uses a deprecated format. To have full control over plugin pods names we encourage you to migrate &quot;
+            + &quot;to the new plugin descriptor format.&quot;;
+    public static final String DEPLOYMENT_BASE_NAME_MAX_LENGHT_TRUNCATED =
+            &quot;The prefix of the pod using the docker image &quot;
+                    + &quot;'{}' is longer than {}. The prefix has been created using the format &quot;
+                    + &quot;[docker-organization]-[docker-image-name]-[docker-image-version]. Plugin pods names will be truncated to '{}'&quot;;
 
     private final KubernetesService kubernetesService;
 
     @Override
     public ComponentType getSupportedComponentType() {
-<span class="fc" id="L50">        return ComponentType.PLUGIN;</span>
+<span class="fc" id="L53">        return ComponentType.PLUGIN;</span>
     }
 
     @Override
     public Class&lt;PluginDescriptor&gt; getDescriptorClass() {
-<span class="fc" id="L55">        return PluginDescriptor.class;</span>
+<span class="fc" id="L58">        return PluginDescriptor.class;</span>
     }
 
     @Override
     public Optional&lt;Function&lt;ComponentSpecDescriptor, List&lt;String&gt;&gt;&gt; getComponentSelectionFn() {
-<span class="fc" id="L60">        return Optional.of(ComponentSpecDescriptor::getPlugins);</span>
+<span class="fc" id="L63">        return Optional.of(ComponentSpecDescriptor::getPlugins);</span>
     }
 
     @Override
     public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(BundleReader bundleReader) {
-<span class="fc" id="L65">        return this.process(bundleReader, InstallAction.CREATE, new InstallActionsByComponentType(),</span>
+<span class="fc" id="L68">        return this.process(bundleReader, InstallAction.CREATE, new InstallActionsByComponentType(),</span>
                 new AnalysisReport());
     }
 
@@ -70,38 +73,50 @@ public class PluginProcessor extends BaseComponentProcessor&lt;PluginDescriptor&
     public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(BundleReader bundleReader, InstallAction conflictStrategy,
             InstallActionsByComponentType actions, AnalysisReport report) {
         try {
-<span class="fc" id="L73">            final List&lt;String&gt; descriptorList = getDescriptorList(bundleReader);</span>
+<span class="fc" id="L76">            final List&lt;String&gt; descriptorList = getDescriptorList(bundleReader);</span>
 
-<span class="fc" id="L75">            List&lt;Installable&lt;PluginDescriptor&gt;&gt; installableList = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L76" title="All 2 branches covered.">            for (String filename : descriptorList) {</span>
-<span class="fc" id="L77">                PluginDescriptor plugin = bundleReader.readDescriptorFile(filename, PluginDescriptor.class);</span>
-
-<span class="fc bfc" id="L79" title="All 2 branches covered.">                if (plugin.isVersion1()) {</span>
-<span class="fc" id="L80">                    log.warn(DEPLOYMENT_BASE_NAME_TOO_LONG_TRUNCATING,</span>
-<span class="fc" id="L81">                            plugin.getSpec().getImage());</span>
-                }
-
-<span class="fc" id="L84">                InstallAction action = extractInstallAction(plugin.getComponentKey().getKey(), actions,</span>
+<span class="fc" id="L78">            List&lt;Installable&lt;PluginDescriptor&gt;&gt; installableList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            for (String filename : descriptorList) {</span>
+<span class="fc" id="L80">                PluginDescriptor plugin = bundleReader.readDescriptorFile(filename, PluginDescriptor.class);</span>
+<span class="fc" id="L81">                logDescriptorWarnings(plugin);</span>
+<span class="fc" id="L82">                InstallAction action = extractInstallAction(plugin.getComponentKey().getKey(), actions,</span>
                         conflictStrategy, report);
-<span class="fc" id="L86">                installableList.add(new PluginInstallable(kubernetesService, plugin, action));</span>
-<span class="fc" id="L87">            }</span>
-<span class="fc" id="L88">            return installableList;</span>
-<span class="nc" id="L89">        } catch (IOException e) {</span>
-<span class="nc" id="L90">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+<span class="fc" id="L84">                installableList.add(new PluginInstallable(kubernetesService, plugin, action));</span>
+<span class="fc" id="L85">            }</span>
+<span class="fc" id="L86">            return installableList;</span>
+<span class="nc" id="L87">        } catch (IOException e) {</span>
+<span class="nc" id="L88">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
         }
     }
 
     @Override
     public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
-<span class="fc" id="L96">        return components.stream()</span>
-<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == getSupportedComponentType())</span>
-<span class="fc" id="L98">                .map(c -&gt; new PluginInstallable(kubernetesService, buildDescriptorFromComponentJob(c), c.getAction()))</span>
-<span class="fc" id="L99">                .collect(Collectors.toList());</span>
+<span class="fc" id="L94">        return components.stream()</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == getSupportedComponentType())</span>
+<span class="fc" id="L96">                .map(c -&gt; new PluginInstallable(kubernetesService, buildDescriptorFromComponentJob(c), c.getAction()))</span>
+<span class="fc" id="L97">                .collect(Collectors.toList());</span>
     }
 
     @Override
     public PluginDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
-<span class="fc" id="L104">        return PluginDescriptor.builder().deploymentBaseName(component.getComponentId()).build();</span>
+<span class="fc" id="L102">        return PluginDescriptor.builder().deploymentBaseName(component.getComponentId()).build();</span>
     }
+
+
+    private void logDescriptorWarnings(PluginDescriptor descriptor) {
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (descriptor.isVersion1()) {</span>
+<span class="fc" id="L109">            log.warn(DEPRECATED_DESCRIPTOR, descriptor.getSpec().getImage());</span>
+
+<span class="fc" id="L111">            String deploymentBaseName = BundleUtilities.composeNameFromDockerImage(descriptor.getDockerImage());</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            if (deploymentBaseName.length() &gt; BundleUtilities.MAX_ENTANDO_K8S_POD_NAME_LENGTH) {</span>
+
+<span class="nc" id="L114">                log.warn(DEPLOYMENT_BASE_NAME_MAX_LENGHT_TRUNCATED,</span>
+<span class="nc" id="L115">                        descriptor.getSpec().getImage(),</span>
+<span class="nc" id="L116">                        BundleUtilities.MAX_ENTANDO_K8S_POD_NAME_LENGTH,</span>
+<span class="nc" id="L117">                        BundleUtilities.truncatePodPrefixName(deploymentBaseName));</span>
+            }
+        }
+<span class="fc" id="L120">    }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
