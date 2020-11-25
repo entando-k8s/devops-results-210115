@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.processor</a> &gt; <span class="el_source">PluginProcessor.java</span></div><h1>PluginProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.processor;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.controller.digitalexchange.job.model.AnalysisReport;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallActionsByComponentType;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest.InstallAction;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.descriptor.ComponentSpecDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.plugin.PluginDescriptor;
+import org.entando.kubernetes.model.bundle.installable.Installable;
+import org.entando.kubernetes.model.bundle.installable.PluginInstallable;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+import org.entando.kubernetes.model.bundle.reportable.EntandoK8SServiceReportableProcessor;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.entando.kubernetes.service.KubernetesService;
+import org.springframework.stereotype.Service;
+
+/**
+ * Processor to perform a deployment on the Kubernetes Cluster.
+ *
+ * &lt;p&gt;Will read the service property on the component descriptor yaml and convert it into a EntandoPlugin custom
+ * resource
+ *
+ * @author Sergio Marcelino
+ */
+<span class="fc" id="L34">@Slf4j</span>
+@Service
+@RequiredArgsConstructor
+public class PluginProcessor extends BaseComponentProcessor&lt;PluginDescriptor&gt; implements
+        EntandoK8SServiceReportableProcessor {
+
+    private static final String DEPLOYMENT_BASE_NAME_TOO_LONG_TRUNCATING = &quot;The descriptor for plugin with docker image &quot;
+            + &quot;'{}' uses a deprecated format. In order to solve a Kubernetes pod name constraint, the plugin pods names&quot;
+            + &quot; could be truncated. To have full control over plugin pods names we encourage you to migrate to the new &quot;
+            + &quot;plugin descriptor format. You can find more infos at http://dev.entando.org searching for &quot;
+            + &quot;'Plugin Descriptor'&quot;;
+
+    private final KubernetesService kubernetesService;
+
+    @Override
+    public ComponentType getSupportedComponentType() {
+<span class="fc" id="L50">        return ComponentType.PLUGIN;</span>
+    }
+
+    @Override
+    public Class&lt;PluginDescriptor&gt; getDescriptorClass() {
+<span class="fc" id="L55">        return PluginDescriptor.class;</span>
+    }
+
+    @Override
+    public Optional&lt;Function&lt;ComponentSpecDescriptor, List&lt;String&gt;&gt;&gt; getComponentSelectionFn() {
+<span class="fc" id="L60">        return Optional.of(ComponentSpecDescriptor::getPlugins);</span>
+    }
+
+    @Override
+    public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(BundleReader bundleReader) {
+<span class="fc" id="L65">        return this.process(bundleReader, InstallAction.CREATE, new InstallActionsByComponentType(),</span>
+                new AnalysisReport());
+    }
+
+    @Override
+    public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(BundleReader bundleReader, InstallAction conflictStrategy,
+            InstallActionsByComponentType actions, AnalysisReport report) {
+        try {
+<span class="fc" id="L73">            final List&lt;String&gt; descriptorList = getDescriptorList(bundleReader);</span>
+
+<span class="fc" id="L75">            List&lt;Installable&lt;PluginDescriptor&gt;&gt; installableList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            for (String filename : descriptorList) {</span>
+<span class="fc" id="L77">                PluginDescriptor plugin = bundleReader.readDescriptorFile(filename, PluginDescriptor.class);</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                if (plugin.isVersion1()) {</span>
+<span class="fc" id="L80">                    log.warn(DEPLOYMENT_BASE_NAME_TOO_LONG_TRUNCATING,</span>
+<span class="fc" id="L81">                            plugin.getSpec().getImage());</span>
+                }
+
+<span class="fc" id="L84">                InstallAction action = extractInstallAction(plugin.getComponentKey().getKey(), actions,</span>
+                        conflictStrategy, report);
+<span class="fc" id="L86">                installableList.add(new PluginInstallable(kubernetesService, plugin, action));</span>
+<span class="fc" id="L87">            }</span>
+<span class="fc" id="L88">            return installableList;</span>
+<span class="nc" id="L89">        } catch (IOException e) {</span>
+<span class="nc" id="L90">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public List&lt;Installable&lt;PluginDescriptor&gt;&gt; process(List&lt;EntandoBundleComponentJobEntity&gt; components) {
+<span class="fc" id="L96">        return components.stream()</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                .filter(c -&gt; c.getComponentType() == getSupportedComponentType())</span>
+<span class="fc" id="L98">                .map(c -&gt; new PluginInstallable(kubernetesService, buildDescriptorFromComponentJob(c), c.getAction()))</span>
+<span class="fc" id="L99">                .collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public PluginDescriptor buildDescriptorFromComponentJob(EntandoBundleComponentJobEntity component) {
+<span class="fc" id="L104">        return PluginDescriptor.builder().deploymentBaseName(component.getComponentId()).build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
