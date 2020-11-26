@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoBundleJobResourceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.digitalexchange.job</a> &gt; <span class="el_source">EntandoBundleJobResourceController.java</span></div><h1>EntandoBundleJobResourceController.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.controller.digitalexchange.job;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import org.entando.kubernetes.model.job.EntandoBundleComponentJobEntity;
+import org.entando.kubernetes.model.job.EntandoBundleJob;
+import org.entando.kubernetes.model.job.EntandoBundleJobEntity;
+import org.entando.kubernetes.model.web.request.PagedListRequest;
+import org.entando.kubernetes.model.web.response.PagedMetadata;
+import org.entando.kubernetes.model.web.response.PagedRestResponse;
+import org.entando.kubernetes.model.web.response.SimpleRestResponse;
+import org.entando.kubernetes.service.digitalexchange.job.EntandoBundleJobService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+import org.zalando.problem.Problem;
+import org.zalando.problem.Status;
+import org.zalando.problem.ThrowableProblem;
+
+@RestController
+@RequiredArgsConstructor
+public class EntandoBundleJobResourceController implements EntandoBundleJobResource {
+
+    private final @NonNull EntandoBundleJobService jobService;
+
+    @Override
+    public ResponseEntity&lt;PagedRestResponse&lt;EntandoBundleJob&gt;&gt; getAllJobs(PagedListRequest request) {
+<span class="fc" id="L30">        PagedMetadata&lt;EntandoBundleJobEntity&gt; tempJobs = jobService.getJobs(request);</span>
+<span class="fc" id="L31">        List&lt;EntandoBundleJob&gt; jobDtos = tempJobs.getBody().stream()</span>
+<span class="fc" id="L32">                .map(j -&gt; EntandoBundleJob.fromEntity(j, jobService.getJobRelatedComponentJobs(j)))</span>
+<span class="fc" id="L33">                .collect(Collectors.toList());</span>
+<span class="fc" id="L34">        PagedMetadata&lt;EntandoBundleJob&gt; pagedMetadata = new PagedMetadata&lt;&gt;(request, jobDtos,</span>
+<span class="fc" id="L35">                tempJobs.getTotalItems());</span>
+<span class="fc" id="L36">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(pagedMetadata));</span>
+    }
+
+    @Override
+    public SimpleRestResponse&lt;EntandoBundleJob&gt; getJob(@PathVariable(&quot;id&quot;) String id) {
+<span class="fc" id="L41">        EntandoBundleJobEntity job = jobService.getById(id).orElseThrow(() -&gt;</span>
+<span class="fc" id="L42">                getNotFoundJobProblem(id));</span>
+<span class="fc" id="L43">        List&lt;EntandoBundleComponentJobEntity&gt; jobRelatedComponentJobs = jobService.getJobRelatedComponentJobs(job);</span>
+<span class="fc" id="L44">        EntandoBundleJob jobDto = EntandoBundleJob.fromEntity(job, jobRelatedComponentJobs);</span>
+<span class="fc" id="L45">        return new SimpleRestResponse&lt;&gt;(jobDto);</span>
+    }
+
+    private ThrowableProblem getNotFoundJobProblem(String jobId) {
+<span class="fc" id="L49">        return Problem.valueOf(Status.NOT_FOUND, &quot;A job with id &quot; + jobId + &quot; could not be found&quot;);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
