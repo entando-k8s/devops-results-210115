@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>I18nDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.i18n</a> &gt; <span class="el_source">I18nDAO.java</span></div><h1>I18nDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.i18n;
+
+import java.sql.BatchUpdateException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Data Access Object per gli oggetti label (I18n).
+ * @author S.Didaci- E.Santoboni
+ */
+<span class="fc" id="L37">public class I18nDAO extends AbstractDAO implements II18nDAO {</span>
+	
+<span class="fc" id="L39">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(I18nDAO.class);</span>
+	
+	/**
+	 * Carica la mappa che contiene tutte le label in tutte le lingue.
+	 * @return La mappa contenente tutte le label.
+	 */
+	public Map&lt;String, ApsProperties&gt; loadLabelGroups() {
+<span class="fc" id="L46">		Connection conn = null;</span>
+<span class="fc" id="L47">		Statement stat = null;</span>
+<span class="fc" id="L48">		ResultSet res = null;</span>
+<span class="fc" id="L49">		Map&lt;String, ApsProperties&gt; labels = null;</span>
+		try {
+<span class="fc" id="L51">			conn = this.getConnection();</span>
+<span class="fc" id="L52">			stat = conn.createStatement();</span>
+<span class="fc" id="L53">			res = stat.executeQuery(LOAD_ALL_LABELS);</span>
+<span class="fc" id="L54">			labels = this.createLabels(res);</span>
+<span class="nc" id="L55">		} catch (Throwable t) {</span>
+<span class="nc" id="L56">			_logger.error(&quot;Error loading labels&quot;,  t);</span>
+<span class="nc" id="L57">			throw new RuntimeException(&quot;Error loading labels&quot;, t);</span>
+			//processDaoException(t, &quot;Error loading label&quot;, &quot;loadLabelMap&quot;);
+		} finally{
+<span class="fc" id="L60">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L62">		return labels;</span>
+	}
+
+	public void updateLabelGroup(String key, ApsProperties labels) {
+<span class="fc" id="L66">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L68">			conn = this.getConnection();</span>
+<span class="fc" id="L69">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L70">			this.deleteLabelGroup(key, conn);</span>
+<span class="fc" id="L71">			this.addLabelGroup(key, labels, conn);</span>
+<span class="fc" id="L72">			conn.commit();</span>
+<span class="nc" id="L73">		} catch (Throwable t) {</span>
+<span class="nc" id="L74">			this.executeRollback(conn);</span>
+<span class="nc" id="L75">			_logger.error(&quot;Error while updating a label '{}'&quot;, key, t);</span>
+<span class="nc" id="L76">			throw new RuntimeException(&quot;Error while updating a label&quot;, t);</span>
+			//processDaoException(t, &quot;Error while updating a label&quot;, &quot;updateLabel&quot;);
+		} finally {
+<span class="fc" id="L79">			this.closeConnection(conn);</span>
+		}
+<span class="fc" id="L81">	}</span>
+
+	public void addLabelGroup(String key, ApsProperties labels) {
+<span class="fc" id="L84">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L86">			conn = this.getConnection();</span>
+<span class="fc" id="L87">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L88">			this.addLabelGroup(key, labels, conn);</span>
+<span class="fc" id="L89">			conn.commit();</span>
+<span class="nc" id="L90">		} catch (Throwable t) {</span>
+<span class="nc" id="L91">			this.executeRollback(conn);</span>
+<span class="nc" id="L92">			_logger.error(&quot;Error while adding a label '{}'&quot;, key, t);</span>
+<span class="nc" id="L93">			throw new RuntimeException(&quot;Error while adding a label&quot;, t);</span>
+			//processDaoException(t, &quot;Error while adding a label&quot;, &quot;addLabelGroup&quot;);
+		} finally {
+<span class="fc" id="L96">			this.closeConnection(conn);</span>
+		}
+<span class="fc" id="L98">	}</span>
+
+	private void addLabelGroup(String key, ApsProperties labels, Connection conn) {
+<span class="fc" id="L101">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L103">			stat = conn.prepareStatement(ADD_LABEL);</span>
+<span class="fc" id="L104">			Iterator&lt;Object&gt; labelKeysIter = labels.keySet().iterator();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">			while (labelKeysIter.hasNext()) {</span>
+<span class="fc" id="L106">				String labelLangCode = (String) labelKeysIter.next();</span>
+<span class="fc" id="L107">				String label = labels.getProperty(labelLangCode);</span>
+<span class="fc" id="L108">				stat.setString(1, key);</span>
+<span class="fc" id="L109">				stat.setString(2, labelLangCode);</span>
+<span class="fc" id="L110">				stat.setString(3, label);</span>
+<span class="fc" id="L111">				stat.addBatch();</span>
+<span class="fc" id="L112">				stat.clearParameters();</span>
+<span class="fc" id="L113">			}</span>
+<span class="fc" id="L114">			stat.executeBatch();</span>
+<span class="nc" id="L115">		} catch (BatchUpdateException e) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;Error adding a new label record&quot;,  e.getNextException());</span>
+<span class="nc" id="L117">			throw new RuntimeException(&quot;Error adding a new label record&quot;, e.getNextException());</span>
+			//processDaoException(e.getNextException(), &quot;Error adding a new label record&quot;, &quot;addLabel&quot;);
+<span class="nc" id="L119">		} catch (Throwable t) {</span>
+<span class="nc" id="L120">			_logger.error(&quot;Error while adding a new label&quot;,  t);</span>
+<span class="nc" id="L121">			throw new RuntimeException(&quot;Error while adding a new label&quot;, t);</span>
+			//processDaoException(t, &quot;Error while adding a new label&quot;, &quot;addLabel&quot;);
+		} finally {
+<span class="fc" id="L124">			closeDaoResources(null, stat);</span>
+		}
+<span class="fc" id="L126">	}</span>
+
+	public void deleteLabelGroup(String key) {
+<span class="fc" id="L129">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L131">			conn = this.getConnection();</span>
+<span class="fc" id="L132">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L133">			this.deleteLabelGroup(key, conn);</span>
+<span class="fc" id="L134">			conn.commit();</span>
+<span class="nc" id="L135">		} catch (Throwable t) {</span>
+<span class="nc" id="L136">			this.executeRollback(conn);</span>
+<span class="nc" id="L137">			_logger.error(&quot;Error deleting labels by key '{}'&quot;, key, t);</span>
+<span class="nc" id="L138">			throw new RuntimeException(&quot;Error deleting labels by key &quot; + key, t);</span>
+			//processDaoException(t, &quot;Erro while deleting multiple labels&quot;, &quot;deleteLabelGroup&quot;);
+		} finally {
+<span class="fc" id="L141">			this.closeConnection(conn);</span>
+		}
+<span class="fc" id="L143">	}</span>
+
+	private void deleteLabelGroup(String key, Connection conn) {
+<span class="fc" id="L146">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L148">			stat = conn.prepareStatement(DELETE_LABEL);</span>
+<span class="fc" id="L149">			stat.setString(1, key);</span>
+<span class="fc" id="L150">			stat.executeUpdate();</span>
+<span class="nc" id="L151">		} catch (Throwable t) {</span>
+<span class="nc" id="L152">			_logger.error(&quot;Error deleting labels by key '{}'&quot;, key, t);</span>
+<span class="nc" id="L153">			throw new RuntimeException(&quot;Error deleting labels by key &quot; + key, t);</span>
+			//processDaoException(t, &quot;Error while deleting a label group&quot;, &quot;deleteLabel&quot;);
+		} finally {
+<span class="fc" id="L156">			closeDaoResources(null, stat);</span>
+		}
+<span class="fc" id="L158">	}</span>
+
+	/**
+	 * Metodo di servizio: legge tutte le label.
+	 * @param res Il resultset ottenuto dall'estrazione delle labels.
+	 * @throws SQLException
+	 * @throws EntException
+	 */
+	private Map&lt;String, ApsProperties&gt; createLabels(ResultSet res) throws SQLException {
+		//1  l.key,  2 l.langcode, 3  l.value&quot;
+<span class="fc" id="L168">		Map&lt;String, ApsProperties&gt; labels = new HashMap&lt;String, ApsProperties&gt;();</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		while (res.next()) {</span>
+<span class="fc" id="L170">			String key = res.getString(1);</span>
+<span class="fc" id="L171">			ApsProperties labelsProp = labels.get(key);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">			if (labelsProp == null) {</span>
+<span class="fc" id="L173">				labelsProp = new ApsProperties();</span>
+<span class="fc" id="L174">				labels.put(key, labelsProp);</span>
+			}
+<span class="fc" id="L176">			String langCode = res.getString(2);</span>
+<span class="fc" id="L177">			String value = res.getString(3);</span>
+<span class="fc" id="L178">			labelsProp.put(langCode, value);</span>
+<span class="fc" id="L179">		}</span>
+<span class="fc" id="L180">		return labels;</span>
+	}
+
+<span class="fc" id="L183">	private final String LOAD_ALL_LABELS = </span>
+		&quot;SELECT keycode, langcode, stringvalue FROM localstrings&quot;;
+
+<span class="fc" id="L186">	private final String ADD_LABEL =</span>
+		&quot;INSERT INTO localstrings (keycode, langcode, stringvalue) VALUES ( ? , ? , ? )&quot;;
+
+<span class="fc" id="L189">	private final String DELETE_LABEL =</span>
+		&quot;DELETE FROM localstrings WHERE keycode = ? &quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

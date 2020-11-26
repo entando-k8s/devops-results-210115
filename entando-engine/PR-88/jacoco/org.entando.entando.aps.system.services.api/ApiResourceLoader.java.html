@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiResourceLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api</a> &gt; <span class="el_source">ApiResourceLoader.java</span></div><h1>ApiResourceLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api;
+
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.StringTokenizer;
+
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.FileTextReader;
+
+/**
+ * Shortcut Loader Class.
+ * @author E.Santoboni
+ */
+public class ApiResourceLoader {
+
+<span class="fc" id="L37">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ApiResourceLoader.class);</span>
+	
+<span class="fc" id="L39">    protected ApiResourceLoader(String locationPatterns) throws EntException {</span>
+        try {
+<span class="fc" id="L41">            StringTokenizer tokenizer = new StringTokenizer(locationPatterns, &quot;,&quot;);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            while (tokenizer.hasMoreTokens()) {</span>
+<span class="fc" id="L43">                String locationPattern = tokenizer.nextToken().trim();</span>
+<span class="fc" id="L44">                this.loadApiResources(locationPattern);</span>
+<span class="fc" id="L45">            }</span>
+<span class="nc" id="L46">        } catch (Throwable t) {</span>
+<span class="nc" id="L47">        	_logger.error(&quot;Error loading Api Method definitions&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;ApiMethodLoader&quot;, &quot;Error loading Api Method definitions&quot;);
+<span class="nc" id="L49">            throw new EntException(&quot;Error loading Api Method definitions&quot;, t);</span>
+<span class="fc" id="L50">        }</span>
+<span class="fc" id="L51">    }</span>
+    
+    private void loadApiResources(String locationPattern) throws Exception {
+<span class="fc" id="L54">		PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();</span>
+<span class="fc" id="L55">		Resource[] resources = resolver.getResources(locationPattern);</span>
+<span class="fc" id="L56">        ApiResourcesDefDOM dom = null;</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        for (int i = 0; i &lt; resources.length; i++) {</span>
+<span class="fc" id="L58">            Resource resource = resources[i];</span>
+<span class="fc" id="L59">            InputStream is = null;</span>
+<span class="fc" id="L60">            String path = resource.getURL().getPath();</span>
+            try {
+<span class="fc" id="L62">                is = resource.getInputStream();</span>
+<span class="fc" id="L63">                String xml = FileTextReader.getText(is);</span>
+<span class="fc" id="L64">                dom = new ApiResourcesDefDOM(xml, path);</span>
+<span class="fc" id="L65">                Map&lt;String, ApiResource&gt; extractedResources = dom.getResources();</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">                if (null != extractedResources) {</span>
+<span class="fc" id="L67">                    Iterator&lt;ApiResource&gt; extractedResourcesIter = extractedResources.values().iterator();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                    while (extractedResourcesIter.hasNext()) {</span>
+<span class="fc" id="L69">                        ApiResource apiResource = extractedResourcesIter.next();</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                        if (null != this.getResources().get(apiResource.getCode())) {</span>
+<span class="nc" id="L71">                            _logger.info(&quot;Into definition file '{}' there is an API with namespace '{}', resource '{}' and there is just one already present - The old definition will be overrided!!!&quot;, path, apiResource.getNamespace(), apiResource.getResourceName());</span>
+                        }
+<span class="fc" id="L73">                        this.getResources().put(apiResource.getCode(), apiResource);</span>
+<span class="fc" id="L74">                    }</span>
+                }
+<span class="fc" id="L76">                _logger.debug(&quot;Loaded Api Resources definition by file {}&quot;, path);</span>
+<span class="nc" id="L77">            } catch (Throwable t) {</span>
+<span class="nc" id="L78">            	_logger.error(&quot;Error loading Api Resources definition by location Pattern '{}'&quot;,path, t);</span>
+                //ApsSystemUtils.logThrowable(t, this, &quot;loadApiResources&quot;, &quot;Error loading Api Resources definition by location Pattern '&quot; + path + &quot;'&quot;);
+            } finally {
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                if (null != is) {</span>
+<span class="fc" id="L82">                    is.close();</span>
+                }
+            }
+        }
+<span class="fc" id="L86">    }</span>
+    
+    public Map&lt;String, ApiResource&gt; getResources() {
+<span class="fc" id="L89">        return this._resources;</span>
+    }
+    
+<span class="fc" id="L92">    private Map&lt;String, ApiResource&gt; _resources = new HashMap&lt;String, ApiResource&gt;();</span>
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DatabaseDumper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">DatabaseDumper.java</span></div><h1>DatabaseDumper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.DateConverter;
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.init.model.DataSourceDumpReport;
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.aps.system.init.model.TableDumpReport;
+import org.entando.entando.aps.system.init.util.TableDataUtils;
+import org.entando.entando.aps.system.init.util.TableFactory;
+import org.entando.entando.aps.system.services.storage.IStorageManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+
+import javax.sql.DataSource;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class DatabaseDumper extends AbstractDatabaseUtils {</span>
+
+<span class="fc" id="L41">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DatabaseDumper.class);</span>
+
+    protected void createBackup(AbstractInitializerManager.Environment environment, SystemInstallationReport installationReport) throws EntException {
+        try {
+<span class="nc" id="L45">            DataSourceDumpReport report = new DataSourceDumpReport(installationReport);</span>
+<span class="nc" id="L46">            long start = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">            String backupSubFolder = (AbstractInitializerManager.Environment.develop.equals(environment))</span>
+<span class="nc" id="L48">                    ? environment.toString() : DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="nc" id="L49">            report.setSubFolderName(backupSubFolder);</span>
+<span class="nc" id="L50">            List&lt;Component&gt; components = this.getComponents();</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            for (int i = 0; i &lt; components.size(); i++) {</span>
+<span class="nc" id="L52">                Component componentConfiguration = components.get(i);</span>
+<span class="nc" id="L53">                this.createBackup(componentConfiguration.getTableMapping(), report, backupSubFolder);</span>
+            }
+<span class="nc" id="L55">            this.createBackup(this.getEntandoTableMapping(), report, backupSubFolder);</span>
+<span class="nc" id="L56">            long time = System.currentTimeMillis() - start;</span>
+<span class="nc" id="L57">            report.setRequiredTime(time);</span>
+<span class="nc" id="L58">            report.setDate(new Date());</span>
+<span class="nc" id="L59">            StringBuilder reportFolder = new StringBuilder(this.getLocalBackupsFolder());</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            if (null != backupSubFolder) {</span>
+<span class="nc" id="L61">                reportFolder.append(backupSubFolder).append(File.separator);</span>
+            }
+<span class="nc" id="L63">            this.save(DatabaseManager.DUMP_REPORT_FILE_NAME,</span>
+<span class="nc" id="L64">                    reportFolder.toString(), report.toXml());</span>
+<span class="nc" id="L65">        } catch (Throwable t) {</span>
+<span class="nc" id="L66">            _logger.error(&quot;error in &quot;, t);</span>
+<span class="nc" id="L67">            throw new EntException(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L68">        }</span>
+<span class="nc" id="L69">    }</span>
+
+    private void createBackup(Map&lt;String, List&lt;String&gt;&gt; tableMapping, DataSourceDumpReport report, String backupSubFolder) throws EntException {
+<span class="nc" id="L72">        ClassLoader cl = ComponentManager.getComponentInstallerClassLoader();</span>
+<span class="nc bnc" id="L73" title="All 4 branches missed.">        if (null == tableMapping || tableMapping.isEmpty()) {</span>
+<span class="nc" id="L74">            return;</span>
+        }
+        try {
+<span class="nc" id="L77">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            for (int j = 0; j &lt; dataSourceNames.length; j++) {</span>
+<span class="nc" id="L79">                String dataSourceName = dataSourceNames[j];</span>
+<span class="nc" id="L80">                List&lt;String&gt; tableClassNames = tableMapping.get(dataSourceName);</span>
+<span class="nc bnc" id="L81" title="All 4 branches missed.">                if (null == tableClassNames || tableClassNames.isEmpty()) {</span>
+<span class="nc" id="L82">                    continue;</span>
+                }
+<span class="nc" id="L84">                DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                for (int k = 0; k &lt; tableClassNames.size(); k++) {</span>
+<span class="nc" id="L86">                    String tableClassName = tableClassNames.get(k);</span>
+<span class="nc" id="L87">                    Class tableClass = null;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                    if (cl != null) {</span>
+<span class="nc" id="L89">                        tableClass = Class.forName(tableClassName, true, cl);</span>
+                    } else {
+<span class="nc" id="L91">                        tableClass = Class.forName(tableClassName);</span>
+                    }
+<span class="nc" id="L93">                    String tableName = TableFactory.getTableName(tableClass);</span>
+<span class="nc" id="L94">                    this.dumpTableData(tableName, dataSourceName, dataSource, report, backupSubFolder);</span>
+                }
+            }
+<span class="nc" id="L97">        } catch (BeansException | ClassNotFoundException | EntException t) {</span>
+<span class="nc" id="L98">            _logger.error(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L99">            throw new EntException(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L100">        }</span>
+<span class="nc" id="L101">    }</span>
+
+    protected void dumpTableData(String tableName, String dataSourceName,
+            DataSource dataSource, DataSourceDumpReport report, String backupSubFolder) throws EntException {
+<span class="nc" id="L105">        String filename = tableName + &quot;.sql&quot;;</span>
+<span class="nc" id="L106">        File tempFile = null;</span>
+<span class="nc" id="L107">        FileWriter fileWriter = null;</span>
+<span class="nc" id="L108">        BufferedWriter bufferWriter = null;</span>
+        try {
+<span class="nc" id="L110">            tempFile = this.createEmptyTempFile(filename);</span>
+<span class="nc" id="L111">            fileWriter = new FileWriter(tempFile.getAbsolutePath());</span>
+<span class="nc" id="L112">            bufferWriter = new BufferedWriter(fileWriter);</span>
+<span class="nc" id="L113">            TableDumpReport tableDumpReport = TableDataUtils.dumpTable(bufferWriter, dataSource, tableName);</span>
+<span class="nc" id="L114">            report.addTableReport(dataSourceName, tableDumpReport);</span>
+<span class="nc" id="L115">        } catch (IOException t) {</span>
+<span class="nc" id="L116">            _logger.error(&quot;Error dumping table '{}' - datasource '{}'&quot;, tableName, dataSourceName, t);</span>
+<span class="nc" id="L117">            throw new EntException(&quot;Error dumping table '&quot; + tableName + &quot;' - datasource '&quot; + dataSourceName + &quot;'&quot;, t);</span>
+        } finally {
+            try {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (null != bufferWriter) {</span>
+<span class="nc" id="L121">                    bufferWriter.close();</span>
+                }
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                if (null != fileWriter) {</span>
+<span class="nc" id="L124">                    fileWriter.close();</span>
+                }
+<span class="nc" id="L126">            } catch (IOException t2) {</span>
+<span class="nc" id="L127">                _logger.error(&quot;Error closing FileWriter and BufferedWriter of file '{}'&quot;, filename, t2);</span>
+<span class="nc" id="L128">                throw new EntException(&quot;Error closing FileWriter and BufferedWriter&quot;, t2);</span>
+<span class="nc" id="L129">            }</span>
+        }
+<span class="nc" id="L131">        this.finalizeDumpFile(filename, dataSourceName, backupSubFolder, tempFile);</span>
+<span class="nc" id="L132">    }</span>
+
+    private void finalizeDumpFile(String filename, String dataSourceName, String backupSubFolder, File tempFile) throws EntException {
+<span class="nc" id="L135">        InputStream is = null;</span>
+        try {
+<span class="nc" id="L137">            StringBuilder dirName = new StringBuilder(this.getLocalBackupsFolder());</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            if (null != backupSubFolder) {</span>
+<span class="nc" id="L139">                dirName.append(backupSubFolder).append(File.separator);</span>
+            }
+<span class="nc" id="L141">            dirName.append(dataSourceName).append(File.separator);</span>
+<span class="nc" id="L142">            is = new FileInputStream(new File(tempFile.getAbsolutePath()));</span>
+<span class="nc" id="L143">            this.save(filename, dirName.toString(), is);</span>
+<span class="nc" id="L144">        } catch (EntException | IOException t) {</span>
+<span class="nc" id="L145">            _logger.error(&quot;Error saving dump file '{}'&quot;, tempFile.getName(), t);</span>
+<span class="nc" id="L146">            throw new EntException(&quot;Error saving dump file '&quot; + tempFile.getName() + &quot;'&quot;, t);</span>
+        } finally {
+            try {
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                if (null != is) {</span>
+<span class="nc" id="L150">                    is.close();</span>
+                }
+<span class="nc" id="L152">            } catch (IOException t2) {</span>
+<span class="nc" id="L153">                _logger.error(&quot;Error closing FileInputstream of temp file '{}'&quot;, filename, t2);</span>
+<span class="nc" id="L154">            }</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (null != tempFile) {</span>
+<span class="nc" id="L156">                boolean deleted = tempFile.delete();</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                if(!deleted) {</span>
+<span class="nc" id="L158">                    _logger.warn(&quot;Failed to delete temp file {} &quot;,tempFile.getAbsolutePath());</span>
+                }
+            }
+        }
+<span class="nc" id="L162">    }</span>
+
+    protected File createEmptyTempFile(String filename) throws EntException {
+        try {
+<span class="nc" id="L166">            String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="nc" id="L167">            String filePath = tempDir + File.separator + filename;</span>
+<span class="nc" id="L168">            File file = new File(filePath);</span>
+<span class="nc" id="L169">            boolean created = file.createNewFile();</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if(!created) {</span>
+<span class="nc" id="L171">                _logger.warn(&quot;Failed to create a temp file {} &quot;,created);</span>
+            }
+<span class="nc" id="L173">            return file;</span>
+<span class="nc" id="L174">        } catch (Throwable t) {</span>
+<span class="nc" id="L175">            _logger.error(&quot;Error saving new temp file '{}'&quot;, filename, t);</span>
+<span class="nc" id="L176">            throw new EntException(&quot;Error saving new temp file '&quot; + filename + &quot;'&quot;, t);</span>
+        }
+    }
+
+    protected void save(String filename, String folder, String content) throws EntException {
+<span class="nc" id="L181">        ByteArrayInputStream bais = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));</span>
+<span class="nc" id="L182">        this.save(filename, folder, bais);</span>
+<span class="nc" id="L183">    }</span>
+
+    protected void save(String filename, String folder, InputStream is) throws EntException {
+        try {
+<span class="nc" id="L187">            IStorageManager storageManager = this.getStorageManager();</span>
+<span class="nc" id="L188">            String path = folder + filename;</span>
+<span class="nc" id="L189">            storageManager.saveFile(path, true, is);</span>
+<span class="nc" id="L190">        } catch (Throwable t) {</span>
+<span class="nc" id="L191">            _logger.error(&quot;Error saving backup '{}'&quot;, filename, t);</span>
+<span class="nc" id="L192">            throw new EntException(&quot;Error saving backup '&quot; + filename + &quot;'&quot;, t);</span>
+<span class="nc" id="L193">        }</span>
+<span class="nc" id="L194">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

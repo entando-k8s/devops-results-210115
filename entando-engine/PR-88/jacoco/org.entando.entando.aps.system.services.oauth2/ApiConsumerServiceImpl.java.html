@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiConsumerServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.oauth2</a> &gt; <span class="el_source">ApiConsumerServiceImpl.java</span></div><h1>ApiConsumerServiceImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ * 
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.oauth2;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import org.entando.entando.ent.exception.EntException;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.services.oauth2.model.ApiConsumer;
+import org.entando.entando.aps.system.services.oauth2.model.ConsumerRecordVO;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.DataBinder;
+
+public class ApiConsumerServiceImpl implements ApiConsumerService {
+
+    public static final String ERRCODE_CONSUMER_ALREADY_EXISTS = &quot;4&quot;;
+
+    private final IOAuthConsumerManager consumerManager;
+
+<span class="fc" id="L35">    public ApiConsumerServiceImpl(IOAuthConsumerManager consumerManager) {</span>
+<span class="fc" id="L36">        this.consumerManager = consumerManager;</span>
+<span class="fc" id="L37">    }</span>
+
+    @Override
+    public ApiConsumer create(ApiConsumer consumer) throws EntException {
+<span class="fc" id="L41">        validateForCreate(consumer);</span>
+<span class="fc" id="L42">        return new ApiConsumer(consumerManager.addConsumer(consumer.toConsumerRecordVO()));</span>
+    }
+
+    @Override
+    public ApiConsumer get(String consumerKey) throws EntException {
+<span class="fc" id="L47">        ConsumerRecordVO record = consumerManager.getConsumerRecord(consumerKey);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (record == null) {</span>
+<span class="fc" id="L49">            throw new ResourceNotFoundException(ApiConsumer.class.getName(), consumerKey);</span>
+        }
+<span class="fc" id="L51">        return new ApiConsumer(record);</span>
+    }
+
+    @Override
+    public ApiConsumer update(ApiConsumer consumer) throws EntException {
+<span class="fc" id="L56">        ConsumerRecordVO record = consumerManager.getConsumerRecord(consumer.getKey());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (record == null) {</span>
+<span class="fc" id="L58">            throw new ResourceNotFoundException(ApiConsumer.class.getName(), consumer.getKey());</span>
+        }
+<span class="fc" id="L60">        ConsumerRecordVO updatedRecord = consumer.toConsumerRecordVO();</span>
+<span class="fc" id="L61">        updatedRecord.setIssuedDate(record.getIssuedDate());</span>
+<span class="fc" id="L62">        return new ApiConsumer(consumerManager.updateConsumer(updatedRecord));</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;ApiConsumer&gt; list(RestListRequest request) throws EntException {
+
+<span class="fc" id="L68">        FieldSearchFilter&lt;?&gt;[] filters</span>
+<span class="fc" id="L69">                = request.buildFieldSearchFilters().stream()</span>
+<span class="fc" id="L70">                        .map(this::reMapFilterKeys)</span>
+<span class="fc" id="L71">                        .toArray(FieldSearchFilter[]::new);</span>
+
+<span class="fc" id="L73">        List&lt;ConsumerRecordVO&gt; allConsumers = consumerManager.getConsumers(filters);</span>
+
+<span class="fc" id="L75">        List&lt;ApiConsumer&gt; pagedList = request.getSublist(allConsumers)</span>
+<span class="fc" id="L76">                .stream().map(vo -&gt; new ApiConsumer(vo))</span>
+<span class="fc" id="L77">                .collect(Collectors.toList());</span>
+
+<span class="fc" id="L79">        return new PagedMetadata&lt;&gt;(request, pagedList, allConsumers.size());</span>
+    }
+
+    private FieldSearchFilter&lt;?&gt; reMapFilterKeys(FieldSearchFilter&lt;?&gt; filter) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (&quot;key&quot;.equals(filter.getKey())) {</span>
+<span class="fc" id="L84">            filter.setKey(&quot;consumerkey&quot;);</span>
+        }
+<span class="fc" id="L86">        return filter;</span>
+    }
+
+    @Override
+    public void delete(String consumerKey) throws EntException {
+<span class="fc" id="L91">        consumerManager.deleteConsumer(consumerKey);</span>
+<span class="fc" id="L92">    }</span>
+
+    private void validateForCreate(ApiConsumer consumer) throws EntException {
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (consumerManager.getConsumerRecord(consumer.getKey()) != null) {</span>
+<span class="fc" id="L97">            DataBinder binder = new DataBinder(consumer);</span>
+<span class="fc" id="L98">            BindingResult bindingResult = binder.getBindingResult();</span>
+<span class="fc" id="L99">            bindingResult.reject(ERRCODE_CONSUMER_ALREADY_EXISTS, new String[]{consumer.getKey()}, &quot;api.consumer.exists&quot;);</span>
+<span class="fc" id="L100">            throw new ValidationConflictException(bindingResult);</span>
+        }
+<span class="fc" id="L102">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

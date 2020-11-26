@@ -1,0 +1,915 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.page</a> &gt; <span class="el_source">PageDAO.java</span></div><h1>PageDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.page;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+
+import org.entando.entando.aps.system.init.model.portdb.PageMetadataDraft;
+import org.entando.entando.aps.system.init.model.portdb.PageMetadataOnline;
+import org.entando.entando.aps.system.init.model.portdb.WidgetConfig;
+import org.entando.entando.aps.system.init.model.portdb.WidgetConfigDraft;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import com.agiletec.aps.system.services.pagemodel.IPageModelManager;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Data Access Object for the 'page' objects
+ *
+ * @author M.Diana - E.Santoboni - E.Mezzano
+ */
+<span class="fc" id="L49">public class PageDAO extends AbstractDAO implements IPageDAO {</span>
+
+<span class="fc" id="L51">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageDAO.class);</span>
+
+<span class="fc" id="L53">    protected enum WidgetConfigDest {</span>
+<span class="fc" id="L54">        ON_LINE, DRAFT;</span>
+    }
+
+    @Override
+    public List&lt;PageRecord&gt; loadPageRecords() {
+<span class="fc" id="L59">        Connection conn = null;</span>
+<span class="fc" id="L60">        List&lt;PageRecord&gt; pages = null;</span>
+        try {
+<span class="fc" id="L62">            conn = this.getConnection();</span>
+<span class="fc" id="L63">            pages = this.createPageRecordList(conn);</span>
+<span class="fc" id="L64">            this.readPageWidgets(pages, true, conn);</span>
+<span class="fc" id="L65">            this.readPageWidgets(pages, false, conn);</span>
+<span class="nc" id="L66">        } catch (Throwable t) {</span>
+<span class="nc" id="L67">            _logger.error(&quot;Error loading pages&quot;, t);</span>
+<span class="nc" id="L68">            throw new RuntimeException(&quot;Error loading pages&quot;, t);</span>
+        } finally {
+<span class="fc" id="L70">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L72">        return pages;</span>
+    }
+
+    private List&lt;PageRecord&gt; createPageRecordList(Connection conn) {
+<span class="fc" id="L76">        List&lt;PageRecord&gt; pages = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L77">        Statement stat = null;</span>
+<span class="fc" id="L78">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L80">            stat = conn.createStatement();</span>
+<span class="fc" id="L81">            res = stat.executeQuery(ALL_PAGES);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L83">                String code = res.getString(3);</span>
+<span class="fc" id="L84">                PageRecord page = this.createPageRecord(code, res);</span>
+<span class="fc" id="L85">                pages.add(page);</span>
+<span class="fc" id="L86">                int numFramesOnline = this.getWidgetArrayLength(page.getMetadataOnline());</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">                if (numFramesOnline &gt;= 0) {</span>
+<span class="fc" id="L88">                    page.setWidgetsOnline(new Widget[numFramesOnline]);</span>
+                }
+<span class="fc" id="L90">                int numFramesDraft = this.getWidgetArrayLength(page.getMetadataDraft());</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                if (numFramesDraft &gt;= 0) {</span>
+<span class="fc" id="L92">                    page.setWidgetsDraft(new Widget[numFramesDraft]);</span>
+                }
+<span class="fc" id="L94">            }</span>
+<span class="nc" id="L95">        } catch (Throwable t) {</span>
+<span class="nc" id="L96">            _logger.error(&quot;Error loading page records&quot;, t);</span>
+<span class="nc" id="L97">            throw new RuntimeException(&quot;Error loading page records&quot;, t);</span>
+        } finally {
+<span class="fc" id="L99">            closeDaoResources(res, stat);</span>
+        }
+<span class="fc" id="L101">        return pages;</span>
+    }
+
+    private void readPageWidgets(List&lt;PageRecord&gt; pages, boolean online, Connection conn) {
+<span class="fc" id="L105">        Statement stat = null;</span>
+<span class="fc" id="L106">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L108">            stat = conn.createStatement();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            res = stat.executeQuery(online ? ALL_WIDGETS_ONLINE : ALL_WIDGETS_DRAFT);</span>
+<span class="fc" id="L110">            PageRecord currentPage = null;</span>
+<span class="fc" id="L111">            int currentWidgetNum = 0;</span>
+<span class="fc" id="L112">            Widget[] currentWidgets = null;</span>
+<span class="fc" id="L113">            Iterator&lt;PageRecord&gt; pagesIter = pages.iterator();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L115">                String code = res.getString(1);</span>
+<span class="fc bfc" id="L116" title="All 4 branches covered.">                while (currentPage == null || !currentPage.getCode().equals(code)) {</span>
+<span class="fc" id="L117">                    currentPage = pagesIter.next();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                    currentWidgetNum = this.getWidgetArrayLength(online ? currentPage.getMetadataOnline() : currentPage.getMetadataDraft());</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                    currentWidgets = online ? currentPage.getWidgetsOnline() : currentPage.getWidgetsDraft();</span>
+                }
+<span class="fc" id="L121">                this.readWidget(currentPage, currentWidgetNum, currentWidgets, 2, res);</span>
+<span class="fc" id="L122">            }</span>
+<span class="nc" id="L123">        } catch (Throwable t) {</span>
+<span class="nc" id="L124">            _logger.error(&quot;Error loading page widgets - online/draft: {}&quot;, online, t);</span>
+<span class="nc" id="L125">            throw new RuntimeException(&quot;Error loading page widgets - online/draft: &quot; + online, t);</span>
+        } finally {
+<span class="fc" id="L127">            closeDaoResources(res, stat);</span>
+        }
+<span class="fc" id="L129">    }</span>
+
+    protected int getWidgetArrayLength(PageMetadata metadata) {
+<span class="fc" id="L132">        int numFrames = -1;</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (metadata != null) {</span>
+<span class="fc" id="L134">            PageModel model = metadata.getModel();</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            if (model != null) {</span>
+<span class="fc" id="L136">                numFrames = model.getFrames().length;</span>
+            }
+        }
+<span class="fc" id="L139">        return numFrames;</span>
+    }
+
+    protected void readWidget(PageRecord page, int numOfFrames, Widget widgets[],
+            int startIndex, ResultSet res) throws EntException, SQLException {
+<span class="fc" id="L144">        Object posObj = res.getObject(startIndex);</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (posObj != null) {</span>
+<span class="fc" id="L146">            int pos = res.getInt(startIndex);</span>
+<span class="pc bpc" id="L147" title="2 of 4 branches missed.">            if (pos &gt;= 0 &amp;&amp; pos &lt; numOfFrames) {</span>
+<span class="fc" id="L148">                Widget widget = this.createWidget(page, pos, res, startIndex + 1);</span>
+<span class="fc" id="L149">                widgets[pos] = widget;</span>
+<span class="fc" id="L150">            } else {</span>
+<span class="nc" id="L151">                _logger.warn(&quot;The position read from the database exceeds the number of frames defined in the model of the page {}&quot;, page</span>
+<span class="nc" id="L152">                        .getCode());</span>
+            }
+        }
+<span class="fc" id="L155">    }</span>
+
+    protected PageRecord createPageRecord(String code, ResultSet res) throws Throwable {
+<span class="fc" id="L158">        PageRecord page = new PageRecord();</span>
+<span class="fc" id="L159">        page.setCode(code);</span>
+<span class="fc" id="L160">        page.setParentCode(res.getString(1));</span>
+<span class="fc" id="L161">        page.setPosition(res.getInt(2));</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (res.getString(4) != null) {</span>
+<span class="fc" id="L163">            page.setMetadataOnline(this.createPageMetadata(code, res, 4));</span>
+        }
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (res.getString(10) != null) {</span>
+<span class="fc" id="L166">            page.setMetadataDraft(this.createPageMetadata(code, res, 10));</span>
+        }
+<span class="fc" id="L168">        return page;</span>
+    }
+
+    protected Widget createWidget(PageRecord page, int pos, ResultSet res, int startIndex) throws EntException, SQLException {
+<span class="fc" id="L172">        String typeCode = res.getString(startIndex++);</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (null == typeCode) {</span>
+<span class="nc" id="L174">            return null;</span>
+        }
+<span class="fc" id="L176">        Widget widget = new Widget();</span>
+<span class="fc" id="L177">        WidgetType type = this.getWidgetTypeManager().getWidgetType(typeCode);</span>
+<span class="fc" id="L178">        widget.setType(type);</span>
+<span class="fc" id="L179">        ApsProperties config = new ApsProperties();</span>
+<span class="fc" id="L180">        String configText = res.getString(startIndex++);</span>
+<span class="pc bpc" id="L181" title="1 of 4 branches missed.">        if (null != configText &amp;&amp; configText.trim().length() &gt; 0) {</span>
+            try {
+<span class="fc" id="L183">                config.loadFromXml(configText);</span>
+<span class="nc" id="L184">            } catch (Throwable t) {</span>
+<span class="nc" id="L185">                _logger.error(&quot;IO error detected while parsing the configuration of the widget in position '{}' of the page '{}'&quot;, pos, page</span>
+<span class="nc" id="L186">                        .getCode(), t);</span>
+<span class="nc" id="L187">                String msg = &quot;IO error detected while parsing the configuration of the widget in position &quot; + pos + &quot; of the page '&quot; + page</span>
+<span class="nc" id="L188">                        .getCode() + &quot;'&quot;;</span>
+<span class="nc" id="L189">                throw new EntException(msg, t);</span>
+<span class="fc" id="L190">            }</span>
+        } else {
+<span class="fc" id="L192">            config = type.getConfig();</span>
+        }
+<span class="fc" id="L194">        widget.setConfig(config);</span>
+<span class="fc" id="L195">        return widget;</span>
+    }
+
+    /**
+     * Insert a new page.
+     *
+     * @param page The new page to insert.
+     */
+    @Override
+    public void addPage(IPage page) {
+<span class="fc" id="L205">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L207">            conn = this.getConnection();</span>
+<span class="fc" id="L208">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L209">            String pageCode = page.getCode();</span>
+<span class="fc" id="L210">            this.addPageRecord(page, conn);</span>
+<span class="fc" id="L211">            PageMetadata draftMetadata = page.getMetadata();</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (draftMetadata == null) {</span>
+<span class="nc" id="L213">                draftMetadata = new PageMetadata();</span>
+            }
+<span class="fc" id="L215">            draftMetadata.setUpdatedAt(new Date());</span>
+<span class="fc" id="L216">            this.addDraftPageMetadata(pageCode, draftMetadata, conn);</span>
+<span class="fc" id="L217">            this.addWidgetForPage(page, WidgetConfigDest.DRAFT, conn);</span>
+<span class="fc" id="L218">            conn.commit();</span>
+<span class="nc" id="L219">        } catch (Throwable t) {</span>
+<span class="nc" id="L220">            this.executeRollback(conn);</span>
+<span class="nc" id="L221">            _logger.error(&quot;Error while adding a new page&quot;, t);</span>
+<span class="nc" id="L222">            throw new RuntimeException(&quot;Error while adding a new page&quot;, t);</span>
+        } finally {
+<span class="fc" id="L224">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L226">    }</span>
+
+    protected void addPageRecord(IPage page, Connection conn) {
+<span class="fc" id="L229">        String parentCode = page.getParentCode();</span>
+        // a new page is always inserted in the last position,
+        // to avoid changes of the position of the &quot;sister&quot; pages.
+<span class="fc" id="L232">        int position = this.getLastPosition(parentCode, conn) + 1;</span>
+<span class="fc" id="L233">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L235">            stat = conn.prepareStatement(ADD_PAGE);</span>
+<span class="fc" id="L236">            stat.setString(1, page.getCode());</span>
+<span class="fc" id="L237">            stat.setString(2, parentCode);</span>
+<span class="fc" id="L238">            stat.setInt(3, position);</span>
+<span class="fc" id="L239">            stat.executeUpdate();</span>
+<span class="nc" id="L240">        } catch (Throwable t) {</span>
+<span class="nc" id="L241">            _logger.error(&quot;Error adding a new page record&quot;, t);</span>
+<span class="nc" id="L242">            throw new RuntimeException(&quot;Error adding a new page record&quot;, t);</span>
+        } finally {
+<span class="fc" id="L244">            closeDaoResources(null, stat);</span>
+        }
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        if (page instanceof Page) {</span>
+<span class="fc" id="L247">            ((Page) page).setPosition(position);</span>
+        }
+<span class="fc" id="L249">    }</span>
+
+    /**
+     * Delete the page identified by the given code.
+     *
+     * @param page The page to delete.
+     */
+    @Override
+    public void deletePage(IPage page) {
+<span class="fc" id="L258">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L260">            conn = this.getConnection();</span>
+<span class="fc" id="L261">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L262">            String pageCode = page.getCode();</span>
+<span class="fc" id="L263">            this.deleteOnlineWidgets(pageCode, conn);</span>
+<span class="fc" id="L264">            this.deleteDraftWidgets(pageCode, conn);</span>
+<span class="fc" id="L265">            this.deleteOnlinePageMetadata(pageCode, conn);</span>
+<span class="fc" id="L266">            this.deleteDraftPageMetadata(pageCode, conn);</span>
+<span class="fc" id="L267">            this.deletePageRecord(pageCode, conn);</span>
+<span class="fc" id="L268">            this.shiftPages(page.getParentCode(), page.getPosition(), conn);</span>
+<span class="fc" id="L269">            conn.commit();</span>
+<span class="nc" id="L270">        } catch (Throwable t) {</span>
+<span class="nc" id="L271">            this.executeRollback(conn);</span>
+<span class="nc" id="L272">            _logger.error(&quot;Error deleting page&quot;, t);</span>
+<span class="nc" id="L273">            throw new RuntimeException(&quot;Error deleting page&quot;, t);</span>
+        } finally {
+<span class="fc" id="L275">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L277">    }</span>
+
+    protected void deletePageRecord(String pageCode, Connection conn) {
+<span class="fc" id="L280">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L282">            stat = conn.prepareStatement(DELETE_PAGE);</span>
+<span class="fc" id="L283">            stat.setString(1, pageCode);</span>
+<span class="fc" id="L284">            stat.executeUpdate();</span>
+<span class="nc" id="L285">        } catch (Throwable t) {</span>
+<span class="nc" id="L286">            _logger.error(&quot;Error deleting a page record&quot;, t);</span>
+<span class="nc" id="L287">            throw new RuntimeException(&quot;Error deleting a page record&quot;, t);</span>
+        } finally {
+<span class="fc" id="L289">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L291">    }</span>
+
+    /**
+     * Delete the widget associated to a page.
+     *
+     * @param pageCode The code of the page containing the widget to delete.
+     * @param conn The database connection
+     * @throws EntException In case of database error
+     */
+    protected void deleteOnlineWidgets(String pageCode, Connection conn) throws EntException {
+<span class="fc" id="L301">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L303">            stat = conn.prepareStatement(DELETE_WIDGETS_FOR_PAGE_ONLINE);</span>
+<span class="fc" id="L304">            stat.setString(1, pageCode);</span>
+<span class="fc" id="L305">            stat.executeUpdate();</span>
+<span class="nc" id="L306">        } catch (Throwable t) {</span>
+<span class="nc" id="L307">            _logger.error(&quot;Error while deleting widgets for page '{}'&quot;, pageCode, t);</span>
+<span class="nc" id="L308">            throw new RuntimeException(&quot;Error while deleting widgets&quot;, t);</span>
+        } finally {
+<span class="fc" id="L310">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L312">    }</span>
+
+    /**
+     * Delete the widget associated to the draft version of a page.
+     *
+     * @param pageCode The code of the page containing the widget to delete.
+     * @param conn The database connection
+     * @throws EntException In case of database error
+     */
+    protected void deleteDraftWidgets(String pageCode, Connection conn) throws EntException {
+<span class="fc" id="L322">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L324">            stat = conn.prepareStatement(DELETE_WIDGETS_FOR_PAGE_DRAFT);</span>
+<span class="fc" id="L325">            stat.setString(1, pageCode);</span>
+<span class="fc" id="L326">            stat.executeUpdate();</span>
+<span class="nc" id="L327">        } catch (Throwable t) {</span>
+<span class="nc" id="L328">            _logger.error(&quot;Error while deleting  draft widgets for page '{}'&quot;, pageCode, t);</span>
+<span class="nc" id="L329">            throw new RuntimeException(&quot;Error while deleting draft widgets&quot;, t);</span>
+        } finally {
+<span class="fc" id="L331">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L333">    }</span>
+
+    /**
+     * Decrement by one the position of a group of pages to compact the
+     * positions after a deletion
+     *
+     * @param parentCode the code of the parent of the pages to compact.
+     * @param position The empty position which needs to be compacted.
+     * @param conn The connection to the database
+     * @throws EntException In case of database error
+     */
+    protected void shiftPages(String parentCode, int position, Connection conn) throws EntException {
+<span class="fc" id="L345">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L347">            stat = conn.prepareStatement(SHIFT_PAGE);</span>
+<span class="fc" id="L348">            stat.setString(1, parentCode);</span>
+<span class="fc" id="L349">            stat.setInt(2, position);</span>
+<span class="fc" id="L350">            stat.executeUpdate();</span>
+<span class="nc" id="L351">        } catch (Throwable t) {</span>
+<span class="nc" id="L352">            _logger.error(&quot;Error moving page position&quot;, t);</span>
+<span class="nc" id="L353">            throw new RuntimeException(&quot;Error moving page position&quot;, t);</span>
+        } finally {
+<span class="fc" id="L355">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L357">    }</span>
+
+    /**
+     * Updates the position for the page movement
+     *
+     * @param pageDown The page to move downwards
+     * @param pageUp The page to move upwards
+     */
+    @Override
+    public void updatePosition(String pageDown, String pageUp) {
+<span class="fc" id="L367">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L369">            conn = this.getConnection();</span>
+<span class="fc" id="L370">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L371">            this.updatePosition(pageDown, MOVE_DOWN, conn);</span>
+<span class="fc" id="L372">            this.updatePosition(pageUp, MOVE_UP, conn);</span>
+<span class="fc" id="L373">            this.updatePageMetadataOnlineLastUpdate(pageDown, new Date(), conn);</span>
+<span class="fc" id="L374">            this.updatePageMetadataOnlineLastUpdate(pageUp, new Date(), conn);</span>
+<span class="fc" id="L375">            this.updatePageMetadataDraftLastUpdate(pageDown, new Date(), conn);</span>
+<span class="fc" id="L376">            this.updatePageMetadataDraftLastUpdate(pageUp, new Date(), conn);</span>
+<span class="fc" id="L377">            conn.commit();</span>
+<span class="nc" id="L378">        } catch (Throwable t) {</span>
+<span class="nc" id="L379">            this.executeRollback(conn);</span>
+<span class="nc" id="L380">            _logger.error(&quot;Error detected while updating positions&quot;, t);</span>
+<span class="nc" id="L381">            throw new RuntimeException(&quot;Error detected while updating positions&quot;, t);</span>
+        } finally {
+<span class="fc" id="L383">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L385">    }</span>
+
+    private void updatePosition(String pageCode, String query, Connection conn) {
+<span class="fc" id="L388">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L390">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L391">            stat.setString(1, pageCode);</span>
+<span class="fc" id="L392">            stat.executeUpdate();</span>
+<span class="nc" id="L393">        } catch (Throwable t) {</span>
+<span class="nc" id="L394">            _logger.error(&quot;Error detected while updating position for page {}&quot;, pageCode, t);</span>
+<span class="nc" id="L395">            throw new RuntimeException(&quot;Error detected while updating position for page &quot; + pageCode, t);</span>
+        } finally {
+<span class="fc" id="L397">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L399">    }</span>
+
+    @Override
+    public void updateWidgetPosition(String pageCode, Integer frameToMove, Integer destFrame) {
+<span class="fc" id="L403">        Connection conn = null;</span>
+<span class="fc" id="L404">        int TEMP_FRAME_POSITION = -9999;</span>
+        try {
+<span class="fc" id="L406">            conn = this.getConnection();</span>
+<span class="fc" id="L407">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L408">            this.updateWidgetPosition(pageCode, frameToMove, TEMP_FRAME_POSITION, conn);</span>
+<span class="fc" id="L409">            this.updateWidgetPosition(pageCode, destFrame, frameToMove, conn);</span>
+<span class="fc" id="L410">            this.updateWidgetPosition(pageCode, TEMP_FRAME_POSITION, destFrame, conn);</span>
+<span class="fc" id="L411">            this.updatePageMetadataDraftLastUpdate(pageCode, new Date(), conn);</span>
+<span class="fc" id="L412">            conn.commit();</span>
+<span class="nc" id="L413">        } catch (Throwable t) {</span>
+<span class="nc" id="L414">            this.executeRollback(conn);</span>
+<span class="nc" id="L415">            _logger.error(&quot;Error while updating WidgetPosition. page: {} from position: {} to position {}&quot;, pageCode, frameToMove,</span>
+                    destFrame, t);
+<span class="nc" id="L417">            throw new RuntimeException(&quot;Error while updating widget position&quot;, t);</span>
+        } finally {
+<span class="fc" id="L419">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L421">    }</span>
+
+    private void updateWidgetPosition(String pageCode, int frameToMove, int destFrame, Connection conn) {
+<span class="fc" id="L424">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L426">            stat = conn.prepareStatement(MOVE_WIDGET);</span>
+<span class="fc" id="L427">            stat.setInt(1, destFrame);</span>
+<span class="fc" id="L428">            stat.setString(2, pageCode);</span>
+<span class="fc" id="L429">            stat.setInt(3, frameToMove);</span>
+<span class="fc" id="L430">            stat.executeUpdate();</span>
+<span class="nc" id="L431">        } catch (Throwable t) {</span>
+<span class="nc" id="L432">            _logger.error(&quot;Error while updating WidgetPosition. page: {} from position: {} to position {}&quot;, pageCode, frameToMove,</span>
+<span class="nc" id="L433">                    destFrame, t);</span>
+<span class="nc" id="L434">            throw new RuntimeException(&quot;Error while updating widget position&quot;, t);</span>
+        } finally {
+<span class="fc" id="L436">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L438">    }</span>
+
+    /**
+     * Updates a page record in the database.
+     *
+     * @param page The page to update
+     */
+    @Override
+    public void updatePage(IPage page) {
+<span class="fc" id="L447">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L449">            conn = this.getConnection();</span>
+<span class="fc" id="L450">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L451">            String pageCode = page.getCode();</span>
+<span class="fc" id="L452">            this.deleteDraftWidgets(pageCode, conn);</span>
+<span class="fc" id="L453">            this.deleteDraftPageMetadata(pageCode, conn);</span>
+<span class="fc" id="L454">            this.updatePageRecord(page, conn);</span>
+<span class="fc" id="L455">            PageMetadata metadata = page.getMetadata();</span>
+<span class="fc" id="L456">            metadata.setUpdatedAt(new Date());</span>
+<span class="fc" id="L457">            this.addDraftPageMetadata(pageCode, page.getMetadata(), conn);</span>
+<span class="fc" id="L458">            this.addWidgetForPage(page, WidgetConfigDest.DRAFT, conn);</span>
+<span class="fc" id="L459">            conn.commit();</span>
+<span class="nc" id="L460">        } catch (Throwable t) {</span>
+<span class="nc" id="L461">            this.executeRollback(conn);</span>
+<span class="nc" id="L462">            _logger.error(&quot;Error while updating the page&quot;, t);</span>
+<span class="nc" id="L463">            throw new RuntimeException(&quot;Error while updating the page&quot;, t);</span>
+        } finally {
+<span class="fc" id="L465">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L467">    }</span>
+
+    protected void updatePageRecord(IPage page, Connection conn) {
+<span class="fc" id="L470">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L472">            stat = conn.prepareStatement(UPDATE_PAGE);</span>
+<span class="fc" id="L473">            stat.setString(1, page.getParentCode());</span>
+<span class="fc" id="L474">            stat.setString(2, page.getCode());</span>
+<span class="fc" id="L475">            stat.executeUpdate();</span>
+<span class="nc" id="L476">        } catch (Throwable t) {</span>
+<span class="nc" id="L477">            _logger.error(&quot;Error while updating the page record&quot;, t);</span>
+<span class="nc" id="L478">            throw new RuntimeException(&quot;Error while updating the page record&quot;, t);</span>
+        } finally {
+<span class="fc" id="L480">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L482">    }</span>
+
+    @Override
+    public void setPageOnline(String pageCode) {
+<span class="fc" id="L486">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L488">            conn = this.getConnection();</span>
+<span class="fc" id="L489">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L490">            this.deleteOnlineWidgets(pageCode, conn);</span>
+<span class="fc" id="L491">            this.deleteOnlinePageMetadata(pageCode, conn);</span>
+<span class="fc" id="L492">            this.executeQueryWithoutResultset(conn, SET_ONLINE_METADATA, pageCode);</span>
+<span class="fc" id="L493">            this.executeQueryWithoutResultset(conn, SET_ONLINE_WIDGETS, pageCode);</span>
+<span class="fc" id="L494">            Date now = new Date();</span>
+<span class="fc" id="L495">            this.updatePageMetadataDraftLastUpdate(pageCode, now, conn);</span>
+<span class="fc" id="L496">            this.updatePageMetadataOnlineLastUpdate(pageCode, now, conn);</span>
+<span class="fc" id="L497">            conn.commit();</span>
+<span class="nc" id="L498">        } catch (Throwable t) {</span>
+<span class="nc" id="L499">            this.executeRollback(conn);</span>
+<span class="nc" id="L500">            _logger.error(&quot;Error while setting page '{}' as online&quot;, pageCode, t);</span>
+<span class="nc" id="L501">            throw new RuntimeException(&quot;Error while setting page &quot; + pageCode + &quot; as online&quot;, t);</span>
+        } finally {
+<span class="fc" id="L503">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L505">    }</span>
+
+    @Override
+    public void setPageOffline(String pageCode) {
+<span class="fc" id="L509">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L511">            conn = this.getConnection();</span>
+<span class="fc" id="L512">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L513">            this.deleteOnlineWidgets(pageCode, conn);</span>
+<span class="fc" id="L514">            this.deleteOnlinePageMetadata(pageCode, conn);</span>
+<span class="fc" id="L515">            this.updatePageMetadataDraftLastUpdate(pageCode, new Date(), conn);</span>
+<span class="fc" id="L516">            conn.commit();</span>
+<span class="nc" id="L517">        } catch (Throwable t) {</span>
+<span class="nc" id="L518">            this.executeRollback(conn);</span>
+<span class="nc" id="L519">            _logger.error(&quot;Error while setting page '{}' as online&quot;, pageCode, t);</span>
+<span class="nc" id="L520">            throw new RuntimeException(&quot;Error while setting page &quot; + pageCode + &quot; as online&quot;, t);</span>
+        } finally {
+<span class="fc" id="L522">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L524">    }</span>
+
+    protected void addOnlinePageMetadata(String pageCode, PageMetadata pageMetadata, Connection conn) {
+<span class="nc" id="L527">        this.savePageMetadata(pageCode, pageMetadata, true, PageMetadataOnline.TABLE_NAME, conn);</span>
+<span class="nc" id="L528">    }</span>
+
+    protected void addDraftPageMetadata(String pageCode, PageMetadata pageMetadata, Connection conn) {
+<span class="fc" id="L531">        this.savePageMetadata(pageCode, pageMetadata, true, PageMetadataDraft.TABLE_NAME, conn);</span>
+<span class="fc" id="L532">    }</span>
+
+    protected void deleteOnlinePageMetadata(String pageCode, Connection conn) {
+<span class="fc" id="L535">        this.executeQueryWithoutResultset(conn, DELETE_ONLINE_PAGE_METADATA, pageCode);</span>
+<span class="fc" id="L536">    }</span>
+
+    protected void deleteDraftPageMetadata(String pageCode, Connection conn) {
+<span class="fc" id="L539">        this.executeQueryWithoutResultset(conn, DELETE_DRAFT_PAGE_METADATA, pageCode);</span>
+<span class="fc" id="L540">    }</span>
+
+    protected void savePageMetadata(String pageCode, PageMetadata pageMetadata,
+            boolean isAdd, String tableName, Connection conn) {
+<span class="pc bpc" id="L544" title="1 of 2 branches missed.">        if (pageMetadata != null) {</span>
+<span class="fc" id="L545">            PreparedStatement stat = null;</span>
+            try {
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">                StringBuilder query = new StringBuilder(isAdd ? ADD_PAGE_METADATA_START : UPDATE_PAGE_METADATA_START);</span>
+<span class="pc bpc" id="L548" title="1 of 2 branches missed.">                query.append(tableName).append(isAdd ? ADD_PAGE_METADATA_END : UPDATE_PAGE_METADATA_END);</span>
+<span class="fc" id="L549">                stat = conn.prepareStatement(query.toString());</span>
+<span class="fc" id="L550">                int index = 1;</span>
+<span class="pc bpc" id="L551" title="1 of 2 branches missed.">                if (isAdd) {</span>
+<span class="fc" id="L552">                    stat.setString(index++, pageCode);</span>
+                }
+<span class="fc" id="L554">                stat.setString(index++, pageMetadata.getGroup());</span>
+<span class="fc" id="L555">                stat.setString(index++, pageMetadata.getTitles().toXml());</span>
+<span class="fc" id="L556">                stat.setString(index++, pageMetadata.getModel().getCode());</span>
+<span class="fc bfc" id="L557" title="All 2 branches covered.">                if (pageMetadata.isShowable()) {</span>
+<span class="fc" id="L558">                    stat.setInt(index++, 1);</span>
+                } else {
+<span class="fc" id="L560">                    stat.setInt(index++, 0);</span>
+                }
+<span class="fc" id="L562">                String extraConfig = this.getExtraConfig(pageMetadata);</span>
+<span class="fc" id="L563">                stat.setString(index++, extraConfig);</span>
+<span class="pc bpc" id="L564" title="1 of 2 branches missed.">                Date updatedAt = pageMetadata.getUpdatedAt() != null ? pageMetadata.getUpdatedAt() : new Date();</span>
+<span class="pc bpc" id="L565" title="1 of 2 branches missed.">                stat.setTimestamp(index++, updatedAt != null ? new java.sql.Timestamp(updatedAt.getTime()) : null);</span>
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">                if (!isAdd) {</span>
+<span class="nc" id="L567">                    stat.setString(index++, pageCode);</span>
+                }
+<span class="fc" id="L569">                stat.executeUpdate();</span>
+<span class="nc" id="L570">            } catch (Throwable t) {</span>
+<span class="nc" id="L571">                _logger.error(&quot;Error while saving the page metadata record for table {}&quot;, tableName, t);</span>
+<span class="nc" id="L572">                throw new RuntimeException(&quot;Error while saving the page metadata record for table &quot; + tableName, t);</span>
+            } finally {
+<span class="fc" id="L574">                closeDaoResources(null, stat);</span>
+            }
+        }
+<span class="fc" id="L577">    }</span>
+
+    protected PageMetadata createPageMetadata(String code, ResultSet res, int startIndex) throws Throwable {
+<span class="fc" id="L580">        PageMetadata pageMetadata = new PageMetadata();</span>
+<span class="fc" id="L581">        int index = startIndex;</span>
+<span class="fc" id="L582">        pageMetadata.setGroup(res.getString(index++));</span>
+<span class="fc" id="L583">        String titleText = res.getString(index++);</span>
+<span class="fc" id="L584">        ApsProperties titles = new ApsProperties();</span>
+        try {
+<span class="fc" id="L586">            titles.loadFromXml(titleText);</span>
+<span class="nc" id="L587">        } catch (Throwable t) {</span>
+<span class="nc" id="L588">            _logger.error(&quot;IO error detected while parsing the titles of the page {}&quot;, code, t);</span>
+<span class="nc" id="L589">            String msg = &quot;IO error detected while parsing the titles of the page '&quot; + code + &quot;'&quot;;</span>
+<span class="nc" id="L590">            throw new EntException(msg, t);</span>
+<span class="fc" id="L591">        }</span>
+<span class="fc" id="L592">        pageMetadata.setTitles(titles);</span>
+<span class="fc" id="L593">        pageMetadata.setModel(this.getPageModelManager().getPageModel(res.getString(index++)));</span>
+<span class="fc" id="L594">        Integer showable = res.getInt(index++);</span>
+<span class="fc bfc" id="L595" title="All 2 branches covered.">        pageMetadata.setShowable(showable == 1);</span>
+<span class="fc" id="L596">        String extraConfig = res.getString(index++);</span>
+<span class="pc bpc" id="L597" title="1 of 4 branches missed.">        if (null != extraConfig &amp;&amp; extraConfig.trim().length() &gt; 0) {</span>
+            try {
+<span class="fc" id="L599">                PageExtraConfigDOM configDom = new PageExtraConfigDOM();</span>
+<span class="fc" id="L600">                configDom.addExtraConfig(pageMetadata, extraConfig);</span>
+<span class="nc" id="L601">            } catch (Throwable t) {</span>
+<span class="nc" id="L602">                _logger.error(&quot;IO error detected while parsing the extra config of the page {}&quot;, code, t);</span>
+<span class="nc" id="L603">                String msg = &quot;IO error detected while parsing the extra config of the page '&quot; + code + &quot;'&quot;;</span>
+<span class="nc" id="L604">                throw new EntException(msg, t);</span>
+<span class="fc" id="L605">            }</span>
+        }
+<span class="fc" id="L607">        Timestamp date = res.getTimestamp(index++);</span>
+<span class="pc bpc" id="L608" title="1 of 2 branches missed.">        pageMetadata.setUpdatedAt(date != null ? new Date(date.getTime()) : null);</span>
+<span class="fc" id="L609">        return pageMetadata;</span>
+    }
+
+    protected String getExtraConfig(PageMetadata pageMetadata) {
+<span class="fc" id="L613">        PageExtraConfigDOM dom = this.getExtraConfigDOM();</span>
+<span class="fc" id="L614">        return dom.extractXml(pageMetadata);</span>
+    }
+
+    protected PageExtraConfigDOM getExtraConfigDOM() {
+<span class="fc" id="L618">        return new PageExtraConfigDOM();</span>
+    }
+
+    protected void addWidgetForPage(IPage page, WidgetConfigDest dest, Connection conn) {
+<span class="fc" id="L622">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L624">            Widget[] widgets = null;</span>
+<span class="fc" id="L625">            String query = &quot;&quot;;</span>
+<span class="pc bpc" id="L626" title="1 of 2 branches missed.">            if (dest == WidgetConfigDest.ON_LINE) {</span>
+<span class="nc" id="L627">                query = ADD_WIDGET_FOR_PAGE;</span>
+<span class="nc" id="L628">                widgets = page.getWidgets();</span>
+<span class="pc bpc" id="L629" title="1 of 2 branches missed.">            } else if (dest == WidgetConfigDest.DRAFT) {</span>
+<span class="fc" id="L630">                query = ADD_WIDGET_FOR_PAGE_DRAFT;</span>
+<span class="fc" id="L631">                widgets = page.getWidgets();</span>
+            }
+<span class="pc bpc" id="L633" title="1 of 2 branches missed.">            if (null == widgets) {</span>
+<span class="nc" id="L634">                return;</span>
+            }
+<span class="fc" id="L636">            String pageCode = page.getCode();</span>
+<span class="fc" id="L637">            stat = conn.prepareStatement(query);</span>
+<span class="fc bfc" id="L638" title="All 2 branches covered.">            for (int i = 0; i &lt; widgets.length; i++) {</span>
+<span class="fc" id="L639">                Widget widget = widgets[i];</span>
+<span class="fc bfc" id="L640" title="All 2 branches covered.">                if (widget != null) {</span>
+<span class="fc bfc" id="L641" title="All 2 branches covered.">                    if (null == widget.getType()) {</span>
+<span class="fc" id="L642">                        _logger.error(&quot;Widget Type null when adding widget on frame '{}' of page '{}'&quot;, i, page.getCode());</span>
+<span class="fc" id="L643">                        continue;</span>
+                    }
+<span class="fc" id="L645">                    this.valueAddWidgetStatement(pageCode, i, widget, stat);</span>
+<span class="fc" id="L646">                    stat.addBatch();</span>
+<span class="fc" id="L647">                    stat.clearParameters();</span>
+                }
+            }
+<span class="fc" id="L650">            stat.executeBatch();</span>
+<span class="nc" id="L651">        } catch (Throwable t) {</span>
+<span class="nc" id="L652">            _logger.error(&quot;Error while inserting the widgets in a page&quot;, t);</span>
+<span class="nc" id="L653">            throw new RuntimeException(&quot;Error while inserting the widgets in a page&quot;, t);</span>
+        } finally {
+<span class="fc" id="L655">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L657">    }</span>
+
+    @Override
+    public void removeWidget(IPage page, int pos) {
+<span class="fc" id="L661">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L663">            conn = this.getConnection();</span>
+<span class="fc" id="L664">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L665">            super.executeQueryWithoutResultset(conn, DELETE_WIDGET_FOR_PAGE_DRAFT, page.getCode(), pos);</span>
+<span class="fc" id="L666">            Date now = new Date();</span>
+<span class="fc" id="L667">            this.updatePageMetadataDraftLastUpdate(page.getCode(), now, conn);</span>
+<span class="fc" id="L668">            page.getMetadata().setUpdatedAt(now);</span>
+<span class="fc" id="L669">            conn.commit();</span>
+<span class="nc" id="L670">        } catch (Throwable t) {</span>
+<span class="nc" id="L671">            this.executeRollback(conn);</span>
+<span class="nc" id="L672">            _logger.error(&quot;Error removing the widget from page '{}', frame {}&quot;, page.getCode(), pos, t);</span>
+<span class="nc" id="L673">            throw new RuntimeException(&quot;Error removing the widget from page '&quot; + page.getCode() + &quot;', frame &quot; + pos, t);</span>
+        } finally {
+<span class="fc" id="L675">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L677">    }</span>
+
+    @Override
+    public void joinWidget(IPage page, Widget widget, int pos) {
+<span class="fc" id="L681">        String pageCode = page.getCode();</span>
+<span class="fc" id="L682">        Connection conn = null;</span>
+<span class="fc" id="L683">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L685">            conn = this.getConnection();</span>
+<span class="fc" id="L686">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L687">            super.executeQueryWithoutResultset(conn, DELETE_WIDGET_FOR_PAGE_DRAFT, pageCode, pos);</span>
+<span class="fc" id="L688">            stat = conn.prepareStatement(ADD_WIDGET_FOR_PAGE_DRAFT);</span>
+<span class="fc" id="L689">            this.valueAddWidgetStatement(pageCode, pos, widget, stat);</span>
+<span class="fc" id="L690">            stat.executeUpdate();</span>
+<span class="fc" id="L691">            Date now = new Date();</span>
+<span class="fc" id="L692">            this.updatePageMetadataDraftLastUpdate(pageCode, now, conn);</span>
+<span class="fc" id="L693">            page.getMetadata().setUpdatedAt(now);</span>
+<span class="fc" id="L694">            conn.commit();</span>
+<span class="nc" id="L695">        } catch (Throwable t) {</span>
+<span class="nc" id="L696">            this.executeRollback(conn);</span>
+<span class="nc" id="L697">            _logger.error(&quot;Error adding a widget in the frame '{}' of the page '{}'&quot;, pos, pageCode, t);</span>
+<span class="nc" id="L698">            throw new RuntimeException(&quot;Error adding a widget in the frame &quot; + pos + &quot; of the page '&quot; + pageCode + &quot;'&quot;, t);</span>
+        } finally {
+<span class="fc" id="L700">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L702">    }</span>
+
+    private void valueAddWidgetStatement(String pageCode, int pos, Widget widget, PreparedStatement stat) throws Throwable {
+<span class="fc" id="L705">        stat.setString(1, pageCode);</span>
+<span class="fc" id="L706">        stat.setInt(2, pos);</span>
+<span class="fc" id="L707">        stat.setString(3, widget.getType().getCode());</span>
+<span class="fc bfc" id="L708" title="All 2 branches covered.">        if (!widget.getType().isLogic()) {</span>
+<span class="fc" id="L709">            String config = null;</span>
+<span class="fc bfc" id="L710" title="All 2 branches covered.">            if (null != widget.getConfig()) {</span>
+<span class="fc" id="L711">                config = widget.getConfig().toXml();</span>
+            }
+<span class="fc" id="L713">            stat.setString(4, config);</span>
+<span class="fc" id="L714">        } else {</span>
+<span class="fc" id="L715">            stat.setNull(4, Types.VARCHAR);</span>
+        }
+<span class="fc" id="L717">    }</span>
+
+    @Override
+    public void movePage(IPage currentPage, IPage newParent) {
+<span class="fc" id="L721">        Connection conn = null;</span>
+<span class="fc" id="L722">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L724">            conn = this.getConnection();</span>
+<span class="fc" id="L725">            conn.setAutoCommit(false);</span>
+            // a moved page is always inserted in the last position into the new parent,
+            // to avoid changes of the position of the &quot;sister&quot; pages.
+<span class="fc" id="L728">            int pos = this.getLastPosition(newParent.getCode(), conn) + 1;</span>
+<span class="fc" id="L729">            stat = conn.prepareStatement(UPDATE_PAGE_TREE_POSITION);</span>
+<span class="fc" id="L730">            stat.setString(1, newParent.getCode());</span>
+<span class="fc" id="L731">            stat.setInt(2, pos);</span>
+<span class="fc" id="L732">            stat.setString(3, currentPage.getCode());</span>
+<span class="fc" id="L733">            stat.executeUpdate();</span>
+<span class="fc" id="L734">            this.shiftPages(currentPage.getParentCode(), currentPage.getPosition(), conn);</span>
+<span class="fc" id="L735">            this.updatePageMetadataDraftLastUpdate(currentPage.getCode(), new Date(), conn);</span>
+<span class="fc" id="L736">            conn.commit();</span>
+<span class="nc" id="L737">        } catch (Throwable t) {</span>
+<span class="nc" id="L738">            this.executeRollback(conn);</span>
+<span class="nc" id="L739">            _logger.error(&quot;Error while moving the page {} under {}&quot; + newParent, currentPage, newParent, t);</span>
+<span class="nc" id="L740">            throw new RuntimeException(&quot;Error while moving the page &quot; + currentPage + &quot; under &quot; + newParent, t);</span>
+        } finally {
+<span class="fc" id="L742">            this.closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L744">    }</span>
+
+    private int getLastPosition(String parentPageCode, Connection conn) {
+<span class="fc" id="L747">        int position = 0;</span>
+<span class="fc" id="L748">        PreparedStatement stat = null;</span>
+<span class="fc" id="L749">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L751">            stat = conn.prepareStatement(GET_LAST_CHILDREN_POSITION);</span>
+<span class="fc" id="L752">            stat.setString(1, parentPageCode);</span>
+<span class="fc" id="L753">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L754" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L755">                position = res.getInt(1);</span>
+            }
+<span class="nc" id="L757">        } catch (Throwable t) {</span>
+<span class="nc" id="L758">            _logger.error(&quot;Error loading LastPosition&quot;, t);</span>
+<span class="nc" id="L759">            throw new RuntimeException(&quot;Error loading LastPosition&quot;, t);</span>
+        } finally {
+<span class="fc" id="L761">            this.closeDaoResources(res, stat);</span>
+        }
+<span class="fc" id="L763">        return position;</span>
+    }
+
+    private void updatePageMetadataDraftLastUpdate(String pageCode, Date date, Connection conn) throws SQLException {
+<span class="fc" id="L767">        this.updatePageMetatataUpdate(pageCode, date, PageMetadataDraft.TABLE_NAME, conn);</span>
+<span class="fc" id="L768">    }</span>
+
+    private void updatePageMetadataOnlineLastUpdate(String pageCode, Date date, Connection conn) throws SQLException {
+<span class="fc" id="L771">        this.updatePageMetatataUpdate(pageCode, date, PageMetadataOnline.TABLE_NAME, conn);</span>
+<span class="fc" id="L772">    }</span>
+
+    private void updatePageMetatataUpdate(String pageCode, Date date, String tablename, Connection conn) throws SQLException {
+<span class="fc" id="L775">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L777">            String query = &quot;UPDATE &quot; + mustBeValidMetadataTableName(tablename) + &quot; SET updatedat = ? WHERE code = ?&quot;;</span>
+<span class="fc" id="L778">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L779">            stat.setTimestamp(1, new Timestamp(date.getTime()));</span>
+<span class="fc" id="L780">            stat.setString(2, pageCode);</span>
+<span class="fc" id="L781">            stat.executeUpdate();</span>
+<span class="nc" id="L782">        } catch (Throwable t) {</span>
+<span class="nc" id="L783">            _logger.error(&quot;Error while updating the page metadata record for table {} and page {}&quot;,</span>
+                    tablename, pageCode, t);
+<span class="nc" id="L785">            throw new EntRuntimeException(&quot;Error while updating the page metadata record for table &quot; +</span>
+                    tablename + &quot; and page &quot; + pageCode, t);
+        } finally {
+<span class="fc" id="L788">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L790">    }</span>
+
+    public static String mustBeValidMetadataTableName(String tablename) throws EntException {
+<span class="pc bpc" id="L793" title="1 of 2 branches missed.">        switch (tablename) {</span>
+            case PageMetadataOnline.TABLE_NAME:
+            case PageMetadataDraft.TABLE_NAME:
+<span class="fc" id="L796">                return tablename;</span>
+            default:
+<span class="nc" id="L798">                throw new EntException(&quot;Invalid metadata table name&quot; + tablename);</span>
+        }
+    }
+
+    @Override
+    public List&lt;String&gt; loadLastUpdatedPages(int size) {
+<span class="nc" id="L804">        Connection conn = null;</span>
+<span class="nc" id="L805">        PreparedStatement stat = null;</span>
+<span class="nc" id="L806">        ResultSet res = null;</span>
+<span class="nc" id="L807">        List&lt;String&gt; pages = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L809">            conn = this.getConnection();</span>
+<span class="nc" id="L810">            String query = LOAD_LAST_UPDATED_PAGES;</span>
+<span class="nc" id="L811">            stat = conn.prepareStatement(query);</span>
+<span class="nc" id="L812">            res = stat.executeQuery();</span>
+<span class="nc" id="L813">            int limit = 1;</span>
+<span class="nc bnc" id="L814" title="All 4 branches missed.">            while (res.next() &amp;&amp; limit++ &lt;= size) {</span>
+<span class="nc" id="L815">                pages.add(res.getString(&quot;code&quot;));</span>
+            }
+<span class="nc" id="L817">        } catch (Throwable t) {</span>
+<span class="nc" id="L818">            _logger.error(&quot;Error loading lastUpdatedPages&quot;, t);</span>
+<span class="nc" id="L819">            throw new RuntimeException(&quot;Error loading lastUpdatedPages&quot;, t);</span>
+        } finally {
+<span class="nc" id="L821">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="nc" id="L823">        return pages;</span>
+    }
+
+    protected IPageModelManager getPageModelManager() {
+<span class="fc" id="L827">        return _pageModelManager;</span>
+    }
+
+    public void setPageModelManager(IPageModelManager pageModelManager) {
+<span class="fc" id="L831">        this._pageModelManager = pageModelManager;</span>
+<span class="fc" id="L832">    }</span>
+
+    public IWidgetTypeManager getWidgetTypeManager() {
+<span class="fc" id="L835">        return _widgetTypeManager;</span>
+    }
+
+    public void setWidgetTypeManager(IWidgetTypeManager widgetTypeManager) {
+<span class="fc" id="L839">        this._widgetTypeManager = widgetTypeManager;</span>
+<span class="fc" id="L840">    }</span>
+
+    private IPageModelManager _pageModelManager;
+    private IWidgetTypeManager _widgetTypeManager;
+
+    // attenzione: l'ordinamento deve rispettare prima l'ordine delle pagine
+    // figlie nelle pagine madri, e poi l'ordine dei widget nella pagina.
+    private static final String ALL_PAGES = &quot;SELECT p.parentcode, p.pos, p.code, &quot;
+            + &quot;onl.groupcode, onl.titles, onl.modelcode, onl.showinmenu, onl.extraconfig, onl.updatedat, &quot;
+            + &quot;drf.groupcode, drf.titles, drf.modelcode, drf.showinmenu, drf.extraconfig, drf.updatedat FROM pages p LEFT JOIN &quot;
+            + PageMetadataOnline.TABLE_NAME + &quot; onl ON p.code = onl.code LEFT JOIN &quot; + PageMetadataDraft.TABLE_NAME
+            + &quot; drf ON p.code = drf.code ORDER BY p.parentcode, p.pos, p.code &quot;;
+
+    private static final String ALL_WIDGETS_START = &quot;SELECT w.pagecode, w.framepos, w.widgetcode, w.config &quot; + &quot;FROM pages p JOIN &quot;;
+    private static final String ALL_WIDGETS_END = &quot; w ON p.code = w.pagecode &quot; + &quot;ORDER BY p.parentcode, p.pos, p.code, w.framepos &quot;;
+
+    private static final String ALL_WIDGETS_ONLINE = ALL_WIDGETS_START + WidgetConfig.TABLE_NAME + ALL_WIDGETS_END;
+    private static final String ALL_WIDGETS_DRAFT = ALL_WIDGETS_START + WidgetConfigDraft.TABLE_NAME + ALL_WIDGETS_END;
+
+    private static final String ADD_PAGE = &quot;INSERT INTO pages(code, parentcode, pos) VALUES ( ? , ? , ? )&quot;;
+
+    private static final String DELETE_PAGE = &quot;DELETE FROM pages WHERE code = ? &quot;;
+
+    private static final String DELETE_WIDGETS_FOR_PAGE_ONLINE = &quot;DELETE FROM &quot; + WidgetConfig.TABLE_NAME + &quot; WHERE pagecode = ? &quot;;
+
+    private static final String DELETE_WIDGETS_FOR_PAGE_DRAFT = &quot;DELETE FROM &quot; + WidgetConfigDraft.TABLE_NAME + &quot; WHERE pagecode = ? &quot;;
+
+    private static final String DELETE_WIDGET_FOR_PAGE_DRAFT = DELETE_WIDGETS_FOR_PAGE_DRAFT + &quot; AND framepos = ? &quot;;
+
+    private static final String MOVE_UP = &quot;UPDATE pages SET pos = (pos - 1) WHERE code = ? &quot;;
+
+    private static final String MOVE_DOWN = &quot;UPDATE pages SET pos = (pos + 1) WHERE code = ? &quot;;
+
+    private static final String UPDATE_PAGE = &quot;UPDATE pages SET parentcode = ? WHERE code = ? &quot;;
+
+    private static final String SHIFT_PAGE = &quot;UPDATE pages SET pos = (pos - 1) WHERE parentcode = ? AND pos &gt; ? &quot;;
+
+    private static final String ADD_WIDGET_FOR_PAGE = &quot;INSERT INTO &quot; + WidgetConfig.TABLE_NAME
+            + &quot; (pagecode, framepos, widgetcode, config) VALUES ( ? , ? , ? , ? )&quot;;
+
+    private static final String ADD_WIDGET_FOR_PAGE_DRAFT = &quot;INSERT INTO &quot; + WidgetConfigDraft.TABLE_NAME
+            + &quot; (pagecode, framepos, widgetcode, config) VALUES ( ? , ? , ? , ? )&quot;;
+
+    private static final String MOVE_WIDGET = &quot;UPDATE &quot; + WidgetConfigDraft.TABLE_NAME
+            + &quot; SET framepos = ? WHERE pagecode = ? and framepos = ? &quot;;
+
+    private static final String UPDATE_PAGE_TREE_POSITION = &quot;UPDATE pages SET parentcode = ? , pos =?  WHERE code = ? &quot;;
+
+    private static final String PAGE_METADATA_WHERE_CODE = &quot; WHERE code = ?&quot;;
+
+    private static final String ADD_PAGE_METADATA_END = &quot; (code, groupcode, titles, modelcode, showinmenu, extraconfig, updatedat) VALUES (?, ?, ?, ?, ?, ?, ?) &quot;;
+
+    private static final String UPDATE_PAGE_METADATA_END = &quot;SET groupcode = ? , titles = ?, modelcode = ?, showinmenu = ?, extraconfig = ?, updatedat = ? &quot;
+            + PAGE_METADATA_WHERE_CODE;
+
+    private static final String ADD_PAGE_METADATA_START = &quot;INSERT INTO &quot;;
+
+    private static final String UPDATE_PAGE_METADATA_START = &quot;UPDATE &quot;;
+
+    private static final String DELETE_ONLINE_PAGE_METADATA = &quot;DELETE FROM &quot; + PageMetadataOnline.TABLE_NAME + PAGE_METADATA_WHERE_CODE;
+    private static final String DELETE_DRAFT_PAGE_METADATA = &quot;DELETE FROM &quot; + PageMetadataDraft.TABLE_NAME + PAGE_METADATA_WHERE_CODE;
+
+    private static final String SET_ONLINE_METADATA = &quot;INSERT INTO &quot; + PageMetadataOnline.TABLE_NAME
+            + &quot; (code, groupcode, titles, modelcode, showinmenu, extraconfig, updatedat) SELECT code, groupcode, titles, modelcode, showinmenu, extraconfig, updatedat FROM &quot;
+            + PageMetadataDraft.TABLE_NAME + &quot; WHERE code = ?&quot;;
+
+    private static final String SET_ONLINE_WIDGETS = &quot;INSERT INTO &quot; + WidgetConfig.TABLE_NAME
+            + &quot; (pagecode, framepos, widgetcode, config) SELECT pagecode, framepos, widgetcode, config FROM &quot; + WidgetConfigDraft.TABLE_NAME
+            + &quot; WHERE pagecode = ?&quot;;
+
+    private static final String LOAD_LAST_UPDATED_PAGES = &quot;SELECT code FROM pages_metadata_draft ORDER BY updatedat DESC&quot;;
+
+    private static final String GET_LAST_CHILDREN_POSITION = &quot;SELECT pos FROM pages WHERE parentcode = ? ORDER BY pos DESC&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

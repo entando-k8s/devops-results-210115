@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InitializerManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">InitializerManager.java</span></div><h1>InitializerManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.util.List;
+import java.util.Map;
+
+import javax.sql.DataSource;
+
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.aps.system.init.cache.IInitializerManagerCacheWrapper;
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.init.model.ComponentEnvironment;
+import org.entando.entando.aps.system.init.model.ComponentInstallationReport;
+import org.entando.entando.aps.system.init.model.IPostProcess;
+import org.entando.entando.aps.system.init.model.InvalidPostProcessResultException;
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.FatalBeanException;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L37">public class InitializerManager extends AbstractInitializerManager implements IInitializerManager {</span>
+
+<span class="fc" id="L39">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    public static final String REPORT_CONFIG_ITEM = &quot;entandoComponentsReport&quot;;
+
+    private IInitializerManagerCacheWrapper cacheWrapper;
+
+    private boolean checkOnStartup;
+
+    private Map&lt;String, IPostProcessor&gt; postProcessors;
+
+    private IDatabaseManager databaseManager;
+
+    @Override
+    public SystemInstallationReport getCurrentReport() {
+<span class="fc" id="L53">        return this.getCacheWrapper().getReport();</span>
+    }
+
+    protected IInitializerManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L57">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IInitializerManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L61">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L62">    }</span>
+
+    protected boolean isCheckOnStartup() {
+<span class="fc" id="L65">        return checkOnStartup;</span>
+    }
+
+    public void setCheckOnStartup(boolean checkOnStartup) {
+<span class="fc" id="L69">        this.checkOnStartup = checkOnStartup;</span>
+<span class="fc" id="L70">    }</span>
+
+    public Map&lt;String, IPostProcessor&gt; getPostProcessors() {
+<span class="nc" id="L73">        return postProcessors;</span>
+    }
+
+    public void setPostProcessors(Map&lt;String, IPostProcessor&gt; postProcessors) {
+<span class="fc" id="L77">        this.postProcessors = postProcessors;</span>
+<span class="fc" id="L78">    }</span>
+
+    protected IDatabaseManager getDatabaseManager() {
+<span class="fc" id="L81">        return databaseManager;</span>
+    }
+
+    public void setDatabaseManager(IDatabaseManager databaseManager) {
+<span class="fc" id="L85">        this.databaseManager = databaseManager;</span>
+<span class="fc" id="L86">    }</span>
+
+    public void init() throws Exception {
+<span class="fc" id="L89">        SystemInstallationReport report = null;</span>
+        try {
+<span class="fc" id="L91">            report = this.extractReport();</span>
+<span class="fc" id="L92">            report = ((IDatabaseInstallerManager) this.getDatabaseManager()).installDatabase(report, this.isCheckOnStartup());</span>
+<span class="fc" id="L93">            this.getCacheWrapper().initCache(report);</span>
+<span class="nc" id="L94">        } catch (Throwable t) {</span>
+<span class="nc" id="L95">            logger.error(&quot;Error while initializating Db Installer&quot;, t);</span>
+<span class="nc" id="L96">            throw new Exception(&quot;Error while initializating Db Installer&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L98" title="1 of 4 branches missed.">            if (null != report &amp;&amp; report.isUpdated()) {</span>
+<span class="fc" id="L99">                this.saveReport(report);</span>
+            }
+        }
+<span class="fc" id="L102">        logger.debug(&quot;{}: initializated - Check on startup {}&quot;, this.getClass().getName(), this.isCheckOnStartup());</span>
+<span class="fc" id="L103">    }</span>
+
+    public void executePostInitProcesses() throws BeansException {
+<span class="fc" id="L106">        SystemInstallationReport report = null;</span>
+        try {
+<span class="fc" id="L108">            report = this.extractReport();</span>
+<span class="fc" id="L109">            List&lt;Component&gt; components = this.getComponentManager().getCurrentComponents();</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            for (Component component : components) {</span>
+<span class="nc" id="L111">                executeComponentPostInitProcesses(component, report);</span>
+<span class="nc" id="L112">            }</span>
+<span class="nc" id="L113">        } catch (Throwable t) {</span>
+<span class="nc" id="L114">            logger.error(&quot;Error while executing post processes&quot;, t);</span>
+<span class="nc" id="L115">            throw new FatalBeanException(&quot;Error while executing post processes&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">            if (null != report &amp;&amp; report.isUpdated()) {</span>
+<span class="nc" id="L118">                this.saveReport(report);</span>
+            }
+        }
+<span class="fc" id="L121">    }</span>
+
+    public void executeComponentPostInitProcesses(Component component, SystemInstallationReport report) throws EntException {
+<span class="nc" id="L124">        ComponentInstallationReport componentReport = report.getComponentReport(component.getCode(), false);</span>
+<span class="nc" id="L125">        SystemInstallationReport.Status postProcessStatus = componentReport.getPostProcessStatus();</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (!postProcessStatus.equals(SystemInstallationReport.Status.INIT)) {</span>
+<span class="nc" id="L127">            return;</span>
+        }
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        String compEnvKey = (AbstractInitializerManager.Environment.test.equals(this.getEnvironment()))</span>
+<span class="nc" id="L130">                ? AbstractInitializerManager.Environment.test.toString() : AbstractInitializerManager.Environment.production.toString();</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        ComponentEnvironment componentEnvironment = (null != component.getEnvironments()) ? component.getEnvironments().get(compEnvKey) : null;</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        List&lt;IPostProcess&gt; postProcesses = (null != componentEnvironment) ? componentEnvironment.getPostProcesses() : null;</span>
+<span class="nc bnc" id="L133" title="All 4 branches missed.">        if (null == postProcesses || postProcesses.isEmpty()) {</span>
+<span class="nc" id="L134">            postProcessStatus = SystemInstallationReport.Status.NOT_AVAILABLE;</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        } else if (!this.isCheckOnStartup()) {</span>
+<span class="nc" id="L136">            postProcessStatus = SystemInstallationReport.Status.SKIPPED;</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        } else if (!componentReport.isPostProcessExecutionRequired()) {</span>
+            //Porting or restore
+<span class="nc" id="L139">            postProcessStatus = SystemInstallationReport.Status.NOT_AVAILABLE;</span>
+        } else {
+<span class="nc" id="L141">            postProcessStatus = this.executePostProcesses(postProcesses);</span>
+        }
+<span class="nc" id="L143">        componentReport.setPostProcessStatus(postProcessStatus);</span>
+<span class="nc" id="L144">        report.setUpdated();</span>
+<span class="nc" id="L145">    }</span>
+
+    protected SystemInstallationReport.Status executePostProcesses(List&lt;IPostProcess&gt; postProcesses) throws EntException {
+<span class="nc bnc" id="L148" title="All 4 branches missed.">        if (null == postProcesses || postProcesses.isEmpty()) {</span>
+<span class="nc" id="L149">            return SystemInstallationReport.Status.NOT_AVAILABLE;</span>
+        }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        for (int i = 0; i &lt; postProcesses.size(); i++) {</span>
+<span class="nc" id="L152">            IPostProcess postProcess = postProcesses.get(i);</span>
+            try {
+<span class="nc" id="L154">                IPostProcessor postProcessor = this.getPostProcessors().get(postProcess.getCode());</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                if (null != postProcessor) {</span>
+<span class="nc" id="L156">                    postProcessor.executePostProcess(postProcess);</span>
+                } else {
+<span class="nc" id="L158">                    logger.error(&quot;Missing Post Processor for process '{}'&quot;, postProcess.getCode());</span>
+                }
+<span class="nc" id="L160">            } catch (InvalidPostProcessResultException t) {</span>
+<span class="nc" id="L161">                logger.error(&quot;Error while executing post process of index {}&quot;, i, t);</span>
+<span class="nc" id="L162">                return SystemInstallationReport.Status.INCOMPLETE;</span>
+<span class="nc" id="L163">            } catch (Throwable t) {</span>
+<span class="nc" id="L164">                logger.error(&quot;Error while executing post process - index {}&quot;, i, t);</span>
+<span class="nc" id="L165">                return SystemInstallationReport.Status.INCOMPLETE;</span>
+<span class="nc" id="L166">            }</span>
+        }
+<span class="nc" id="L168">        return SystemInstallationReport.Status.OK;</span>
+    }
+
+    @Override
+    public void reloadCurrentReport() {
+        try {
+<span class="nc" id="L174">            SystemInstallationReport report = this.extractReport();</span>
+<span class="nc" id="L175">            this.getCacheWrapper().setCurrentReport(report);</span>
+<span class="nc" id="L176">        } catch (Throwable t) {</span>
+<span class="nc" id="L177">            logger.error(&quot;Error reloading report&quot;, t);</span>
+<span class="nc" id="L178">            throw new RuntimeException(&quot;Error reloading report&quot;, t);</span>
+<span class="nc" id="L179">        }</span>
+<span class="nc" id="L180">    }</span>
+
+    //-------------------- REPORT -------- START
+    public void saveReport(SystemInstallationReport report) throws BeansException {
+<span class="pc bpc" id="L184" title="2 of 4 branches missed.">        if (null == report || report.getReports().isEmpty()) {</span>
+<span class="nc" id="L185">            return;</span>
+        }
+        try {
+<span class="fc" id="L188">            InstallationReportDAO dao = new InstallationReportDAO();</span>
+<span class="fc" id="L189">            DataSource dataSource = (DataSource) this.getBeanFactory().getBean(&quot;portDataSource&quot;);</span>
+<span class="fc" id="L190">            dao.setDataSource(dataSource);</span>
+<span class="fc" id="L191">            dao.saveConfigItem(report.toXml(), this.getConfigVersion());</span>
+<span class="fc" id="L192">            this.getCacheWrapper().setCurrentReport(report);</span>
+<span class="nc" id="L193">        } catch (Throwable t) {</span>
+<span class="nc" id="L194">            logger.error(&quot;Error saving report&quot;, t);</span>
+<span class="nc" id="L195">            throw new FatalBeanException(&quot;Error saving report&quot;, t);</span>
+<span class="fc" id="L196">        }</span>
+<span class="fc" id="L197">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

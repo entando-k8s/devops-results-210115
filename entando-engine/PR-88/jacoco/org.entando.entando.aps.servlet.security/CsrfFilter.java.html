@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CsrfFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.servlet.security</a> &gt; <span class="el_source">CsrfFilter.java</span></div><h1>CsrfFilter.java</h1><pre class="source lang-java linenums">package org.entando.entando.aps.servlet.security;
+
+import com.agiletec.aps.system.SystemConstants;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.entando.entando.aps.system.exception.CSRFProtectionException;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+public class CsrfFilter extends OncePerRequestFilter {
+
+
+    private static final String JOLLY_CHARACTER = &quot;*.&quot;;
+    private Environment env;
+
+<span class="fc" id="L24">    public CsrfFilter() {</span>
+<span class="fc" id="L25">    }</span>
+
+<span class="fc" id="L27">    public CsrfFilter(Environment env) {</span>
+<span class="fc" id="L28">        this.env = env;</span>
+<span class="fc" id="L29">    }</span>
+
+    public String getEnv(String key) {
+<span class="fc" id="L32">        String activation = System.getenv(key);</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">        if (null != activation) {</span>
+<span class="nc" id="L34">            return activation;</span>
+        }
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        return (this.env != null) ? env.getProperty(key) : null;</span>
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+<span class="fc" id="L43">        boolean isCsfrProtectionActive = SystemConstants.CSRF_BASIC_PROTECTION</span>
+<span class="fc" id="L44">                .equalsIgnoreCase(getEnv(SystemConstants.ENTANDO_CSRF_PROTECTION));</span>
+
+<span class="fc" id="L46">        String origin = req.getHeader(SystemConstants.ORIGIN);</span>
+<span class="fc" id="L47">        String referer = req.getHeader(SystemConstants.REFERER);</span>
+
+<span class="fc" id="L49">        String url = getUrl(origin, referer);</span>
+
+<span class="fc" id="L51">        String headerCookie = req.getHeader(SystemConstants.COOKIE);</span>
+<span class="fc" id="L52">        String method = req.getMethod();</span>
+
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">        if(&quot;null&quot;.equals(origin) || &quot;null&quot;.equals(referer)){</span>
+<span class="fc" id="L55">            response.setStatus(HttpServletResponse.SC_FORBIDDEN);</span>
+<span class="fc" id="L56">            return;</span>
+        }
+
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (shouldRequestBeCsrfChecked(isCsfrProtectionActive, headerCookie, method)) {</span>
+
+<span class="fc bfc" id="L61" title="All 4 branches covered.">            if (url != null &amp;&amp; checkUrlInWhiteList(url)) {</span>
+<span class="fc" id="L62">                response.setStatus(HttpServletResponse.SC_OK);</span>
+            } else {
+<span class="fc" id="L64">                response.setStatus(HttpServletResponse.SC_FORBIDDEN);</span>
+<span class="fc" id="L65">                return;</span>
+            }
+        }
+<span class="fc" id="L68">        filterChain.doFilter(req, response);</span>
+<span class="fc" id="L69">    }</span>
+
+    public static String getUrl(String origin, String referer) {
+
+        String url;
+
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">        if (origin != null &amp;&amp; !origin.equals(&quot;&quot;)) {</span>
+<span class="fc" id="L76">            url = origin.trim();</span>
+<span class="pc bpc" id="L77" title="1 of 4 branches missed.">        } else if (referer != null &amp;&amp; !referer.equals(&quot;&quot;)) {</span>
+<span class="fc" id="L78">            url = referer.trim();</span>
+        } else {
+<span class="fc" id="L80">            url = null;</span>
+        }
+
+<span class="fc" id="L83">        return url;</span>
+    }
+
+    public static boolean shouldRequestBeCsrfChecked(boolean isCsfrProtectionActive, String cookieHeader,String method) {
+
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (!isCsfrProtectionActive) {</span>
+<span class="nc" id="L89">            return false;</span>
+        }
+
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">        boolean isAuthenticated = cookieHeader != null &amp;&amp; cookieHeader.contains(SystemConstants.JSESSIONID);</span>
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (isAuthenticated) {</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            return !isSafeVerbs(method);</span>
+        } else {
+<span class="fc" id="L97">            return false;</span>
+        }
+    }
+
+    private boolean checkUrlInWhiteList(String url) {
+        try {
+<span class="fc" id="L103">            URI uri = new URI(url);</span>
+<span class="fc" id="L104">            url = uri.getScheme().concat(&quot;://&quot;).concat(uri.getHost());</span>
+<span class="fc" id="L105">        } catch (Exception e) {</span>
+<span class="fc" id="L106">            throw new CSRFProtectionException(&quot;URISyntaxException --&gt; &quot;, e);</span>
+<span class="fc" id="L107">        }</span>
+<span class="fc" id="L108">        String finalUrl = url;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        return this.getWhiteList().stream().anyMatch(domain -&gt; domain.equals(finalUrl))</span>
+                ||
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                this.getSubDomainFromWildCard().stream().anyMatch(url::endsWith);</span>
+    }
+
+    private List&lt;String&gt; getWhiteList() {
+<span class="fc" id="L115">        return getDomais(this.getEnv(SystemConstants.ENTANDO_CSRF_ALLOWED_DOMAINS))</span>
+<span class="fc" id="L116">                .stream()</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                .filter(rs -&gt; !rs.startsWith(JOLLY_CHARACTER))</span>
+<span class="fc" id="L118">                .collect(Collectors.toList());</span>
+    }
+
+    private List&lt;String&gt; getSubDomainFromWildCard() {
+<span class="fc" id="L122">        return getDomais(this.getEnv(SystemConstants.ENTANDO_CSRF_ALLOWED_DOMAINS))</span>
+<span class="fc" id="L123">                .stream()</span>
+<span class="fc" id="L124">                .filter(rs -&gt; rs.startsWith(JOLLY_CHARACTER))</span>
+<span class="fc" id="L125">                .map(rs -&gt; rs.replace(&quot;*.&quot;, &quot;&quot;).trim())</span>
+<span class="fc" id="L126">                .collect(Collectors.toList());</span>
+    }
+
+    private List&lt;String&gt; getDomais(String allowedDomainsString) {
+<span class="fc" id="L130">        return Arrays.asList(allowedDomainsString.split(SystemConstants.SEPARATOR_DOMAINS));</span>
+    }
+
+    private static boolean isSafeVerbs(String method) {
+<span class="fc bfc" id="L134" title="All 6 branches covered.">        return HttpMethod.GET.matches(method) || HttpMethod.HEAD.matches(method) || HttpMethod.OPTIONS.matches(method);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

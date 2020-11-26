@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetConfigPropertiesDeserializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.page.serializer</a> &gt; <span class="el_source">WidgetConfigPropertiesDeserializer.java</span></div><h1>WidgetConfigPropertiesDeserializer.java</h1><pre class="source lang-java linenums">package org.entando.entando.aps.system.services.page.serializer;
+
+import com.fasterxml.jackson.databind.util.StdConverter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+<span class="fc" id="L11">public class WidgetConfigPropertiesDeserializer extends StdConverter&lt;Map&lt;String, Object&gt;, Map&lt;String, Object&gt;&gt; {</span>
+
+<span class="fc" id="L13">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    /*
+     * Related to EN6-183, Frontend needs all config objects to be completely valid JSON objects.
+     * This Deserializer converts known widget config formats, but may need to be improved case by case.
+     * Also, possible conflicts may arise if different widgets use same property names and different value formats.
+     * See also, WidgetConfigPropertiesSerializer.java.
+     */
+    @Override
+    public Map&lt;String, Object&gt; convert(Map&lt;String, Object&gt; json) {
+<span class="fc" id="L23">        Map&lt;String, Object&gt; properties = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (json == null) {</span>
+<span class="nc" id="L26">            return properties;</span>
+        }
+
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        for (Entry&lt;String, Object&gt; property : json.entrySet()) {</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">            if (property.getKey().equals(&quot;categories&quot;)) {</span>
+<span class="nc" id="L31">                logger.warn(&quot;Serializing WidgetConfig.config.categories from JSON Format to custom persistence format&quot;);</span>
+<span class="nc" id="L32">                properties.put(property.getKey(), readCategories((List&lt;String&gt;) property.getValue()));</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            } else if (property.getKey().toLowerCase().contains(&quot;filters&quot;)) {</span>
+<span class="nc" id="L34">                logger.warn(&quot;Serializing WidgetConfig.config.filters from JSON Format to custom persistence format&quot;);</span>
+<span class="nc" id="L35">                properties.put(property.getKey(), readFilters((List&lt;Map&lt;String, Object&gt;&gt;) property.getValue()));</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">            } else if (property.getKey().equals(&quot;contents&quot;)) {</span>
+<span class="nc" id="L37">                logger.warn(&quot;Serializing WidgetConfig.config.contents from JSON Format to custom persistence format&quot;);</span>
+<span class="nc" id="L38">                properties.put(property.getKey(), readContents((List&lt;Map&lt;String, Object&gt;&gt;) property.getValue()));</span>
+            } else {
+<span class="fc" id="L40">                properties.put(property.getKey(), property.getValue().toString());</span>
+            }
+<span class="fc" id="L42">        }</span>
+
+<span class="fc" id="L44">        return properties;</span>
+    }
+
+    private String readCategories(List&lt;String&gt; categories) {
+<span class="nc" id="L48">        return String.join(&quot;,&quot;, categories);</span>
+    }
+
+    private String readFilters(List&lt;Map&lt;String, Object&gt;&gt; filters) {
+<span class="nc" id="L52">        return readObjects(filters,null, null, &quot;(&quot;, &quot;)&quot;, &quot;+&quot;, &quot;;&quot;, &quot;=&quot;);</span>
+    }
+
+    private String readContents(List&lt;Map&lt;String, Object&gt;&gt; contents) {
+<span class="nc" id="L56">        return readObjects(contents,&quot;[&quot;, &quot;]&quot;, &quot;{&quot;, &quot;}&quot;, &quot;,&quot;, &quot;,&quot;, &quot;=&quot;);</span>
+    }
+
+    private String readObjects(List&lt;Map&lt;String, Object&gt;&gt; objects, String arrayOpen, String arrayClose,
+            String objOpen, String objClose, String objSeparator, String propSeparator, String propKeyValueSeparator) {
+<span class="nc" id="L61">        StringBuilder sb = new StringBuilder();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        sb.append(arrayOpen == null ? &quot;&quot; : arrayOpen);</span>
+<span class="nc" id="L63">        String objSeparatorAux = &quot;&quot;;</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        for (Map&lt;String, Object&gt; object : objects) {</span>
+<span class="nc" id="L65">            sb.append(objSeparatorAux);</span>
+<span class="nc" id="L66">            sb.append(objOpen);</span>
+
+<span class="nc" id="L68">            String separator = &quot;&quot;;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            for (Entry&lt;String, Object&gt; property : object.entrySet()) {</span>
+<span class="nc" id="L70">                sb.append(separator);</span>
+<span class="nc" id="L71">                sb.append(property.getKey().trim());</span>
+<span class="nc" id="L72">                sb.append(propKeyValueSeparator);</span>
+<span class="nc" id="L73">                sb.append(property.getValue());</span>
+
+<span class="nc" id="L75">                separator = propSeparator;</span>
+<span class="nc" id="L76">            }</span>
+<span class="nc" id="L77">            sb.append(objClose);</span>
+
+<span class="nc" id="L79">            objSeparatorAux = objSeparator;</span>
+<span class="nc" id="L80">        }</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        sb.append(arrayClose == null ? &quot;&quot; : arrayClose);</span>
+<span class="nc" id="L83">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

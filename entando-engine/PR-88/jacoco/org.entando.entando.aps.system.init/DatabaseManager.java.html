@@ -1,0 +1,762 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DatabaseManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">DatabaseManager.java</span></div><h1>DatabaseManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.sql.DataSource;
+
+import org.apache.commons.io.FilenameUtils;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.aps.util.FileTextReader;
+import org.apache.commons.beanutils.BeanComparator;
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.init.model.ComponentEnvironment;
+import org.entando.entando.aps.system.init.model.ComponentInstallationReport;
+import org.entando.entando.aps.system.init.model.ComponentUninstallerInfo;
+import org.entando.entando.aps.system.init.model.DataInstallationReport;
+import org.entando.entando.aps.system.init.model.DataSourceDumpReport;
+import org.entando.entando.aps.system.init.model.DataSourceInstallationReport;
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.aps.system.init.util.TableDataUtils;
+import org.entando.entando.aps.system.init.util.TableFactory;
+import org.entando.entando.aps.system.services.storage.IStorageManager;
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.web.context.ServletContextAware;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L55">public class DatabaseManager extends AbstractInitializerManager</span>
+        implements IDatabaseManager, IDatabaseInstallerManager, ServletContextAware {
+
+<span class="fc" id="L58">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(DatabaseManager.class);</span>
+
+    private static final String LOG_PREFIX = &quot;|   &quot;;
+
+    public static final int STATUS_READY = 0;
+    public static final int STATUS_DUMPING_IN_PROGRESS = 1;
+
+    private Map&lt;String, List&lt;String&gt;&gt; entandoTableMapping;
+    private Map&lt;String, Resource&gt; entandoDefaultSqlResources;
+    private Map&lt;String, Resource&gt; testSqlResources;
+    private Map&lt;String, Resource&gt; defaultSqlDump;
+    private int status;
+
+    private DatabaseDumper databaseDumper;
+    private DatabaseRestorer databaseRestorer;
+
+    private ServletContext servletContext;
+
+    public void init() throws Exception {
+<span class="fc" id="L77">        logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    public SystemInstallationReport installDatabase(SystemInstallationReport report, boolean checkOnStatup) throws Exception {
+<span class="fc" id="L82">        String lastLocalBackupFolder = null;</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (null == report) {</span>
+<span class="fc" id="L84">            report = SystemInstallationReport.getInstance();</span>
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">            if (checkOnStatup &amp;&amp; !Environment.test.equals(this.getEnvironment())) {</span>
+                //non c'è db locale installato, cerca nei backup locali
+<span class="nc" id="L87">                DataSourceDumpReport lastDumpReport = this.getLastDumpReport();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                if (null != lastDumpReport) {</span>
+<span class="nc" id="L89">                    lastLocalBackupFolder = lastDumpReport.getSubFolderName();</span>
+<span class="nc" id="L90">                    report.setStatus(SystemInstallationReport.Status.RESTORE);</span>
+                } else {
+                    //SE NON c'è cerca il default dump
+<span class="nc" id="L93">                    Map&lt;String, Resource&gt; sqlDump = this.getDefaultSqlDump();</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">                    if (null != sqlDump &amp;&amp; sqlDump.size() &gt; 0) {</span>
+<span class="nc" id="L95">                        report.setStatus(SystemInstallationReport.Status.RESTORE);</span>
+                    }
+                }
+            }
+        }
+        try {
+<span class="fc" id="L101">            this.initMasterDatabases(report, checkOnStatup);</span>
+<span class="fc" id="L102">            List&lt;Component&gt; components = this.getComponentManager().getCurrentComponents();</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            for (Component entandoComponentConfiguration : components) {</span>
+<span class="nc" id="L104">                this.initComponentDatabases(entandoComponentConfiguration, report, checkOnStatup);</span>
+<span class="nc" id="L105">            }</span>
+<span class="fc" id="L106">            this.initMasterDefaultResource(report, checkOnStatup);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">            for (Component entandoComponentConfiguration : components) {</span>
+<span class="nc" id="L108">                this.initComponentDefaultResources(entandoComponentConfiguration, report, checkOnStatup);</span>
+<span class="nc" id="L109">            }</span>
+<span class="pc bpc" id="L110" title="2 of 4 branches missed.">            if (checkOnStatup &amp;&amp; report.getStatus().equals(SystemInstallationReport.Status.RESTORE)) {</span>
+                //ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH:MI:SS.FF'
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                if (null != lastLocalBackupFolder) {</span>
+<span class="nc" id="L113">                    this.restoreBackup(lastLocalBackupFolder);</span>
+                } else {
+<span class="nc" id="L115">                    this.restoreDefaultDump();</span>
+                }
+            }
+<span class="nc" id="L118">        } catch (Throwable t) {</span>
+<span class="nc bnc" id="L119" title="All 4 branches missed.">            if (null != report &amp;&amp; report.isUpdated()) {</span>
+<span class="nc" id="L120">                report.setUpdated();</span>
+<span class="nc" id="L121">                report.setStatus(SystemInstallationReport.Status.INCOMPLETE);</span>
+            }
+<span class="nc" id="L123">            logger.error(&quot;Error while initializating Db Installer&quot;, t);</span>
+<span class="nc" id="L124">            throw new Exception(&quot;Error while initializating Db Installer&quot;, t);</span>
+<span class="fc" id="L125">        }</span>
+<span class="fc" id="L126">        return report;</span>
+    }
+
+    private void initMasterDatabases(SystemInstallationReport report, boolean checkOnStatup) throws EntException {
+<span class="fc" id="L130">        System.out.println(&quot;+ [ Component: Core ] :: SCHEMA\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L131">        ComponentInstallationReport componentReport = report.getComponentReport(&quot;entandoCore&quot;, true);</span>
+<span class="fc" id="L132">        DataSourceInstallationReport dataSourceReport = componentReport.getDataSourceReport();</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (componentReport.getStatus().equals(SystemInstallationReport.Status.OK)) {</span>
+<span class="fc" id="L134">            logger.debug(&quot;{}( ok )  Already installed\n{}&quot;, LOG_PREFIX, LOG_PREFIX);</span>
+<span class="fc" id="L135">            System.out.println(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L136">            return;</span>
+        }
+        try {
+<span class="fc" id="L139">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="fc" id="L140">            Map&lt;String, SystemInstallationReport.Status&gt; databasesStatus = dataSourceReport.getDatabaseStatus();</span>
+<span class="fc" id="L141">            System.out.println(LOG_PREFIX + &quot;Starting installation&quot;);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            for (String dataSourceName : dataSourceNames) {</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                if (report.getStatus().equals(SystemInstallationReport.Status.PORTING)) {</span>
+<span class="nc" id="L144">                    System.out.println(LOG_PREFIX + &quot; - Already present! db &quot; + dataSourceName);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                    SystemInstallationReport.Status status = (checkOnStatup)</span>
+<span class="nc" id="L146">                            ? report.getStatus()</span>
+<span class="nc" id="L147">                            : SystemInstallationReport.Status.SKIPPED;</span>
+<span class="nc" id="L148">                    databasesStatus.put(dataSourceName, status);</span>
+<span class="nc" id="L149">                    report.setUpdated();</span>
+<span class="nc" id="L150">                    continue;</span>
+                }
+<span class="fc" id="L152">                SystemInstallationReport.Status dbStatus = databasesStatus.get(dataSourceName);</span>
+<span class="pc bpc" id="L153" title="3 of 4 branches missed.">                if (dbStatus != null &amp;&amp; (SystemInstallationReport.isSafeStatus(dbStatus))) {</span>
+<span class="nc" id="L154">                    System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;( ok )  &quot; + dataSourceName + &quot; already installed&quot;);</span>
+<span class="pc bpc" id="L155" title="3 of 4 branches missed.">                } else if (dbStatus == null || !dbStatus.equals(SystemInstallationReport.Status.OK)) {</span>
+<span class="fc" id="L156">                    DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+                    //System.out.println(LOG_PREFIX + &quot; - '&quot; + dataSourceName + &quot;' Installation Started... &quot;);
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">                    if (checkOnStatup) {</span>
+<span class="fc" id="L159">                        databasesStatus.put(dataSourceName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="fc" id="L160">                        System.out.println(LOG_PREFIX);</span>
+<span class="fc" id="L161">                        this.initMasterDatabase(dataSourceName, dataSource, dataSourceReport);</span>
+<span class="fc" id="L162">                        databasesStatus.put(dataSourceName, SystemInstallationReport.Status.OK);</span>
+                    } else {
+<span class="nc" id="L164">                        databasesStatus.put(dataSourceName, SystemInstallationReport.Status.SKIPPED);</span>
+                    }
+<span class="fc" id="L166">                    report.setUpdated();</span>
+                }
+            }
+<span class="fc" id="L169">            System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L170">            logger.debug(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L171">        } catch (Throwable t) {</span>
+<span class="nc" id="L172">            logger.error(&quot;Error initializating master databases&quot;, t);</span>
+<span class="nc" id="L173">            throw new EntException(&quot;Error initializating master databases&quot;, t);</span>
+<span class="fc" id="L174">        }</span>
+<span class="fc" id="L175">    }</span>
+
+    private void initMasterDatabase(String databaseName, DataSource dataSource, DataSourceInstallationReport schemaReport) throws EntException {
+        try {
+<span class="fc" id="L179">            DatabaseType type = this.getDatabaseRestorer().getType(dataSource);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            if (type.equals(DatabaseType.DERBY)) {</span>
+<span class="fc" id="L181">                this.getDatabaseRestorer().initDerbySchema(dataSource);</span>
+            }
+<span class="fc" id="L183">            List&lt;String&gt; tableClassNames = this.getEntandoTableMapping().get(databaseName);</span>
+<span class="pc bpc" id="L184" title="2 of 4 branches missed.">            if (null == tableClassNames || tableClassNames.isEmpty()) {</span>
+<span class="nc" id="L185">                logger.debug(&quot;No Master Tables defined for db {}&quot;, databaseName);</span>
+<span class="nc" id="L186">                schemaReport.getDatabaseStatus().put(databaseName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+            } else {
+<span class="fc" id="L188">                this.createTables(databaseName, tableClassNames, dataSource, schemaReport);</span>
+            }
+<span class="nc" id="L190">        } catch (Throwable t) {</span>
+<span class="nc" id="L191">            schemaReport.getDatabaseStatus().put(databaseName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L192">            logger.error(&quot;Error creating master tables to db {}&quot;, databaseName, t);</span>
+<span class="nc" id="L193">            throw new EntException(&quot;Error creating master tables to db &quot; + databaseName, t);</span>
+<span class="fc" id="L194">        }</span>
+<span class="fc" id="L195">    }</span>
+
+    public void initComponentDatabases(Component componentConfiguration, SystemInstallationReport report, boolean checkOnStatup) throws EntException {
+<span class="nc" id="L198">        System.out.println(&quot;+ [ Component: &quot; + componentConfiguration.getCode() + &quot; ] :: SCHEMA\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L199">        ComponentInstallationReport componentReport = report.getComponentReport(componentConfiguration.getCode(), true);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (componentReport.getStatus().equals(SystemInstallationReport.Status.OK)) {</span>
+<span class="nc" id="L201">            logger.debug(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L202">            System.out.println(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L203">            return;</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        } else if (componentReport.getStatus().equals(SystemInstallationReport.Status.UNINSTALLED)) {</span>
+<span class="nc" id="L205">            logger.debug(LOG_PREFIX + &quot;( ok )  Uninstalled\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L206">            System.out.println(LOG_PREFIX + &quot;( ok )  Uninstalled\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L207">            return;</span>
+        }
+        try {
+<span class="nc" id="L210">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="nc" id="L211">            Map&lt;String, List&lt;String&gt;&gt; tableMapping = componentConfiguration.getTableMapping();</span>
+<span class="nc" id="L212">            DataSourceInstallationReport dataSourceReport = componentReport.getDataSourceReport();</span>
+<span class="nc" id="L213">            System.out.println(LOG_PREFIX + &quot;Starting installation\n&quot; + LOG_PREFIX);</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            for (String dataSourceName : dataSourceNames) {</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                List&lt;String&gt; tableClassNames = (null != tableMapping) ? tableMapping.get(dataSourceName) : null;</span>
+<span class="nc bnc" id="L216" title="All 4 branches missed.">                if (null == tableClassNames || tableClassNames.isEmpty()) {</span>
+<span class="nc" id="L217">                    System.out.println(LOG_PREFIX + &quot;( !! )  skipping &quot; + dataSourceName + &quot;: not available&quot;);</span>
+<span class="nc" id="L218">                    dataSourceReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+<span class="nc" id="L219">                    report.setUpdated();</span>
+<span class="nc" id="L220">                    continue;</span>
+                }
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                if (report.getStatus().equals(SystemInstallationReport.Status.PORTING)) {</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                    SystemInstallationReport.Status status = (checkOnStatup)</span>
+<span class="nc" id="L224">                            ? report.getStatus()</span>
+<span class="nc" id="L225">                            : SystemInstallationReport.Status.SKIPPED;</span>
+<span class="nc" id="L226">                    dataSourceReport.getDatabaseStatus().put(dataSourceName, status);</span>
+<span class="nc" id="L227">                    logger.debug(LOG_PREFIX + &quot;( ok )  {} already installed {}&quot;, dataSourceName, SystemInstallationReport.Status.PORTING);</span>
+<span class="nc" id="L228">                    System.out.println(LOG_PREFIX + &quot;( ok )  &quot; + dataSourceName + &quot; already installed&quot; + SystemInstallationReport.Status.PORTING);</span>
+<span class="nc" id="L229">                    continue;</span>
+                }
+<span class="nc" id="L231">                SystemInstallationReport.Status schemaStatus = dataSourceReport.getDatabaseStatus().get(dataSourceName);</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                if (SystemInstallationReport.isSafeStatus(schemaStatus)) {</span>
+                    //Already Done!
+<span class="nc" id="L234">                    System.out.println(LOG_PREFIX + &quot;( ok )  &quot; + dataSourceName + &quot; already installed&quot; + SystemInstallationReport.Status.PORTING);</span>
+<span class="nc" id="L235">                    continue;</span>
+                }
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                if (null == dataSourceReport.getDataSourceTables().get(dataSourceName)) {</span>
+<span class="nc" id="L238">                    dataSourceReport.getDataSourceTables().put(dataSourceName, new ArrayList&lt;String&gt;());</span>
+                }
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                if (checkOnStatup) {</span>
+<span class="nc" id="L241">                    dataSourceReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L242">                    DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="nc" id="L243">                    this.createTables(dataSourceName, tableClassNames, dataSource, dataSourceReport);</span>
+<span class="nc" id="L244">                    System.out.println(LOG_PREFIX);</span>
+<span class="nc" id="L245">                    dataSourceReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.OK);</span>
+<span class="nc" id="L246">                } else {</span>
+<span class="nc" id="L247">                    dataSourceReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.SKIPPED);</span>
+                }
+<span class="nc" id="L249">                report.setUpdated();</span>
+            }
+<span class="nc" id="L251">            System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L252">            logger.debug(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L253">        } catch (Throwable t) {</span>
+<span class="nc" id="L254">            logger.error(&quot;Error initializating component {}&quot;, componentConfiguration.getCode(), t);</span>
+<span class="nc" id="L255">            throw new EntException(&quot;Error initializating component &quot; + componentConfiguration.getCode(), t);</span>
+<span class="nc" id="L256">        }</span>
+<span class="nc" id="L257">    }</span>
+
+    private void createTables(String databaseName, List&lt;String&gt; tableClassNames,
+            DataSource dataSource, DataSourceInstallationReport schemaReport) throws EntException {
+        try {
+<span class="fc" id="L262">            DatabaseType type = this.getDatabaseRestorer().getType(dataSource);</span>
+<span class="fc" id="L263">            TableFactory tableFactory = new TableFactory(databaseName, dataSource, type);</span>
+<span class="fc" id="L264">            tableFactory.createTables(tableClassNames, schemaReport);</span>
+<span class="nc" id="L265">        } catch (Throwable t) {</span>
+<span class="nc" id="L266">            logger.error(&quot;Error creating tables to db {}&quot;, databaseName, t);</span>
+<span class="nc" id="L267">            throw new EntException(&quot;Error creating tables to db &quot; + databaseName, t);</span>
+<span class="fc" id="L268">        }</span>
+<span class="fc" id="L269">    }</span>
+
+    //---------------- DATA ------------------- START
+    private void initMasterDefaultResource(SystemInstallationReport report, boolean checkOnStatup) throws EntException {
+<span class="fc" id="L273">        System.out.println(&quot;+ [ Component: Core ] :: DATA\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L274">        ComponentInstallationReport coreComponentReport = report.getComponentReport(&quot;entandoCore&quot;, false);</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">        if (coreComponentReport.getStatus().equals(SystemInstallationReport.Status.OK)) {</span>
+<span class="fc" id="L276">            String message = LOG_PREFIX + &quot;( ok )  Already installed. &quot; + coreComponentReport.getStatus() + &quot;\n&quot; + LOG_PREFIX;</span>
+<span class="fc" id="L277">            logger.debug(message);</span>
+<span class="fc" id="L278">            System.out.println(message);</span>
+<span class="fc" id="L279">            return;</span>
+        }
+<span class="fc" id="L281">        DataInstallationReport dataReport = coreComponentReport.getDataReport();</span>
+        try {
+<span class="fc" id="L283">            System.out.println(LOG_PREFIX + &quot;Starting installation\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L284">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            for (String dataSourceName : dataSourceNames) {</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">                if ((report.getStatus().equals(SystemInstallationReport.Status.PORTING)</span>
+<span class="pc bpc" id="L287" title="3 of 4 branches missed.">                        || report.getStatus().equals(SystemInstallationReport.Status.RESTORE)) &amp;&amp; checkOnStatup) {</span>
+<span class="nc" id="L288">                    dataReport.getDatabaseStatus().put(dataSourceName, report.getStatus());</span>
+<span class="nc" id="L289">                    report.setUpdated();</span>
+<span class="nc" id="L290">                    String message = LOG_PREFIX + &quot;( ok )  &quot; + dataSourceName + &quot; already installed. &quot; + report.getStatus() + &quot;\n&quot; + LOG_PREFIX;</span>
+<span class="nc" id="L291">                    logger.debug(message);</span>
+<span class="nc" id="L292">                    System.out.println(message);</span>
+<span class="nc" id="L293">                    continue;</span>
+                }
+<span class="fc" id="L295">                SystemInstallationReport.Status schemaStatus = dataReport.getDatabaseStatus().get(dataSourceName);</span>
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">                if (SystemInstallationReport.isSafeStatus(schemaStatus)) {</span>
+<span class="nc" id="L297">                    String message = LOG_PREFIX + &quot;( ok )  &quot; + dataSourceName + &quot; already installed. &quot; + report.getStatus() + &quot;\n&quot; + LOG_PREFIX;</span>
+<span class="nc" id="L298">                    System.out.println(message);</span>
+<span class="nc" id="L299">                    continue;</span>
+                }
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">                Resource resource = (Environment.test.equals(this.getEnvironment()))</span>
+<span class="fc" id="L302">                        ? this.getTestSqlResources().get(dataSourceName)</span>
+<span class="pc" id="L303">                        : this.getEntandoDefaultSqlResources().get(dataSourceName);</span>
+<span class="fc" id="L304">                String script = this.readFile(resource);</span>
+<span class="pc bpc" id="L305" title="2 of 4 branches missed.">                if (null != script &amp;&amp; script.trim().length() != 0) {</span>
+<span class="pc bpc" id="L306" title="1 of 2 branches missed.">                    if (checkOnStatup) {</span>
+<span class="fc" id="L307">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="fc" id="L308">                        DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="fc" id="L309">                        this.getDatabaseRestorer().initOracleSchema(dataSource);</span>
+<span class="fc" id="L310">                        TableDataUtils.valueDatabase(script, dataSourceName, dataSource, null);</span>
+<span class="fc" id="L311">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.OK);</span>
+<span class="fc" id="L312">                        System.out.println(&quot;|   ( ok )  &quot; + dataSourceName);</span>
+<span class="fc" id="L313">                    } else {</span>
+<span class="nc" id="L314">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.SKIPPED);</span>
+                    }
+<span class="fc" id="L316">                    report.setUpdated();</span>
+                } else {
+<span class="nc" id="L318">                    System.out.println(LOG_PREFIX + &quot;( !! )  skipping &quot; + dataSourceName + &quot;: not available&quot;);</span>
+<span class="nc" id="L319">                    dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+<span class="nc" id="L320">                    report.setUpdated();</span>
+                }
+            }
+<span class="fc" id="L323">            System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L324">            logger.debug(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L325">        } catch (Throwable t) {</span>
+<span class="nc" id="L326">            logger.error(&quot;Error initializating master DefaultResource&quot;, t);</span>
+<span class="nc" id="L327">            throw new EntException(&quot;Error initializating master DefaultResource&quot;, t);</span>
+<span class="fc" id="L328">        }</span>
+<span class="fc" id="L329">    }</span>
+
+    public void initComponentDefaultResources(Component componentConfiguration,
+            SystemInstallationReport report, boolean checkOnStatup) throws EntException {
+<span class="nc" id="L333">        System.out.println(&quot;+ [ Component: &quot; + componentConfiguration.getCode() + &quot; ] :: DATA\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L334">        ComponentInstallationReport componentReport = report.getComponentReport(componentConfiguration.getCode(), false);</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        if (componentReport.getStatus().equals(SystemInstallationReport.Status.OK)) {</span>
+<span class="nc" id="L336">            logger.debug(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L337">            System.out.println(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L338">            return;</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">        } else if (componentReport.getStatus().equals(SystemInstallationReport.Status.UNINSTALLED)) {</span>
+<span class="nc" id="L340">            logger.debug(LOG_PREFIX + &quot;( ok )  Uninstalled\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L341">            System.out.println(LOG_PREFIX + &quot;( ok )  Uninstalled\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L342">            return;</span>
+        }
+<span class="nc" id="L344">        DataInstallationReport dataReport = componentReport.getDataReport();</span>
+        try {
+<span class="nc" id="L346">            System.out.println(LOG_PREFIX + &quot;Starting installation\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L347">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">            for (String dataSourceName : dataSourceNames) {</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">                if ((report.getStatus().equals(SystemInstallationReport.Status.PORTING)</span>
+<span class="nc bnc" id="L350" title="All 4 branches missed.">                        || report.getStatus().equals(SystemInstallationReport.Status.RESTORE)) &amp;&amp; checkOnStatup) {</span>
+<span class="nc" id="L351">                    dataReport.getDatabaseStatus().put(dataSourceName, report.getStatus());</span>
+<span class="nc" id="L352">                    System.out.println(&quot;|   ( ok )  &quot; + dataSourceName);</span>
+<span class="nc" id="L353">                    report.setUpdated();</span>
+<span class="nc" id="L354">                    continue;</span>
+                }
+<span class="nc" id="L356">                DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="nc" id="L357">                SystemInstallationReport.Status dataStatus = dataReport.getDatabaseStatus().get(dataSourceName);</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                if (SystemInstallationReport.isSafeStatus(dataStatus)) {</span>
+<span class="nc" id="L359">                    logger.debug(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L360">                    System.out.println(LOG_PREFIX + &quot;( ok )  Already installed\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L361">                    continue;</span>
+                }
+<span class="nc" id="L363">                Map&lt;String, ComponentEnvironment&gt; environments = componentConfiguration.getEnvironments();</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">                String compEnvKey = (Environment.test.equals(this.getEnvironment()))</span>
+<span class="nc" id="L365">                        ? Environment.test.toString() : Environment.production.toString();</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">                ComponentEnvironment componentEnvironment = (null != environments) ? environments.get(compEnvKey) : null;</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                Resource resource = (null != componentEnvironment) ? componentEnvironment.getSqlResources(dataSourceName) : null;</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">                String script = (null != resource) ? this.readFile(resource) : null;</span>
+<span class="nc bnc" id="L369" title="All 4 branches missed.">                if (null != script &amp;&amp; script.trim().length() &gt; 0) {</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">                    if (checkOnStatup) {</span>
+<span class="nc" id="L371">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L372">                        this.getDatabaseRestorer().initOracleSchema(dataSource);</span>
+<span class="nc" id="L373">                        TableDataUtils.valueDatabase(script, dataSourceName, dataSource, dataReport);</span>
+<span class="nc" id="L374">                        System.out.println(&quot;|   ( ok )  &quot; + dataSourceName);</span>
+<span class="nc" id="L375">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.OK);</span>
+                    } else {
+<span class="nc" id="L377">                        dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.SKIPPED);</span>
+                    }
+<span class="nc" id="L379">                    report.setUpdated();</span>
+                } else {
+<span class="nc" id="L381">                    System.out.println(LOG_PREFIX + &quot;( !! )  skipping &quot; + dataSourceName + &quot;: not available&quot;);</span>
+<span class="nc" id="L382">                    dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+<span class="nc" id="L383">                    report.setUpdated();</span>
+                }
+            }
+<span class="nc" id="L386">            System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L387">            logger.debug(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Installation complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L388">        } catch (Throwable t) {</span>
+<span class="nc" id="L389">            logger.error(&quot;Error restoring default resources of component {}&quot;, componentConfiguration.getCode(), t);</span>
+<span class="nc" id="L390">            throw new EntException(&quot;Error restoring default resources of component &quot; + componentConfiguration.getCode(), t);</span>
+<span class="nc" id="L391">        }</span>
+<span class="nc" id="L392">    }</span>
+
+    public void uninstallComponentResources(Component componentConfiguration,
+                                            SystemInstallationReport report) throws EntException {
+<span class="fc" id="L396">        System.out.println(&quot;+ [ Component: &quot; + componentConfiguration.getCode() + &quot; ] :: DATA\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L397">        ComponentInstallationReport componentReport = report.getComponentReport(componentConfiguration.getCode(), false);</span>
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">        if (componentReport.getStatus().equals(SystemInstallationReport.Status.UNINSTALLED)) {</span>
+
+<span class="nc" id="L400">            logger.debug(LOG_PREFIX + &quot;( ok ) Already uninstalled\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L401">            System.out.println(LOG_PREFIX + &quot;( ok ) Already uninstalled\n&quot; + LOG_PREFIX);</span>
+
+<span class="pc bpc" id="L403" title="1 of 2 branches missed.">        } else if (componentReport.getStatus().equals(SystemInstallationReport.Status.OK)) {</span>
+
+<span class="fc" id="L405">            DataInstallationReport dataReport = componentReport.getDataReport();</span>
+            try {
+<span class="fc" id="L407">                System.out.println(LOG_PREFIX + &quot;Starting uninstall\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L408">                ComponentUninstallerInfo uninstallInfo = componentConfiguration.getUninstallerInfo();</span>
+
+                // Remove sqlResources
+<span class="fc" id="L411">                String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">                for (String dataSourceName : dataSourceNames) {</span>
+
+<span class="fc" id="L414">                    DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="fc" id="L415">                    SystemInstallationReport.Status dataStatus = dataReport.getDatabaseStatus().get(dataSourceName);</span>
+<span class="pc bpc" id="L416" title="1 of 2 branches missed.">                    if (SystemInstallationReport.isSafeStatus(dataStatus)) {</span>
+                        // We can proceed with removing the stuff
+<span class="fc" id="L418">                        Resource sqlResource = uninstallInfo.getSqlResources(dataSourceName);</span>
+<span class="pc bpc" id="L419" title="1 of 2 branches missed.">                        String script = (null != sqlResource) ? this.readFile(sqlResource) : null;</span>
+<span class="pc bpc" id="L420" title="3 of 4 branches missed.">                        if (null != script &amp;&amp; script.trim().length() &gt; 0) {</span>
+<span class="nc" id="L421">                            dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L422">                            TableDataUtils.valueDatabase(script, dataSourceName, dataSource, dataReport);</span>
+<span class="nc" id="L423">                            System.out.println(&quot;|   ( ok )  &quot; + dataSourceName);</span>
+<span class="nc" id="L424">                            dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.UNINSTALLED);</span>
+<span class="nc" id="L425">                            report.setUpdated();</span>
+                        } else {
+<span class="fc" id="L427">                            System.out.println(LOG_PREFIX + &quot;( !! )  skipping &quot; + dataSourceName + &quot;: not available&quot;);</span>
+<span class="fc" id="L428">                            dataReport.getDatabaseStatus().put(dataSourceName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+<span class="fc" id="L429">                            report.setUpdated();</span>
+                        }
+                    }
+                }
+
+<span class="fc" id="L434">                report.removeComponentReport(componentConfiguration.getCode());</span>
+<span class="fc" id="L435">                report.setUpdated();</span>
+<span class="fc" id="L436">                System.out.println(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Uninstall complete\n&quot; + LOG_PREFIX);</span>
+<span class="fc" id="L437">                logger.debug(LOG_PREFIX + &quot;\n&quot; + LOG_PREFIX + &quot;Uninstall complete\n&quot; + LOG_PREFIX);</span>
+<span class="nc" id="L438">            } catch (Throwable t) {</span>
+<span class="nc" id="L439">                logger.error(&quot;Error removing component {}&quot;, componentConfiguration.getCode(), t);</span>
+<span class="nc" id="L440">                throw new EntException(&quot;Error removing component &quot; + componentConfiguration.getCode(), t);</span>
+<span class="fc" id="L441">            }</span>
+        }
+<span class="fc" id="L443">    }</span>
+
+    private void restoreDefaultDump() throws EntException {
+        try {
+<span class="nc" id="L447">            String[] dataSourceNames = this.extractBeanNames(DataSource.class);</span>
+<span class="nc" id="L448">            Map&lt;String, Resource&gt; defaultDump = this.getDefaultSqlDump();</span>
+<span class="nc bnc" id="L449" title="All 4 branches missed.">            if (null == defaultDump || defaultDump.isEmpty()) {</span>
+<span class="nc" id="L450">                return;</span>
+            }
+<span class="nc bnc" id="L452" title="All 2 branches missed.">            for (String dataSourceName : dataSourceNames) {</span>
+<span class="nc" id="L453">                DataSource dataSource = (DataSource) this.getBeanFactory().getBean(dataSourceName);</span>
+<span class="nc" id="L454">                Resource resource = defaultDump.get(dataSourceName);</span>
+<span class="nc" id="L455">                String script = this.readFile(resource);</span>
+<span class="nc bnc" id="L456" title="All 4 branches missed.">                if (null != script &amp;&amp; script.trim().length() &gt; 0) {</span>
+<span class="nc" id="L457">                    this.getDatabaseRestorer().initOracleSchema(dataSource);</span>
+<span class="nc" id="L458">                    TableDataUtils.valueDatabase(script, dataSourceName, dataSource, null);</span>
+                }
+            }
+<span class="nc" id="L461">        } catch (Throwable t) {</span>
+<span class="nc" id="L462">            logger.error(&quot;Error restoring default Dump&quot;, t);</span>
+<span class="nc" id="L463">            throw new EntException(&quot;Error restoring default Dump&quot;, t);</span>
+<span class="nc" id="L464">        }</span>
+<span class="nc" id="L465">    }</span>
+
+    private String readFile(Resource resource) throws Throwable {
+<span class="pc bpc" id="L468" title="1 of 2 branches missed.">        if (resource == null) {</span>
+<span class="nc" id="L469">            return null;</span>
+        }
+<span class="fc" id="L471">        InputStream is = null;</span>
+<span class="fc" id="L472">        String text = null;</span>
+        try {
+<span class="fc" id="L474">            is = resource.getInputStream();</span>
+<span class="pc bpc" id="L475" title="1 of 2 branches missed.">            if (null == is) {</span>
+<span class="nc" id="L476">                return null;</span>
+            }
+<span class="fc" id="L478">            text = FileTextReader.getText(is, &quot;UTF-8&quot;);</span>
+<span class="nc" id="L479">        } catch (Throwable t) {</span>
+<span class="nc" id="L480">            logger.error(&quot;Error reading resource&quot;, t);</span>
+<span class="nc" id="L481">            throw new EntException(&quot;Error reading resource&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">            if (null != is) {</span>
+<span class="fc" id="L484">                is.close();</span>
+            }
+        }
+<span class="fc" id="L487">        return text;</span>
+    }
+
+    //---------------- DATA ------------------- END
+    @Override
+    public void createBackup() throws EntException {
+<span class="nc bnc" id="L493" title="All 2 branches missed.">        if (this.getStatus() != STATUS_READY) {</span>
+<span class="nc" id="L494">            return;</span>
+        }
+        try {
+<span class="nc" id="L497">            this.setStatus(DatabaseManager.STATUS_DUMPING_IN_PROGRESS);</span>
+<span class="nc" id="L498">            DatabaseDumperThread thread = new DatabaseDumperThread(this);</span>
+<span class="nc" id="L499">            String threadName = &quot;DatabaseDumper_&quot; + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="nc" id="L500">            thread.setName(threadName);</span>
+<span class="nc" id="L501">            thread.start();</span>
+<span class="nc" id="L502">        } catch (Throwable t) {</span>
+<span class="nc" id="L503">            this.setStatus(DatabaseManager.STATUS_READY);</span>
+<span class="nc" id="L504">            logger.error(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L505">            throw new EntException(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L506">        }</span>
+<span class="nc" id="L507">    }</span>
+
+    protected void executeBackup() throws EntException {
+        try {
+
+<span class="nc" id="L512">            this.getDatabaseDumper().createBackup(this.getEnvironment(), this.extractReport());</span>
+<span class="nc" id="L513">        } catch (Throwable t) {</span>
+<span class="nc" id="L514">            logger.error(&quot;Error while creating backup&quot;, t);</span>
+<span class="nc" id="L515">            throw new EntException(&quot;Error while creating backup&quot;, t);</span>
+        } finally {
+<span class="nc" id="L517">            this.setStatus(DatabaseManager.STATUS_READY);</span>
+        }
+<span class="nc" id="L519">    }</span>
+
+    @Override
+    public void deleteBackup(String subFolderName) throws EntException {
+        try {
+<span class="fc" id="L524">            String baseDir = this.getLocalBackupsFolder();</span>
+<span class="fc" id="L525">            String directoryName = baseDir + subFolderName;</span>
+            // PATH-TRAVERSAL-CHECK
+<span class="pc bpc" id="L527" title="1 of 2 branches missed.">            if (!FilenameUtils.directoryContains(baseDir, directoryName)) {</span>
+<span class="nc" id="L528">                throw new EntRuntimeException(</span>
+<span class="nc" id="L529">                        String.format(&quot;Path validation failed: \&quot;%s\&quot; not in \&quot;%s\&quot;&quot;, directoryName, baseDir)</span>
+                );
+            }
+            //-
+<span class="fc" id="L533">            this.getStorageManager().deleteDirectory(directoryName, true);</span>
+
+<span class="nc" id="L535">        } catch (Throwable t) {</span>
+<span class="nc" id="L536">            logger.error(&quot;Error while deleting backup&quot;, t);</span>
+<span class="nc" id="L537">            throw new EntException(&quot;Error while deleting backup&quot;, t);</span>
+<span class="fc" id="L538">        }</span>
+<span class="fc" id="L539">    }</span>
+
+    protected DataSourceDumpReport getLastDumpReport() throws EntException {
+<span class="nc bnc" id="L542" title="All 2 branches missed.">        if (Environment.develop.equals(this.getEnvironment())) {</span>
+<span class="nc" id="L543">            return this.getBackupReport(this.getEnvironment().toString());</span>
+        }
+<span class="nc" id="L545">        List&lt;DataSourceDumpReport&gt; reports = this.getBackupReports();</span>
+<span class="nc bnc" id="L546" title="All 4 branches missed.">        if (null == reports || reports.isEmpty()) {</span>
+<span class="nc" id="L547">            return null;</span>
+        }
+<span class="nc" id="L549">        return reports.get(reports.size() - 1);</span>
+    }
+
+    @Override
+    public DataSourceDumpReport getBackupReport(String subFolderName) {
+        try {
+<span class="pc bpc" id="L555" title="1 of 2 branches missed.">            if (this.checkBackupFolder(subFolderName)) {</span>
+<span class="nc" id="L556">                return this.getDumpReport(subFolderName);</span>
+            }
+<span class="nc" id="L558">        } catch (Throwable t) {</span>
+<span class="nc" id="L559">            logger.error(&quot;Error while extracting Backup Report of subfolder {}&quot;, subFolderName, t);</span>
+<span class="nc" id="L560">            throw new RuntimeException(&quot;Error while extracting Backup Report of subfolder &quot; + subFolderName);</span>
+<span class="fc" id="L561">        }</span>
+<span class="fc" id="L562">        return null;</span>
+    }
+
+    @Override
+    public List&lt;DataSourceDumpReport&gt; getBackupReports() {
+<span class="fc" id="L567">        List&lt;DataSourceDumpReport&gt; reports = new ArrayList&lt;DataSourceDumpReport&gt;();</span>
+        try {
+<span class="fc" id="L569">            String[] children = this.getStorageManager().listDirectory(this.getLocalBackupsFolder(), true); //backupsFolder.list();</span>
+<span class="pc bpc" id="L570" title="3 of 4 branches missed.">            if (null == children || children.length == 0) {</span>
+<span class="fc" id="L571">                return null;</span>
+            }
+<span class="nc bnc" id="L573" title="All 2 branches missed.">            for (String subFolderName : children) {</span>
+<span class="nc bnc" id="L574" title="All 2 branches missed.">                if (this.checkBackupFolder(subFolderName)) {</span>
+<span class="nc" id="L575">                    DataSourceDumpReport report = this.getDumpReport(subFolderName);</span>
+<span class="nc" id="L576">                    reports.add(report);</span>
+                }
+            }
+<span class="nc" id="L579">            Collections.sort(reports, new BeanComparator(&quot;date&quot;));</span>
+<span class="nc" id="L580">        } catch (Throwable t) {</span>
+<span class="nc" id="L581">            logger.error(&quot;Error while extracting Backup Reports&quot;, t);</span>
+<span class="nc" id="L582">            throw new RuntimeException(&quot;Error while extracting Backup Reports&quot;);</span>
+<span class="nc" id="L583">        }</span>
+<span class="nc" id="L584">        return reports;</span>
+    }
+
+    private boolean checkBackupFolder(String subFolderName) throws EntException, IOException {
+<span class="fc" id="L588">        String dirName = this.getLocalBackupsFolder();</span>
+<span class="fc" id="L589">        String reportFileName = dirName + subFolderName + File.separator + DUMP_REPORT_FILE_NAME;</span>
+        // PATH-TRAVERSAL-CHECK
+<span class="pc bpc" id="L591" title="1 of 2 branches missed.">        if (!FilenameUtils.directoryContains(dirName, reportFileName)) {</span>
+<span class="nc" id="L592">            throw new EntRuntimeException(</span>
+<span class="nc" id="L593">                    String.format(&quot;Path validation failed: \&quot;%s\&quot; not in \&quot;%s\&quot;&quot;, reportFileName, dirName)</span>
+            );
+        }
+        //-
+<span class="pc bpc" id="L597" title="1 of 2 branches missed.">        if (!this.getStorageManager().exists(reportFileName, true)) {</span>
+<span class="fc" id="L598">            logger.warn(&quot;dump report file name not found in path {}&quot;, reportFileName);</span>
+<span class="fc" id="L599">            return false;</span>
+        }
+<span class="nc" id="L601">        return true;</span>
+    }
+
+    private DataSourceDumpReport getDumpReport(String subFolderName) throws EntException {
+<span class="nc" id="L605">        InputStream is = null;</span>
+<span class="nc" id="L606">        DataSourceDumpReport report = null;</span>
+        try {
+<span class="nc" id="L608">            String key = this.getLocalBackupsFolder() + subFolderName + File.separator + DUMP_REPORT_FILE_NAME;</span>
+<span class="nc" id="L609">            is = this.getStorageManager().getStream(key, true);</span>
+<span class="nc" id="L610">            String xml = FileTextReader.getText(is);</span>
+<span class="nc" id="L611">            report = new DataSourceDumpReport(xml);</span>
+<span class="nc" id="L612">        } catch (Throwable t) {</span>
+<span class="nc" id="L613">            logger.error(&quot;Error while extracting Dump Report of subfolder {}&quot;, subFolderName, t);</span>
+<span class="nc" id="L614">            throw new RuntimeException(&quot;Error while extracting Dump Report of subfolder &quot; + subFolderName);</span>
+        } finally {
+<span class="nc bnc" id="L616" title="All 2 branches missed.">            if (null != is) {</span>
+                try {
+<span class="nc" id="L618">                    is.close();</span>
+<span class="nc" id="L619">                } catch (IOException ex) {</span>
+<span class="nc" id="L620">                }</span>
+            }
+        }
+<span class="nc" id="L623">        return report;</span>
+    }
+
+    @Override
+    public boolean dropAndRestoreBackup(String subFolderName) throws EntException {
+        try {
+<span class="nc bnc" id="L629" title="All 2 branches missed.">            if (!this.checkBackupFolder(subFolderName)) {</span>
+<span class="nc" id="L630">                logger.error(&quot;backup not available - subfolder '{}'&quot;, subFolderName);</span>
+<span class="nc" id="L631">                return false;</span>
+            }
+            //TODO future improvement - execute 'lifeline' backup
+<span class="nc" id="L634">            this.getDatabaseRestorer().dropAndRestoreBackup(subFolderName);</span>
+<span class="nc" id="L635">            ApsWebApplicationUtils.executeSystemRefresh(this.getServletContext());</span>
+<span class="nc" id="L636">            return true;</span>
+<span class="nc" id="L637">        } catch (Throwable t) {</span>
+            //TODO future improvement - restore 'lifeline' backup
+<span class="nc" id="L639">            logger.error(&quot;Error while restoring backup - subfolder {}&quot;, subFolderName, t);</span>
+<span class="nc" id="L640">            throw new EntException(&quot;Error while restoring backup - subfolder &quot; + subFolderName, t);</span>
+<span class="nc" id="L641">        } finally {</span>
+            //TODO future improvement - delete 'lifeline' backup
+<span class="nc" id="L643">        }</span>
+    }
+
+    private boolean restoreBackup(String subFolderName) throws EntException {
+        try {
+<span class="nc bnc" id="L648" title="All 2 branches missed.">            if (!this.checkBackupFolder(subFolderName)) {</span>
+<span class="nc" id="L649">                logger.error(&quot;backup not available - subfolder '{}'&quot;, subFolderName);</span>
+<span class="nc" id="L650">                return false;</span>
+            }
+<span class="nc" id="L652">            this.getDatabaseRestorer().restoreBackup(subFolderName);</span>
+<span class="nc" id="L653">            return true;</span>
+<span class="nc" id="L654">        } catch (Throwable t) {</span>
+<span class="nc" id="L655">            logger.error(&quot;Error while restoring local backup&quot;, t);</span>
+<span class="nc" id="L656">            throw new EntException(&quot;Error while restoring local backup&quot;, t);</span>
+        }
+    }
+
+    private String[] extractBeanNames(Class beanClass) {
+<span class="fc" id="L661">        ListableBeanFactory factory = (ListableBeanFactory) this.getBeanFactory();</span>
+<span class="fc" id="L662">        return factory.getBeanNamesForType(beanClass);</span>
+    }
+
+    @Override
+    public InputStream getTableDump(String tableName, String dataSourceName, String subFolderName) throws EntException {
+        try {
+<span class="nc bnc" id="L668" title="All 2 branches missed.">            if (null == subFolderName) {</span>
+<span class="nc" id="L669">                return null;</span>
+            }
+<span class="nc" id="L671">            StringBuilder fileName = new StringBuilder(this.getLocalBackupsFolder());</span>
+<span class="nc" id="L672">            fileName.append(subFolderName).append(File.separator)</span>
+<span class="nc" id="L673">                    .append(dataSourceName).append(File.separator).append(tableName).append(&quot;.sql&quot;);</span>
+<span class="nc" id="L674">            return this.getStorageManager().getStream(fileName.toString(), true);</span>
+<span class="nc" id="L675">        } catch (Throwable t) {</span>
+<span class="nc" id="L676">            logger.error(&quot;Error while extracting table dump - &quot; + &quot;table '{}' - datasource '{}' - SubFolder '{}'&quot;, tableName, dataSourceName, subFolderName, t);</span>
+<span class="nc" id="L677">            throw new RuntimeException(&quot;Error while extracting table dump - &quot; + &quot;table '&quot; + tableName + &quot;' - datasource '&quot; + dataSourceName + &quot;' - SubFolder '&quot; + subFolderName + &quot;'&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public DatabaseType getDatabaseType(DataSource dataSource) throws EntException {
+<span class="nc" id="L683">        return this.getDatabaseRestorer().getType(dataSource);</span>
+    }
+
+    private IStorageManager getStorageManager() {
+<span class="fc" id="L687">        return (IStorageManager) this.getBeanFactory().getBean(&quot;StorageManager&quot;);</span>
+    }
+
+    protected String getLocalBackupsFolder() {
+<span class="fc" id="L691">        return this.getDatabaseDumper().getLocalBackupsFolder();</span>
+    }
+
+    @Override
+    public Map&lt;String, List&lt;String&gt;&gt; getEntandoTableMapping() {
+<span class="fc" id="L696">        return entandoTableMapping;</span>
+    }
+
+    public void setEntandoTableMapping(Map&lt;String, List&lt;String&gt;&gt; entandoTableMapping) {
+<span class="fc" id="L700">        this.entandoTableMapping = entandoTableMapping;</span>
+<span class="fc" id="L701">    }</span>
+
+    protected Map&lt;String, Resource&gt; getEntandoDefaultSqlResources() {
+<span class="nc" id="L704">        return entandoDefaultSqlResources;</span>
+    }
+
+    public void setEntandoDefaultSqlResources(Map&lt;String, Resource&gt; entandoDefaultSqlResources) {
+<span class="fc" id="L708">        this.entandoDefaultSqlResources = entandoDefaultSqlResources;</span>
+<span class="fc" id="L709">    }</span>
+
+    protected Map&lt;String, Resource&gt; getTestSqlResources() {
+<span class="fc" id="L712">        return testSqlResources;</span>
+    }
+
+    public void setTestSqlResources(Map&lt;String, Resource&gt; testSqlResources) {
+<span class="fc" id="L716">        this.testSqlResources = testSqlResources;</span>
+<span class="fc" id="L717">    }</span>
+
+    protected Map&lt;String, Resource&gt; getDefaultSqlDump() {
+<span class="nc" id="L720">        return defaultSqlDump;</span>
+    }
+
+    public void setDefaultSqlDump(Map&lt;String, Resource&gt; defaultSqlDump) {
+<span class="fc" id="L724">        this.defaultSqlDump = defaultSqlDump;</span>
+<span class="fc" id="L725">    }</span>
+
+    @Override
+    public int getStatus() {
+<span class="fc" id="L729">        return status;</span>
+    }
+
+    protected void setStatus(int status) {
+<span class="nc" id="L733">        this.status = status;</span>
+<span class="nc" id="L734">    }</span>
+
+    protected DatabaseDumper getDatabaseDumper() {
+<span class="fc" id="L737">        return databaseDumper;</span>
+    }
+
+    public void setDatabaseDumper(DatabaseDumper databaseDumper) {
+<span class="fc" id="L741">        this.databaseDumper = databaseDumper;</span>
+<span class="fc" id="L742">    }</span>
+
+    protected DatabaseRestorer getDatabaseRestorer() {
+<span class="fc" id="L745">        return databaseRestorer;</span>
+    }
+
+    public void setDatabaseRestorer(DatabaseRestorer databaseRestorer) {
+<span class="fc" id="L749">        this.databaseRestorer = databaseRestorer;</span>
+<span class="fc" id="L750">    }</span>
+
+    protected ServletContext getServletContext() {
+<span class="nc" id="L753">        return servletContext;</span>
+    }
+
+    @Override
+    public void setServletContext(ServletContext servletContext) {
+<span class="fc" id="L758">        this.servletContext = servletContext;</span>
+<span class="fc" id="L759">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
