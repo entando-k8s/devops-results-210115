@@ -158,118 +158,123 @@ import org.entando.entando.ent.util.EntLogging.EntLogFactory;
         }
 <span class="fc bfc" id="L159" title="All 4 branches covered.">        if (null != code &amp;&amp; code.trim().length() &gt; 0) {</span>
 <span class="fc" id="L160">            FriendlyCodeVO vo = this.getSeoMappingManager().getReference(code);</span>
-<span class="pc bpc" id="L161" title="5 of 6 branches missed.">            if (null != vo &amp;&amp; (vo.getPageCode() == null || !vo.getPageCode().equals(action.getPageCode()))) {</span>
-<span class="nc" id="L162">                String[] args = {code};</span>
-<span class="nc" id="L163">                action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.page.duplicateFriendlyCode&quot;, args));</span>
+<span class="pc bpc" id="L161" title="2 of 6 branches missed.">            if (null != vo &amp;&amp; (vo.getPageCode() == null || !vo.getPageCode().equals(action.getPageCode()))) {</span>
+<span class="fc" id="L162">                action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.page.duplicateFriendlyCode&quot;, new String[]{code}));</span>
+            } else {
+<span class="fc" id="L164">                String pageCode = action.getPageCode();</span>
+<span class="fc" id="L165">                String draftPageReference = this.seoMappingManager.getDraftPageReference(code);</span>
+<span class="pc bpc" id="L166" title="1 of 4 branches missed.">                if (null != draftPageReference &amp;&amp; !pageCode.equals(draftPageReference)) {</span>
+<span class="fc" id="L167">                    action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.page.duplicateFriendlyCode&quot;, new String[]{code}));</span>
+                }
             }
         }
-<span class="fc" id="L166">        request.setAttribute(PARAM_FRIENDLY_CODE, code);</span>
-<span class="fc" id="L167">    }</span>
+<span class="fc" id="L171">        request.setAttribute(PARAM_FRIENDLY_CODE, code);</span>
+<span class="fc" id="L172">    }</span>
 
     @Around(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.saveAndConfigure())&quot;)
     public Object executeUpdateAfterSaveAndConfigure(ProceedingJoinPoint joinPoint) {
-<span class="nc" id="L171">        return this.executeUpdateAfterSave(joinPoint);</span>
+<span class="nc" id="L176">        return this.executeUpdateAfterSave(joinPoint);</span>
     }
 
     @Around(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.save())&quot;)
     public Object executeUpdateAfterSave(ProceedingJoinPoint joinPoint) {
-<span class="fc" id="L176">        Object result = null;</span>
-<span class="fc" id="L177">        HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="fc" id="L181">        Object result = null;</span>
+<span class="fc" id="L182">        HttpServletRequest request = ServletActionContext.getRequest();</span>
         try {
-<span class="fc" id="L179">            result = joinPoint.proceed();</span>
-<span class="nc" id="L180">        } catch (Throwable t) {</span>
-<span class="nc" id="L181">            _logger.error(&quot;error saving page for seo&quot;, t);</span>
-<span class="fc" id="L182">        }</span>
+<span class="fc" id="L184">            result = joinPoint.proceed();</span>
+<span class="nc" id="L185">        } catch (Throwable t) {</span>
+<span class="nc" id="L186">            _logger.error(&quot;error saving page for seo&quot;, t);</span>
+<span class="fc" id="L187">        }</span>
         try {
             //se il salvataggio va a buon fine, aggiorna l'oggetto
-<span class="pc bpc" id="L185" title="2 of 4 branches missed.">            if (null != result &amp;&amp; result instanceof String) {</span>
-<span class="fc" id="L186">                String resultStr = (String) result;</span>
-<span class="pc bpc" id="L187" title="1 of 2 branches missed.">                if (resultStr.equalsIgnoreCase(Action.SUCCESS)) {</span>
-<span class="fc" id="L188">                    PageAction action = (PageAction) joinPoint.getTarget();</span>
-<span class="fc" id="L189">                    IPage seoPage = this.buildPageMetadataForUpdate(request, action);</span>
-<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                    if (null != seoPage) {</span>
-<span class="fc" id="L191">                        this.getPageManager().updatePage(seoPage);</span>
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">            if (null != result &amp;&amp; result instanceof String) {</span>
+<span class="fc" id="L191">                String resultStr = (String) result;</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                if (resultStr.equalsIgnoreCase(Action.SUCCESS)) {</span>
+<span class="fc" id="L193">                    PageAction action = (PageAction) joinPoint.getTarget();</span>
+<span class="fc" id="L194">                    IPage seoPage = this.buildPageMetadataForUpdate(request, action);</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">                    if (null != seoPage) {</span>
+<span class="fc" id="L196">                        this.getPageManager().updatePage(seoPage);</span>
                     }
                 }
             }
-<span class="nc" id="L195">        } catch (Throwable t) {</span>
-<span class="nc" id="L196">            _logger.error(&quot;error updating page for seo&quot;, t);</span>
-<span class="nc" id="L197">            return BaseAction.FAILURE;</span>
-<span class="fc" id="L198">        }</span>
-<span class="fc" id="L199">        return result;</span>
+<span class="nc" id="L200">        } catch (Throwable t) {</span>
+<span class="nc" id="L201">            _logger.error(&quot;error updating page for seo&quot;, t);</span>
+<span class="nc" id="L202">            return BaseAction.FAILURE;</span>
+<span class="fc" id="L203">        }</span>
+<span class="fc" id="L204">        return result;</span>
     }
 
     protected IPage buildPageMetadataForUpdate(HttpServletRequest request, PageAction action) {
-<span class="fc" id="L203">        IPage seoPage = null;</span>
-<span class="fc" id="L204">        String pagecode = action.getPageCode();</span>
-<span class="fc" id="L205">        ApsProperties descriptions = new ApsProperties();</span>
-<span class="fc" id="L206">        ApsProperties langKeywordsKey = new ApsProperties();</span>
-<span class="fc" id="L207">        String friendlyCode = request.getParameter(PARAM_FRIENDLY_CODE);</span>
-<span class="fc" id="L208">        Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
-<span class="fc bfc" id="L209" title="All 2 branches covered.">        while (langsIter.hasNext()) {</span>
-<span class="fc" id="L210">            Lang lang = (Lang) langsIter.next();</span>
-<span class="fc" id="L211">            String titleKey = PARAM_DESCRIPTION_PREFIX + lang.getCode();</span>
-<span class="fc" id="L212">            String title = request.getParameter(titleKey);</span>
-<span class="fc bfc" id="L213" title="All 2 branches covered.">            if (null != title) {</span>
-<span class="fc" id="L214">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;description&quot;, title.trim());</span>
-<span class="fc" id="L215">                String useDefaultLangKey = PARAM_DESCRIPTION_USE_DEFAULT_PREFIX + lang.getCode();</span>
-<span class="fc" id="L216">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
-<span class="pc bpc" id="L217" title="1 of 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
-<span class="fc" id="L218">                descriptions.put(lang.getCode(), meta);</span>
+<span class="fc" id="L208">        IPage seoPage = null;</span>
+<span class="fc" id="L209">        String pagecode = action.getPageCode();</span>
+<span class="fc" id="L210">        ApsProperties descriptions = new ApsProperties();</span>
+<span class="fc" id="L211">        ApsProperties langKeywordsKey = new ApsProperties();</span>
+<span class="fc" id="L212">        String friendlyCode = request.getParameter(PARAM_FRIENDLY_CODE);</span>
+<span class="fc" id="L213">        Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        while (langsIter.hasNext()) {</span>
+<span class="fc" id="L215">            Lang lang = (Lang) langsIter.next();</span>
+<span class="fc" id="L216">            String titleKey = PARAM_DESCRIPTION_PREFIX + lang.getCode();</span>
+<span class="fc" id="L217">            String title = request.getParameter(titleKey);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">            if (null != title) {</span>
+<span class="fc" id="L219">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;description&quot;, title.trim());</span>
+<span class="fc" id="L220">                String useDefaultLangKey = PARAM_DESCRIPTION_USE_DEFAULT_PREFIX + lang.getCode();</span>
+<span class="fc" id="L221">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
+<span class="fc" id="L223">                descriptions.put(lang.getCode(), meta);</span>
             }
-<span class="fc" id="L220">            String keywordsKey = PARAM_KEYWORDS_PREFIX + lang.getCode();</span>
-<span class="fc" id="L221">            String keywords = request.getParameter(keywordsKey);</span>
-<span class="pc bpc" id="L222" title="1 of 2 branches missed.">            if (null != keywords) {</span>
-<span class="nc" id="L223">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;keywords&quot;, keywords.trim());</span>
-<span class="nc" id="L224">                String useDefaultLangKey = PARAM_KEYWORDS_USE_DEFAULT_PREFIX + lang.getCode();</span>
-<span class="nc" id="L225">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
-<span class="nc bnc" id="L226" title="All 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
-<span class="nc" id="L227">                langKeywordsKey.put(lang.getCode(), meta);</span>
+<span class="fc" id="L225">            String keywordsKey = PARAM_KEYWORDS_PREFIX + lang.getCode();</span>
+<span class="fc" id="L226">            String keywords = request.getParameter(keywordsKey);</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">            if (null != keywords) {</span>
+<span class="nc" id="L228">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;keywords&quot;, keywords.trim());</span>
+<span class="nc" id="L229">                String useDefaultLangKey = PARAM_KEYWORDS_USE_DEFAULT_PREFIX + lang.getCode();</span>
+<span class="nc" id="L230">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
+<span class="nc" id="L232">                langKeywordsKey.put(lang.getCode(), meta);</span>
             }
-<span class="fc" id="L229">        }</span>
-<span class="fc" id="L230">        IPage page = this.getPageManager().getDraftPage(pagecode);</span>
-<span class="pc bpc" id="L231" title="1 of 2 branches missed.">        if (null != page) {</span>
-<span class="fc" id="L232">            SeoPageMetadata pageMetadata = null;</span>
-<span class="fc bfc" id="L233" title="All 2 branches covered.">            if (page.getMetadata() instanceof SeoPageMetadata) {</span>
-<span class="fc" id="L234">                pageMetadata = (SeoPageMetadata) page.getMetadata();</span>
+<span class="fc" id="L234">        }</span>
+<span class="fc" id="L235">        IPage page = this.getPageManager().getDraftPage(pagecode);</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (null != page) {</span>
+<span class="fc" id="L237">            SeoPageMetadata pageMetadata = null;</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">            if (page.getMetadata() instanceof SeoPageMetadata) {</span>
+<span class="fc" id="L239">                pageMetadata = (SeoPageMetadata) page.getMetadata();</span>
             } else {
-<span class="fc" id="L236">                pageMetadata = new SeoPageMetadata(page.getMetadata());</span>
+<span class="fc" id="L241">                pageMetadata = new SeoPageMetadata(page.getMetadata());</span>
             }
-<span class="fc" id="L238">            seoPage = page;</span>
-<span class="fc" id="L239">            pageMetadata.setFriendlyCode(friendlyCode);</span>
-<span class="fc" id="L240">            pageMetadata.setDescriptions(descriptions);</span>
-<span class="fc" id="L241">            pageMetadata.setKeywords(langKeywordsKey);</span>
-<span class="fc" id="L242">            pageMetadata.setComplexParameters(SeoPageActionUtils.extractSeoParameters(request));</span>
-<span class="fc" id="L243">            pageMetadata.setUpdatedAt(new Date());</span>
-<span class="pc bpc" id="L244" title="3 of 4 branches missed.">            pageMetadata.setUseExtraDescriptions(null != request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS) &amp;&amp; request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS).equalsIgnoreCase(&quot;true&quot;));</span>
-<span class="fc" id="L245">            seoPage.setMetadata(pageMetadata);</span>
+<span class="fc" id="L243">            seoPage = page;</span>
+<span class="fc" id="L244">            pageMetadata.setFriendlyCode(friendlyCode);</span>
+<span class="fc" id="L245">            pageMetadata.setDescriptions(descriptions);</span>
+<span class="fc" id="L246">            pageMetadata.setKeywords(langKeywordsKey);</span>
+<span class="fc" id="L247">            pageMetadata.setComplexParameters(SeoPageActionUtils.extractSeoParameters(request));</span>
+<span class="fc" id="L248">            pageMetadata.setUpdatedAt(new Date());</span>
+<span class="pc bpc" id="L249" title="3 of 4 branches missed.">            pageMetadata.setUseExtraDescriptions(null != request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS) &amp;&amp; request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS).equalsIgnoreCase(&quot;true&quot;));</span>
+<span class="fc" id="L250">            seoPage.setMetadata(pageMetadata);</span>
         }
-<span class="fc" id="L247">        return seoPage;</span>
+<span class="fc" id="L252">        return seoPage;</span>
     }
     
     protected ILangManager getLangManager() {
-<span class="fc" id="L251">        return langManager;</span>
+<span class="fc" id="L256">        return langManager;</span>
     }
 
     public void setLangManager(ILangManager langManager) {
-<span class="fc" id="L255">        this.langManager = langManager;</span>
-<span class="fc" id="L256">    }</span>
+<span class="fc" id="L260">        this.langManager = langManager;</span>
+<span class="fc" id="L261">    }</span>
 
     protected ISeoMappingManager getSeoMappingManager() {
-<span class="fc" id="L259">        return seoMappingManager;</span>
+<span class="fc" id="L264">        return seoMappingManager;</span>
     }
 
     public void setSeoMappingManager(ISeoMappingManager seoMappingManager) {
-<span class="fc" id="L263">        this.seoMappingManager = seoMappingManager;</span>
-<span class="fc" id="L264">    }</span>
+<span class="fc" id="L268">        this.seoMappingManager = seoMappingManager;</span>
+<span class="fc" id="L269">    }</span>
 
     protected IPageManager getPageManager() {
-<span class="fc" id="L267">        return pageManager;</span>
+<span class="fc" id="L272">        return pageManager;</span>
     }
 
     public void setPageManager(IPageManager pageManager) {
-<span class="fc" id="L271">        this.pageManager = pageManager;</span>
-<span class="fc" id="L272">    }</span>
+<span class="fc" id="L276">        this.pageManager = pageManager;</span>
+<span class="fc" id="L277">    }</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
