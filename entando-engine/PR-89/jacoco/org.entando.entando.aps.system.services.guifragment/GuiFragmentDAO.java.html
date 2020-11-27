@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GuiFragmentDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.guifragment</a> &gt; <span class="el_source">GuiFragmentDAO.java</span></div><h1>GuiFragmentDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.guifragment;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.agiletec.aps.system.common.AbstractSearcherDAO;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L32">public class GuiFragmentDAO extends AbstractSearcherDAO implements IGuiFragmentDAO {</span>
+
+<span class="fc" id="L34">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(GuiFragmentDAO.class);</span>
+
+    private static final String ADD_GUIFRAGMENT = &quot;INSERT INTO guifragment (code, widgettypecode, plugincode, gui, locked ) VALUES (? , ? , ? , ? , ?)&quot;;
+
+    private static final String UPDATE_GUIFRAGMENT = &quot;UPDATE guifragment SET widgettypecode = ?, plugincode = ? , gui = ? WHERE code = ? &quot;;
+
+    private static final String DELETE_GUIFRAGMENT = &quot;DELETE FROM guifragment WHERE code = ?&quot;;
+
+    private static final String LOAD_GUIFRAGMENT = &quot;SELECT code, widgettypecode, plugincode, gui, defaultgui, locked FROM guifragment WHERE code = ?&quot;;
+
+    private static final String LOAD_GUIFRAGMENT_PLUGIN_CODES = &quot;SELECT plugincode FROM guifragment&quot;;
+
+    @Override
+    protected String getTableFieldName(String metadataFieldKey) {
+<span class="fc" id="L48">        return metadataFieldKey;</span>
+    }
+
+    @Override
+    protected String getMasterTableName() {
+<span class="fc" id="L53">        return &quot;guifragment&quot;;</span>
+    }
+
+    @Override
+    protected String getMasterTableIdFieldName() {
+<span class="fc" id="L58">        return &quot;code&quot;;</span>
+    }
+
+    @Override
+    public int countGuiFragments(FieldSearchFilter[] filters) {
+<span class="fc" id="L63">        return super.countId(filters);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchGuiFragments(FieldSearchFilter[] filters) {
+<span class="fc" id="L68">        return super.searchId(filters);</span>
+    }
+
+    @Override
+    public void insertGuiFragment(GuiFragment guiFragment) {
+<span class="fc" id="L73">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L75">            conn = this.getConnection();</span>
+<span class="fc" id="L76">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L77">            this.insertGuiFragment(guiFragment, conn);</span>
+<span class="fc" id="L78">            conn.commit();</span>
+<span class="nc" id="L79">        } catch (Throwable t) {</span>
+<span class="nc" id="L80">            this.executeRollback(conn);</span>
+<span class="nc" id="L81">            logger.error(&quot;Error on insert guiFragment&quot;, t);</span>
+<span class="nc" id="L82">            throw new RuntimeException(&quot;Error on insert guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L84">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L86">    }</span>
+
+    protected void insertGuiFragment(GuiFragment guiFragment, Connection conn) {
+<span class="fc" id="L89">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L91">            stat = conn.prepareStatement(ADD_GUIFRAGMENT);</span>
+<span class="fc" id="L92">            int index = 1;</span>
+<span class="fc" id="L93">            stat.setString(index++, guiFragment.getCode());</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            if (StringUtils.isNotBlank(guiFragment.getWidgetTypeCode())) {</span>
+<span class="fc" id="L95">                stat.setString(index++, guiFragment.getWidgetTypeCode());</span>
+            } else {
+<span class="fc" id="L97">                stat.setNull(index++, Types.VARCHAR);</span>
+            }
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (StringUtils.isNotBlank(guiFragment.getPluginCode())) {</span>
+<span class="nc" id="L100">                stat.setString(index++, guiFragment.getPluginCode());</span>
+            } else {
+<span class="fc" id="L102">                stat.setNull(index++, Types.VARCHAR);</span>
+            }
+<span class="fc" id="L104">            stat.setString(index++, guiFragment.getGui());</span>
+<span class="fc" id="L105">            stat.setInt(index++, 0);</span>
+<span class="fc" id="L106">            stat.executeUpdate();</span>
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">            logger.error(&quot;Error on insert guiFragment&quot;, t);</span>
+<span class="nc" id="L109">            throw new RuntimeException(&quot;Error on insert guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L111">            this.closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L113">    }</span>
+
+    @Override
+    public void updateGuiFragment(GuiFragment guiFragment) {
+<span class="fc" id="L117">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L119">            conn = this.getConnection();</span>
+<span class="fc" id="L120">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L121">            this.updateGuiFragment(guiFragment, conn);</span>
+<span class="fc" id="L122">            conn.commit();</span>
+<span class="nc" id="L123">        } catch (Throwable t) {</span>
+<span class="nc" id="L124">            this.executeRollback(conn);</span>
+<span class="nc" id="L125">            logger.error(&quot;Error updating guiFragment {}&quot;, guiFragment.getCode(), t);</span>
+<span class="nc" id="L126">            throw new RuntimeException(&quot;Error updating guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L128">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L130">    }</span>
+
+    protected void updateGuiFragment(GuiFragment guiFragment, Connection conn) {
+<span class="fc" id="L133">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L135">            stat = conn.prepareStatement(UPDATE_GUIFRAGMENT);</span>
+<span class="fc" id="L136">            int index = 1;</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">            if (StringUtils.isNotBlank(guiFragment.getWidgetTypeCode())) {</span>
+<span class="fc" id="L138">                stat.setString(index++, guiFragment.getWidgetTypeCode());</span>
+            } else {
+<span class="fc" id="L140">                stat.setNull(index++, Types.VARCHAR);</span>
+            }
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">            if (StringUtils.isNotBlank(guiFragment.getPluginCode())) {</span>
+<span class="nc" id="L143">                stat.setString(index++, guiFragment.getPluginCode());</span>
+            } else {
+<span class="fc" id="L145">                stat.setNull(index++, Types.VARCHAR);</span>
+            }
+<span class="fc" id="L147">            stat.setString(index++, guiFragment.getGui());</span>
+<span class="fc" id="L148">            stat.setString(index++, guiFragment.getCode());</span>
+<span class="fc" id="L149">            stat.executeUpdate();</span>
+<span class="nc" id="L150">        } catch (Throwable t) {</span>
+<span class="nc" id="L151">            logger.error(&quot;Error updating guiFragment {}&quot;, guiFragment.getCode(), t);</span>
+<span class="nc" id="L152">            throw new RuntimeException(&quot;Error updating guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L154">            this.closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L156">    }</span>
+
+    @Override
+    public void removeGuiFragment(String code) {
+<span class="fc" id="L160">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L162">            conn = this.getConnection();</span>
+<span class="fc" id="L163">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L164">            this.removeGuiFragment(code, conn);</span>
+<span class="fc" id="L165">            conn.commit();</span>
+<span class="nc" id="L166">        } catch (Throwable t) {</span>
+<span class="nc" id="L167">            this.executeRollback(conn);</span>
+<span class="nc" id="L168">            logger.error(&quot;Error deleting guiFragment {}&quot;, code, t);</span>
+<span class="nc" id="L169">            throw new RuntimeException(&quot;Error deleting guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L171">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L173">    }</span>
+
+    public void removeGuiFragment(String code, Connection conn) {
+<span class="fc" id="L176">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L178">            stat = conn.prepareStatement(DELETE_GUIFRAGMENT);</span>
+<span class="fc" id="L179">            int index = 1;</span>
+<span class="fc" id="L180">            stat.setString(index++, code);</span>
+<span class="fc" id="L181">            stat.executeUpdate();</span>
+<span class="nc" id="L182">        } catch (Throwable t) {</span>
+<span class="nc" id="L183">            logger.error(&quot;Error deleting guiFragment {}&quot;, code, t);</span>
+<span class="nc" id="L184">            throw new RuntimeException(&quot;Error deleting guiFragment&quot;, t);</span>
+        } finally {
+<span class="fc" id="L186">            this.closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L188">    }</span>
+
+    @Override
+    public GuiFragment loadGuiFragment(String code) {
+<span class="fc" id="L192">        GuiFragment guiFragment = null;</span>
+<span class="fc" id="L193">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L195">            conn = this.getConnection();</span>
+<span class="fc" id="L196">            guiFragment = this.loadGuiFragment(code, conn);</span>
+<span class="nc" id="L197">        } catch (Throwable t) {</span>
+<span class="nc" id="L198">            logger.error(&quot;Error loading guiFragment with id {}&quot;, code, t);</span>
+<span class="nc" id="L199">            throw new RuntimeException(&quot;Error loading guiFragment with id &quot; + code, t);</span>
+        } finally {
+<span class="fc" id="L201">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L203">        return guiFragment;</span>
+    }
+
+    protected GuiFragment loadGuiFragment(String code, Connection conn) {
+<span class="fc" id="L207">        GuiFragment guiFragment = null;</span>
+<span class="fc" id="L208">        PreparedStatement stat = null;</span>
+<span class="fc" id="L209">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L211">            stat = conn.prepareStatement(LOAD_GUIFRAGMENT);</span>
+<span class="fc" id="L212">            int index = 1;</span>
+<span class="fc" id="L213">            stat.setString(index++, code);</span>
+<span class="fc" id="L214">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L216">                guiFragment = this.buildGuiFragmentFromRes(res);</span>
+            }
+<span class="nc" id="L218">        } catch (Throwable t) {</span>
+<span class="nc" id="L219">            logger.error(&quot;Error loading guiFragment with id {}&quot;, code, t);</span>
+<span class="nc" id="L220">            throw new RuntimeException(&quot;Error loading guiFragment with id &quot; + code, t);</span>
+        } finally {
+<span class="fc" id="L222">            closeDaoResources(res, stat);</span>
+        }
+<span class="fc" id="L224">        return guiFragment;</span>
+    }
+
+    protected GuiFragment buildGuiFragmentFromRes(ResultSet res) {
+<span class="fc" id="L228">        GuiFragment guiFragment = null;</span>
+        try {
+<span class="fc" id="L230">            guiFragment = new GuiFragment();</span>
+<span class="fc" id="L231">            guiFragment.setCode(res.getString(&quot;code&quot;));</span>
+<span class="fc" id="L232">            guiFragment.setWidgetTypeCode(res.getString(&quot;widgettypecode&quot;));</span>
+<span class="fc" id="L233">            guiFragment.setPluginCode(res.getString(&quot;plugincode&quot;));</span>
+<span class="fc" id="L234">            guiFragment.setGui(res.getString(&quot;gui&quot;));</span>
+<span class="fc" id="L235">            guiFragment.setDefaultGui(res.getString(&quot;defaultgui&quot;));</span>
+<span class="fc" id="L236">            Integer locked = res.getInt(&quot;locked&quot;);</span>
+<span class="pc bpc" id="L237" title="1 of 4 branches missed.">            guiFragment.setLocked(null != locked &amp;&amp; locked.intValue() == 1);</span>
+<span class="nc" id="L238">        } catch (Throwable t) {</span>
+<span class="nc" id="L239">            logger.error(&quot;Error in buildGuiFragmentFromRes&quot;, t);</span>
+<span class="fc" id="L240">        }</span>
+<span class="fc" id="L241">        return guiFragment;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadGuiFragmentPluginCodes() {
+<span class="fc" id="L246">        List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L247">        PreparedStatement stat = null;</span>
+<span class="fc" id="L248">        ResultSet res = null;</span>
+<span class="fc" id="L249">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L251">            conn = this.getConnection();</span>
+<span class="fc" id="L252">            stat = conn.prepareStatement(LOAD_GUIFRAGMENT_PLUGIN_CODES);</span>
+<span class="fc" id="L253">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L255">                String code = res.getString(&quot;plugincode&quot;);</span>
+<span class="pc bpc" id="L256" title="3 of 4 branches missed.">                if (StringUtils.isNotEmpty(code) &amp;&amp; !codes.contains(code)) {</span>
+<span class="nc" id="L257">                    codes.add(code);</span>
+                }
+<span class="fc" id="L259">            }</span>
+<span class="nc" id="L260">        } catch (Throwable t) {</span>
+<span class="nc" id="L261">            logger.error(&quot;Error loading guiFragment plugin codes&quot;, t);</span>
+<span class="nc" id="L262">            throw new RuntimeException(&quot;Error loading guiFragment plugin codes&quot;, t);</span>
+        } finally {
+<span class="fc" id="L264">            this.closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L266">        return codes;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InternalServletTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.tags</a> &gt; <span class="el_source">InternalServletTag.java</span></div><h1>InternalServletTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.tags;
+
+import java.io.CharArrayWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
+import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.tagext.TagSupport;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Tag for widget &quot;InternalServlet&quot;. Publish a function erogated throw a
+ * internal Servlet; the servlet is invoked by a path specificated by the tag
+ * attribute &quot;actionPath&quot; or by the widget parameter of the same name.
+ *
+ * @author M.Casari - E.Santoboni
+ */
+<span class="nc" id="L46">public class InternalServletTag extends TagSupport {</span>
+
+<span class="nc" id="L48">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(InternalServletTag.class);</span>
+
+    /**
+     * Internal class that wrappers the response, extending the
+     * javax.servlet.http.HttpServletResponseWrapper class to define a
+     * proprietary output channel. It is used to retrieve the content response
+     * after having made an 'include' in the RequestDispatcher
+     */
+    public class ResponseWrapper extends HttpServletResponseWrapper {
+
+<span class="nc" id="L58">        public ResponseWrapper(HttpServletResponse response) {</span>
+<span class="nc" id="L59">            super(response);</span>
+<span class="nc" id="L60">            _output = new CharArrayWriter();</span>
+<span class="nc" id="L61">        }</span>
+
+        @Override
+        public PrintWriter getWriter() {
+<span class="nc" id="L65">            return new PrintWriter(_output);</span>
+        }
+
+        @Override
+        public void sendRedirect(String path) throws IOException {
+<span class="nc" id="L70">            this._redirectPath = path;</span>
+<span class="nc" id="L71">        }</span>
+
+        @Override
+        public void addCookie(Cookie cookie) {
+<span class="nc" id="L75">            super.addCookie(cookie);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            int len = (null == this._cookiesToAdd) ? 0 : this._cookiesToAdd.length;</span>
+<span class="nc" id="L77">            Cookie[] newCookiesToAdd = new Cookie[len + 1];</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (null != this._cookiesToAdd) {</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                for (int i = 0; i &lt; len; i++) {</span>
+<span class="nc" id="L80">                    newCookiesToAdd[i] = this._cookiesToAdd[i];</span>
+                }
+            }
+<span class="nc" id="L83">            newCookiesToAdd[len] = cookie;</span>
+<span class="nc" id="L84">            this._cookiesToAdd = newCookiesToAdd;</span>
+<span class="nc" id="L85">        }</span>
+
+        protected Cookie[] getCookiesToAdd() {
+<span class="nc" id="L88">            return _cookiesToAdd;</span>
+        }
+
+        public boolean isRedirected() {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            return (_redirectPath != null);</span>
+        }
+
+        public String getRedirectPath() {
+<span class="nc" id="L96">            return _redirectPath;</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="nc" id="L101">            return _output.toString();</span>
+        }
+
+        private String _redirectPath;
+        private CharArrayWriter _output;
+
+        private Cookie[] _cookiesToAdd;
+
+    }
+
+    /**
+     * Invokes the widget configured in the current page.
+     *
+     * @throws JspException in case of error that occurred in both this method
+     * or in one of the included JSPs
+     */
+    @Override
+    public int doEndTag() throws JspException {
+<span class="nc" id="L119">        int result = super.doEndTag();</span>
+<span class="nc" id="L120">        ServletRequest req = this.pageContext.getRequest();</span>
+<span class="nc" id="L121">        RequestContext reqCtx = (RequestContext) req.getAttribute(RequestContext.REQCTX);</span>
+        try {
+<span class="nc" id="L123">            IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L124">            ResponseWrapper responseWrapper = new ResponseWrapper((HttpServletResponse) this.pageContext.getResponse());</span>
+<span class="nc" id="L125">            String output = this.buildWidgetOutput(page, responseWrapper);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            if (responseWrapper.isRedirected()) {</span>
+<span class="nc" id="L127">                String redirect = responseWrapper.getRedirectPath();</span>
+<span class="nc" id="L128">                reqCtx.addExtraParam(SystemConstants.EXTRAPAR_EXTERNAL_REDIRECT, redirect);</span>
+<span class="nc" id="L129">                result = SKIP_PAGE;</span>
+<span class="nc" id="L130">            } else {</span>
+<span class="nc" id="L131">                this.pageContext.getOut().print(output);</span>
+            }
+<span class="nc" id="L133">        } catch (Throwable t) {</span>
+<span class="nc" id="L134">            _logger.error(&quot;Error in widget preprocessing&quot;, t);</span>
+<span class="nc" id="L135">            String msg = &quot;Error in widget preprocessing&quot;;</span>
+<span class="nc" id="L136">            throw new JspException(msg, t);</span>
+<span class="nc" id="L137">        }</span>
+<span class="nc" id="L138">        return result;</span>
+    }
+
+    protected String buildWidgetOutput(IPage page, ResponseWrapper responseWrapper) throws JspException {
+<span class="nc" id="L142">        String output = null;</span>
+<span class="nc" id="L143">        ServletRequest req = this.pageContext.getRequest();</span>
+<span class="nc" id="L144">        RequestContext reqCtx = (RequestContext) req.getAttribute(RequestContext.REQCTX);</span>
+        try {
+<span class="nc" id="L146">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L147">            this.includeWidget(reqCtx, responseWrapper, widget);</span>
+<span class="nc" id="L148">            Cookie[] cookies = responseWrapper.getCookiesToAdd();</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (null != cookies) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                for (int i = 0; i &lt; cookies.length; i++) {</span>
+<span class="nc" id="L151">                    Cookie cookie = cookies[i];</span>
+<span class="nc" id="L152">                    cookie.setHttpOnly(true);</span>
+<span class="nc" id="L153">                    reqCtx.getResponse().addCookie(cookie);</span>
+                }
+            }
+<span class="nc" id="L156">            output = responseWrapper.toString();</span>
+<span class="nc" id="L157">            responseWrapper.getWriter().close();</span>
+<span class="nc" id="L158">        } catch (Throwable t) {</span>
+<span class="nc" id="L159">            String msg = &quot;Error building widget output&quot;;</span>
+<span class="nc" id="L160">            throw new JspException(msg, t);</span>
+<span class="nc" id="L161">        }</span>
+<span class="nc" id="L162">        return output;</span>
+    }
+
+    protected void includeWidget(RequestContext reqCtx, ResponseWrapper responseWrapper, Widget widget) throws ServletException, IOException {
+<span class="nc" id="L166">        HttpServletRequest request = reqCtx.getRequest();</span>
+        try {
+<span class="nc" id="L168">            String actionPath = this.extractIntroActionPath(reqCtx, widget);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (!this.isStaticAction()) {</span>
+<span class="nc" id="L170">                String requestActionPath = request.getParameter(REQUEST_PARAM_ACTIONPATH);</span>
+<span class="nc" id="L171">                String currentFrameActionPath = request.getParameter(REQUEST_PARAM_FRAMEDEST);</span>
+<span class="nc" id="L172">                Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc bnc" id="L173" title="All 6 branches missed.">                if (requestActionPath != null &amp;&amp; currentFrameActionPath != null &amp;&amp; currentFrame.toString().equals(currentFrameActionPath)) {</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">                    if (this.isAllowedRequestPath(requestActionPath) &amp;&amp; !this.isRecursivePath(requestActionPath, request)) {</span>
+<span class="nc" id="L175">                        actionPath = requestActionPath;</span>
+                    }
+                }
+            }
+<span class="nc" id="L179">            reqCtx.addExtraParam(EXTRAPAR_STATIC_ACTION, this.isStaticAction());</span>
+<span class="nc" id="L180">            RequestDispatcher requestDispatcher = request.getRequestDispatcher(actionPath);</span>
+<span class="nc" id="L181">            requestDispatcher.include(request, responseWrapper);</span>
+<span class="nc" id="L182">        } catch (Throwable t) {</span>
+<span class="nc" id="L183">            _logger.error(&quot;Error including widget&quot;, t);</span>
+<span class="nc" id="L184">            RequestDispatcher requestDispatcher = request.getRequestDispatcher(&quot;/WEB-INF/aps/jsp/system/internalServlet_error.jsp&quot;);</span>
+<span class="nc" id="L185">            requestDispatcher.include(request, responseWrapper);</span>
+<span class="nc" id="L186">        }</span>
+<span class="nc" id="L187">    }</span>
+
+    protected boolean isAllowedRequestPath(String requestActionPath) {
+<span class="nc" id="L190">        String rapLowerCase = requestActionPath.toLowerCase();</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        if (rapLowerCase.contains(&quot;web-inf&quot;)</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                || rapLowerCase.contains(&quot;meta-inf&quot;)</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                || rapLowerCase.contains(&quot;../&quot;)</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                || rapLowerCase.contains(&quot;%2e%2e%2f&quot;)</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">                || rapLowerCase.endsWith(&quot;.txt&quot;)</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                || rapLowerCase.contains(&quot;&lt;&quot;)</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                || rapLowerCase.endsWith(&quot;%3c&quot;)</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                || rapLowerCase.endsWith(&quot;%00&quot;)</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                || rapLowerCase.endsWith(&quot;'&quot;)</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                || rapLowerCase.endsWith(&quot;\&quot;&quot;)) {</span>
+<span class="nc" id="L201">            return false;</span>
+        }
+<span class="nc" id="L203">        return true;</span>
+    }
+
+    protected boolean isRecursivePath(String requestActionPath, HttpServletRequest request) {
+<span class="nc" id="L207">        String contextPath = request.getContextPath();</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">        if (!requestActionPath.contains(contextPath)) {</span>
+<span class="nc" id="L209">            return false;</span>
+        }
+<span class="nc" id="L211">        String prefix = contextPath + &quot;/pages/&quot;;</span>
+<span class="nc bnc" id="L212" title="All 6 branches missed.">        return (requestActionPath.contains(&quot;.wp&quot;) || requestActionPath.contains(&quot;.page&quot;) || requestActionPath.contains(prefix));</span>
+    }
+
+    /**
+     * Extract the init Action Path. Return the tag attribute (if set), else the
+     * widget parameter.
+     *
+     * @param reqCtx The request context.
+     * @param widget The current widget.
+     * @return The init Action Path
+     */
+    protected String extractIntroActionPath(RequestContext reqCtx, Widget widget) {
+<span class="nc" id="L224">        String actionPath = this.getActionPath();</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if (null == this.getActionPath()) {</span>
+<span class="nc" id="L226">            ApsProperties config = widget.getConfig();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            if (widget.getType().isLogic()) {</span>
+<span class="nc" id="L228">                config = widget.getType().getConfig();</span>
+            }
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if (null != config) {</span>
+<span class="nc" id="L231">                actionPath = config.getProperty(CONFIG_PARAM_ACTIONPATH);</span>
+            }
+        }
+<span class="nc bnc" id="L234" title="All 4 branches missed.">        if (null == actionPath || actionPath.trim().length() == 0) {</span>
+<span class="nc" id="L235">            IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L236">            throw new RuntimeException(&quot;Null init action path : page &quot; + page.getCode());</span>
+        }
+<span class="nc" id="L238">        return actionPath;</span>
+    }
+
+    @Override
+    public void release() {
+<span class="nc" id="L243">        super.release();</span>
+<span class="nc" id="L244">        this.setActionPath(null);</span>
+<span class="nc" id="L245">        this.setStaticAction(false);</span>
+<span class="nc" id="L246">    }</span>
+
+    public String getActionPath() {
+<span class="nc" id="L249">        return _actionPath;</span>
+    }
+
+    public void setActionPath(String actionPath) {
+<span class="nc" id="L253">        this._actionPath = actionPath;</span>
+<span class="nc" id="L254">    }</span>
+
+    public boolean isStaticAction() {
+<span class="nc" id="L257">        return _staticAction;</span>
+    }
+
+    public void setStaticAction(boolean staticAction) {
+<span class="nc" id="L261">        this._staticAction = staticAction;</span>
+<span class="nc" id="L262">    }</span>
+
+    private String _actionPath;
+    private boolean _staticAction;
+
+    public static final String CONFIG_PARAM_ACTIONPATH = &quot;actionPath&quot;;
+    public static final String REQUEST_PARAM_ACTIONPATH = &quot;internalServletActionPath&quot;;
+    public static final String REQUEST_PARAM_FRAMEDEST = &quot;internalServletFrameDest&quot;;
+
+    public static final String EXTRAPAR_STATIC_ACTION = &quot;internalServletStaticAction&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
