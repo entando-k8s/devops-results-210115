@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KubernetesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.service</a> &gt; <span class="el_source">KubernetesService.java</span></div><h1>KubernetesService.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.service;
+
+import static org.entando.kubernetes.model.EntandoDeploymentPhase.FAILED;
+import static org.entando.kubernetes.model.EntandoDeploymentPhase.SUCCESSFUL;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.awaitility.core.ConditionFactory;
+import org.awaitility.core.ConditionTimeoutException;
+import org.entando.kubernetes.client.k8ssvc.K8SServiceClient;
+import org.entando.kubernetes.exception.k8ssvc.EntandoAppPluginLinkingProcessException;
+import org.entando.kubernetes.exception.k8ssvc.PluginNotFoundException;
+import org.entando.kubernetes.exception.k8ssvc.PluginNotReadyException;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.model.plugin.EntandoPluginBuilder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+<span class="fc" id="L27">@Slf4j</span>
+@Component
+public class KubernetesService {
+
+    public static final String ENTANDOPLUGIN_CRD_NAME = &quot;entandoplugins.entando.org&quot;;
+    public static final String KUBERNETES_NAMESPACE_PATH = &quot;/var/run/secrets/kubernetes.io/serviceaccount/namespace&quot;;
+
+    private final ConditionFactory waitingConditionFactory;
+    private final K8SServiceClient k8sServiceClient;
+    private final String entandoAppName;
+    private final String entandoAppNamespace;
+
+    public KubernetesService(@Value(&quot;${entando.app.name}&quot;) String entandoAppName,
+            @Value(&quot;${entando.app.namespace}&quot;) String entandoAppNamespace,
+            K8SServiceClient k8SServiceClient,
+<span class="fc" id="L42">            ConditionFactory waitingConditionFactory) {</span>
+<span class="fc" id="L43">        this.waitingConditionFactory = waitingConditionFactory;</span>
+<span class="fc" id="L44">        this.k8sServiceClient = k8SServiceClient;</span>
+<span class="fc" id="L45">        this.entandoAppName = entandoAppName;</span>
+<span class="fc" id="L46">        this.entandoAppNamespace = getCurrentKubernetesNamespace().orElse(entandoAppNamespace);</span>
+<span class="fc" id="L47">    }</span>
+
+    public List&lt;EntandoPlugin&gt; getLinkedPlugins() {
+<span class="nc" id="L50">        return getCurrentAppLinks()</span>
+<span class="nc" id="L51">                .stream().map(k8sServiceClient::getPluginForLink)</span>
+<span class="nc" id="L52">                .collect(Collectors.toList());</span>
+    }
+
+    public EntandoPlugin getLinkedPlugin(String pluginId) {
+<span class="nc" id="L56">        return getCurrentAppLinkToPlugin(pluginId)</span>
+<span class="nc" id="L57">                .map(k8sServiceClient::getPluginForLink)</span>
+<span class="nc" id="L58">                .orElseThrow(PluginNotFoundException::new);</span>
+    }
+
+    public boolean isLinkedPlugin(String pluginId) {
+<span class="nc" id="L62">        return getCurrentAppLinkToPlugin(pluginId).isPresent();</span>
+    }
+
+    public boolean isPluginReady(EntandoPlugin plugin) {
+<span class="fc" id="L66">        return k8sServiceClient.isPluginReadyToServeApp(plugin, entandoAppName);</span>
+    }
+
+    private List&lt;EntandoAppPluginLink&gt; getCurrentAppLinks() {
+<span class="fc" id="L70">        return k8sServiceClient.getAppLinks(entandoAppName);</span>
+    }
+
+    private Optional&lt;EntandoAppPluginLink&gt; getCurrentAppLinkToPlugin(String pluginId) {
+<span class="fc" id="L74">        return getCurrentAppLinks()</span>
+<span class="fc" id="L75">                .stream()</span>
+<span class="fc" id="L76">                .filter(el -&gt; el.getSpec().getEntandoPluginName().equals(pluginId))</span>
+<span class="fc" id="L77">                .findFirst();</span>
+    }
+
+    public void unlinkPlugin(String pluginId) {
+<span class="fc" id="L81">        getCurrentAppLinkToPlugin(pluginId).ifPresent(k8sServiceClient::unlink);</span>
+<span class="fc" id="L82">    }</span>
+
+
+    public EntandoAppPluginLink linkPlugin(EntandoPlugin plugin) {
+<span class="fc" id="L86">        EntandoPlugin newPlugin = new EntandoPluginBuilder()</span>
+<span class="fc" id="L87">                .withMetadata(plugin.getMetadata())</span>
+<span class="fc" id="L88">                .withSpec(plugin.getSpec())</span>
+<span class="fc" id="L89">                .build();</span>
+
+<span class="fc" id="L91">        newPlugin.getMetadata().setNamespace(null);</span>
+
+<span class="fc" id="L93">        return k8sServiceClient.linkAppWithPlugin(entandoAppName, entandoAppNamespace, newPlugin);</span>
+    }
+
+    public void linkPluginAndWaitForSuccess(EntandoPlugin plugin) {
+<span class="fc" id="L97">        EntandoAppPluginLink createdLink = this.linkPlugin(plugin);</span>
+        try {
+<span class="fc" id="L99">            this.waitingConditionFactory.until(() -&gt; this.hasLinkingProcessCompletedSuccessfully(createdLink, plugin));</span>
+<span class="nc" id="L100">        } catch (ConditionTimeoutException e) {</span>
+<span class="nc" id="L101">            throw new PluginNotReadyException(plugin.getMetadata().getName());</span>
+<span class="fc" id="L102">        }</span>
+
+<span class="fc" id="L104">    }</span>
+
+    public EntandoPlugin updatePlugin(EntandoPlugin plugin) {
+<span class="fc" id="L107">        EntandoPlugin updatedPlugin = new EntandoPluginBuilder()</span>
+<span class="fc" id="L108">                .withMetadata(plugin.getMetadata())</span>
+<span class="fc" id="L109">                .withSpec(plugin.getSpec())</span>
+<span class="fc" id="L110">                .build();</span>
+
+<span class="fc" id="L112">        updatedPlugin.getMetadata().setNamespace(null);</span>
+
+<span class="fc" id="L114">        return k8sServiceClient.updatePlugin(updatedPlugin);</span>
+    }
+
+    public boolean hasLinkingProcessCompletedSuccessfully(EntandoAppPluginLink link, EntandoPlugin plugin) {
+<span class="fc" id="L118">        boolean result = false;</span>
+<span class="fc" id="L119">        Optional&lt;EntandoAppPluginLink&gt; linkByName = k8sServiceClient.getLinkByName(link.getMetadata().getName());</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (linkByName.isPresent()) {</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">            if (linkByName.get().getStatus().getEntandoDeploymentPhase().equals(FAILED)) {</span>
+<span class="fc" id="L122">                String msg = String.format(&quot;Linking procedure between app %s and plugin %s failed&quot;, entandoAppName,</span>
+<span class="fc" id="L123">                        plugin.getMetadata().getName());</span>
+<span class="fc" id="L124">                throw new EntandoAppPluginLinkingProcessException(msg);</span>
+            }
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            result = linkByName.get().getStatus().getEntandoDeploymentPhase().equals(SUCCESSFUL)</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">                    &amp;&amp; isPluginReady(plugin);</span>
+        }
+<span class="fc" id="L129">        return result;</span>
+    }
+
+    public List&lt;EntandoDeBundle&gt; getBundlesInDefaultNamespace() {
+<span class="nc" id="L133">        return k8sServiceClient.getBundlesInObservedNamespaces();</span>
+    }
+
+    public Optional&lt;EntandoDeBundle&gt; getBundleByName(String name) {
+<span class="fc" id="L137">        return k8sServiceClient.getBundleWithName(name);</span>
+    }
+
+    public Optional&lt;EntandoDeBundle&gt; getBundleByNameAndDigitalExchange(String name, String deId) {
+<span class="nc" id="L141">        return k8sServiceClient.getBundleWithNameAndNamespace(name, deId);</span>
+    }
+
+    private Optional&lt;String&gt; getCurrentKubernetesNamespace() {
+<span class="fc" id="L145">        Path namespacePath = Paths.get(KUBERNETES_NAMESPACE_PATH);</span>
+<span class="fc" id="L146">        String namespace = null;</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">        if (namespacePath.toFile().exists()) {</span>
+            try {
+<span class="fc" id="L149">                namespace = new String(Files.readAllBytes(namespacePath));</span>
+<span class="nc" id="L150">            } catch (IOException e) {</span>
+<span class="nc" id="L151">                log.error(String.format(&quot;An error occurred while reading the namespace from file %s&quot;,</span>
+<span class="nc" id="L152">                        namespacePath.toString()), e);</span>
+<span class="fc" id="L153">            }</span>
+        }
+<span class="fc" id="L155">        return Optional.ofNullable(namespace);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
