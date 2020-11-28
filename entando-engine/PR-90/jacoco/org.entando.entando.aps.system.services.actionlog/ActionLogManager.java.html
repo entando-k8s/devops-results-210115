@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActionLogManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.actionlog</a> &gt; <span class="el_source">ActionLogManager.java</span></div><h1>ActionLogManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.actionlog;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.DateConverter;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.ArrayUtils;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecord;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamSeachBean;
+import org.entando.entando.aps.system.services.actionlog.model.IActionLogRecordSearchBean;
+import org.entando.entando.aps.system.services.actionlog.model.IActivityStreamSearchBean;
+import org.entando.entando.aps.system.services.actionlog.model.ManagerConfiguration;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * @author E.Santoboni - S.Puddu
+ */
+<span class="fc" id="L45">public class ActionLogManager extends AbstractService implements IActionLogManager {</span>
+
+<span class="fc" id="L47">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ActionLogManager.class);</span>
+
+    private ManagerConfiguration _managerConfiguration;
+
+    private IActionLogDAO _actionLogDAO;
+    private IKeyGeneratorManager _keyGeneratorManager;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L56">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L57">    }</span>
+
+    @Override
+    public void addActionRecord(ActionLogRecord actionRecord) throws EntException {
+        try {
+<span class="fc" id="L62">            ActionLogAppenderThread thread = new ActionLogAppenderThread(actionRecord, this);</span>
+<span class="fc" id="L63">            String threadName = LOG_APPENDER_THREAD_NAME_PREFIX + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="fc" id="L64">            thread.setName(threadName);</span>
+<span class="fc" id="L65">            thread.start();</span>
+<span class="nc" id="L66">        } catch (Throwable t) {</span>
+<span class="nc" id="L67">            _logger.error(&quot;Error adding an actionlogger record&quot;, t);</span>
+<span class="nc" id="L68">            throw new EntException(&quot;Error adding an actionlogger record&quot;, t);</span>
+<span class="fc" id="L69">        }</span>
+<span class="fc" id="L70">    }</span>
+
+    @Override
+    public void updateRecordDate(int id) throws EntException {
+        try {
+<span class="fc" id="L75">            this.getActionLogDAO().updateRecordDate(id);</span>
+<span class="nc" id="L76">        } catch (Throwable t) {</span>
+<span class="nc" id="L77">            _logger.error(&quot;Error updating data record&quot;, t);</span>
+<span class="nc" id="L78">            throw new EntException(&quot;Error updating data record&quot;, t);</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">    }</span>
+
+    protected synchronized void addActionRecordByThread(ActionLogRecord actionRecord) throws EntException {
+        try {
+<span class="fc" id="L84">            Integer key = null;</span>
+<span class="fc" id="L85">            List&lt;Integer&gt; ids = null;</span>
+            do {
+<span class="fc" id="L87">                key = this.getKeyGeneratorManager().getUniqueKeyCurrentValue();</span>
+<span class="fc" id="L88">                FieldSearchFilter filter = new FieldSearchFilter(&quot;id&quot;, key, true);</span>
+<span class="fc" id="L89">                FieldSearchFilter[] filters = {filter};</span>
+<span class="fc" id="L90">                ids = this.getActionLogDAO().getActionRecords(filters);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">            } while (!ids.isEmpty());</span>
+<span class="fc" id="L92">            actionRecord.setId(key);</span>
+<span class="fc" id="L93">            actionRecord.setActionDate(new Date());</span>
+<span class="fc" id="L94">            this.getActionLogDAO().addActionRecord(actionRecord);</span>
+<span class="nc" id="L95">        } catch (Throwable t) {</span>
+<span class="nc" id="L96">            _logger.error(&quot;Error adding an actionlogger record&quot;, t);</span>
+<span class="nc" id="L97">            throw new EntException(&quot;Error adding an actionlogger record&quot;, t);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActionLogRecord_'.concat(#id)&quot;)
+    public void deleteActionRecord(int id) throws EntException {
+        try {
+<span class="fc" id="L105">            this.getActionLogDAO().deleteActionRecord(id);</span>
+<span class="nc" id="L106">        } catch (Throwable t) {</span>
+<span class="nc" id="L107">            _logger.error(&quot;Error deleting the actionlogger record: {}&quot;, id, t);</span>
+<span class="nc" id="L108">            throw new EntException(&quot;Error deleting the actionlogger record: &quot; + id, t);</span>
+<span class="fc" id="L109">        }</span>
+<span class="fc" id="L110">    }</span>
+
+    @Override
+    public List&lt;Integer&gt; getActionRecords(IActionLogRecordSearchBean searchBean) throws EntException {
+<span class="fc" id="L114">        List&lt;Integer&gt; records = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L116">            records = this.getActionLogDAO().getActionRecords(searchBean);</span>
+<span class="nc" id="L117">        } catch (Throwable t) {</span>
+<span class="nc" id="L118">            _logger.error(&quot;Error loading actionlogger records&quot;, t);</span>
+<span class="nc" id="L119">            throw new EntException(&quot;Error loading actionlogger records&quot;, t);</span>
+<span class="fc" id="L120">        }</span>
+<span class="fc" id="L121">        return records;</span>
+    }
+
+    @Override
+    public SearcherDaoPaginatedResult&lt;ActionLogRecord&gt; getPaginatedActionRecords(IActionLogRecordSearchBean searchBean) throws EntException {
+<span class="fc" id="L126">        SearcherDaoPaginatedResult&lt;ActionLogRecord&gt; pagedResult = null;</span>
+        try {
+<span class="fc" id="L128">            List&lt;ActionLogRecord&gt; actionLogRecords = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L129">            int count = this.getActionLogDAO().countActionLogRecords(searchBean);</span>
+<span class="fc" id="L130">            List&lt;Integer&gt; recordsIs = this.getActionLogDAO().getActionRecords(searchBean);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            for (Integer recordId : recordsIs) {</span>
+<span class="fc" id="L132">                actionLogRecords.add(this.getActionRecord(recordId));</span>
+<span class="fc" id="L133">            }</span>
+<span class="fc" id="L134">            pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(count, actionLogRecords);</span>
+<span class="nc" id="L135">        } catch (Throwable t) {</span>
+<span class="nc" id="L136">            _logger.error(&quot;Error searching ActionLogRecord&quot;, t);</span>
+<span class="nc" id="L137">            throw new EntException(&quot;Error searching ActionLogRecord&quot;, t);</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return pagedResult;</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'ActionLogRecord_'.concat(#id)&quot;)
+    public ActionLogRecord getActionRecord(int id) throws EntException {
+<span class="fc" id="L145">        ActionLogRecord record = null;</span>
+        try {
+<span class="fc" id="L147">            record = this.getActionLogDAO().getActionRecord(id);</span>
+<span class="nc" id="L148">        } catch (Throwable t) {</span>
+<span class="nc" id="L149">            _logger.error(&quot;Error loading actionlogger record with id: {}&quot;, id, t);</span>
+<span class="nc" id="L150">            throw new EntException(&quot;Error loading actionlogger record with id: &quot; + id, t);</span>
+<span class="fc" id="L151">        }</span>
+<span class="fc" id="L152">        return record;</span>
+    }
+    
+    @Override
+    public List&lt;Integer&gt; getActivityStream(List&lt;String&gt; userGroupCodes) throws EntException {
+<span class="nc" id="L157">        return this.getActivityStream(null, userGroupCodes);</span>
+    }
+    
+    @Override
+    public List&lt;Integer&gt; getActivityStream(FieldSearchFilter[] filters, List&lt;String&gt; userGroupCodes) throws EntException {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if (null == filters) {</span>
+<span class="nc" id="L163">            filters = new FieldSearchFilter[0];</span>
+        }
+<span class="nc" id="L165">        List&lt;Integer&gt; recordIds = null;</span>
+        try {
+<span class="nc" id="L167">            FieldSearchFilter filter1 = new FieldSearchFilter(&quot;actiondate&quot;);</span>
+<span class="nc" id="L168">            filter1.setOrder(FieldSearchFilter.DESC_ORDER);</span>
+<span class="nc" id="L169">            FieldSearchFilter filter2 = new FieldSearchFilter(&quot;activitystreaminfo&quot;);</span>
+<span class="nc" id="L170">            filters = ArrayUtils.add(filters, filter1);</span>
+<span class="nc" id="L171">            filters = ArrayUtils.add(filters, filter2);</span>
+<span class="nc" id="L172">            recordIds = this.getActionLogDAO().getActionRecords(filters, userGroupCodes);</span>
+<span class="nc" id="L173">            ManagerConfiguration config = this.getManagerConfiguration();</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">            if (null != recordIds &amp;&amp; null != config</span>
+<span class="nc bnc" id="L175" title="All 4 branches missed.">                    &amp;&amp; config.getCleanOldActivities() &amp;&amp; config.getMaxActivitySizeByGroup() &lt; recordIds.size()) {</span>
+<span class="nc" id="L176">                ActivityStreamCleanerThread thread = new ActivityStreamCleanerThread(config.getNumberOfStreamsOnHistory(), this);</span>
+<span class="nc" id="L177">                String threadName = LOG_CLEANER_THREAD_NAME_PREFIX + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="nc" id="L178">                thread.setName(threadName);</span>
+<span class="nc" id="L179">                thread.start();</span>
+            }
+<span class="nc bnc" id="L181" title="All 6 branches missed.">            if (null != config &amp;&amp; null != recordIds &amp;&amp; recordIds.size() &gt; config.getMaxActivitySizeByGroup()) {</span>
+<span class="nc" id="L182">                recordIds = recordIds.subList(0, config.getMaxActivitySizeByGroup());</span>
+            }
+<span class="nc" id="L184">        } catch (Throwable t) {</span>
+<span class="nc" id="L185">            _logger.error(&quot;Error loading activity stream records&quot;, t);</span>
+<span class="nc" id="L186">            throw new EntException(&quot;Error loading activity stream records&quot;, t);</span>
+<span class="nc" id="L187">        }</span>
+<span class="nc" id="L188">        return recordIds;</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActivityStream(IActivityStreamSearchBean activityStreamSearchBean) {
+<span class="nc" id="L193">        List&lt;Integer&gt; recordIds = this.getActionLogDAO().getActionRecords(activityStreamSearchBean);</span>
+<span class="nc" id="L194">        ManagerConfiguration config = this.getManagerConfiguration();</span>
+<span class="nc bnc" id="L195" title="All 6 branches missed.">        if (null != config &amp;&amp; null != recordIds &amp;&amp; recordIds.size() &gt; config.getMaxActivitySizeByGroup()) {</span>
+<span class="nc" id="L196">            recordIds = recordIds.subList(0, config.getMaxActivitySizeByGroup());</span>
+        }
+<span class="nc" id="L198">        return recordIds;</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActivityStream(FieldSearchFilter[] filters, UserDetails loggedUser) throws EntException {
+<span class="nc" id="L203">        List&lt;String&gt; userGroupCodes = this.extractUserGroupCodes(loggedUser);</span>
+<span class="nc" id="L204">        return this.getActivityStream(filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActivityStream(UserDetails loggedUser) throws EntException {
+<span class="nc" id="L209">        return this.getActivityStream(null, loggedUser);</span>
+    }
+
+    @Override
+    public Date lastUpdateDate(UserDetails loggedUser) throws EntException {
+<span class="nc" id="L214">        Date lastUpdate = new Date();</span>
+        try {
+<span class="nc" id="L216">            ActivityStreamSeachBean searchBean = new ActivityStreamSeachBean();</span>
+<span class="nc" id="L217">            searchBean.setUserGroupCodes(this.extractUserGroupCodes(loggedUser));</span>
+<span class="nc" id="L218">            searchBean.setEndUpdate(lastUpdate);</span>
+<span class="nc" id="L219">            lastUpdate = this.getActionLogDAO().getLastUpdate(searchBean);</span>
+<span class="nc" id="L220">        } catch (Throwable t) {</span>
+<span class="nc" id="L221">            _logger.error(&quot;Error on loading updated activities&quot;, t);</span>
+<span class="nc" id="L222">            throw new EntException(&quot;Error on loading updated activities&quot;, t);</span>
+<span class="nc" id="L223">        }</span>
+<span class="nc" id="L224">        return lastUpdate;</span>
+    }
+
+    private List&lt;String&gt; extractUserGroupCodes(UserDetails loggedUser) {
+<span class="nc" id="L228">        List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L229" title="All 4 branches missed.">        if (null != loggedUser &amp;&amp; null != loggedUser.getAuthorizations()) {</span>
+<span class="nc" id="L230">            codes = loggedUser.getAuthorizations().stream()</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">                    .filter(auth -&gt; (null != auth &amp;&amp; null != auth.getGroup()))</span>
+<span class="nc" id="L232">                    .map(a -&gt; a.getGroup().getName()).collect(Collectors.toList());</span>
+        }
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        if (!codes.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L235">            codes.add(Group.FREE_GROUP_NAME);</span>
+        }
+<span class="nc" id="L237">        return codes;</span>
+    }
+
+    @Override
+    public Set&lt;Integer&gt; extractOldRecords(Integer maxActivitySizeByGroup) throws EntException {
+<span class="nc" id="L242">        Set&lt;Integer&gt; actionRecordIds = null;</span>
+        try {
+<span class="nc" id="L244">            actionRecordIds = this.getActionLogDAO().extractOldRecords(maxActivitySizeByGroup);</span>
+<span class="nc" id="L245">        } catch (Throwable t) {</span>
+<span class="nc" id="L246">            _logger.error(&quot;Error extracting old records&quot;, t);</span>
+<span class="nc" id="L247">            throw new EntException(&quot;Error extracting old records&quot;, t);</span>
+<span class="nc" id="L248">        }</span>
+<span class="nc" id="L249">        return actionRecordIds;</span>
+    }
+
+    protected ManagerConfiguration getManagerConfiguration() {
+<span class="nc" id="L253">        return _managerConfiguration;</span>
+    }
+
+    public void setManagerConfiguration(ManagerConfiguration managerConfiguration) {
+<span class="fc" id="L257">        this._managerConfiguration = managerConfiguration;</span>
+<span class="fc" id="L258">    }</span>
+
+    protected IActionLogDAO getActionLogDAO() {
+<span class="fc" id="L261">        return _actionLogDAO;</span>
+    }
+
+    public void setActionLogDAO(IActionLogDAO actionLogDAO) {
+<span class="fc" id="L265">        this._actionLogDAO = actionLogDAO;</span>
+<span class="fc" id="L266">    }</span>
+
+    protected IKeyGeneratorManager getKeyGeneratorManager() {
+<span class="fc" id="L269">        return _keyGeneratorManager;</span>
+    }
+
+    public void setKeyGeneratorManager(IKeyGeneratorManager keyGeneratorManager) {
+<span class="fc" id="L273">        this._keyGeneratorManager = keyGeneratorManager;</span>
+<span class="fc" id="L274">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

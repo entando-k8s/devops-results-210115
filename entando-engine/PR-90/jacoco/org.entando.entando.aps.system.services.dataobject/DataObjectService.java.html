@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject</a> &gt; <span class="el_source">DataObjectService.java</span></div><h1>DataObjectService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.PostConstruct;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.CategoryUtilizer;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.page.IPageManager;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.DtoBuilder;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.category.CategoryServiceUtilizer;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+import org.entando.entando.aps.system.services.dataobject.model.DataObjectDto;
+import org.entando.entando.aps.system.services.dataobject.model.DataTypeDto;
+import org.entando.entando.aps.system.services.dataobject.model.DataTypeDtoBuilder;
+import org.entando.entando.aps.system.services.dataobjectmodel.DataObjectModel;
+import org.entando.entando.aps.system.services.dataobjectmodel.IDataObjectModelManager;
+import org.entando.entando.aps.system.services.entity.AbstractEntityTypeService;
+import org.entando.entando.aps.system.services.entity.model.AttributeTypeDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeAttributeFullDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeShortDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypesStatusDto;
+import org.entando.entando.aps.system.services.group.GroupServiceUtilizer;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.dataobject.model.DataTypeDtoRequest;
+import org.entando.entando.web.dataobject.validator.DataTypeValidator;
+import org.entando.entando.web.entity.model.EntityTypeDtoRequest;
+import org.springframework.validation.BindingResult;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L55">public class DataObjectService extends AbstractEntityTypeService&lt;DataObject, DataTypeDto&gt;</span>
+        implements IDataObjectService, GroupServiceUtilizer&lt;DataObjectDto&gt;, CategoryServiceUtilizer&lt;DataObjectDto&gt; {
+
+    private IPageManager pageManager;
+    private IDataObjectModelManager dataObjectModelManager;
+    private IDtoBuilder&lt;DataObject, DataObjectDto&gt; dtoBuilder;
+
+    @PostConstruct
+    protected void setUp() {
+<span class="fc" id="L64">        this.setDtoBuilder(new DtoBuilder&lt;DataObject, DataObjectDto&gt;() {</span>
+            @Override
+            protected DataObjectDto toDto(DataObject src) {
+<span class="fc" id="L67">                DataObjectDto dto = new DataObjectDto();</span>
+<span class="fc" id="L68">                dto.setId(src.getId());</span>
+<span class="fc" id="L69">                dto.setTypeCode(src.getTypeCode());</span>
+<span class="fc" id="L70">                dto.setTypeDescription(src.getTypeDescription());</span>
+<span class="fc" id="L71">                dto.setDescription(src.getDescription());</span>
+<span class="fc" id="L72">                dto.setMainGroup(src.getMainGroup());</span>
+<span class="fc" id="L73">                dto.setGroups(src.getGroups());</span>
+<span class="fc" id="L74">                return dto;</span>
+            }
+        });
+<span class="fc" id="L77">    }</span>
+
+    protected IDtoBuilder&lt;DataObject, DataObjectDto&gt; getDtoBuilder() {
+<span class="fc" id="L80">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;DataObject, DataObjectDto&gt; dtoBuilder) {
+<span class="fc" id="L84">        this.dtoBuilder = dtoBuilder;</span>
+<span class="fc" id="L85">    }</span>
+
+    @Override
+    public PagedMetadata&lt;EntityTypeShortDto&gt; getShortDataTypes(RestListRequest requestList) {
+<span class="fc" id="L89">        return super.getShortEntityTypes(SystemConstants.DATA_OBJECT_MANAGER, requestList);</span>
+    }
+
+    @Override
+    protected IDtoBuilder&lt;DataObject, DataTypeDto&gt; getEntityTypeFullDtoBuilder(IEntityManager masterManager) {
+<span class="fc" id="L94">        return new DataTypeDtoBuilder(masterManager.getAttributeRoles());</span>
+    }
+
+    @Override
+    public DataTypeDto getDataType(String dataTypeCode) {
+<span class="fc" id="L99">        return (DataTypeDto) super.getFullEntityType(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode);</span>
+    }
+
+    @Override
+    public DataTypeDto addDataType(DataTypeDtoRequest bodyRequest, BindingResult bindingResult) {
+<span class="fc" id="L104">        return super.addEntityType(SystemConstants.DATA_OBJECT_MANAGER, bodyRequest, bindingResult);</span>
+    }
+
+    @Override
+    public DataTypeDto updateDataType(DataTypeDtoRequest request, BindingResult bindingResult) {
+<span class="fc" id="L109">        return (DataTypeDto) super.updateEntityType(SystemConstants.DATA_OBJECT_MANAGER, request, bindingResult);</span>
+    }
+
+    @Override
+    protected DataObject createEntityType(IEntityManager entityManager, EntityTypeDtoRequest dto, BindingResult bindingResult) throws Throwable {
+<span class="fc" id="L114">        DataObject dataObject = super.createEntityType(entityManager, dto, bindingResult);</span>
+<span class="fc" id="L115">        DataTypeDtoRequest dtr = (DataTypeDtoRequest) dto;</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (this.checkModel(false, dataObject.getTypeCode(), dtr.getListModel(), bindingResult)) {</span>
+<span class="nc" id="L117">            dataObject.setListModel(dtr.getListModel());</span>
+        }
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (this.checkModel(true, dataObject.getTypeCode(), dtr.getDefaultModel(), bindingResult)) {</span>
+<span class="nc" id="L120">            dataObject.setDefaultModel(dtr.getDefaultModel());</span>
+        }
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (this.checkPage(dataObject.getTypeCode(), dtr.getViewPage(), bindingResult)) {</span>
+<span class="fc" id="L123">            dataObject.setViewPage(dtr.getViewPage());</span>
+        }
+<span class="fc" id="L125">        return dataObject;</span>
+    }
+
+    private boolean checkModel(boolean isDefault, String typeCode, String modelIdString, BindingResult bindingResult) {
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(modelIdString)) {</span>
+<span class="fc" id="L130">            return false;</span>
+        }
+<span class="nc" id="L132">        Long longId = null;</span>
+        try {
+<span class="nc" id="L134">            longId = Long.parseLong(modelIdString);</span>
+<span class="nc" id="L135">        } catch (Exception e) {</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            this.addError((isDefault ? DataTypeValidator.ERRCODE_INVALID_DEFAULT_MODEL : DataTypeValidator.ERRCODE_INVALID_LIST_MODEL),</span>
+                    bindingResult, new String[]{typeCode, modelIdString}, &quot;dataType.modelId.invalid&quot;);
+<span class="nc" id="L138">            return false;</span>
+<span class="nc" id="L139">        }</span>
+<span class="nc" id="L140">        DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(longId);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (null == model) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            this.addError((isDefault ? DataTypeValidator.ERRCODE_DEFAULT_MODEL_DOES_NOT_EXIST : DataTypeValidator.ERRCODE_LIST_MODEL_DOES_NOT_EXIST),</span>
+                    bindingResult, new String[]{typeCode, modelIdString}, &quot;dataType.modelId.doesNotExist&quot;);
+<span class="nc" id="L144">            return false;</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        } else if (model.getDataType().equals(typeCode)) {</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            this.addError((isDefault ? DataTypeValidator.ERRCODE_DEFAULT_MODEL_MISMATCH : DataTypeValidator.ERRCODE_LIST_MODEL_MISMATCH),</span>
+<span class="nc" id="L147">                    bindingResult, new String[]{typeCode, modelIdString, model.getDataType()}, &quot;dataType.modelId.mismatch&quot;);</span>
+<span class="nc" id="L148">            return false;</span>
+        }
+<span class="nc" id="L150">        return true;</span>
+    }
+
+    private boolean checkPage(String typeCode, String pageCode, BindingResult bindingResult) {
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        if (StringUtils.isEmpty(pageCode)) {</span>
+<span class="fc" id="L155">            return false;</span>
+        }
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">        if (null == this.getPageManager().getOnlinePage(pageCode)) {</span>
+<span class="nc" id="L158">            this.addError(DataTypeValidator.ERRCODE_INVALID_VIEW_PAGE, bindingResult, new String[]{typeCode, pageCode}, &quot;dataType.pageCode.invalid&quot;);</span>
+<span class="nc" id="L159">            return false;</span>
+        }
+<span class="fc" id="L161">        return true;</span>
+    }
+
+    @Override
+    public void deleteDataType(String dataTypeCode) {
+<span class="fc" id="L166">        super.deleteEntityType(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode);</span>
+<span class="fc" id="L167">    }</span>
+
+    @Override
+    public PagedMetadata&lt;String&gt; getAttributeTypes(RestListRequest requestList) {
+<span class="fc" id="L171">        return super.getAttributeTypes(SystemConstants.DATA_OBJECT_MANAGER, requestList);</span>
+    }
+
+    @Override
+    public AttributeTypeDto getAttributeType(String attributeCode) {
+<span class="fc" id="L176">        return super.getAttributeType(SystemConstants.DATA_OBJECT_MANAGER, attributeCode);</span>
+    }
+
+    @Override
+    public EntityTypeAttributeFullDto getDataTypeAttribute(String dataTypeCode, String attributeCode) {
+<span class="fc" id="L181">        return super.getEntityAttribute(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode, attributeCode);</span>
+    }
+
+    @Override
+    public EntityTypeAttributeFullDto addDataTypeAttribute(String dataTypeCode, EntityTypeAttributeFullDto bodyRequest, BindingResult bindingResult) {
+<span class="fc" id="L186">        return super.addEntityAttribute(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode, bodyRequest, bindingResult);</span>
+    }
+
+    @Override
+    public EntityTypeAttributeFullDto updateDataTypeAttribute(String dataTypeCode, EntityTypeAttributeFullDto bodyRequest, BindingResult bindingResult) {
+<span class="fc" id="L191">        return super.updateEntityAttribute(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode, bodyRequest, bindingResult);</span>
+    }
+
+    @Override
+    public void deleteDataTypeAttribute(String dataTypeCode, String attributeCode) {
+<span class="fc" id="L196">        super.deleteEntityAttribute(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode, attributeCode);</span>
+<span class="fc" id="L197">    }</span>
+
+    @Override
+    public void moveDataTypeAttribute(String dataTypeCode, String attributeCode, boolean moveUp) {
+<span class="fc" id="L201">        super.moveEntityAttribute(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode, attributeCode, moveUp);</span>
+<span class="fc" id="L202">    }</span>
+
+    @Override
+    public void reloadDataTypeReferences(String dataTypeCode) {
+<span class="fc" id="L206">        super.reloadEntityTypeReferences(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCode);</span>
+<span class="fc" id="L207">    }</span>
+
+    @Override
+    public Map&lt;String, Integer&gt; reloadDataTypesReferences(List&lt;String&gt; dataTypeCodes) {
+<span class="fc" id="L211">        return super.reloadEntityTypesReferences(SystemConstants.DATA_OBJECT_MANAGER, dataTypeCodes);</span>
+    }
+
+    @Override
+    public EntityTypesStatusDto getDataTypesRefreshStatus() {
+<span class="fc" id="L216">        return super.getEntityTypesRefreshStatus(SystemConstants.DATA_OBJECT_MANAGER);</span>
+    }
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L220">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L224">        this.pageManager = pageManager;</span>
+<span class="fc" id="L225">    }</span>
+
+    protected IDataObjectModelManager getDataObjectModelManager() {
+<span class="nc" id="L228">        return dataObjectModelManager;</span>
+    }
+
+    public void setDataObjectModelManager(IDataObjectModelManager dataObjectModelManager) {
+<span class="fc" id="L232">        this.dataObjectModelManager = dataObjectModelManager;</span>
+<span class="fc" id="L233">    }</span>
+
+    @Override
+    public String getManagerName() {
+<span class="fc" id="L237">        return SystemConstants.DATA_OBJECT_MANAGER;</span>
+    }
+
+    @Override
+    public List&lt;DataObjectDto&gt; getGroupUtilizer(String groupCode) {
+        try {
+<span class="fc" id="L243">            DataObjectManager entityManager = (DataObjectManager) this.extractEntityManager(this.getManagerName());</span>
+<span class="fc" id="L244">            List&lt;String&gt; idList = ((GroupUtilizer&lt;String&gt;) entityManager).getGroupUtilizers(groupCode);</span>
+<span class="fc" id="L245">            return this.buildDtoList(idList, entityManager);</span>
+<span class="nc" id="L246">        } catch (EntException ex) {</span>
+<span class="nc" id="L247">            logger.error(&quot;Error loading dataobject references for group {}&quot;, groupCode, ex);</span>
+<span class="nc" id="L248">            throw new RestServerError(&quot;Error loading dataobject references for group&quot;, ex);</span>
+        }
+    }
+
+    @Override
+    public List getCategoryUtilizer(String categoryCode) {
+        try {
+<span class="fc" id="L255">            DataObjectManager entityManager = (DataObjectManager) this.extractEntityManager(this.getManagerName());</span>
+<span class="fc" id="L256">            List&lt;String&gt; idList = ((CategoryUtilizer) entityManager).getCategoryUtilizers(categoryCode);</span>
+<span class="fc" id="L257">            return this.buildDtoList(idList, entityManager);</span>
+<span class="nc" id="L258">        } catch (EntException ex) {</span>
+<span class="nc" id="L259">            logger.error(&quot;Error loading dataobject references for category {}&quot;, categoryCode, ex);</span>
+<span class="nc" id="L260">            throw new RestServerError(&quot;Error loading dataobject references for category&quot;, ex);</span>
+        }
+    }
+
+    private List&lt;DataObjectDto&gt; buildDtoList(List&lt;String&gt; idList, DataObjectManager entityManager) {
+<span class="fc" id="L265">        List&lt;DataObjectDto&gt; dtoList = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (null != idList) {</span>
+<span class="fc" id="L267">            idList.stream().forEach(i -&gt; {</span>
+                try {
+<span class="fc" id="L269">                    dtoList.add(this.getDtoBuilder().convert(entityManager.loadDataObject(i, true)));</span>
+<span class="nc" id="L270">                } catch (EntException ex) {</span>
+<span class="nc" id="L271">                    logger.warn(&quot;error loading data object {}&quot;, i, ex);</span>
+<span class="fc" id="L272">                }</span>
+<span class="fc" id="L273">            });</span>
+        }
+<span class="fc" id="L275">        return dtoList;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

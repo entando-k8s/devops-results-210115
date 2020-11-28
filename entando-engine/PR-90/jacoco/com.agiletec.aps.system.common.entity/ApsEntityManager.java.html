@@ -1,0 +1,811 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApsEntityManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.entity</a> &gt; <span class="el_source">ApsEntityManager.java</span></div><h1>ApsEntityManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.entity;
+
+import org.entando.entando.ent.util.EntSafeXmlUtils;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.cache.IEntityManagerCacheWrapper;
+import com.agiletec.aps.system.common.entity.event.EntityTypesChangingEvent;
+import com.agiletec.aps.system.common.entity.event.ReloadingEntitiesReferencesEvent;
+import com.agiletec.aps.system.common.entity.event.ReloadingEntitiesReferencesObserver;
+import com.agiletec.aps.system.common.entity.loader.AttributeDisablingCodesLoader;
+import com.agiletec.aps.system.common.entity.loader.AttributeRolesLoader;
+import com.agiletec.aps.system.common.entity.model.ApsEntityRecord;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.common.entity.parse.EntityHandler;
+import com.agiletec.aps.system.common.entity.parse.IApsEntityDOM;
+import com.agiletec.aps.system.common.entity.parse.IEntityTypeDOM;
+import com.agiletec.aps.system.common.entity.parse.IEntityTypeFactory;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.util.DateConverter;
+import org.apache.commons.beanutils.BeanComparator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+/**
+ * This abstract service must be extended in all those services that make use of
+ * ApsEntities. By default, extending the manager, it is necessary to implement
+ * the method that returns the specific category manager and, in the definition
+ * of the Spring service, the configuration item where to look for the
+ * definitions of the Entity Types handled by the service.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L69">public abstract class ApsEntityManager extends AbstractService</span>
+                                       implements IEntityManager, IEntityTypesConfigurer, ReloadingEntitiesReferencesObserver {
+
+    /**
+     * Prefix of the thread used for references reloading.
+     */
+    public static final String RELOAD_REFERENCES_THREAD_NAME_PREFIX = &quot;RELOAD_REFERENCES_INDEX_&quot;;
+
+<span class="fc" id="L77">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ApsEntityManager.class);</span>
+
+    private IEntityTypeFactory entityTypeFactory;
+
+    private Class entityClass;
+
+    private String configItemName;
+
+    private IEntityTypeDOM entityTypeDom;
+
+    private EntityHandler entityHandler;
+
+    private String xmlAttributeRootElementName;
+
+    private IApsEntityDOM entityDom;
+
+    private ICategoryManager categoryManager;
+
+<span class="fc" id="L95">    private Map&lt;String, AttributeRole&gt; attributeRoles = null;</span>
+
+<span class="fc" id="L97">    private Map&lt;String, String&gt; attributeDisablingCodes = null;</span>
+
+    private String attributeRolesFileName;
+
+    private String attributeDisablingCodesFileName;
+
+    private IEntityManagerCacheWrapper cacheWrapper;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L107">        this.entityDom.setRootElementName(this.getXmlAttributeRootElementName());</span>
+<span class="fc" id="L108">        this.getCacheWrapper().initCache(super.getName());</span>
+<span class="fc" id="L109">        logger.debug(&quot;{} : inizializated&quot;, this.getName());</span>
+<span class="fc" id="L110">    }</span>
+
+    @Override
+    public void refresh() throws Throwable {
+<span class="fc" id="L114">        super.refresh();</span>
+<span class="fc" id="L115">        this.attributeDisablingCodes = null;</span>
+<span class="fc" id="L116">        this.attributeRoles = null;</span>
+<span class="fc" id="L117">    }</span>
+
+    @Override
+    public Map&lt;String, String&gt; getAttributeDisablingCodes() {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (null != this.attributeDisablingCodes) {</span>
+            //codes already loaded
+<span class="fc" id="L123">            return this.attributeDisablingCodes;</span>
+        }
+        //codes not loaded yet
+<span class="fc" id="L126">        AttributeDisablingCodesLoader loader = new AttributeDisablingCodesLoader();</span>
+<span class="fc" id="L127">        this.attributeDisablingCodes = loader.extractDisablingCodes(this.getAttributeDisablingCodesFileName(), super.getBeanFactory(), this);</span>
+<span class="fc" id="L128">        Map&lt;String, String&gt; clone = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L129">        clone.putAll(this.attributeDisablingCodes);</span>
+<span class="fc" id="L130">        return clone;</span>
+    }
+
+    @Override
+    public List&lt;AttributeRole&gt; getAttributeRoles() {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (null != this.attributeRoles) {</span>
+            //roles already loaded
+<span class="fc" id="L137">            return this.getOrderedAttributeRoles();</span>
+        }
+        //roles not loaded yet
+<span class="fc" id="L140">        this.initAttributeRoles();</span>
+<span class="fc" id="L141">        return this.getOrderedAttributeRoles();</span>
+    }
+
+    protected void initAttributeRoles() {
+<span class="fc" id="L145">        this.attributeRoles = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L146">        AttributeRolesLoader loader = new AttributeRolesLoader();</span>
+<span class="fc" id="L147">        this.attributeRoles = loader.extractAttributeRoles(this.getAttributeRolesFileName(), super.getBeanFactory(), this);</span>
+<span class="fc" id="L148">    }</span>
+
+    private List&lt;AttributeRole&gt; getOrderedAttributeRoles() {
+<span class="fc" id="L151">        List&lt;AttributeRole&gt; roles = new ArrayList&lt;&gt;(this.attributeRoles.size());</span>
+<span class="fc" id="L152">        Iterator&lt;AttributeRole&gt; iter = this.attributeRoles.values().iterator();</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L154">            AttributeRole role = iter.next();</span>
+<span class="fc" id="L155">            roles.add(role.clone());</span>
+<span class="fc" id="L156">        }</span>
+<span class="fc" id="L157">        BeanComparator comparator = new BeanComparator(&quot;name&quot;);</span>
+<span class="fc" id="L158">        Collections.sort(roles, comparator);</span>
+<span class="fc" id="L159">        return roles;</span>
+    }
+
+    @Override
+    public AttributeRole getAttributeRole(String roleName) {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if (null == this.attributeRoles) {</span>
+<span class="nc" id="L165">            this.initAttributeRoles();</span>
+        }
+<span class="nc" id="L167">        AttributeRole role = this.attributeRoles.get(roleName);</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        if (null != role) {</span>
+<span class="nc" id="L169">            return role.clone();</span>
+        }
+<span class="nc" id="L171">        return null;</span>
+    }
+
+    /**
+     * Create and populate the entity as specified by its type and XML
+     * definition.
+     *
+     * @param entityTypeCode The Entity Type code.
+     * @param xml The XML of the associated entity.
+     * @return The populated entity.
+     * @throws EntException If errors detected while retrieving the
+     * entity.
+     */
+    protected IApsEntity createEntityFromXml(String entityTypeCode, String xml) throws EntException {
+        try {
+<span class="fc" id="L186">            IApsEntity entityPrototype = this.getEntityPrototype(entityTypeCode);</span>
+<span class="fc" id="L187">            SAXParser parser = EntSafeXmlUtils.newSafeSAXParser();</span>
+<span class="fc" id="L188">            InputSource is = new InputSource(new StringReader(xml));</span>
+<span class="fc" id="L189">            EntityHandler handler = this.getEntityHandler();</span>
+<span class="fc" id="L190">            handler.initHandler(entityPrototype, this.getXmlAttributeRootElementName(), this.getCategoryManager());</span>
+<span class="fc" id="L191">            parser.parse(is, handler);</span>
+<span class="fc" id="L192">            return entityPrototype;</span>
+<span class="nc" id="L193">        } catch (ParserConfigurationException | SAXException | IOException t) {</span>
+<span class="nc" id="L194">            logger.error(&quot;Error detected while creating the entity. typecode: {} - xml: {}&quot;, entityTypeCode, xml, t);</span>
+<span class="nc" id="L195">            throw new EntException(&quot;Error detected while creating the entity&quot;, t);</span>
+        }
+    }
+
+    /**
+     * Indicates whether the service makes use of the search engine. Default
+     * value: false.
+     *
+     * @return true if the services uses the search engine, false otherwise.
+     */
+    @Override
+    public boolean isSearchEngineUser() {
+<span class="nc" id="L207">        return false;</span>
+    }
+
+    @Override
+    public IApsEntity getEntityPrototype(String typeCode) {
+<span class="fc" id="L212">        IApsEntity prototype = null;</span>
+        try {
+<span class="fc" id="L214">            IApsEntity mainPrototype = this.getEntityTypeFactory().extractEntityType(typeCode, this.getEntityClass(),</span>
+<span class="fc" id="L215">                                                                                     this.getConfigItemName(), this.getEntityTypeDom(), super.getName(), this.getEntityDom());</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            if (null == mainPrototype) {</span>
+<span class="fc" id="L217">                return null;</span>
+            }
+<span class="fc" id="L219">            prototype = mainPrototype.getEntityPrototype();</span>
+<span class="nc" id="L220">        } catch (Exception e) {</span>
+<span class="nc" id="L221">            logger.error(&quot;Error while extracting entity type {}&quot;, typeCode, e);</span>
+<span class="nc" id="L222">            throw new RuntimeException(&quot;Error while extracting entity type &quot; + typeCode, e);</span>
+<span class="fc" id="L223">        }</span>
+<span class="fc" id="L224">        return prototype;</span>
+    }
+
+    @Override
+    public Map&lt;String, IApsEntity&gt; getEntityPrototypes() {
+<span class="fc" id="L229">        Map&lt;String, IApsEntity&gt; prototypes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L230">        Map&lt;String, IApsEntity&gt; mainPrototypes = this.getEntityTypes();</span>
+<span class="fc" id="L231">        Iterator&lt;String&gt; iter = mainPrototypes.keySet().iterator();</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L233">            String code = iter.next();</span>
+<span class="fc" id="L234">            IApsEntity mainPrototype = mainPrototypes.get(code);</span>
+<span class="fc" id="L235">            prototypes.put(code, mainPrototype.getEntityPrototype());</span>
+<span class="fc" id="L236">        }</span>
+<span class="fc" id="L237">        return prototypes;</span>
+    }
+
+    /**
+     * Add a new entity prototype on the catalog.
+     *
+     * @param entityType The entity type to add.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public void addEntityPrototype(IApsEntity entityType) throws EntException {
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        if (null == entityType) {</span>
+<span class="nc" id="L249">            throw new EntException(&quot;Invalid entity type to add&quot;);</span>
+        }
+<span class="fc" id="L251">        Map&lt;String, IApsEntity&gt; newEntityTypes = this.getEntityTypes();</span>
+<span class="fc" id="L252">        newEntityTypes.put(entityType.getTypeCode(), entityType);</span>
+<span class="fc" id="L253">        this.updateEntityPrototypes(newEntityTypes);</span>
+<span class="fc" id="L254">        this.notifyEntityTypesChanging(null, entityType, EntityTypesChangingEvent.INSERT_OPERATION_CODE);</span>
+<span class="fc" id="L255">    }</span>
+
+    /**
+     * Update an entity prototype on the catalog.
+     *
+     * @param entityType The entity type to update.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public void updateEntityPrototype(IApsEntity entityType) throws EntException {
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (null == entityType) {</span>
+<span class="nc" id="L266">            throw new EntException(&quot;Invalid entity type to update&quot;);</span>
+        }
+<span class="fc" id="L268">        Map&lt;String, IApsEntity&gt; entityTypes = this.getEntityTypes();</span>
+<span class="fc" id="L269">        IApsEntity oldEntityType = entityTypes.get(entityType.getTypeCode());</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">        if (null == oldEntityType) {</span>
+<span class="nc" id="L271">            throw new EntException(&quot;No entity type to update with code '&quot; + entityType.getTypeCode() + &quot;' where found&quot;);</span>
+        }
+<span class="fc" id="L273">        entityTypes.put(entityType.getTypeCode(), entityType);</span>
+<span class="fc" id="L274">        this.updateEntityPrototypes(entityTypes);</span>
+<span class="fc" id="L275">        this.verifyReloadingNeeded(oldEntityType, entityType);</span>
+<span class="fc" id="L276">        this.notifyEntityTypesChanging(oldEntityType, entityType, EntityTypesChangingEvent.UPDATE_OPERATION_CODE);</span>
+<span class="fc" id="L277">    }</span>
+
+    protected void verifyReloadingNeeded(IApsEntity oldEntityType, IApsEntity newEntityType) {
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">        if (this.getStatus(newEntityType.getTypeCode()) == STATUS_NEED_TO_RELOAD_REFERENCES) {</span>
+<span class="nc" id="L281">            return;</span>
+        }
+<span class="fc" id="L283">        List&lt;AttributeInterface&gt; attributes = oldEntityType.getAttributeList();</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">        for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L285">            AttributeInterface oldAttribute = attributes.get(i);</span>
+<span class="fc" id="L286">            AttributeInterface newAttribute = (AttributeInterface) newEntityType.getAttribute(oldAttribute.getName());</span>
+<span class="pc bpc" id="L287" title="1 of 8 branches missed.">            if ((oldAttribute.isSearchable() &amp;&amp; null == newAttribute) || (null != newAttribute &amp;&amp; oldAttribute.isSearchable() != newAttribute.isSearchable())) {</span>
+<span class="fc" id="L288">                this.setStatus(IEntityManager.STATUS_NEED_TO_RELOAD_REFERENCES, oldEntityType.getTypeCode());</span>
+<span class="fc" id="L289">                return;</span>
+            }
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            String[] oldRoles = (null != oldAttribute.getRoles()) ? oldAttribute.getRoles() : new String[0];</span>
+<span class="pc bpc" id="L292" title="1 of 4 branches missed.">            String[] newRoles = (null != newAttribute &amp;&amp; null != newAttribute.getRoles()) ? newAttribute.getRoles() : new String[0];</span>
+<span class="pc bpc" id="L293" title="2 of 4 branches missed.">            if (newRoles.length == 0 &amp;&amp; oldRoles.length == 0) {</span>
+<span class="fc" id="L294">                continue;</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            } else if (newRoles.length != oldRoles.length) {</span>
+<span class="nc" id="L296">                this.setStatus(IEntityManager.STATUS_NEED_TO_RELOAD_REFERENCES, oldEntityType.getTypeCode());</span>
+<span class="nc" id="L297">                return;</span>
+            } else {
+<span class="nc" id="L299">                List&lt;String&gt; oldRolesList = Arrays.asList(oldRoles);</span>
+<span class="nc" id="L300">                List&lt;String&gt; newRolesList = Arrays.asList(newRoles);</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">                for (int j = 0; j &lt; newRolesList.size(); j++) {</span>
+<span class="nc" id="L302">                    String roleName = newRolesList.get(j);</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                    if (!oldRolesList.contains(roleName)) {</span>
+<span class="nc" id="L304">                        this.setStatus(IEntityManager.STATUS_NEED_TO_RELOAD_REFERENCES, oldEntityType.getTypeCode());</span>
+<span class="nc" id="L305">                        return;</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L310">    }</span>
+
+    /**
+     * Remove an entity type from the catalog.
+     *
+     * @param entityTypeCode The code of the entity type to remove.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public void removeEntityPrototype(String entityTypeCode) throws EntException {
+<span class="fc" id="L320">        Map&lt;String, IApsEntity&gt; entityTypes = this.getEntityTypes();</span>
+<span class="fc" id="L321">        IApsEntity entityTypeToRemove = entityTypes.get(entityTypeCode);</span>
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">        if (null == entityTypeToRemove) {</span>
+<span class="nc" id="L323">            throw new EntException(&quot;No entity type to remove with code '&quot; + entityTypeCode + &quot;' were found&quot;);</span>
+        }
+<span class="fc" id="L325">        entityTypes.remove(entityTypeCode);</span>
+<span class="fc" id="L326">        this.updateEntityPrototypes(entityTypes);</span>
+<span class="fc" id="L327">        this.notifyEntityTypesChanging(entityTypeToRemove, null, EntityTypesChangingEvent.REMOVE_OPERATION_CODE);</span>
+<span class="fc" id="L328">    }</span>
+
+    /**
+     * Update entity prototypes
+     *
+     * @param newEntityTypes the map, indexed by code, containing the new
+     * entities.
+     * @throws EntException If errors are detected during the process.
+     */
+    private void updateEntityPrototypes(Map&lt;String, IApsEntity&gt; newEntityTypes) throws EntException {
+        try {
+<span class="fc" id="L339">            this.getEntityTypeFactory().updateEntityTypes(newEntityTypes, this.getConfigItemName(), this.getEntityTypeDom());</span>
+<span class="fc" id="L340">            this.refresh();</span>
+<span class="nc" id="L341">        } catch (Throwable t) {</span>
+<span class="nc" id="L342">            logger.error(&quot;Error detected while updating entity prototypes&quot;, t);</span>
+<span class="nc" id="L343">            throw new EntException(&quot;Error detected while updating entity prototypes&quot;, t);</span>
+<span class="fc" id="L344">        }</span>
+<span class="fc" id="L345">    }</span>
+
+    private void notifyEntityTypesChanging(IApsEntity oldEntityType, IApsEntity newEntityType, int operationCode) {
+<span class="fc" id="L348">        EntityTypesChangingEvent event = new EntityTypesChangingEvent();</span>
+<span class="fc" id="L349">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L350">        event.setNewEntityType(newEntityType);</span>
+<span class="fc" id="L351">        event.setOldEntityType(oldEntityType);</span>
+<span class="fc" id="L352">        event.setEntityManagerName(this.getName());</span>
+<span class="fc" id="L353">        this.notifyEvent(event);</span>
+<span class="fc" id="L354">    }</span>
+
+    /**
+     * Return the map of the Entity Types managed by the service.
+     *
+     * @return The map of the Entity Types indexed by the type code.
+     */
+    protected Map&lt;String, IApsEntity&gt; getEntityTypes() {
+<span class="fc" id="L362">        Map&lt;String, IApsEntity&gt; types = null;</span>
+        try {
+<span class="fc" id="L364">            types = this.getEntityTypeFactory().extractEntityTypes(this.getEntityClass(),</span>
+<span class="fc" id="L365">                                                                   this.getConfigItemName(), this.getEntityTypeDom(), super.getName(), this.getEntityDom());</span>
+<span class="nc" id="L366">        } catch (Exception e) {</span>
+<span class="nc" id="L367">            logger.error(&quot;Error while extracting entity types&quot;, e);</span>
+<span class="nc" id="L368">            throw new RuntimeException(&quot;Error while extracting entity types&quot;, e);</span>
+<span class="fc" id="L369">        }</span>
+<span class="fc" id="L370">        return types;</span>
+    }
+
+    @Override
+    public Map&lt;String, AttributeInterface&gt; getEntityAttributePrototypes() {
+<span class="fc" id="L375">        Collection&lt;AttributeInterface&gt; attributes = this.getEntityTypeDom().getAttributeTypes().values();</span>
+<span class="fc" id="L376">        Map&lt;String, AttributeInterface&gt; attributeMap = new HashMap&lt;&gt;(attributes.size());</span>
+<span class="fc" id="L377">        Iterator&lt;AttributeInterface&gt; iter = attributes.iterator();</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L379">            AttributeInterface attributeInterface = iter.next();</span>
+<span class="fc" id="L380">            AttributeInterface clone = (AttributeInterface) attributeInterface.getAttributePrototype();</span>
+<span class="fc" id="L381">            attributeMap.put(clone.getType(), clone);</span>
+<span class="fc" id="L382">        }</span>
+<span class="fc" id="L383">        return attributeMap;</span>
+    }
+
+    protected IEntityTypeFactory getEntityTypeFactory() {
+<span class="fc" id="L387">        return this.entityTypeFactory;</span>
+    }
+
+    /**
+     * Set up the Entity Types factory. This method is used and hereby found in
+     * the spring XML configuration of the service. By default, the definition
+     * of the abstract service in the Spring configuration presents a standard
+     * factory; such definition must be substituted in the declaration of the
+     * service if specific operations are required by the particular structure
+     * of the Entity Type to manage.
+     *
+     * @param entityTypeFactory The factory of Entity Types.
+     */
+    public void setEntityTypeFactory(IEntityTypeFactory entityTypeFactory) {
+<span class="fc" id="L401">        this.entityTypeFactory = entityTypeFactory;</span>
+<span class="fc" id="L402">    }</span>
+
+    /**
+     * This method is used and hereby found in the spring XML configuration of
+     * the service. By default, the declaration of the abstract service in the
+     * Spring configuration presents a standard class (ApsEntity); this class
+     * must be substituted in the definition of the service if a different
+     * class, which extends the standard ApsEntity, must be used. This method
+     * checks the validity of the class.
+     *
+     * @param className The name of the entity class.
+     */
+    public void setEntityClassName(String className) {
+        try {
+<span class="fc" id="L416">            this.entityClass = Class.forName(className, true, Thread.currentThread().getContextClassLoader());</span>
+<span class="fc" id="L417">            Class check = this.entityClass;</span>
+            do {
+<span class="fc" id="L419">                Class[] interfaces = check.getInterfaces();</span>
+<span class="fc bfc" id="L420" title="All 2 branches covered.">                for (int j = 0; j &lt; interfaces.length; j++) {</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">                    if (interfaces[j].equals(IApsEntity.class)) {</span>
+<span class="fc" id="L422">                        return;</span>
+                    }
+                }
+<span class="fc" id="L425">                check = check.getSuperclass();</span>
+<span class="pc bpc" id="L426" title="1 of 2 branches missed.">            } while (!check.equals(Object.class));</span>
+<span class="nc" id="L427">            throw new RuntimeException(&quot;Invalid entity class&quot;);</span>
+<span class="nc" id="L428">        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L429">            logger.error(&quot;Errore creating the entity class&quot;, e);</span>
+<span class="nc" id="L430">            throw new RuntimeException(&quot;Error creating the entity class&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public Class getEntityClass() {
+<span class="fc" id="L436">        return this.entityClass;</span>
+    }
+
+    /**
+     * Return The name of the configuration item where to extract the definition
+     * of the Entity types.
+     *
+     * @return The name of the configuration item.
+     */
+    protected String getConfigItemName() {
+<span class="fc" id="L446">        return this.configItemName;</span>
+    }
+
+    /**
+     * Prepare the configuration item where to extract the definition of the
+     * various Entity types managed by the service.
+     *
+     * @param confItemName The name of the configuration item where to extract
+     * the definition of the Entity types
+     */
+    public void setConfigItemName(String confItemName) {
+<span class="fc" id="L457">        this.configItemName = confItemName;</span>
+<span class="fc" id="L458">    }</span>
+
+    protected IEntityTypeDOM getEntityTypeDom() {
+<span class="fc" id="L461">        return this.entityTypeDom;</span>
+    }
+
+    /**
+     * Prepare the DOM class that interprets the XML defining the various Entity
+     * Types managed by the service. This method is used and hereby found in the
+     * Spring XML configuration of the service. By default, the declaration of
+     * the abstract service contains the standard DOM class, namely the
+     * EntityTypeDOM; this definition can be substituted in the declaration of
+     * the service if a different DOM class, implementing the IEntityTypeDOM
+     * interface, is used. This is, for example, to interpret customized Entity
+     * Types -all implementing the ApsEntity- in a new service.
+     *
+     * @param entityTypeDom The DOM class that parses the XML configuring the
+     * Entity Types.
+     */
+    public void setEntityTypeDom(IEntityTypeDOM entityTypeDom) {
+<span class="fc" id="L478">        this.entityTypeDom = entityTypeDom;</span>
+<span class="fc" id="L479">    }</span>
+
+    /**
+     * Set up the name of the root attribute in the XML representing the single
+     * entity. This method is used and found in the Spring XML definition of the
+     * service. By default, the definition of the abstract service in the Spring
+     * configuration, presents the name &quot;entity&quot;; this definition can be
+     * substituted in the implementation of the service if a new name is used.
+     *
+     * @param xmlAttributeRootElementName The name of the root attribute.
+     */
+    public void setXmlAttributeRootElementName(String xmlAttributeRootElementName) {
+<span class="fc" id="L491">        this.xmlAttributeRootElementName = xmlAttributeRootElementName;</span>
+<span class="fc" id="L492">    }</span>
+
+    protected String getXmlAttributeRootElementName() {
+<span class="fc" id="L495">        return this.xmlAttributeRootElementName;</span>
+    }
+
+    /**
+     * Set up the handler class that parses the XML defining single entities.
+     * This method is used and hereby found in the Spring XML configuration of
+     * the service. The definition of the abstract service in the Spring
+     * configuration presents a default handler class, namely the EntityHandler;
+     * this definition can be changed in the declaration of the service if a
+     * particular handler, which extends EntityHandler, is used to parse
+     * specific entities. The class of such entities must extend the ApsEntity
+     * class to be correctly managed by the service.
+     *
+     * @param entityHandler The handler class that parses the XML of the single
+     * entities.
+     */
+    public void setEntityHandler(EntityHandler entityHandler) {
+<span class="fc" id="L512">        this.entityHandler = entityHandler;</span>
+<span class="fc" id="L513">    }</span>
+
+    /**
+     * Return the handler class that parses the single entity. This method
+     * returns a prototype ready to be used to parse an entity.
+     *
+     * @return The handler class that parses the XML of the entity.
+     */
+    protected EntityHandler getEntityHandler() {
+<span class="fc" id="L522">        return this.entityHandler.getHandlerPrototype();</span>
+    }
+
+    protected IApsEntityDOM getEntityDom() {
+<span class="fc" id="L526">        return this.entityDom;</span>
+    }
+
+    /**
+     * Set the DOM class that generates the XML that represents a single entity.
+     * This method is used and hereby found in the Spring XML configuration of
+     * the service. By default, the definition of the abstract service in the
+     * Spring configuration, presents a standard DOM class, namely the
+     * ApsEntityDOM; this definition can be substituted in the declaration of
+     * the service if a different DOM class, implementing the IApsEntityDOM
+     * interface, is used to generate the XML of particular entities. Such
+     * entities are mapped to a class that must extend, as usual, the ApsEntity
+     * class.
+     *
+     * @param entityDom the entity type dom
+     */
+    public void setEntityDom(IApsEntityDOM entityDom) {
+<span class="fc" id="L543">        this.entityDom = entityDom;</span>
+<span class="fc" id="L544">    }</span>
+
+    /**
+     * Search entities.
+     *
+     * @param filters The filters used to find an sort the entities ID that
+     * match the given criteria.
+     * @return The list of the IDs found.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public List&lt;String&gt; searchId(EntitySearchFilter[] filters) throws EntException {
+<span class="fc" id="L556">        List&lt;String&gt; idList = null;</span>
+        try {
+<span class="fc" id="L558">            idList = this.getEntitySearcherDao().searchId(filters);</span>
+<span class="nc" id="L559">        } catch (Throwable t) {</span>
+<span class="nc" id="L560">            logger.error(&quot;Error detected while searching entities&quot;, t);</span>
+<span class="nc" id="L561">            throw new EntException(&quot;Error detected while searching entities&quot;, t);</span>
+<span class="fc" id="L562">        }</span>
+<span class="fc" id="L563">        return idList;</span>
+    }
+
+    /**
+     * Search entities.
+     *
+     * @param typeCode The code of the Entity Types to look for.
+     * @param filters The search filters to apply to find and sort the ID found.
+     * @return The list of the ID found.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public List&lt;String&gt; searchId(String typeCode, EntitySearchFilter[] filters) throws EntException {
+<span class="fc" id="L576">        List&lt;String&gt; idList = null;</span>
+        try {
+<span class="fc" id="L578">            idList = this.getEntitySearcherDao().searchId(typeCode, filters);</span>
+<span class="nc" id="L579">        } catch (Throwable t) {</span>
+<span class="nc" id="L580">            logger.error(&quot;Error detected while searching entities with typeCode {}&quot;, typeCode, t);</span>
+<span class="nc" id="L581">            throw new EntException(&quot;Error detected while searching entities&quot;, t);</span>
+<span class="fc" id="L582">        }</span>
+<span class="fc" id="L583">        return idList;</span>
+    }
+
+    @Override
+    public List&lt;ApsEntityRecord&gt; searchRecords(EntitySearchFilter[] filters) throws EntException {
+<span class="fc" id="L588">        List&lt;ApsEntityRecord&gt; records = null;</span>
+        try {
+<span class="fc" id="L590">            records = this.getEntitySearcherDao().searchRecords(filters);</span>
+<span class="nc" id="L591">        } catch (Throwable t) {</span>
+<span class="nc" id="L592">            logger.error(&quot;Error searching entity records&quot;, t);</span>
+<span class="nc" id="L593">            throw new EntException(&quot;Error searching entity records&quot;, t);</span>
+<span class="fc" id="L594">        }</span>
+<span class="fc" id="L595">        return records;</span>
+    }
+
+    @Override
+    public void reloadEntitiesReferences(ReloadingEntitiesReferencesEvent event) {
+        try {
+<span class="nc" id="L601">            String typeCode = null;</span>
+<span class="nc" id="L602">            this.reloadEntitiesReferences(typeCode);</span>
+<span class="nc" id="L603">        } catch (Throwable t) {</span>
+<span class="nc" id="L604">            logger.error(&quot;Error while refreshing entity refrences&quot;, t);</span>
+<span class="nc" id="L605">        }</span>
+<span class="nc" id="L606">    }</span>
+
+    @Override
+    public Thread reloadEntitiesReferences(String typeCode) {
+<span class="fc" id="L610">        ReloadingReferencesThread reloadThread = null;</span>
+<span class="pc bpc" id="L611" title="1 of 4 branches missed.">        if (this.getStatus() == STATUS_READY || this.getStatus(typeCode) != STATUS_RELOADING_REFERENCES_IN_PROGRESS) {</span>
+            try {
+<span class="fc" id="L613">                reloadThread = new ReloadingReferencesThread(this, typeCode);</span>
+<span class="fc" id="L614">                String threadName = RELOAD_REFERENCES_THREAD_NAME_PREFIX + this.getName() + &quot;_&quot; + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="fc" id="L615">                reloadThread.setName(threadName);</span>
+<span class="fc" id="L616">                reloadThread.start();</span>
+<span class="fc" id="L617">                logger.info(&quot;Reloading references started&quot;);</span>
+<span class="nc" id="L618">            } catch (Throwable t) {</span>
+<span class="nc" id="L619">                logger.error(&quot;Error while starting up the reference reload procedure&quot;, t);</span>
+<span class="nc" id="L620">                throw new RuntimeException(&quot;Error while starting up the reference reload procedure&quot;, t);</span>
+<span class="fc" id="L621">            }</span>
+        } else {
+<span class="nc" id="L623">            logger.info(&quot;Reloading entity references suspended: status {}&quot;, this.getStatus(typeCode));</span>
+        }
+<span class="fc" id="L625">        return reloadThread;</span>
+    }
+
+    /**
+     * Reload the entity references.
+     *
+     * @param typeCode The type Code of entities to reload references. If null,
+     * will reload all entities.
+     * @throws EntException In case of error.
+     */
+    protected synchronized void reloadEntitySearchReferencesByType(String typeCode) throws EntException {
+<span class="pc bpc" id="L636" title="1 of 2 branches missed.">        if (null == typeCode) {</span>
+<span class="nc" id="L637">            throw new EntException(&quot;Error: invalid type code detected&quot;);</span>
+        }
+<span class="fc" id="L639">        this.setStatus(ApsEntityManager.STATUS_RELOADING_REFERENCES_IN_PROGRESS, typeCode);</span>
+        try {
+<span class="fc" id="L641">            EntitySearchFilter filter = new EntitySearchFilter(ENTITY_TYPE_CODE_FILTER_KEY, false, typeCode, false);</span>
+<span class="fc" id="L642">            EntitySearchFilter[] filters = {filter};</span>
+<span class="fc" id="L643">            List&lt;String&gt; entitiesId = this.getEntitySearcherDao().searchId(filters);</span>
+<span class="fc bfc" id="L644" title="All 2 branches covered.">            for (int i = 0; i &lt; entitiesId.size(); i++) {</span>
+<span class="fc" id="L645">                String entityId = (String) entitiesId.get(i);</span>
+<span class="fc" id="L646">                this.reloadEntityReferences(entityId);</span>
+            }
+<span class="nc" id="L648">        } catch (Throwable t) {</span>
+<span class="nc" id="L649">            logger.error(&quot;Error reloading entity references of type: {}&quot;, typeCode, t);</span>
+<span class="nc" id="L650">            throw new EntException(&quot;Error reloading entity references of type: &quot; + typeCode, t);</span>
+        } finally {
+<span class="fc" id="L652">            this.setStatus(ApsEntityManager.STATUS_READY, typeCode);</span>
+        }
+<span class="fc" id="L654">    }</span>
+
+    protected void reloadEntityReferences(String entityId) {
+        try {
+<span class="fc" id="L658">            IApsEntity entity = this.getEntity(entityId);</span>
+<span class="pc bpc" id="L659" title="1 of 2 branches missed.">            if (entity != null) {</span>
+<span class="fc" id="L660">                this.getEntityDao().reloadEntitySearchRecords(entityId, entity);</span>
+            }
+<span class="fc" id="L662">            logger.info(&quot;Entities search references reloaded {}&quot;, entityId);</span>
+<span class="nc" id="L663">        } catch (Throwable t) {</span>
+<span class="nc" id="L664">            logger.error(&quot;Error reloading the entities search references: {}&quot;, entityId, t);</span>
+<span class="fc" id="L665">        }</span>
+<span class="fc" id="L666">    }</span>
+
+    /**
+     * Load the complete list of the entities.
+     *
+     * @return The complete list of entity IDs.
+     * @throws EntException In case of error.
+     * @deprecated From jAPS 2.0 version 2.0.9, use {@link IEntitySearcherDAO}
+     * searchId(EntitySearchFilter[]) method
+     */
+    protected List&lt;String&gt; getAllEntityId() throws EntException {
+<span class="nc" id="L677">        List&lt;String&gt; entitiesId = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L679">            entitiesId = this.getEntityDao().getAllEntityId();</span>
+<span class="nc" id="L680">        } catch (Throwable t) {</span>
+<span class="nc" id="L681">            logger.error(&quot;Error while loading the complete list of entity IDs&quot;, t);</span>
+<span class="nc" id="L682">            throw new EntException(&quot;Error while loading the complete list of entity IDs&quot;, t);</span>
+<span class="nc" id="L683">        }</span>
+<span class="nc" id="L684">        return entitiesId;</span>
+    }
+
+    @Override
+    public List&lt;SmallEntityType&gt; getSmallEntityTypes() {
+<span class="fc" id="L689">        List&lt;SmallEntityType&gt; smallTypes = null;</span>
+        try {
+<span class="fc" id="L691">            smallTypes = this.getEntityTypeFactory().extractSmallEntityTypes(this.getConfigItemName(), this.getEntityTypeDom());</span>
+<span class="fc" id="L692">            BeanComparator comparator = new BeanComparator(&quot;description&quot;);</span>
+<span class="fc" id="L693">            Collections.sort(smallTypes, comparator);</span>
+<span class="nc" id="L694">        } catch (Exception e) {</span>
+<span class="nc" id="L695">            logger.error(&quot;Error while extracting small entity types&quot;, e);</span>
+<span class="nc" id="L696">            throw new RuntimeException(&quot;Error while extracting small entity types&quot;, e);</span>
+<span class="fc" id="L697">        }</span>
+<span class="fc" id="L698">        return smallTypes;</span>
+    }
+
+    /**
+     * Return the stutus of the desired entity. If nell it returns the general
+     * status.
+     *
+     * @param typeCode The Entity type to get the status from. It may be null.
+     * @return The status of the desidered entity.
+     */
+    @Override
+    public int getStatus(String typeCode) {
+<span class="pc bpc" id="L710" title="1 of 2 branches missed.">        if (typeCode == null) {</span>
+<span class="nc" id="L711">            return this.getStatus();</span>
+        }
+<span class="fc" id="L713">        return this.getCacheWrapper().getEntityTypeStatus(typeCode);</span>
+    }
+
+    @Override
+    public int getStatus() {
+<span class="fc" id="L718">        Set&lt;Integer&gt; status = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L719">        List&lt;String&gt; codes = this.getEntityTypeCodes();</span>
+<span class="fc bfc" id="L720" title="All 2 branches covered.">        for (String code : codes) {</span>
+<span class="fc" id="L721">            status.add(this.getCacheWrapper().getEntityTypeStatus(code));</span>
+<span class="fc" id="L722">        }</span>
+<span class="fc bfc" id="L723" title="All 2 branches covered.">        if (status.contains(STATUS_RELOADING_REFERENCES_IN_PROGRESS)) {</span>
+<span class="fc" id="L724">            return STATUS_RELOADING_REFERENCES_IN_PROGRESS;</span>
+<span class="fc bfc" id="L725" title="All 2 branches covered.">        } else if (status.contains(STATUS_NEED_TO_RELOAD_REFERENCES)) {</span>
+<span class="fc" id="L726">            return STATUS_NEED_TO_RELOAD_REFERENCES;</span>
+        }
+<span class="fc" id="L728">        return STATUS_READY;</span>
+    }
+
+    protected String getAttributeRolesFileName() {
+<span class="pc bpc" id="L732" title="1 of 2 branches missed.">        if (null == this.attributeRolesFileName) {</span>
+<span class="fc" id="L733">            return DEFAULT_ATTRIBUTE_ROLES_FILE_NAME;</span>
+        }
+<span class="nc" id="L735">        return attributeRolesFileName;</span>
+    }
+
+    public void setAttributeRolesFileName(String attributeRolesFileName) {
+<span class="nc" id="L739">        this.attributeRolesFileName = attributeRolesFileName;</span>
+<span class="nc" id="L740">    }</span>
+
+    protected String getAttributeDisablingCodesFileName() {
+<span class="pc bpc" id="L743" title="1 of 2 branches missed.">        if (null == this.attributeDisablingCodesFileName) {</span>
+<span class="fc" id="L744">            return DEFAULT_ATTRIBUTE_DISABLING_CODES_FILE_NAME;</span>
+        }
+<span class="nc" id="L746">        return attributeDisablingCodesFileName;</span>
+    }
+
+    public void setAttributeDisablingCodesFileName(String disablingCodesFileName) {
+<span class="nc" id="L750">        this.attributeDisablingCodesFileName = disablingCodesFileName;</span>
+<span class="nc" id="L751">    }</span>
+
+    /**
+     * Imposta lo stato del tipo di entità dato. Se null imposta lo stato
+     * generale. Set up the status of the given entity. If null it sets up the
+     * overall status.
+     *
+     * @param status The status to set up.
+     * @param typeCode The Entity Type where to apply the new status. If null it
+     * sets up the general status.
+     */
+    protected void setStatus(int status, String typeCode) {
+<span class="fc" id="L763">        this.getCacheWrapper().updateEntityTypeStatus(typeCode, status);</span>
+<span class="fc" id="L764">    }</span>
+
+    protected List&lt;String&gt; getEntityTypeCodes() {
+<span class="fc" id="L767">        List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L768">        List&lt;SmallEntityType&gt; smallTypes = this.getSmallEntityTypes();</span>
+<span class="fc bfc" id="L769" title="All 2 branches covered.">        for (SmallEntityType smallType : smallTypes) {</span>
+<span class="fc" id="L770">            codes.add(smallType.getCode());</span>
+<span class="fc" id="L771">        }</span>
+<span class="fc" id="L772">        return codes;</span>
+    }
+
+    /**
+     * Return the category manager used by the entities managed by the service.
+     *
+     * @return The category manager used by the entities.
+     */
+    protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L781">        return categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L785">        this.categoryManager = categoryManager;</span>
+<span class="fc" id="L786">    }</span>
+
+    /**
+     * Return the DAO to access the entity database with.
+     *
+     * @return The entity DAO.
+     */
+    protected abstract IEntityDAO getEntityDao();
+
+    /**
+     * Return the DAO used to search among entities.
+     *
+     * @return TheDAO used to search entities.
+     */
+    protected abstract IEntitySearcherDAO getEntitySearcherDao();
+
+    protected IEntityManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L803">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IEntityManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L807">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L808">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

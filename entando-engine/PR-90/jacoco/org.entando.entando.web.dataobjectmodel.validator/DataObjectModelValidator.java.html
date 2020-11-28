@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectModelValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.dataobjectmodel.validator</a> &gt; <span class="el_source">DataObjectModelValidator.java</span></div><h1>DataObjectModelValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.dataobjectmodel.validator;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+import org.entando.entando.aps.system.services.dataobjectmodel.DataObjectModel;
+import org.entando.entando.aps.system.services.dataobjectmodel.IDataObjectModelManager;
+import org.entando.entando.aps.system.services.jsonpatch.validator.JsonPatchValidator;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.entando.entando.web.dataobjectmodel.model.DataObjectModelRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.rest.webmvc.json.patch.PatchException;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.Errors;
+
+@Component
+<span class="fc" id="L31">public class DataObjectModelValidator extends AbstractPaginationValidator {</span>
+
+    //GET
+    public static final String ERRCODE_DATAOBJECTID_INVALID = &quot;1&quot;;
+    public static final String ERRCODE_DATAOBJECTMODEL_DOES_NOT_EXIST = &quot;1&quot;;
+
+    //POST
+    public static final String ERRCODE_POST_DATAOBJECTTYPE_DOES_NOT_EXIST = &quot;1&quot;;
+
+    public static final String ERRCODE_DATAOBJECT_MODEL_INVALID = &quot;3&quot;;
+
+    //PUT
+    public static final String ERRCODE_DATAOBJECTMODEL_ALREADY_EXISTS = &quot;1&quot;;
+    public static final String ERRCODE_PUT_DATAOBJECTTYPE_DOES_NOT_EXIST = &quot;2&quot;;
+    //public static final String ERRCODE_PUT_EXTRACTED_MISMATCH = &quot;2&quot;;
+    public static final String ERRCODE_URINAME_MISMATCH = &quot;2&quot;;
+    public static final String ERRCODE_URINAME_INVALID = &quot;3&quot;;
+    public static final String ERRCODE_DATAOBJECTMODEL_REFERENCES = &quot;4&quot;;
+
+    //PATCH
+    public static final String ERRCODE_INVALID_PATCH = &quot;1&quot;;
+
+    public static final String ERRCODE_CONTENTMODEL_TYPECODE_NOT_FOUND = &quot;6&quot;;
+
+    @Autowired
+    private IDataObjectModelManager dataObjectModelManager;
+
+    @Autowired
+    private IDataObjectManager dataObjectManager;
+
+    @Autowired
+    private JsonPatchValidator jsonPatchValidator;
+
+    @Override
+    public boolean supports(Class&lt;?&gt; paramClass) {
+<span class="nc" id="L66">        return DataObjectModelRequest.class.equals(paramClass);</span>
+    }
+
+    @Override
+    public void validate(Object target, Errors errors) {
+<span class="fc" id="L71">        DataObjectModelRequest request = (DataObjectModelRequest) target;</span>
+<span class="fc" id="L72">        String modelId = request.getModelId();</span>
+<span class="fc" id="L73">        Long dataModelLong = this.checkValidModelId(modelId, errors);</span>
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">        if (null != dataModelLong &amp;&amp; null != this.dataObjectModelManager.getDataObjectModel(dataModelLong)) {</span>
+<span class="nc" id="L75">            errors.reject(ERRCODE_DATAOBJECTMODEL_ALREADY_EXISTS, new String[]{String.valueOf(modelId)}, &quot;dataObjectModel.exists&quot;);</span>
+        }
+<span class="fc" id="L77">    }</span>
+
+    public void validateBodyName(String modelId, DataObjectModelRequest request, Errors errors) {
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!modelId.equals(request.getModelId())) {</span>
+<span class="fc" id="L81">            errors.rejectValue(&quot;modelId&quot;, ERRCODE_URINAME_MISMATCH,</span>
+<span class="fc" id="L82">                    new String[]{String.valueOf(modelId), String.valueOf(request.getModelId())}, &quot;dataObjectModel.modelId.mismatch&quot;);</span>
+        }
+<span class="fc" id="L84">        this.checkValidModelId(modelId, errors);</span>
+<span class="fc" id="L85">    }</span>
+
+    public int validateBody(DataObjectModelRequest request, boolean isPut, Errors errors) {
+<span class="fc" id="L88">        Long dataModelId = Long.parseLong(request.getModelId());</span>
+<span class="fc" id="L89">        String typeCode = request.getType();</span>
+        try {
+<span class="fc" id="L91">            IApsEntity prototype = this.dataObjectManager.getEntityPrototype(typeCode);</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (null == prototype) {</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                errors.rejectValue(&quot;type&quot;, (isPut) ? ERRCODE_PUT_DATAOBJECTTYPE_DOES_NOT_EXIST : ERRCODE_POST_DATAOBJECTTYPE_DOES_NOT_EXIST,</span>
+                        new String[]{typeCode}, &quot;dataObjectModel.type.doesNotExist&quot;);
+<span class="nc" id="L95">                return 404;</span>
+            }
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(request.getModel())) {</span>
+<span class="nc" id="L98">                errors.rejectValue(&quot;model&quot;, ERRCODE_DATAOBJECT_MODEL_INVALID, new String[]{}, &quot;dataObjectModel.model.notBlank&quot;);</span>
+<span class="nc" id="L99">                return 400;</span>
+            }
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (isPut) {</span>
+<span class="fc" id="L102">                DataObjectModel dataModel = this.dataObjectModelManager.getDataObjectModel(dataModelId);</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">                if (null == dataModel) {</span>
+<span class="nc" id="L104">                    errors.rejectValue(&quot;modelId&quot;, ERRCODE_DATAOBJECTMODEL_DOES_NOT_EXIST,</span>
+<span class="nc" id="L105">                            new String[]{String.valueOf(dataModelId)}, &quot;dataObjectModel.doesNotExist&quot;);</span>
+<span class="nc" id="L106">                    return 404;</span>
+                }
+                /*
+                else if (!dataModel.getDataType().equals(typeCode)) {
+                    errors.rejectValue(&quot;type&quot;, ERRCODE_PUT_EXTRACTED_MISMATCH,
+                            new String[]{typeCode, dataModel.getDataType()}, &quot;dataObjectModel.type.doesNotMachWithModel&quot;);
+                    return 400;
+                }
+                */
+            }
+<span class="nc" id="L116">        } catch (Exception e) {</span>
+<span class="nc" id="L117">            throw new RuntimeException(&quot;Error extracting model&quot;, e);</span>
+<span class="fc" id="L118">        }</span>
+<span class="fc" id="L119">        return 0;</span>
+    }
+
+    public int checkModelId(String dataModelId, Errors errors) {
+<span class="fc" id="L123">        Long dataModelLong = this.checkValidModelId(dataModelId, errors);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (null == dataModelLong) {</span>
+<span class="nc" id="L125">            return 400;</span>
+        }
+<span class="fc" id="L127">        return this.checkExistingModelId(dataModelLong, errors);</span>
+    }
+
+    public Long checkValidModelId(String dataModelId, Errors errors) {
+<span class="fc" id="L131">        Long dataModelLong = null;</span>
+        try {
+<span class="fc" id="L133">            dataModelLong = Long.parseLong(dataModelId);</span>
+<span class="nc" id="L134">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L135">            errors.rejectValue(&quot;modelId&quot;, ERRCODE_DATAOBJECTID_INVALID,</span>
+<span class="nc" id="L136">                    new String[]{String.valueOf(dataModelId)}, &quot;dataObjectModel.modelId.invalid&quot;);</span>
+<span class="nc" id="L137">            return null;</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return dataModelLong;</span>
+    }
+
+    protected int checkExistingModelId(Long dataModelId, Errors errors) {
+        try {
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">            if (null == this.dataObjectModelManager.getDataObjectModel(dataModelId)) {</span>
+<span class="nc" id="L145">                errors.rejectValue(&quot;modelId&quot;, ERRCODE_DATAOBJECTMODEL_DOES_NOT_EXIST,</span>
+<span class="nc" id="L146">                        new String[]{String.valueOf(dataModelId)}, &quot;dataObjectModel.doesNotExist&quot;);</span>
+<span class="nc" id="L147">                return 404;</span>
+            }
+<span class="nc" id="L149">        } catch (Throwable e) {</span>
+<span class="nc" id="L150">            throw new RuntimeException(&quot;Error extracting model&quot;, e);</span>
+<span class="fc" id="L151">        }</span>
+<span class="fc" id="L152">        return 0;</span>
+    }
+
+    public void validateDataObjectModelJsonPatch(JsonNode jsonPatch, Errors errors) {
+        try {
+<span class="fc" id="L157">            jsonPatchValidator.validatePatch(jsonPatch);</span>
+<span class="nc" id="L158">        } catch (PatchException e) {</span>
+<span class="nc" id="L159">            errors.reject(ERRCODE_INVALID_PATCH, &quot;jsonPatch.invalid&quot;);</span>
+<span class="fc" id="L160">        }</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        for (JsonNode node : jsonPatch) {</span>
+<span class="fc" id="L163">            String operationPath = node.get(&quot;path&quot;).asText();</span>
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            if (operationPath.equals(&quot;/modelId&quot;)) {</span>
+<span class="fc" id="L166">                errors.reject(ERRCODE_INVALID_PATCH, new String[]{&quot;modelId&quot;}, &quot;jsonPatch.field.protected&quot;);</span>
+            }
+<span class="fc" id="L168">        }</span>
+
+<span class="fc" id="L170">    }</span>
+
+    @Override
+    protected String getDefaultSortProperty() {
+<span class="fc" id="L174">        return &quot;modelId&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

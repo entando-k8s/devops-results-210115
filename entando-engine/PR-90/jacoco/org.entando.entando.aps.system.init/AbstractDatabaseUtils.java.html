@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDatabaseUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">AbstractDatabaseUtils.java</span></div><h1>AbstractDatabaseUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.io.File;
+import java.lang.reflect.Method;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.sql.DataSource;
+
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.services.storage.IStorageManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.ListableBeanFactory;
+
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L38">public abstract class AbstractDatabaseUtils implements BeanFactoryAware {</span>
+
+<span class="fc" id="L40">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractDatabaseUtils.class);</span>
+	
+	protected IDatabaseManager.DatabaseType getType(DataSource dataSource) throws EntException {
+<span class="fc" id="L43">		String typeString = null;</span>
+		try {
+<span class="fc" id="L45">			String driverClassName = this.invokeGetMethod(&quot;getDriverClassName&quot;, dataSource);</span>
+<span class="fc" id="L46">			Iterator&lt;Object&gt; typesIter = this.getDatabaseTypeDrivers().keySet().iterator();</span>
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">			while (typesIter.hasNext()) {</span>
+<span class="fc" id="L48">				String typeCode = (String) typesIter.next();</span>
+<span class="fc" id="L49">				List&lt;String&gt; driverClassNames = (List&lt;String&gt;) this.getDatabaseTypeDrivers().get(typeCode);</span>
+<span class="pc bpc" id="L50" title="1 of 4 branches missed.">				if (null != driverClassNames &amp;&amp; driverClassNames.contains(driverClassName)) {</span>
+<span class="fc" id="L51">					typeString = typeCode;</span>
+<span class="fc" id="L52">					break;</span>
+				}
+<span class="fc" id="L54">			}</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">			if (null == typeString) {</span>
+<span class="nc" id="L56">				_logger.error(&quot;Type not recognized for Driver '{}' - Recognized types '{}'&quot;, driverClassName, IDatabaseManager.DatabaseType.values());</span>
+<span class="nc" id="L57">				return IDatabaseManager.DatabaseType.UNKNOWN;</span>
+			}
+<span class="fc" id="L59">			return Enum.valueOf(IDatabaseManager.DatabaseType.class, typeString.toUpperCase());</span>
+<span class="nc" id="L60">		} catch (Throwable t) {</span>
+<span class="nc" id="L61">			_logger.error(&quot;Invalid type for db - '{}' - &quot;, typeString, t);</span>
+<span class="nc" id="L62">			throw new EntException(&quot;Invalid type for db - '&quot; + typeString + &quot;'&quot;, t);</span>
+		}
+	}
+	
+	protected String invokeGetMethod(String methodName, DataSource dataSource) throws Throwable {
+<span class="fc" id="L67">		Method method = dataSource.getClass().getDeclaredMethod(methodName);</span>
+<span class="fc" id="L68">		return (String) method.invoke(dataSource);</span>
+	}
+	
+	protected String getLocalBackupsFolder() {
+<span class="fc" id="L72">		StringBuilder dirName = new StringBuilder();</span>
+<span class="fc" id="L73">		dirName.append(&quot;databaseBackups&quot;).append(File.separator);</span>
+<span class="fc" id="L74">		return dirName.toString();</span>
+	}
+	
+	protected List&lt;Component&gt; getComponents() throws EntException {
+<span class="nc" id="L78">		return this.getComponentManager().getCurrentComponents();</span>
+	}
+	
+	protected String[] extractBeanNames(Class beanClass) {
+<span class="nc" id="L82">		ListableBeanFactory factory = (ListableBeanFactory) this.getBeanFactory();</span>
+<span class="nc" id="L83">		return factory.getBeanNamesForType(beanClass);</span>
+	}
+	
+	protected BeanFactory getBeanFactory() {
+<span class="nc" id="L87">		return _beanFactory;</span>
+	}
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) {
+<span class="fc" id="L91">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L92">	}</span>
+	
+	protected Map&lt;String, List&lt;String&gt;&gt; getEntandoTableMapping() {
+<span class="nc" id="L95">		return _entandoTableMapping;</span>
+	}
+	public void setEntandoTableMapping(Map&lt;String, List&lt;String&gt;&gt; entandoTableMapping) {
+<span class="fc" id="L98">		this._entandoTableMapping = entandoTableMapping;</span>
+<span class="fc" id="L99">	}</span>
+	
+	protected Properties getDatabaseTypeDrivers() {
+<span class="fc" id="L102">		return _databaseTypeDrivers;</span>
+	}
+	public void setDatabaseTypeDrivers(Properties databaseTypeDrivers) {
+<span class="fc" id="L105">		this._databaseTypeDrivers = databaseTypeDrivers;</span>
+<span class="fc" id="L106">	}</span>
+	
+	protected IComponentManager getComponentManager() {
+<span class="nc" id="L109">		return _componentManager;</span>
+	}
+	public void setComponentManager(IComponentManager componentManager) {
+<span class="fc" id="L112">		this._componentManager = componentManager;</span>
+<span class="fc" id="L113">	}</span>
+	
+	protected IStorageManager getStorageManager() {
+<span class="nc" id="L116">		return _storageManager;</span>
+	}
+	public void setStorageManager(IStorageManager storageManager) {
+<span class="fc" id="L119">		this._storageManager = storageManager;</span>
+<span class="fc" id="L120">	}</span>
+	
+	private BeanFactory _beanFactory;
+	private Map&lt;String, List&lt;String&gt;&gt; _entandoTableMapping;
+	
+	private Properties _databaseTypeDrivers;
+	
+	private IComponentManager _componentManager;
+	private IStorageManager _storageManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
