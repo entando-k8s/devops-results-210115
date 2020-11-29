@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentNegotiationExecutorService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.controller.executor</a> &gt; <span class="el_source">ContentNegotiationExecutorService.java</span></div><h1>ContentNegotiationExecutorService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.controller.executor;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.exception.ApsSystemException;
+import com.agiletec.aps.system.services.page.IPage;
+
+/**
+ * Performs the Content Negotiation.
+ * Checks whether the request Mime-type is accepted by the user Agent, eventually declaring it.
+ * If the Mime-Type is not accepted by the User Agent then the default text/html is declared.
+ * The given charset is appended to the declaration
+ * @author W.Ghelfi - E.Santoboni
+ */
+<span class="fc" id="L34">public class ContentNegotiationExecutorService implements ExecutorServiceInterface {</span>
+	
+<span class="fc" id="L36">	private static final Logger _logger = LoggerFactory.getLogger(ContentNegotiationExecutorService.class);</span>
+	
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		//nothing to do
+<span class="fc" id="L41">	}</span>
+	
+	@Override
+	public void service(RequestContext reqCtx) {
+<span class="nc" id="L45">		HttpServletResponse response = reqCtx.getResponse();</span>
+		try {
+<span class="nc" id="L47">			String mimetype = this.extractMimeType(reqCtx);</span>
+<span class="nc" id="L48">			IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L49">			StringBuilder contentType = new StringBuilder(mimetype);</span>
+<span class="nc" id="L50">			contentType.append(&quot;; charset=&quot;);</span>
+<span class="nc" id="L51">			String pageCharset = page.getCharset();</span>
+<span class="nc bnc" id="L52" title="All 6 branches missed.">			String charset = (null != page &amp;&amp; null != pageCharset &amp;&amp; pageCharset.trim().length() &gt; 0) ? pageCharset : DEFAULT_CHARSET;</span>
+<span class="nc" id="L53">			contentType.append(charset);</span>
+<span class="nc" id="L54">			response.setContentType(contentType.toString());</span>
+<span class="nc" id="L55">		} catch (Throwable t) {</span>
+<span class="nc" id="L56">			_logger.error(&quot;Error detected while setting content type&quot;, t);</span>
+<span class="nc" id="L57">			throw new RuntimeException(&quot;Error detected while setting content type&quot;, t);</span>
+<span class="nc" id="L58">		}</span>
+<span class="nc" id="L59">	}</span>
+	
+	private String extractMimeType(RequestContext reqCtx) throws Throwable {
+<span class="nc" id="L62">		HttpServletRequest request = reqCtx.getRequest();</span>
+		try {
+<span class="nc" id="L64">			String header = request.getHeader(&quot;accept&quot;);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">			if (null != header) {</span>
+<span class="nc" id="L66">				IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc" id="L67">				String mimeType = page.getMimeType();</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">				String customMimeType = (null != mimeType &amp;&amp; mimeType.trim().length() &gt; 0) ? mimeType : null;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">				if (null != customMimeType) {</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">					boolean isAcceptedMimeType = (header.indexOf(mimeType) &gt;= 0);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">					if (isAcceptedMimeType) {</span>
+<span class="nc" id="L72">						return mimeType;</span>
+					}
+				}
+			}
+<span class="nc" id="L76">		} catch (Throwable t) {</span>
+<span class="nc" id="L77">			_logger.error(&quot;Error detected while verifying mimetype&quot;, t);</span>
+<span class="nc" id="L78">			throw new ApsSystemException(&quot;Error detected while verifying mimetype&quot;, t);</span>
+<span class="nc" id="L79">		}</span>
+<span class="nc" id="L80">		return DEFAULT_MIMETYPE;</span>
+	}
+	
+	private static final String DEFAULT_MIMETYPE = &quot;text/html&quot;;
+	private static final String DEFAULT_CHARSET = &quot;UTF-8&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
