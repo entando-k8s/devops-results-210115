@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityActionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system.entity</a> &gt; <span class="el_source">EntityActionHelper.java</span></div><h1>EntityActionHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system.entity;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+
+import com.agiletec.aps.system.common.entity.model.ApsEntity;
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AbstractAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.common.entity.model.attribute.BooleanAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.DateAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.NumberAttribute;
+import com.agiletec.aps.util.CheckFormatUtil;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.apsadmin.system.BaseActionHelper;
+import com.agiletec.apsadmin.system.entity.attribute.manager.AbstractAttributeManager;
+import com.agiletec.apsadmin.system.entity.attribute.manager.AttributeManagerInterface;
+import com.opensymphony.xwork2.ActionSupport;
+
+/**
+ * This abstract class supports all the helper classes that, in turn, support those
+ * classes which handle elements built with the &quot;ApsEntity' entries.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L52">public class EntityActionHelper extends BaseActionHelper implements IEntityActionHelper, BeanFactoryAware {</span>
+
+<span class="fc" id="L54">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(EntityActionHelper.class);</span>
+	
+	@Override
+	public void updateEntity(IApsEntity currentEntity, HttpServletRequest request) {
+		try {
+<span class="fc" id="L59">			List&lt;AttributeInterface&gt; attributes = currentEntity.getAttributeList();</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">			for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L61">				AttributeInterface attribute = attributes.get(i);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">				if (attribute.isActive()) {</span>
+<span class="fc" id="L63">					AttributeManagerInterface attributeManager = this.getManager(attribute);</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">					if (attributeManager != null) {</span>
+<span class="fc" id="L65">						attributeManager.updateEntityAttribute(attribute, request);</span>
+					}
+				}
+			}
+<span class="nc" id="L69">		} catch (Throwable t) {</span>
+<span class="nc" id="L70">			_logger.error(&quot;Error updating Entity&quot;, t);</span>
+<span class="nc" id="L71">			throw new RuntimeException(&quot;Error updating Entity&quot;, t);</span>
+<span class="fc" id="L72">		}</span>
+<span class="fc" id="L73">	}</span>
+    
+	@Override
+	public void scanEntity(IApsEntity currentEntity, ActionSupport action) {
+		try {
+<span class="fc" id="L78">			List&lt;AttributeInterface&gt; attributes = currentEntity.getAttributeList();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">			for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L80">				AttributeInterface entityAttribute = attributes.get(i);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">				if (entityAttribute.isActive()) {</span>
+<span class="fc" id="L82">					List&lt;AttributeFieldError&gt; errors = entityAttribute.validate(new AttributeTracer(), super.getLangManager());</span>
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">					if (null != errors &amp;&amp; errors.size() &gt; 0) {</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">						for (int j = 0; j &lt; errors.size(); j++) {</span>
+<span class="fc" id="L85">							AttributeFieldError attributeFieldError = errors.get(j);</span>
+<span class="fc" id="L86">							AttributeTracer tracer = attributeFieldError.getTracer();</span>
+<span class="fc" id="L87">							AttributeInterface attribute = attributeFieldError.getAttribute();</span>
+<span class="fc" id="L88">							String messageAttributePositionPrefix = this.createErrorMessageAttributePositionPrefix(action, attribute, tracer);</span>
+<span class="fc" id="L89">							AttributeManagerInterface attributeManager = this.getManager(attribute);</span>
+<span class="fc" id="L90">							String errorMessage = attributeManager.getErrorMessage(attributeFieldError, action);</span>
+<span class="fc" id="L91">							String formFieldName = tracer.getFormFieldName(attributeFieldError.getAttribute());</span>
+<span class="fc" id="L92">							action.addFieldError(formFieldName, messageAttributePositionPrefix + &quot; &quot; + errorMessage);</span>
+						}
+					}
+				}
+			}
+<span class="nc" id="L97">		} catch (Throwable t) {</span>
+<span class="nc" id="L98">			_logger.error(&quot;Error scanning Entity&quot;, t);</span>
+<span class="nc" id="L99">			throw new RuntimeException(&quot;Error scanning Entity&quot;, t);</span>
+<span class="fc" id="L100">		}</span>
+<span class="fc" id="L101">	}</span>
+    
+    private String createErrorMessageAttributePositionPrefix(ActionSupport action, AttributeInterface attribute, com.agiletec.aps.system.common.entity.model.AttributeTracer tracer) {
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">        if (tracer.isMonoListElement()) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            if (tracer.isCompositeElement()) {</span>
+<span class="nc" id="L106">                String[] args = {tracer.getParentAttribute().getName(), String.valueOf(tracer.getListIndex() + 1), attribute.getName()};</span>
+<span class="nc" id="L107">                return action.getText(&quot;EntityAttribute.compositeListAttributeElement.errorMessage.prefix&quot;, args);</span>
+            } else {
+<span class="nc" id="L109">                String[] args = {attribute.getName(), String.valueOf(tracer.getListIndex() + 1)};</span>
+<span class="nc" id="L110">                return action.getText(&quot;EntityAttribute.monolistAttributeElement.errorMessage.prefix&quot;, args);</span>
+            }
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        } else if (tracer.isCompositeElement()) {</span>
+<span class="nc" id="L113">            String[] args = {tracer.getParentAttribute().getName(), attribute.getName()};</span>
+<span class="nc" id="L114">            return action.getText(&quot;EntityAttribute.compositeAttributeElement.errorMessage.prefix&quot;, args);</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        } else if (tracer.isListElement()) {</span>
+<span class="nc" id="L116">            String[] args = {attribute.getName(), tracer.getListLang().getDescr(), String.valueOf(tracer.getListIndex() + 1)};</span>
+<span class="nc" id="L117">            return action.getText(&quot;EntityAttribute.listAttributeElement.errorMessage.prefix&quot;, args);</span>
+        } else {
+<span class="fc" id="L119">            String[] args = {attribute.getName()};</span>
+<span class="fc" id="L120">            return action.getText(&quot;EntityAttribute.singleAttribute.errorMessage.prefix&quot;, args);</span>
+        }
+    }
+    
+	protected AttributeManagerInterface getManager(AttributeInterface attribute) {
+<span class="fc" id="L125">		String managerClassName = attribute.getAttributeManagerClassName();</span>
+        try {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">			if (null == managerClassName) return null;</span>
+<span class="fc" id="L128">            Class managerClass = Class.forName(managerClassName);</span>
+<span class="fc" id="L129">            Object managerInstance = managerClass.newInstance();</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">            if (managerInstance instanceof AbstractAttributeManager) {</span>
+<span class="fc" id="L131">				AbstractAttributeManager manager = (AbstractAttributeManager) managerInstance;</span>
+<span class="fc" id="L132">				manager.setBeanFactory(this.getBeanFactory());</span>
+<span class="fc" id="L133">				return manager;</span>
+			}
+<span class="nc" id="L135">        } catch (Throwable t) {</span>
+<span class="nc" id="L136">            String message = &quot;Error creating manager of attribute '&quot;</span>
+<span class="nc" id="L137">                    + attribute.getName() + &quot;' type '&quot; + attribute.getType() + &quot;' -  Manager class '&quot; + managerClassName + &quot;'&quot;;</span>
+<span class="nc" id="L138">            _logger.error(&quot;Error creating manager of attribute '{}', type: {} - Manager class: {}&quot;, attribute.getName(),attribute.getType(), managerClassName,  t);</span>
+<span class="nc" id="L139">            throw new RuntimeException(message, t);</span>
+<span class="nc" id="L140">        }</span>
+<span class="nc" id="L141">        return null;</span>
+    }
+	
+	@Override
+	@Deprecated
+	public EntitySearchFilter[] getSearchFilters(AbstractApsEntityFinderAction entityFinderAction, IApsEntity prototype) {
+<span class="nc" id="L147">		return this.getAttributeFilters(entityFinderAction, prototype);</span>
+	}
+	
+	@Override
+	public EntitySearchFilter[] getRoleFilters(AbstractApsEntityFinderAction entityFinderAction) {
+<span class="fc" id="L152">		EntitySearchFilter[] filters = new EntitySearchFilter[0];</span>
+<span class="fc" id="L153">		List&lt;AttributeRole&gt; attributeRoles = entityFinderAction.getAttributeRoles();</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">		if (null != attributeRoles) {</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">			for (int i = 0; i &lt; attributeRoles.size(); i++) {</span>
+<span class="fc" id="L156">				AttributeRole attributeRole = attributeRoles.get(i);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">				if (AttributeRole.FormFieldTypes.TEXT.equals(attributeRole.getFormFieldType())) {</span>
+<span class="fc" id="L158">					String insertedText = entityFinderAction.getSearchFormFieldValue(attributeRole.getName() + &quot;_textFieldName&quot;);</span>
+<span class="pc bpc" id="L159" title="1 of 4 branches missed.">					if (null != insertedText &amp;&amp; insertedText.trim().length() &gt; 0) {</span>
+<span class="fc" id="L160">						EntitySearchFilter filterToAdd = EntitySearchFilter.createRoleFilter(attributeRole.getName(), insertedText.trim(), true);</span>
+<span class="fc" id="L161">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="pc bnc" id="L163" title="All 2 branches missed.">				} else if (AttributeRole.FormFieldTypes.DATE.equals(attributeRole.getFormFieldType())) {</span>
+<span class="nc" id="L164">					Date dateStart = this.getDateSearchFormValue(entityFinderAction, attributeRole.getName(), &quot;_dateStartFieldName&quot;, true);</span>
+<span class="nc" id="L165">					Date dateEnd = this.getDateSearchFormValue(entityFinderAction, attributeRole.getName(), &quot;_dateEndFieldName&quot;, false);</span>
+<span class="nc bnc" id="L166" title="All 4 branches missed.">					if (null != dateStart || null != dateEnd) {</span>
+<span class="nc" id="L167">						EntitySearchFilter filterToAdd = EntitySearchFilter.createRoleFilter(attributeRole.getName(), dateStart, dateEnd);</span>
+<span class="nc" id="L168">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="nc bnc" id="L170" title="All 2 branches missed.">				} else if (AttributeRole.FormFieldTypes.BOOLEAN.equals(attributeRole.getFormFieldType())) {</span>
+<span class="nc" id="L171">					String booleanValue = entityFinderAction.getSearchFormFieldValue(attributeRole.getName() + &quot;_booleanFieldName&quot;);</span>
+<span class="nc bnc" id="L172" title="All 4 branches missed.">					if (null != booleanValue &amp;&amp; booleanValue.trim().length() &gt; 0) {</span>
+<span class="nc" id="L173">						EntitySearchFilter filterToAdd = EntitySearchFilter.createRoleFilter(attributeRole.getName(), booleanValue, false);</span>
+<span class="nc" id="L174">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="nc bnc" id="L176" title="All 2 branches missed.">				} else if (AttributeRole.FormFieldTypes.NUMBER.equals(attributeRole.getFormFieldType())) {</span>
+<span class="nc" id="L177">					BigDecimal numberStart = this.getNumberSearchFormValue(entityFinderAction, attributeRole.getName(), &quot;_numberStartFieldName&quot;, true);</span>
+<span class="nc" id="L178">					BigDecimal numberEnd = this.getNumberSearchFormValue(entityFinderAction, attributeRole.getName(), &quot;_numberEndFieldName&quot;, false);</span>
+<span class="nc bnc" id="L179" title="All 4 branches missed.">					if (null != numberStart || null != numberEnd) {</span>
+<span class="nc" id="L180">						EntitySearchFilter filterToAdd = EntitySearchFilter.createRoleFilter(attributeRole.getName(), numberStart, numberEnd);</span>
+<span class="nc" id="L181">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+				}
+			}
+		}
+<span class="fc" id="L186">		return filters;</span>
+	}
+	
+	@Override
+	public EntitySearchFilter[] getAttributeFilters(AbstractApsEntityFinderAction entityFinderAction, IApsEntity prototype) {
+<span class="fc" id="L191">		EntitySearchFilter[] filters = new EntitySearchFilter[0];</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">		if (null == prototype) {</span>
+<span class="nc" id="L193">			return filters;</span>
+		}
+<span class="fc" id="L195">		List&lt;AttributeInterface&gt; contentAttributes = prototype.getAttributeList();</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">		for (int i = 0; i &lt; contentAttributes.size(); i++) {</span>
+<span class="fc" id="L197">			AttributeInterface attribute = contentAttributes.get(i);</span>
+<span class="pc bpc" id="L198" title="1 of 4 branches missed.">			if (attribute.isActive() &amp;&amp; attribute.isSearcheable()) {</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">				if (attribute instanceof ITextAttribute) {</span>
+<span class="fc" id="L200">					String insertedText = entityFinderAction.getSearchFormFieldValue(attribute.getName() + &quot;_textFieldName&quot;);</span>
+<span class="pc bpc" id="L201" title="1 of 4 branches missed.">					if (null != insertedText &amp;&amp; insertedText.trim().length() &gt; 0) {</span>
+<span class="fc" id="L202">						EntitySearchFilter filterToAdd = new EntitySearchFilter(attribute.getName(), true, insertedText.trim(), true);</span>
+<span class="fc" id="L203">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="fc bfc" id="L205" title="All 2 branches covered.">				} else if (attribute instanceof DateAttribute) {</span>
+<span class="fc" id="L206">					Date dateStart = this.getDateSearchFormValue(entityFinderAction, attribute.getName(), &quot;_dateStartFieldName&quot;, true);</span>
+<span class="fc" id="L207">					Date dateEnd = this.getDateSearchFormValue(entityFinderAction, attribute.getName(), &quot;_dateEndFieldName&quot;, false);</span>
+<span class="pc bpc" id="L208" title="1 of 4 branches missed.">					if (null != dateStart || null != dateEnd) {</span>
+<span class="fc" id="L209">						EntitySearchFilter filterToAdd = new EntitySearchFilter(attribute.getName(), true, dateStart, dateEnd);</span>
+<span class="fc" id="L210">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">				} else if (attribute instanceof BooleanAttribute) {</span>
+<span class="fc" id="L213">					String booleanValue = entityFinderAction.getSearchFormFieldValue(attribute.getName() + &quot;_booleanFieldName&quot;);</span>
+<span class="pc bpc" id="L214" title="3 of 4 branches missed.">					if (null != booleanValue &amp;&amp; booleanValue.trim().length() &gt; 0) {</span>
+<span class="nc" id="L215">						EntitySearchFilter filterToAdd = new EntitySearchFilter(attribute.getName(), true, booleanValue, false);</span>
+<span class="nc" id="L216">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+<span class="pc bnc" id="L218" title="All 2 branches missed.">				} else if (attribute instanceof NumberAttribute) {</span>
+<span class="nc" id="L219">					BigDecimal numberStart = this.getNumberSearchFormValue(entityFinderAction, attribute.getName(), &quot;_numberStartFieldName&quot;, true);</span>
+<span class="nc" id="L220">					BigDecimal numberEnd = this.getNumberSearchFormValue(entityFinderAction, attribute.getName(), &quot;_numberEndFieldName&quot;, false);</span>
+<span class="nc bnc" id="L221" title="All 4 branches missed.">					if (null != numberStart || null != numberEnd) {</span>
+<span class="nc" id="L222">						EntitySearchFilter filterToAdd = new EntitySearchFilter(attribute.getName(), true, numberStart, numberEnd);</span>
+<span class="nc" id="L223">						filters = this.addFilter(filters, filterToAdd);</span>
+					}
+				}
+			}
+		}
+<span class="fc" id="L228">		return filters;</span>
+	}
+
+	@Override
+	public String[] getAttributeFilterFieldName(ApsEntity prototype, String attrName) {
+<span class="nc" id="L233">		AbstractAttribute attr = (AbstractAttribute) prototype.getAttribute(attrName);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">		if (attr.isTextAttribute()) {</span>
+<span class="nc" id="L235">			return new String[] {attrName + &quot;_textFieldName&quot;};</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">		} else if (attr instanceof DateAttribute) {</span>
+<span class="nc" id="L237">			return new String[] {attrName + &quot;_dateStartFieldName&quot;, attrName + &quot;_dateEndFieldName&quot;};</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">		} else if (attr instanceof NumberAttribute) {</span>
+<span class="nc" id="L239">			return new String[] {attrName + &quot;_numberStartFieldName&quot;, attrName + &quot;_numberEndFieldName&quot;};</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">		} else if (attr instanceof BooleanAttribute) {</span>
+<span class="nc" id="L241">			return new String[] {attrName + &quot;_booleanFieldName&quot;};</span>
+		}
+<span class="nc" id="L243">		return null;</span>
+	}
+	
+    private Date getDateSearchFormValue(AbstractApsEntityFinderAction entityFinderAction,
+            String fieldName, String dateFieldNameSuffix, boolean start) {
+<span class="fc" id="L248">        String inputFormName = fieldName + dateFieldNameSuffix;</span>
+<span class="fc" id="L249">        String insertedDate = entityFinderAction.getSearchFormFieldValue(inputFormName);</span>
+<span class="fc" id="L250">        Date date = null;</span>
+<span class="pc bpc" id="L251" title="1 of 4 branches missed.">        if (insertedDate != null &amp;&amp; insertedDate.trim().length() &gt; 0) {</span>
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">            if (CheckFormatUtil.isValidDate(insertedDate.trim())) {</span>
+<span class="fc" id="L253">                date = DateConverter.parseDate(insertedDate.trim(), EntitySearchFilter.DATE_PATTERN);</span>
+            } else {
+<span class="nc" id="L255">                String[] args = {fieldName};</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">                if (start) {</span>
+<span class="nc" id="L257">                    entityFinderAction.addFieldError(inputFormName, entityFinderAction.getText(&quot;error.attribute.startDate.invalid&quot;, args));</span>
+                } else {
+<span class="nc" id="L259">                    entityFinderAction.addFieldError(inputFormName, entityFinderAction.getText(&quot;error.attribute.endDate.invalid&quot;, args));</span>
+                }
+            }
+        }
+<span class="fc" id="L263">        return date;</span>
+    }
+
+    private BigDecimal getNumberSearchFormValue(AbstractApsEntityFinderAction entityFinderAction,
+            String fieldName, String numberFieldNameSuffix, boolean start) {
+<span class="nc" id="L268">        String inputFormName = fieldName + numberFieldNameSuffix;</span>
+<span class="nc" id="L269">        String insertedNumberString = entityFinderAction.getSearchFormFieldValue(inputFormName);</span>
+<span class="nc" id="L270">        BigDecimal bigdecimal = null;</span>
+<span class="nc bnc" id="L271" title="All 4 branches missed.">        if (insertedNumberString != null &amp;&amp; insertedNumberString.trim().length() &gt; 0) {</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            if (CheckFormatUtil.isValidNumber(insertedNumberString.trim())) {</span>
+<span class="nc" id="L273">                bigdecimal = new BigDecimal(Integer.parseInt(insertedNumberString.trim()));</span>
+            } else {
+<span class="nc" id="L275">                String[] args = {fieldName};</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">                if (start) {</span>
+<span class="nc" id="L277">                    entityFinderAction.addFieldError(inputFormName, entityFinderAction.getText(&quot;error.attribute.startNumber.invalid&quot;, args));</span>
+                } else {
+<span class="nc" id="L279">                    entityFinderAction.addFieldError(inputFormName, entityFinderAction.getText(&quot;error.attribute.endNumber.invalid&quot;, args));</span>
+                }
+            }
+        }
+<span class="nc" id="L283">        return bigdecimal;</span>
+    }
+	
+    private EntitySearchFilter[] addFilter(EntitySearchFilter[] filters, EntitySearchFilter filterToAdd) {
+<span class="fc" id="L287">        int len = filters.length;</span>
+<span class="fc" id="L288">        EntitySearchFilter[] newFilters = new EntitySearchFilter[len + 1];</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L290">            newFilters[i] = filters[i];</span>
+        }
+<span class="fc" id="L292">        newFilters[len] = filterToAdd;</span>
+<span class="fc" id="L293">        return newFilters;</span>
+    }
+    
+	protected BeanFactory getBeanFactory() {
+<span class="fc" id="L297">		return _beanFactory;</span>
+	}
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+<span class="fc" id="L301">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L302">	}</span>
+	
+	private BeanFactory _beanFactory;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

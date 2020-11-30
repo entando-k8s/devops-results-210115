@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseAdminAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.admin</a> &gt; <span class="el_source">BaseAdminAction.java</span></div><h1>BaseAdminAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.admin;
+
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.event.ReloadingEntitiesReferencesEvent;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.baseconfig.SystemParamsUtils;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.BaseAction;
+
+/**
+ * This base action implements the default actions available for the system
+ * administration.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L42">public class BaseAdminAction extends BaseAction {</span>
+
+<span class="fc" id="L44">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(BaseAdminAction.class);</span>
+
+    /**
+     * Reload the system configuration.
+     *
+     * @return the result code.
+     */
+    public String reloadConfig() {
+        try {
+<span class="fc" id="L53">            ApsWebApplicationUtils.executeSystemRefresh(this.getRequest());</span>
+<span class="fc" id="L54">            logger.info(&quot;Reload config started&quot;);</span>
+<span class="fc" id="L55">            this.setReloadingResult(SUCCESS_RELOADING_RESULT_CODE);</span>
+<span class="nc" id="L56">        } catch (Throwable t) {</span>
+<span class="nc" id="L57">            logger.error(&quot;error in reloadConfig&quot;, t);</span>
+<span class="nc" id="L58">            this.setReloadingResult(FAILURE_RELOADING_RESULT_CODE);</span>
+<span class="fc" id="L59">        }</span>
+<span class="fc" id="L60">        return SUCCESS;</span>
+    }
+
+    /**
+     * Reload the references of all the existing entities.
+     *
+     * @return the result code.
+     */
+    public String reloadEntitiesReferences() {
+        try {
+<span class="fc" id="L70">            ReloadingEntitiesReferencesEvent event = new ReloadingEntitiesReferencesEvent();</span>
+<span class="fc" id="L71">            WebApplicationContext wac = ApsWebApplicationUtils.getWebApplicationContext(this.getRequest());</span>
+<span class="fc" id="L72">            wac.publishEvent(event);</span>
+<span class="fc" id="L73">            logger.info(&quot;Reloading entity references started&quot;);</span>
+<span class="nc" id="L74">        } catch (Throwable t) {</span>
+<span class="nc" id="L75">            logger.error(&quot;error in reloadEntitiesReferences&quot;, t);</span>
+<span class="nc" id="L76">            return FAILURE;</span>
+<span class="fc" id="L77">        }</span>
+<span class="fc" id="L78">        return SUCCESS;</span>
+    }
+
+    public int getReloadingResult() {
+<span class="fc" id="L82">        return _reloadingResult;</span>
+    }
+
+    public void setReloadingResult(int reloadingResult) {
+<span class="fc" id="L86">        this._reloadingResult = reloadingResult;</span>
+<span class="fc" id="L87">    }</span>
+
+    /**
+     * Get the system parameters in order to edit them.
+     *
+     * @return the result code.
+     */
+    public String configSystemParams() {
+        try {
+<span class="fc" id="L96">            this.initLocalMap();</span>
+<span class="nc" id="L97">        } catch (Throwable t) {</span>
+<span class="nc" id="L98">            logger.error(&quot;error in configSystemParams&quot;, t);</span>
+<span class="nc" id="L99">            return FAILURE;</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc" id="L101">        return SUCCESS;</span>
+    }
+
+    /**
+     * Update the system params.
+     *
+     * @return the result code.
+     */
+    public String updateSystemParams() {
+<span class="fc" id="L110">        return this.updateSystemParams(false);</span>
+    }
+
+    public String updateSystemParamsForAjax() {
+<span class="nc" id="L114">        return this.updateSystemParams(true);</span>
+    }
+
+    protected String updateSystemParams(boolean keepOldParam) {
+        try {
+<span class="fc" id="L119">            this.initLocalMap();</span>
+<span class="fc" id="L120">            this.updateLocalParams(keepOldParam);</span>
+<span class="fc" id="L121">            this.extractExtraParameters();</span>
+<span class="fc" id="L122">            String xmlParams = this.getConfigParameter();</span>
+<span class="fc" id="L123">            String newXmlParams = SystemParamsUtils.getNewXmlParams(xmlParams, this.getSystemParams());</span>
+<span class="fc" id="L124">            this.getConfigManager().updateConfigItem(SystemConstants.CONFIG_ITEM_PARAMS, newXmlParams);</span>
+<span class="fc" id="L125">            this.addActionMessage(this.getText(&quot;message.configSystemParams.ok&quot;));</span>
+<span class="nc" id="L126">        } catch (Throwable t) {</span>
+<span class="nc" id="L127">            logger.error(&quot;error in updateSystemParams&quot;, t);</span>
+<span class="nc" id="L128">            return FAILURE;</span>
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">        return SUCCESS;</span>
+    }
+
+    protected void initLocalMap() throws Throwable {
+<span class="fc" id="L134">        String xmlParams = this.getConfigParameter();</span>
+<span class="fc" id="L135">        Map&lt;String, String&gt; systemParams = SystemParamsUtils.getParams(xmlParams);</span>
+<span class="fc" id="L136">        this.setSystemParams(systemParams);</span>
+<span class="fc" id="L137">    }</span>
+
+    protected String getConfigParameter() {
+<span class="fc" id="L140">        return this.getConfigManager().getConfigItem(SystemConstants.CONFIG_ITEM_PARAMS);</span>
+    }
+
+    /**
+     * Refresh the map of parameters with values fetched from the request
+     *
+     * @param keepOldParam when true, when a system parameter is not found in
+     * request, the previous system parameter will be stored
+     */
+    protected void updateLocalParams(boolean keepOldParam) {
+<span class="fc" id="L150">        Iterator&lt;String&gt; paramNames = this.getSystemParams().keySet().iterator();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        while (paramNames.hasNext()) {</span>
+<span class="fc" id="L152">            String paramName = (String) paramNames.next();</span>
+<span class="fc" id="L153">            String newValue = this.getRequest().getParameter(paramName);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">            if (null != newValue) {</span>
+<span class="fc" id="L155">                this.getSystemParams().put(paramName, newValue);</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">            } else if (!keepOldParam) {</span>
+<span class="fc" id="L157">                this.getSystemParams().put(paramName, &quot;false&quot;);</span>
+            }
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">    }</span>
+
+    public void extractExtraParameters() {
+        try {
+<span class="fc" id="L164">            Enumeration&lt;String&gt; parameterNames = this.getRequest().getParameterNames();</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            while (parameterNames.hasMoreElements()) {</span>
+<span class="fc" id="L166">                String paramName = parameterNames.nextElement();</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                if (paramName.endsWith(this.getExternalParamMarker())) {</span>
+<span class="fc" id="L168">                    String newParamName = paramName.substring(0, paramName.indexOf(this.getExternalParamMarker()));</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">                    if (null == this.getSystemParams().get(newParamName)) {</span>
+<span class="fc" id="L170">                        String newParamValue = this.getRequest().getParameter(newParamName);</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">                        if (null != newParamValue) {</span>
+<span class="fc" id="L172">                            this.getSystemParams().put(newParamName, newParamValue);</span>
+                        }
+                    }
+                }
+<span class="fc" id="L176">            }</span>
+<span class="nc" id="L177">        } catch (Exception e) {</span>
+<span class="nc" id="L178">            logger.error(&quot;Error extracting extra parameters&quot;, e);</span>
+<span class="fc" id="L179">        }</span>
+<span class="fc" id="L180">    }</span>
+
+    /**
+     * Return a plain list of the free pages in the portal.
+     *
+     * @return the list of the free pages of the portal.
+     */
+    public List&lt;IPage&gt; getFreePages() {
+<span class="nc" id="L188">        IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="nc" id="L189">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L190">        this.addFreePublicPages(root, pages);</span>
+<span class="nc" id="L191">        return pages;</span>
+    }
+
+    private void addFreePublicPages(IPage page, List&lt;IPage&gt; pages) {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L196">            return;</span>
+        }
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if (page.getGroup().equals(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L199">            pages.add(page);</span>
+        }
+<span class="nc" id="L201">        String[] children = page.getChildrenCodes();</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">        for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="nc" id="L203">            IPage child = this.getPageManager().getOnlinePage(children[i]);</span>
+<span class="nc" id="L204">            this.addFreePublicPages(child, pages);</span>
+        }
+<span class="nc" id="L206">    }</span>
+
+    protected ConfigInterface getConfigManager() {
+<span class="fc" id="L209">        return _configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L213">        this._configManager = configManager;</span>
+<span class="fc" id="L214">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="nc" id="L217">        return _pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L221">        this._pageManager = pageManager;</span>
+<span class="fc" id="L222">    }</span>
+
+    public Map&lt;String, String&gt; getSystemParams() {
+<span class="fc" id="L225">        return _systemParams;</span>
+    }
+
+    public void setSystemParams(Map&lt;String, String&gt; systemParams) {
+<span class="fc" id="L229">        this._systemParams = systemParams;</span>
+<span class="fc" id="L230">    }</span>
+
+    public String getExternalParamMarker() {
+<span class="fc" id="L233">        return &quot;_newParamMarker&quot;;</span>
+    }
+
+    private ConfigInterface _configManager;
+    private IPageManager _pageManager;
+
+    private Map&lt;String, String&gt; _systemParams;
+
+<span class="fc" id="L241">    private int _reloadingResult = -1;</span>
+
+    public static final int FAILURE_RELOADING_RESULT_CODE = 0;
+    public static final int SUCCESS_RELOADING_RESULT_CODE = 1;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

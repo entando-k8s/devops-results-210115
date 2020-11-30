@@ -1,0 +1,661 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiServiceAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.api</a> &gt; <span class="el_source">ApiServiceAction.java</span></div><h1>ApiServiceAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.api;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiMethodParameter;
+import org.entando.entando.aps.system.services.api.model.ApiMethodRelatedWidget;
+import org.entando.entando.aps.system.services.api.model.ApiService;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L42">public class ApiServiceAction extends AbstractApiAction {</span>
+
+<span class="nc" id="L44">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiServiceAction.class);</span>
+
+	@Override
+	public void validate() {
+<span class="nc" id="L48">		super.validate();</span>
+		try {
+<span class="nc" id="L50">			this.checkMasterMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc" id="L51">			this.checkCode();</span>
+<span class="nc" id="L52">			this.checkDescriptions();</span>
+<span class="nc" id="L53">			this.checkParameters();</span>
+<span class="nc" id="L54">		} catch (Throwable t) {</span>
+<span class="nc" id="L55">			_logger.error(&quot;Error validating service&quot;, t);</span>
+<span class="nc" id="L56">			throw new RuntimeException(&quot;Error validating service&quot;, t);</span>
+<span class="nc" id="L57">		}</span>
+<span class="nc" id="L58">	}</span>
+
+	private void checkDescriptions() {
+<span class="nc" id="L61">		this.setDescriptions(new ApsProperties());</span>
+<span class="nc" id="L62">		Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">		while (langsIter.hasNext()) {</span>
+<span class="nc" id="L64">			Lang lang = (Lang) langsIter.next();</span>
+<span class="nc" id="L65">			String titleKey = &quot;lang_&quot; + lang.getCode();</span>
+<span class="nc" id="L66">			String title = this.getRequest().getParameter(titleKey);</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">			if (null == title || title.trim().length() == 0) {</span>
+<span class="nc" id="L68">				String[] args = {lang.getDescr()};</span>
+<span class="nc" id="L69">				this.addFieldError(titleKey, this.getText(&quot;error.service.new.insertDescription&quot;, args));</span>
+<span class="nc" id="L70">			} else {</span>
+<span class="nc" id="L71">				this.getDescriptions().put(lang.getCode(), title.trim());</span>
+			}
+<span class="nc" id="L73">		}</span>
+<span class="nc" id="L74">	}</span>
+
+	private void checkCode() {
+<span class="nc" id="L77">		String key = this.getServiceKey();</span>
+		try {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			if ((this.getStrutsAction() == ApsAdminSystemConstants.ADD</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">					|| this.getStrutsAction() == ApsAdminSystemConstants.PASTE)</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">					&amp;&amp; null != key &amp;&amp; key.trim().length() &gt; 0) {</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">				if (null != this.getApiCatalogManager().getApiService(key)) {</span>
+<span class="nc" id="L83">					String[] args = {key};</span>
+<span class="nc" id="L84">					this.addFieldError(&quot;serviceKey&quot;, this.getText(&quot;error.service.new.duplicateKey&quot;, args));</span>
+				}
+			}
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			_logger.error(&quot;Error checking service key&quot;, t);</span>
+<span class="nc" id="L89">			throw new RuntimeException(&quot;Error checking service key&quot;, t);</span>
+<span class="nc" id="L90">		}</span>
+<span class="nc" id="L91">	}</span>
+
+	private void checkParameters() {
+		try {
+<span class="nc" id="L95">			this.setApiParameterValues(new ApsProperties());</span>
+<span class="nc" id="L96">			ApiMethod masterMethod = this.getMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc" id="L97">			List&lt;ApiMethodParameter&gt; apiParameters = masterMethod.getParameters();</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">			if (null == apiParameters) {</span>
+<span class="nc" id="L99">				return;</span>
+			}
+<span class="nc" id="L101">			this.extractFreeParameters(apiParameters);</span>
+<span class="nc" id="L102">			this.setApiParameters(apiParameters);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			for (int i = 0; i &lt; apiParameters.size(); i++) {</span>
+<span class="nc" id="L104">				ApiMethodParameter apiParameter = apiParameters.get(i);</span>
+<span class="nc" id="L105">				String fieldName = apiParameter.getKey() + &quot;_apiParam&quot;;</span>
+<span class="nc" id="L106">				String value = this.getRequest().getParameter(fieldName);</span>
+<span class="nc bnc" id="L107" title="All 4 branches missed.">				if (null != value &amp;&amp; value.trim().length() &gt; 0) {</span>
+<span class="nc" id="L108">					this.getApiParameterValues().put(apiParameter.getKey(), value);</span>
+				}
+<span class="nc bnc" id="L110" title="All 2 branches missed.">				boolean isFreeParameter = (null != this.getFreeParameters()) ? this.getFreeParameters().contains(apiParameter.getKey()) : false;</span>
+<span class="nc bnc" id="L111" title="All 8 branches missed.">				if (apiParameter.isRequired() &amp;&amp; (null == value || value.trim().length() == 0) &amp;&amp; !isFreeParameter) {</span>
+<span class="nc" id="L112">					this.addFieldError(fieldName, this.getText(&quot;error.service.parameter.invalidSetting&quot;, new String[]{apiParameter.getKey(), apiParameter.getDescription()}));</span>
+				}
+			}
+<span class="nc" id="L115">		} catch (Throwable t) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;Error checking parameters&quot;, t);</span>
+<span class="nc" id="L117">			throw new RuntimeException(&quot;Error checking parameters&quot;, t);</span>
+<span class="nc" id="L118">		}</span>
+<span class="nc" id="L119">	}</span>
+
+	private void extractFreeParameters(List&lt;ApiMethodParameter&gt; apiParameters) {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">		if (null == apiParameters) {</span>
+<span class="nc" id="L123">			return;</span>
+		}
+<span class="nc bnc" id="L125" title="All 2 branches missed.">		for (int i = 0; i &lt; apiParameters.size(); i++) {</span>
+<span class="nc" id="L126">			ApiMethodParameter apiMethodParameter = apiParameters.get(i);</span>
+<span class="nc" id="L127">			String requestParamName = &quot;freeParameter_&quot; + apiMethodParameter.getKey();</span>
+<span class="nc" id="L128">			String value = this.getRequest().getParameter(requestParamName);</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">			if (null != value &amp;&amp; Boolean.parseBoolean(value)) {</span>
+<span class="nc" id="L130">				this.getFreeParameters().add(apiMethodParameter.getKey());</span>
+			}
+		}
+<span class="nc" id="L133">	}</span>
+
+	/**
+	 * Create of new api service.
+	 *
+	 * @return The result code.
+	 */
+	public String newService() {
+		try {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">			if (null != this.getResourceCode()) {</span>
+<span class="nc" id="L143">				String[] sections = this.getResourceCode().split(&quot;:&quot;);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">				if (sections.length == 2) {</span>
+<span class="nc" id="L145">					this.setNamespace(sections[0]);</span>
+<span class="nc" id="L146">					this.setResourceName(sections[1]);</span>
+				} else {
+<span class="nc" id="L148">					this.setResourceName(sections[0]);</span>
+				}
+			}
+<span class="nc" id="L151">			String check = this.checkMasterMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L153">				return check;</span>
+			}
+<span class="nc" id="L155">			ApiMethod masterMethod = this.getMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc bnc" id="L156" title="All 4 branches missed.">			if (null != this.getWidgetTypeCode() &amp;&amp; null != masterMethod.getRelatedWidget()) {</span>
+<span class="nc" id="L157">				WidgetType type = this.getWidgetTypeManager().getWidgetType(this.getWidgetTypeCode());</span>
+<span class="nc bnc" id="L158" title="All 4 branches missed.">				if (null != type &amp;&amp; type.isLogic()) {</span>
+<span class="nc" id="L159">					ApsProperties parameters</span>
+<span class="nc" id="L160">							= this.extractParametersFromWidgetProperties(masterMethod.getRelatedWidget(), type.getConfig());</span>
+<span class="nc" id="L161">					this.setApiParameterValues(parameters);</span>
+				}
+			}
+<span class="nc" id="L164">			this.setApiParameters(masterMethod.getParameters());</span>
+<span class="nc" id="L165">			this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="nc" id="L166">			this.setServiceKey(this.buildTempKey(masterMethod.getResourceName()));</span>
+<span class="nc" id="L167">		} catch (Throwable t) {</span>
+<span class="nc" id="L168">			_logger.error(&quot;error in newService&quot;, t);</span>
+<span class="nc" id="L169">			return FAILURE;</span>
+<span class="nc" id="L170">		}</span>
+<span class="nc" id="L171">		return SUCCESS;</span>
+	}
+
+	public ApiMethod getMethod(String namespace, String resourceName) {
+		try {
+<span class="nc" id="L176">			return this.getApiCatalogManager().getMethod(ApiMethod.HttpMethod.GET, namespace, resourceName);</span>
+<span class="nc" id="L177">		} catch (Throwable t) {</span>
+<span class="nc" id="L178">			_logger.error(&quot;Error extracting GET method of resource '{}' namespace '{}'&quot;, resourceName, namespace, t);</span>
+		}
+<span class="nc" id="L180">		return null;</span>
+	}
+
+	public List&lt;Lang&gt; getSystemLangs() {
+<span class="nc" id="L184">		return this.getLangManager().getLangs();</span>
+	}
+
+	/**
+	 * @deprecated Use {@link #copyFromWidget()} instead
+	 */
+	public String copyFromShowlet() {
+<span class="nc" id="L191">		return copyFromWidget();</span>
+	}
+
+	/**
+	 * Copy an exist widget (physic and with parameters, joined with a exist api
+	 * method) and value the form of creation of new api service.
+	 *
+	 * @return The result code.
+	 */
+	public String copyFromWidget() {
+		try {
+<span class="nc" id="L202">			String check = this.checkMasterMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L204">				return check;</span>
+			}
+<span class="nc" id="L206">			ApiMethod masterMethod = this.getMethod(this.getNamespace(), this.getResourceName());</span>
+			// TODO Verify if DRAFT/ONLINE
+<span class="nc" id="L208">			IPage page = this.getPageManager().getOnlinePage(this.getPageCode());</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">			if (null == page) {</span>
+<span class="nc" id="L210">				this.addFieldError(&quot;pageCode&quot;, this.getText(&quot;error.service.paste.invalidPageCode&quot;, new String[]{this.getPageCode()}));</span>
+<span class="nc" id="L211">				return INPUT;</span>
+			}
+<span class="nc" id="L213">			Widget[] widgets = page.getWidgets();</span>
+<span class="nc bnc" id="L214" title="All 6 branches missed.">			if (null == this.getFramePos() || this.getFramePos() &gt; widgets.length || null == widgets[this.getFramePos()]) {</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">				String framePosString = (null != this.getFramePos()) ? this.getFramePos().toString() : &quot;null&quot;;</span>
+<span class="nc" id="L216">				this.addFieldError(&quot;framePos&quot;, this.getText(&quot;error.service.paste.invalidFramePos&quot;, new String[]{this.getPageCode(), framePosString}));</span>
+<span class="nc" id="L217">				return INPUT;</span>
+			}
+<span class="nc" id="L219">			Widget masterWidget = widgets[this.getFramePos()];</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">			WidgetType type = (masterWidget.getType().isLogic()) ? masterWidget.getType().getParentType() : masterWidget.getType();</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">			if (null == masterMethod.getRelatedWidget()</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">					|| !masterMethod.getRelatedWidget().getWidgetCode().equals(type.getCode())) {</span>
+<span class="nc" id="L223">				this.addFieldError(&quot;framePos&quot;, this.getText(&quot;error.service.paste.invalidWidget&quot;,</span>
+<span class="nc" id="L224">						new String[]{masterWidget.getType().getCode(), masterMethod.getResourceName()}));</span>
+<span class="nc" id="L225">				return INPUT;</span>
+			}
+<span class="nc" id="L227">			ApsProperties parameters = this.extractParametersFromWidget(masterMethod.getRelatedWidget(), masterWidget);</span>
+<span class="nc" id="L228">			this.setApiParameterValues(parameters);</span>
+<span class="nc" id="L229">			this.setApiParameters(masterMethod.getParameters());</span>
+<span class="nc" id="L230">			this.setStrutsAction(ApsAdminSystemConstants.PASTE);</span>
+<span class="nc" id="L231">			this.setServiceKey(this.buildTempKey(masterMethod.getResourceName()));</span>
+<span class="nc" id="L232">		} catch (Throwable t) {</span>
+<span class="nc" id="L233">			_logger.error(&quot;error in copyFromWidget&quot;, t);</span>
+<span class="nc" id="L234">			return FAILURE;</span>
+<span class="nc" id="L235">		}</span>
+<span class="nc" id="L236">		return SUCCESS;</span>
+	}
+
+	private ApsProperties extractParametersFromWidget(ApiMethodRelatedWidget relatedWidget, Widget masterWidget) {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">		ApsProperties showletProperties = (masterWidget.getType().isLogic())</span>
+<span class="nc" id="L241">				? masterWidget.getType().getConfig() : masterWidget.getConfig();</span>
+<span class="nc" id="L242">		return this.extractParametersFromWidgetProperties(relatedWidget, showletProperties);</span>
+	}
+
+	private ApsProperties extractParametersFromWidgetProperties(ApiMethodRelatedWidget relatedWidget, ApsProperties widgetProperties) {
+<span class="nc" id="L246">		ApsProperties parameters = new ApsProperties();</span>
+<span class="nc" id="L247">		ApsProperties mapping = relatedWidget.getMapping();</span>
+<span class="nc bnc" id="L248" title="All 4 branches missed.">		if (null != widgetProperties &amp;&amp; null != mapping) {</span>
+<span class="nc" id="L249">			Iterator&lt;Object&gt; keyIter = widgetProperties.keySet().iterator();</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">			while (keyIter.hasNext()) {</span>
+<span class="nc" id="L251">				Object key = keyIter.next();</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">				if (null != mapping.get(key)) {</span>
+<span class="nc" id="L253">					parameters.put(mapping.get(key), widgetProperties.get(key));</span>
+				}
+<span class="nc" id="L255">			}</span>
+		}
+<span class="nc" id="L257">		return parameters;</span>
+	}
+
+	private String buildTempKey(String masterMethodName) throws Throwable {
+<span class="nc" id="L261">		int index = 0;</span>
+<span class="nc" id="L262">		String currentCode = null;</span>
+		do {
+<span class="nc" id="L264">			index++;</span>
+<span class="nc" id="L265">			currentCode = masterMethodName + &quot;_&quot; + index;</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">		} while (null != this.getApiService(currentCode));</span>
+<span class="nc" id="L267">		return currentCode;</span>
+	}
+
+	/**
+	 * Edit an exist api service.
+	 *
+	 * @return The result code.
+	 */
+	public String edit() {
+		try {
+<span class="nc" id="L277">			String check = this.checkService();</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L279">				return check;</span>
+			}
+<span class="nc" id="L281">			ApiService apiService = this.getApiService(this.getServiceKey());</span>
+<span class="nc" id="L282">			this.setApiParameters(apiService.getMaster().getParameters());</span>
+<span class="nc" id="L283">			this.setResourceName(apiService.getMaster().getResourceName());</span>
+<span class="nc" id="L284">			this.setNamespace(apiService.getMaster().getNamespace());</span>
+<span class="nc" id="L285">			this.setApiParameterValues(apiService.getParameters());</span>
+<span class="nc" id="L286">			this.setDescriptions(apiService.getDescription());</span>
+<span class="nc" id="L287">			this.setHiddenService(apiService.isHidden());</span>
+<span class="nc" id="L288">			this.setActiveService(apiService.isActive());</span>
+			//this.setMyEntandoService(apiService.isMyEntando());
+<span class="nc" id="L290">			this.setServiceKey(apiService.getKey());</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			if (null != apiService.getFreeParameters()) {</span>
+<span class="nc" id="L292">				List&lt;String&gt; freeParams = Arrays.asList(apiService.getFreeParameters());</span>
+<span class="nc" id="L293">				this.setFreeParameters(freeParams);</span>
+			}
+<span class="nc" id="L295">			this.setTag(apiService.getTag());</span>
+<span class="nc" id="L296">			this.setRequiredAuth(apiService.getRequiredAuth());</span>
+<span class="nc" id="L297">			this.setRequiredGroup(apiService.getRequiredGroup());</span>
+<span class="nc" id="L298">			this.setRequiredPermission(apiService.getRequiredPermission());</span>
+<span class="nc" id="L299">			this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="nc" id="L300">		} catch (Throwable t) {</span>
+<span class="nc" id="L301">			_logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L302">			return FAILURE;</span>
+<span class="nc" id="L303">		}</span>
+<span class="nc" id="L304">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Save an api service.
+	 *
+	 * @return The result code.
+	 */
+	public String save() {
+		try {
+<span class="nc" id="L314">			String key = this.getServiceKey().trim();</span>
+<span class="nc" id="L315">			ApiMethod masterMethod = this.getMethod(this.getNamespace(), this.getResourceName());</span>
+<span class="nc" id="L316">			String[] freeParams = null;</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">			if (null != this.getFreeParameters()) {</span>
+<span class="nc" id="L318">				freeParams = new String[this.getFreeParameters().size()];</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">				for (int i = 0; i &lt; this.getFreeParameters().size(); i++) {</span>
+<span class="nc" id="L320">					freeParams[i] = this.getFreeParameters().get(i);</span>
+				}
+			}
+<span class="nc" id="L323">			ApiService service = new ApiService(key, this.getDescriptions(), masterMethod, this.getApiParameterValues(),</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">					freeParams, this.getTag(), !this.isHiddenService(), this.isActiveService()/*, this.isMyEntandoService()*/);</span>
+<span class="nc" id="L325">			service.setRequiredAuth(this.getRequiredAuth());</span>
+<span class="nc bnc" id="L326" title="All 4 branches missed.">			if (null != this.getRequiredGroup() &amp;&amp; this.getRequiredGroup().trim().length() &gt; 0) {</span>
+<span class="nc" id="L327">				service.setRequiredGroup(this.getRequiredGroup());</span>
+			}
+<span class="nc bnc" id="L329" title="All 4 branches missed.">			if (null != this.getRequiredPermission() &amp;&amp; this.getRequiredPermission().trim().length() &gt; 0) {</span>
+<span class="nc" id="L330">				service.setRequiredPermission(this.getRequiredPermission());</span>
+			}
+<span class="nc" id="L332">			this.getApiCatalogManager().saveService(service);</span>
+<span class="nc" id="L333">		} catch (Throwable t) {</span>
+<span class="nc" id="L334">			_logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L335">			return FAILURE;</span>
+<span class="nc" id="L336">		}</span>
+<span class="nc" id="L337">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Start the deletion operations for the given api service.
+	 *
+	 * @return The result code.
+	 */
+	public String trash() {
+		try {
+<span class="nc" id="L347">			String check = this.checkService();</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L349">				return check;</span>
+			}
+<span class="nc" id="L351">		} catch (Throwable t) {</span>
+<span class="nc" id="L352">			_logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L353">			return FAILURE;</span>
+<span class="nc" id="L354">		}</span>
+<span class="nc" id="L355">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Delete an api service from the system.
+	 *
+	 * @return The result code.
+	 */
+	public String delete() {
+		try {
+<span class="nc" id="L365">			String check = this.checkService();</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">			if (null != check) {</span>
+<span class="nc" id="L367">				return check;</span>
+			}
+<span class="nc" id="L369">			this.getApiCatalogManager().deleteService(this.getServiceKey());</span>
+<span class="nc" id="L370">		} catch (Throwable t) {</span>
+<span class="nc" id="L371">			_logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L372">			return FAILURE;</span>
+<span class="nc" id="L373">		}</span>
+<span class="nc" id="L374">		return SUCCESS;</span>
+	}
+
+	protected String checkMasterMethod(String namespace, String resourceName) throws Throwable {
+<span class="nc bnc" id="L378" title="All 2 branches missed.">		if (resourceName == null) {</span>
+<span class="nc" id="L379">			this.addActionError(this.getText(&quot;error.service.new.masterApiMethod.required&quot;));</span>
+<span class="nc" id="L380">			return INPUT;</span>
+		}
+<span class="nc" id="L382">		ApiMethod masterMethod = this.getMethod(namespace, resourceName);</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">		if (masterMethod == null) {</span>
+<span class="nc" id="L384">			this.addActionError(this.getText(&quot;error.service.new.masterApiMethod.invalid&quot;));</span>
+<span class="nc" id="L385">			return INPUT;</span>
+		}
+<span class="nc bnc" id="L387" title="All 2 branches missed.">		if (!masterMethod.isCanSpawnOthers()) {</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">			if (null != namespace) {</span>
+<span class="nc" id="L389">				String[] args = {masterMethod.getResourceName(), masterMethod.getNamespace()};</span>
+<span class="nc" id="L390">				this.addActionError(this.getText(&quot;error.service.new.masterApiMethod.unspawnable2&quot;, args));</span>
+<span class="nc" id="L391">			} else {</span>
+<span class="nc" id="L392">				String[] args = {masterMethod.getResourceName()};</span>
+<span class="nc" id="L393">				this.addActionError(this.getText(&quot;error.service.new.masterApiMethod.unspawnable&quot;, args));</span>
+			}
+<span class="nc" id="L395">			return INPUT;</span>
+		}
+<span class="nc" id="L397">		return null;</span>
+	}
+
+	public String generateResponseBodySchema() {
+		try {
+<span class="nc" id="L402">			String result = this.checkService();</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">			if (null != result) {</span>
+<span class="nc" id="L404">				return result;</span>
+			}
+<span class="nc" id="L406">			ApiService apiService = this.getApiService(this.getServiceKey());</span>
+<span class="nc" id="L407">			return super.generateResponseBodySchema(apiService.getMaster());</span>
+<span class="nc" id="L408">		} catch (Throwable t) {</span>
+<span class="nc" id="L409">			_logger.error(&quot;Error extracting response body Schema&quot;, t);</span>
+<span class="nc" id="L410">			return FAILURE;</span>
+		}
+	}
+
+	protected String checkService() throws Throwable {
+<span class="nc" id="L415">		ApiService apiService = this.getApiService(this.getServiceKey());</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">		if (apiService == null) {</span>
+<span class="nc" id="L417">			this.addActionError(this.getText(&quot;error.service.invalid&quot;, new String[]{this.getServiceKey()}));</span>
+<span class="nc" id="L418">			return INPUT;</span>
+		}
+<span class="nc" id="L420">		return null;</span>
+	}
+
+	/**
+	 * Return the list of system groups.
+	 *
+	 * @return The list of system groups.
+	 */
+	public List&lt;Group&gt; getGroups() {
+<span class="nc" id="L429">		return this.getGroupManager().getGroups();</span>
+	}
+
+	public Group getGroup(String name) {
+<span class="nc" id="L433">		return this.getGroupManager().getGroup(name);</span>
+	}
+
+	public String getServiceGroup() {
+<span class="nc" id="L437">		return _serviceGroup;</span>
+	}
+
+	public void setServiceGroup(String serviceGroup) {
+<span class="nc" id="L441">		this._serviceGroup = serviceGroup;</span>
+<span class="nc" id="L442">	}</span>
+
+	public int getStrutsAction() {
+<span class="nc" id="L445">		return _strutsAction;</span>
+	}
+
+	public void setStrutsAction(int strutsAction) {
+<span class="nc" id="L449">		this._strutsAction = strutsAction;</span>
+<span class="nc" id="L450">	}</span>
+
+	public String getResourceCode() {
+<span class="nc" id="L453">		return _resourceCode;</span>
+	}
+
+	public void setResourceCode(String resourceCode) {
+<span class="nc" id="L457">		this._resourceCode = resourceCode;</span>
+<span class="nc" id="L458">	}</span>
+
+	public String getNamespace() {
+<span class="nc" id="L461">		return _namespace;</span>
+	}
+
+	public void setNamespace(String namespace) {
+<span class="nc" id="L465">		this._namespace = namespace;</span>
+<span class="nc" id="L466">	}</span>
+
+	public String getResourceName() {
+<span class="nc" id="L469">		return _resourceName;</span>
+	}
+
+	public void setResourceName(String resourceName) {
+<span class="nc" id="L473">		this._resourceName = resourceName;</span>
+<span class="nc" id="L474">	}</span>
+
+	public String getServiceKey() {
+<span class="nc" id="L477">		return _serviceKey;</span>
+	}
+
+	public void setServiceKey(String serviceKey) {
+<span class="nc" id="L481">		this._serviceKey = serviceKey;</span>
+<span class="nc" id="L482">	}</span>
+
+	public ApsProperties getDescriptions() {
+<span class="nc" id="L485">		return _descriptions;</span>
+	}
+
+	public void setDescriptions(ApsProperties descriptions) {
+<span class="nc" id="L489">		this._descriptions = descriptions;</span>
+<span class="nc" id="L490">	}</span>
+
+	public boolean isActiveService() {
+<span class="nc" id="L493">		return _activeService;</span>
+	}
+
+	public void setActiveService(boolean activeService) {
+<span class="nc" id="L497">		this._activeService = activeService;</span>
+<span class="nc" id="L498">	}</span>
+
+	public boolean isHiddenService() {
+<span class="nc" id="L501">		return _hiddenService;</span>
+	}
+
+	public void setHiddenService(boolean hiddenService) {
+<span class="nc" id="L505">		this._hiddenService = hiddenService;</span>
+<span class="nc" id="L506">	}</span>
+
+	/*
+	public boolean isMyEntandoService() {
+		return _myEntandoService;
+	}
+	public void setMyEntandoService(boolean myEntandoService) {
+		this._myEntandoService = myEntandoService;
+	}
+	 */
+	public Boolean getRequiredAuth() {
+<span class="nc" id="L517">		return _requiredAuth;</span>
+	}
+
+	public void setRequiredAuth(Boolean requiredAuth) {
+<span class="nc" id="L521">		this._requiredAuth = requiredAuth;</span>
+<span class="nc" id="L522">	}</span>
+
+	public String getRequiredGroup() {
+<span class="nc" id="L525">		return _requiredGroup;</span>
+	}
+
+	public void setRequiredGroup(String requiredGroup) {
+<span class="nc" id="L529">		this._requiredGroup = requiredGroup;</span>
+<span class="nc" id="L530">	}</span>
+
+	public String getRequiredPermission() {
+<span class="nc" id="L533">		return _requiredPermission;</span>
+	}
+
+	public void setRequiredPermission(String requiredPermission) {
+<span class="nc" id="L537">		this._requiredPermission = requiredPermission;</span>
+<span class="nc" id="L538">	}</span>
+
+	public List&lt;ApiMethodParameter&gt; getApiParameters() {
+<span class="nc" id="L541">		return _apiParameters;</span>
+	}
+
+	public void setApiParameters(List&lt;ApiMethodParameter&gt; apiParameters) {
+<span class="nc" id="L545">		this._apiParameters = apiParameters;</span>
+<span class="nc" id="L546">	}</span>
+
+	public ApsProperties getApiParameterValues() {
+<span class="nc" id="L549">		return _apiParameterValues;</span>
+	}
+
+	public void setApiParameterValues(ApsProperties apiParameterValues) {
+<span class="nc" id="L553">		this._apiParameterValues = apiParameterValues;</span>
+<span class="nc" id="L554">	}</span>
+
+	public List&lt;String&gt; getFreeParameters() {
+<span class="nc" id="L557">		return _freeParameters;</span>
+	}
+
+	public void setFreeParameters(List&lt;String&gt; freeParameters) {
+<span class="nc" id="L561">		this._freeParameters = freeParameters;</span>
+<span class="nc" id="L562">	}</span>
+
+	public String getTag() {
+<span class="nc" id="L565">		return _tag;</span>
+	}
+
+	public void setTag(String tag) {
+<span class="nc" id="L569">		this._tag = tag;</span>
+<span class="nc" id="L570">	}</span>
+
+	public String getPageCode() {
+<span class="nc" id="L573">		return _pageCode;</span>
+	}
+
+	public void setPageCode(String pageCode) {
+<span class="nc" id="L577">		this._pageCode = pageCode;</span>
+<span class="nc" id="L578">	}</span>
+
+	public Integer getFramePos() {
+<span class="nc" id="L581">		return _framePos;</span>
+	}
+
+	public void setFramePos(Integer framePos) {
+<span class="nc" id="L585">		this._framePos = framePos;</span>
+<span class="nc" id="L586">	}</span>
+
+	@Deprecated
+	public String getShowletTypeCode() {
+<span class="nc" id="L590">		return this.getWidgetTypeCode();</span>
+	}
+
+	@Deprecated
+	public void setShowletTypeCode(String widgetTypeCode) {
+<span class="nc" id="L595">		this.setWidgetTypeCode(widgetTypeCode);</span>
+<span class="nc" id="L596">	}</span>
+
+	public String getWidgetTypeCode() {
+<span class="nc" id="L599">		return _widgetTypeCode;</span>
+	}
+
+	public void setWidgetTypeCode(String widgetTypeCode) {
+<span class="nc" id="L603">		this._widgetTypeCode = widgetTypeCode;</span>
+<span class="nc" id="L604">	}</span>
+
+	protected IPageManager getPageManager() {
+<span class="nc" id="L607">		return _pageManager;</span>
+	}
+
+	public void setPageManager(IPageManager pageManager) {
+<span class="nc" id="L611">		this._pageManager = pageManager;</span>
+<span class="nc" id="L612">	}</span>
+
+	protected IGroupManager getGroupManager() {
+<span class="nc" id="L615">		return _groupManager;</span>
+	}
+
+	public void setGroupManager(IGroupManager groupManager) {
+<span class="nc" id="L619">		this._groupManager = groupManager;</span>
+<span class="nc" id="L620">	}</span>
+
+	public IWidgetTypeManager getWidgetTypeManager() {
+<span class="nc" id="L623">		return _widgetTypeManager;</span>
+	}
+
+	public void setWidgetTypeManager(IWidgetTypeManager widgetTypeManager) {
+<span class="nc" id="L627">		this._widgetTypeManager = widgetTypeManager;</span>
+<span class="nc" id="L628">	}</span>
+
+	private String _serviceGroup;
+	private int _strutsAction;
+
+	private String _resourceCode;
+
+	private String _resourceName;
+	private String _namespace;
+
+	private String _serviceKey;
+	private ApsProperties _descriptions;
+	private boolean _activeService;
+	private boolean _hiddenService;
+	//private boolean _myEntandoService;
+
+	private Boolean _requiredAuth;
+	private String _requiredPermission;
+	private String _requiredGroup;
+
+	private List&lt;ApiMethodParameter&gt; _apiParameters;
+	private ApsProperties _apiParameterValues;
+<span class="nc" id="L650">	private List&lt;String&gt; _freeParameters = new ArrayList&lt;String&gt;();</span>
+	private String _tag;
+	private String _pageCode;
+	private Integer _framePos;
+	private String _widgetTypeCode;
+
+	private IPageManager _pageManager;
+	private IGroupManager _groupManager;
+	private IWidgetTypeManager _widgetTypeManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

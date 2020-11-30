@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DatabaseAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.admin</a> &gt; <span class="el_source">DatabaseAction.java</span></div><h1>DatabaseAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.admin;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.init.IDatabaseManager;
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.aps.system.init.model.ComponentInstallationReport;
+import org.entando.entando.aps.system.init.model.DataSourceDumpReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.apsadmin.system.BaseAction;
+import com.j256.ormlite.table.DatabaseTable;
+import org.entando.entando.aps.system.init.ComponentManager;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L35">public class DatabaseAction extends BaseAction {</span>
+
+<span class="nc" id="L37">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DatabaseAction.class);</span>
+
+    public String executeBackup() {
+        try {
+<span class="nc" id="L41">            this.getDatabaseManager().createBackup();</span>
+<span class="nc" id="L42">        } catch (Throwable t) {</span>
+<span class="nc" id="L43">            _logger.error(&quot;error in executeBackup&quot;, t);</span>
+<span class="nc" id="L44">            return FAILURE;</span>
+<span class="nc" id="L45">        }</span>
+<span class="nc" id="L46">        return SUCCESS;</span>
+    }
+
+    public List&lt;DataSourceDumpReport&gt; getDumpReports() {
+        try {
+<span class="nc" id="L51">            return this.getDatabaseManager().getBackupReports();</span>
+<span class="nc" id="L52">        } catch (Throwable t) {</span>
+<span class="nc" id="L53">            _logger.error(&quot;Error extracting dump reports&quot;, t);</span>
+<span class="nc" id="L54">            throw new RuntimeException(&quot;Error extracting dump reports&quot;, t);</span>
+        }
+    }
+
+    public DataSourceDumpReport getDumpReport(String subFolderName) {
+        try {
+<span class="nc" id="L60">            return this.getDatabaseManager().getBackupReport(subFolderName);</span>
+<span class="nc" id="L61">        } catch (Throwable t) {</span>
+<span class="nc" id="L62">            _logger.error(&quot;Error extracting report of subfolder {}&quot;, subFolderName, t);</span>
+<span class="nc" id="L63">            throw new RuntimeException(&quot;Error extracting report of subfolder &quot; + subFolderName, t);</span>
+        }
+    }
+
+    public String entryBackupDetails() {
+<span class="nc" id="L68">        String check = this.checkBackupCode(this.getSubFolderName());</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (null != check) {</span>
+<span class="nc" id="L70">            return check;</span>
+        }
+<span class="nc" id="L72">        return SUCCESS;</span>
+    }
+	
+    public String redirectRestoreIntro() {
+        try {
+<span class="nc" id="L77">            String check = this.checkRestore(this.getSubFolderName());</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L79">                return check;</span>
+            }
+<span class="nc" id="L81">        } catch (Throwable t) {</span>
+<span class="nc" id="L82">            _logger.error(&quot;error in redirectRestoreIntro&quot;, t);</span>
+<span class="nc" id="L83">            return FAILURE;</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">        return SUCCESS;</span>
+    }
+	
+    public String restoreBackup() {
+        try {
+<span class="nc" id="L90">            String check = this.checkRestore(this.getSubFolderName());</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L92">                return check;</span>
+            }
+<span class="nc" id="L94">            this.getDatabaseManager().dropAndRestoreBackup(this.getSubFolderName());</span>
+<span class="nc" id="L95">            this.addActionMessage(this.getText(&quot;message.restore.done&quot;));</span>
+<span class="nc" id="L96">        } catch (Throwable t) {</span>
+<span class="nc" id="L97">            _logger.error(&quot;error in restoreBackup&quot;, t);</span>
+<span class="nc" id="L98">            return FAILURE;</span>
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">        return SUCCESS;</span>
+    }
+	
+    public String extractTableDump() {
+        try {
+<span class="nc" id="L105">            String check = this.checkBackupCode(this.getSubFolderName());</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L107">                return check;</span>
+            }
+<span class="nc" id="L109">            InputStream stream = this.getDatabaseManager().getTableDump(this.getTableName(), this.getDataSourceName(), this.getSubFolderName());</span>
+<span class="nc" id="L110">            this.setInputStream(stream);</span>
+<span class="nc" id="L111">        } catch (Throwable t) {</span>
+<span class="nc" id="L112">            _logger.error(&quot;error in extractLastTableDump&quot;, t);</span>
+<span class="nc" id="L113">            return FAILURE;</span>
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">        return SUCCESS;</span>
+    }
+	
+    public String trashBackup() {
+        try {
+<span class="nc" id="L120">            String check = this.checkBackupCode(this.getSubFolderName());</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L122">                return check;</span>
+            }
+<span class="nc" id="L124">        } catch (Throwable t) {</span>
+<span class="nc" id="L125">            _logger.error(&quot;error in trashBackup&quot;, t);</span>
+<span class="nc" id="L126">            return FAILURE;</span>
+<span class="nc" id="L127">        }</span>
+<span class="nc" id="L128">        return SUCCESS;</span>
+    }
+	
+    public String deleteBackup() {
+        try {
+<span class="nc" id="L133">            String check = this.checkBackupCode(this.getSubFolderName());</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L135">                return check;</span>
+            }
+<span class="nc" id="L137">            this.getDatabaseManager().deleteBackup(this.getSubFolderName());</span>
+<span class="nc" id="L138">            String[] args = {this.getSubFolderName()};</span>
+<span class="nc" id="L139">            this.addActionMessage(this.getText(&quot;message.backup.deleteDone&quot;, args));</span>
+<span class="nc" id="L140">        } catch (Throwable t) {</span>
+<span class="nc" id="L141">            _logger.error(&quot;error in deleteBackup&quot;, t);</span>
+<span class="nc" id="L142">            return FAILURE;</span>
+<span class="nc" id="L143">        }</span>
+<span class="nc" id="L144">        return SUCCESS;</span>
+    }
+	
+	protected String checkRestore(String backupCode) {
+<span class="nc bnc" id="L148" title="All 4 branches missed.">		if (null == this.getRestoreEnabled() || !this.getRestoreEnabled()) {</span>
+<span class="nc" id="L149">			this.addFieldError(&quot;restoreEnabled&quot;, this.getText(&quot;error.restore.disabled&quot;));</span>
+<span class="nc" id="L150">            return INPUT;</span>
+		} else {
+<span class="nc" id="L152">			return this.checkBackupCode(backupCode);</span>
+		}
+    }
+	
+    protected String checkBackupCode(String backupCode) {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">		if (null == backupCode) {</span>
+<span class="nc" id="L158">            this.addFieldError(&quot;subFolderName&quot;, this.getText(&quot;error.backup.nullCode&quot;));</span>
+<span class="nc" id="L159">            return INPUT;</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        } else if (null == this.getDumpReport(backupCode)) {</span>
+<span class="nc" id="L161">            String[] args = {backupCode};</span>
+<span class="nc" id="L162">            this.addFieldError(&quot;subFolderName&quot;, this.getText(&quot;error.backup.invalidCode&quot;, args));</span>
+<span class="nc" id="L163">            return INPUT;</span>
+        }
+<span class="nc" id="L165">        return null;</span>
+    }
+	
+    public int getManagerStatus() {
+<span class="nc" id="L169">        return this.getDatabaseManager().getStatus();</span>
+    }
+	
+    public Map&lt;String, List&lt;String&gt;&gt; getEntandoTableMapping() {
+<span class="nc" id="L173">        return this.getDatabaseManager().getEntandoTableMapping();</span>
+    }
+	
+    public List&lt;Component&gt; getCurrentComponents() {
+<span class="nc" id="L177">        List&lt;Component&gt; components = null;</span>
+        try {
+<span class="nc" id="L179">            components = this.getComponentManager().getCurrentComponents();</span>
+<span class="nc" id="L180">        } catch (Throwable t) {</span>
+<span class="nc" id="L181">            _logger.error(&quot;Error extracting current components&quot;, t);</span>
+<span class="nc" id="L182">            throw new RuntimeException(&quot;Error extracting current components&quot;, t);</span>
+<span class="nc" id="L183">        }</span>
+<span class="nc" id="L184">        return components;</span>
+    }
+	
+    public List&lt;String&gt; getTableNames(List&lt;String&gt; tableClassNames) {
+<span class="nc" id="L188">        ClassLoader cl = ComponentManager.getComponentInstallerClassLoader();</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">        if (null == tableClassNames || tableClassNames.isEmpty()) {</span>
+<span class="nc" id="L190">            return null;</span>
+        }
+<span class="nc" id="L192">        List&lt;String&gt; tableNames = new ArrayList&lt;String&gt;();</span>
+        try {
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            for (int i = 0; i &lt; tableClassNames.size(); i++) {</span>
+<span class="nc" id="L195">                String tableClassName = tableClassNames.get(i);</span>
+<span class="nc" id="L196">                Class tableClass = null;</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                if (cl != null) {</span>
+<span class="nc" id="L198">                    tableClass = Class.forName(tableClassName, true, cl);</span>
+                } else {
+<span class="nc" id="L200">                    tableClass = Class.forName(tableClassName);</span>
+                }
+<span class="nc" id="L202">                DatabaseTable tableAnnotation = (DatabaseTable) tableClass.getAnnotation(DatabaseTable.class);</span>
+<span class="nc" id="L203">                tableNames.add(tableAnnotation.tableName());</span>
+            }
+<span class="nc" id="L205">        } catch (Throwable t) {</span>
+<span class="nc" id="L206">            _logger.error(&quot;Error extracting table names&quot;, t);</span>
+<span class="nc" id="L207">            throw new RuntimeException(&quot;Error extracting table names&quot;, t);</span>
+<span class="nc" id="L208">        }</span>
+<span class="nc" id="L209">        return tableNames;</span>
+    }
+	
+    public boolean checkRestore(List&lt;Component&gt; currentComponents, DataSourceDumpReport report) {
+<span class="nc" id="L213">        List&lt;String&gt; codes = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L214">        codes.add(&quot;entandoCore&quot;);</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        for (int i = 0; i &lt; currentComponents.size(); i++) {</span>
+<span class="nc" id="L216">            Component component = currentComponents.get(i);</span>
+<span class="nc" id="L217">            codes.add(component.getCode());</span>
+        }
+<span class="nc" id="L219">        List&lt;ComponentInstallationReport&gt; reports = report.getComponentsHistory();</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        if (reports.size() != codes.size()) {</span>
+<span class="nc" id="L221">            return false;</span>
+        }
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        for (int i = 0; i &lt; reports.size(); i++) {</span>
+<span class="nc" id="L224">            ComponentInstallationReport componentReport = reports.get(i);</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            if (!codes.contains(componentReport.getComponentCode())) {</span>
+<span class="nc" id="L226">                return false;</span>
+            }
+        }
+<span class="nc" id="L229">        return true;</span>
+    }
+	
+    public String getSubFolderName() {
+<span class="nc" id="L233">        return _subFolderName;</span>
+    }
+    public void setSubFolderName(String subFolderName) {
+<span class="nc" id="L236">        this._subFolderName = subFolderName;</span>
+<span class="nc" id="L237">    }</span>
+	
+    public String getDataSourceName() {
+<span class="nc" id="L240">        return _dataSourceName;</span>
+    }
+    public void setDataSourceName(String dataSourceName) {
+<span class="nc" id="L243">        this._dataSourceName = dataSourceName;</span>
+<span class="nc" id="L244">    }</span>
+	
+    public String getTableName() {
+<span class="nc" id="L247">        return _tableName;</span>
+    }
+    public void setTableName(String tableName) {
+<span class="nc" id="L250">        this._tableName = tableName;</span>
+<span class="nc" id="L251">    }</span>
+	
+    public InputStream getInputStream() {
+<span class="nc" id="L254">        return _inputStream;</span>
+    }
+    protected void setInputStream(InputStream inputStream) {
+<span class="nc" id="L257">        this._inputStream = inputStream;</span>
+<span class="nc" id="L258">    }</span>
+	
+	public Boolean getRestoreEnabled() {
+<span class="nc" id="L261">		return _restoreEnabled;</span>
+	}
+	public void setRestoreEnabled(Boolean restoreEnabled) {
+<span class="nc" id="L264">		this._restoreEnabled = restoreEnabled;</span>
+<span class="nc" id="L265">	}</span>
+	
+    protected IDatabaseManager getDatabaseManager() {
+<span class="nc" id="L268">        return _databaseManager;</span>
+    }
+    public void setDatabaseManager(IDatabaseManager databaseManager) {
+<span class="nc" id="L271">        this._databaseManager = databaseManager;</span>
+<span class="nc" id="L272">    }</span>
+	
+    private String _subFolderName;
+	
+    private String _tableName;
+    private String _dataSourceName;
+    private InputStream _inputStream;
+	
+	private Boolean _restoreEnabled;
+	
+    private IDatabaseManager _databaseManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

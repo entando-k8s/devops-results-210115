@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractApsEntityFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system.entity</a> &gt; <span class="el_source">AbstractApsEntityFinderAction.java</span></div><h1>AbstractApsEntityFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system.entity;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.apsadmin.system.BaseAction;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L36">public abstract class AbstractApsEntityFinderAction extends BaseAction implements IApsEntityFinderAction {</span>
+
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractApsEntityFinderAction.class);</span>
+	
+	@Override
+	public String execute() {
+		try {
+<span class="fc" id="L43">			this.createBaseFilters();</span>
+<span class="nc" id="L44">		} catch (Throwable t) {</span>
+<span class="nc" id="L45">			_logger.error(&quot;error in execute&quot;, t);</span>
+<span class="nc" id="L46">			return FAILURE;</span>
+<span class="fc" id="L47">		}</span>
+<span class="fc" id="L48">		return SUCCESS;</span>
+	}
+	
+	protected void createBaseFilters() {
+		try {
+<span class="fc" id="L53">			int initSize = this.getFilters().length;</span>
+<span class="fc" id="L54">			EntitySearchFilter[] roleFilters = this.getEntityActionHelper().getRoleFilters(this);</span>
+<span class="fc" id="L55">			this.addFilters(roleFilters);</span>
+<span class="fc" id="L56">			IApsEntity prototype = this.getEntityPrototype();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">			if (null != prototype) {</span>
+<span class="fc" id="L58">				EntitySearchFilter filterToAdd = new EntitySearchFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY, false, prototype.getTypeCode(), false);</span>
+<span class="fc" id="L59">				this.addFilter(filterToAdd);</span>
+<span class="fc" id="L60">				EntitySearchFilter[] filters = this.getEntityActionHelper().getAttributeFilters(this, prototype);</span>
+<span class="fc" id="L61">				this.addFilters(filters);</span>
+			}
+<span class="fc bfc" id="L63" title="All 2 branches covered.">			this.setAddedAttributeFilter(this.getFilters().length &gt; initSize);</span>
+<span class="nc" id="L64">		} catch (Throwable t) {</span>
+<span class="nc" id="L65">			_logger.error(&quot;Error while creating entity filters&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;createBaseFilters&quot;);
+<span class="nc" id="L67">			throw new RuntimeException(&quot;Error while creating entity filters&quot;, t);</span>
+<span class="fc" id="L68">		}</span>
+<span class="fc" id="L69">	}</span>
+	
+	@Override
+	public List&lt;String&gt; getSearchResult() {
+<span class="fc" id="L73">		List&lt;String&gt; result = null;</span>
+		try {
+<span class="fc" id="L75">			IEntityManager entityManager = this.getEntityManager();</span>
+<span class="fc" id="L76">			result = entityManager.searchId(this.getFilters());</span>
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error while searching entity Ids&quot;, t);</span>
+<span class="nc" id="L79">			throw new RuntimeException(&quot;Error while searching entity Ids&quot;, t);</span>
+<span class="fc" id="L80">		}</span>
+<span class="fc" id="L81">		return result;</span>
+	}
+	
+	protected void addFilters(EntitySearchFilter[] filters) {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L86">			EntitySearchFilter filterToAdd = filters[i];</span>
+<span class="fc" id="L87">			this.addFilter(filterToAdd);</span>
+		}
+<span class="fc" id="L89">	}</span>
+	
+	protected void addFilter(EntitySearchFilter filterToAdd) {
+<span class="fc" id="L92">		EntitySearchFilter[] filters = this.getFilters();</span>
+<span class="fc" id="L93">		int len = filters.length;</span>
+<span class="fc" id="L94">		EntitySearchFilter[] newFilters = new EntitySearchFilter[len + 1];</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		for(int i=0; i &lt; len; i++){</span>
+<span class="fc" id="L96">			newFilters[i] = filters[i];</span>
+		}
+<span class="fc" id="L98">		newFilters[len] = filterToAdd;</span>
+<span class="fc" id="L99">		this.setFilters(newFilters);</span>
+<span class="fc" id="L100">	}</span>
+	
+	@Override
+	public String trash() {
+		try {
+<span class="nc" id="L105">			String checkResult = this.checkDeletingEntity();</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			if (null != checkResult) return checkResult;</span>
+<span class="nc" id="L107">		} catch (Throwable t) {</span>
+<span class="nc" id="L108">			_logger.error(&quot;Error while trashing entity&quot;, t);</span>
+<span class="nc" id="L109">			throw new RuntimeException(&quot;Error while trashing entity&quot;, t);</span>
+<span class="nc" id="L110">		}</span>
+<span class="nc" id="L111">		return SUCCESS;</span>
+	}
+	
+	@Override
+	public String delete() {
+		try {
+<span class="nc" id="L117">			String checkResult = this.checkDeletingEntity();</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">			if (null != checkResult) return checkResult;</span>
+<span class="nc" id="L119">			this.deleteEntity(this.getEntityId());</span>
+<span class="nc" id="L120">		} catch (Throwable t) {</span>
+<span class="nc" id="L121">			_logger.error(&quot;Error while deleting entity&quot;, t);</span>
+<span class="nc" id="L122">			throw new RuntimeException(&quot;Error while deleting entity&quot;, t);</span>
+<span class="nc" id="L123">		}</span>
+<span class="nc" id="L124">		return SUCCESS;</span>
+	}
+	
+	protected abstract void deleteEntity(String entityId) throws Throwable;
+	
+	protected String checkDeletingEntity() throws Throwable {
+<span class="nc" id="L130">		IApsEntity entity = this.getEntity(this.getEntityId());</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">		if (null == entity) {</span>
+<span class="nc" id="L132">			String[] args = {this.getEntityId()};</span>
+<span class="nc" id="L133">			this.addFieldError(&quot;entityId&quot;, this.getText(&quot;error.entity.null&quot;,args));</span>
+<span class="nc" id="L134">			return INPUT;</span>
+		}
+<span class="nc" id="L136">		return null;</span>
+	}
+	
+	public IApsEntity getEntityPrototype() {
+<span class="fc" id="L140">		IEntityManager entityManager = this.getEntityManager();</span>
+<span class="fc" id="L141">		return entityManager.getEntityPrototype(this.getEntityTypeCode());</span>
+	}
+	
+	public List&lt;IApsEntity&gt; getEntityPrototypes() {
+<span class="fc" id="L145">		List&lt;IApsEntity&gt; entityPrototypes = null;</span>
+		try {
+<span class="fc" id="L147">			Map&lt;String, IApsEntity&gt; modelMap = this.getEntityManager().getEntityPrototypes();</span>
+<span class="fc" id="L148">			entityPrototypes = new ArrayList&lt;IApsEntity&gt;(modelMap.values());</span>
+<span class="fc" id="L149">			BeanComparator comparator = new BeanComparator(&quot;typeDescr&quot;);</span>
+<span class="fc" id="L150">			Collections.sort(entityPrototypes, comparator);</span>
+<span class="nc" id="L151">		} catch (Throwable t) {</span>
+<span class="nc" id="L152">			_logger.error(&quot;Error while extracting entity prototypes&quot;, t);</span>
+<span class="nc" id="L153">			throw new RuntimeException(&quot;Error while extracting entity prototypes&quot;, t);</span>
+<span class="fc" id="L154">		}</span>
+<span class="fc" id="L155">		return entityPrototypes;</span>
+	}
+	
+	protected IApsEntity getEntity(String entityId) {
+<span class="fc" id="L159">		IApsEntity entity = null;</span>
+		try {
+<span class="fc" id="L161">			IEntityManager entityManager = this.getEntityManager();</span>
+<span class="fc" id="L162">			entity = entityManager.getEntity(entityId);</span>
+<span class="nc" id="L163">		} catch (Throwable t) {</span>
+<span class="nc" id="L164">			_logger.error(&quot;Error while extracting entity&quot;, t);</span>
+<span class="nc" id="L165">			throw new RuntimeException(&quot;Error while extracting entity&quot;, t);</span>
+<span class="fc" id="L166">		}</span>
+<span class="fc" id="L167">		return entity;</span>
+	}
+	
+	public String getSearchFormFieldValue(String inputFieldName) {
+<span class="fc" id="L171">		String val = this.getRequest().getParameter(inputFieldName);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		if (StringUtils.isBlank(val)) {</span>
+<span class="fc" id="L173">			val = (String) this.getRequest().getAttribute(inputFieldName);</span>
+		}
+<span class="fc" id="L175">		return val;</span>
+	}
+	
+	@Deprecated
+	public List&lt;AttributeInterface&gt; getSearcheableAttributes() {
+<span class="nc" id="L180">		return this.getSearchableAttributes();</span>
+	}
+	
+	public List&lt;AttributeInterface&gt; getSearchableAttributes() {
+<span class="nc" id="L184">		List&lt;AttributeInterface&gt; searchableAttributes = new ArrayList&lt;AttributeInterface&gt;();</span>
+<span class="nc" id="L185">		IApsEntity prototype = this.getEntityPrototype();</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">		if (null == prototype) {</span>
+<span class="nc" id="L187">			return searchableAttributes;</span>
+		}
+<span class="nc" id="L189">		List&lt;AttributeInterface&gt; contentAttributes = prototype.getAttributeList();</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">		for (int i=0; i&lt;contentAttributes.size(); i++) {</span>
+<span class="nc" id="L191">			AttributeInterface attribute = contentAttributes.get(i);</span>
+<span class="nc bnc" id="L192" title="All 4 branches missed.">			if (attribute.isActive() &amp;&amp; attribute.isSearchable()) {</span>
+<span class="nc" id="L193">				searchableAttributes.add(attribute);</span>
+			}
+		}
+<span class="nc" id="L196">		return searchableAttributes;</span>
+	}
+	
+	public List&lt;AttributeRole&gt; getAttributeRoles() {
+<span class="fc" id="L200">		return this.getEntityManager().getAttributeRoles();</span>
+	}
+	
+	protected abstract IEntityManager getEntityManager();
+	
+	public String getEntityId() {
+<span class="nc" id="L206">		return _entityId;</span>
+	}
+	public void setEntityId(String entityId) {
+<span class="nc" id="L209">		this._entityId = entityId;</span>
+<span class="nc" id="L210">	}</span>
+	
+	public String getEntityTypeCode() {
+<span class="fc" id="L213">		return _entityTypeCode;</span>
+	}
+	public void setEntityTypeCode(String entityTypeCode) {
+<span class="fc" id="L216">		this._entityTypeCode = entityTypeCode;</span>
+<span class="fc" id="L217">	}</span>
+	
+	protected boolean isAddedAttributeFilter() {
+<span class="fc" id="L220">		return _addedAttributeFilter;</span>
+	}
+	protected void setAddedAttributeFilter(boolean addedAttributeFilter) {
+<span class="fc" id="L223">		this._addedAttributeFilter = addedAttributeFilter;</span>
+<span class="fc" id="L224">	}</span>
+	
+	protected IEntityActionHelper getEntityActionHelper() {
+<span class="fc" id="L227">		return _entityActionHelper;</span>
+	}
+	public void setEntityActionHelper(IEntityActionHelper entityActionHelper) {
+<span class="fc" id="L230">		this._entityActionHelper = entityActionHelper;</span>
+<span class="fc" id="L231">	}</span>
+	
+	protected EntitySearchFilter[] getFilters() {
+<span class="fc" id="L234">		return _filters;</span>
+	}
+	protected void setFilters(EntitySearchFilter[] filters) {
+<span class="fc" id="L237">		this._filters = filters;</span>
+<span class="fc" id="L238">	}</span>
+	
+	private String _entityId;
+	private String _entityTypeCode;
+	
+	private boolean _addedAttributeFilter;
+	
+	private IEntityActionHelper _entityActionHelper;
+	
+<span class="fc" id="L247">	private EntitySearchFilter[] _filters = new EntitySearchFilter[0];</span>
+	
+} 
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectModelAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.dataobject.model</a> &gt; <span class="el_source">DataObjectModelAction.java</span></div><h1>DataObjectModelAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.dataobject.model;
+
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import java.beans.BeanInfo;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.attribute.AbstractAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseAction;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+import org.entando.entando.aps.system.services.dataobject.model.DataObjectRecordVO;
+import org.entando.entando.aps.system.services.dataobject.model.SmallDataType;
+import org.entando.entando.aps.system.services.dataobjectmodel.DataObjectModel;
+import org.entando.entando.aps.system.services.dataobjectmodel.IDataObjectModelManager;
+
+/**
+ * Classe action delegata alle operazioni sugli oggetti modelli di
+ * DataObjectModel.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L50">public class DataObjectModelAction extends BaseAction {</span>
+
+<span class="fc" id="L52">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DataObjectModelAction.class);</span>
+
+    @Override
+    public void validate() {
+<span class="fc" id="L56">        super.validate();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L58">            this.checkModelId();</span>
+        }
+<span class="fc" id="L60">    }</span>
+
+    private void checkModelId() {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (null == this.getModelId()) {</span>
+<span class="fc" id="L64">            return;</span>
+        }
+<span class="fc" id="L66">        DataObjectModel dummyModel = this.getDataObjectModelManager().getDataObjectModel(this.getModelId());</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (dummyModel != null) {</span>
+<span class="fc" id="L68">            this.addFieldError(&quot;modelId&quot;, this.getText(&quot;error.dataObjectModel.modelId.alreadyPresent&quot;));</span>
+        }
+<span class="fc" id="L70">        SmallDataType utilizer = this.getDataObjectModelManager().getDefaultUtilizer(this.getModelId());</span>
+<span class="pc bpc" id="L71" title="3 of 4 branches missed.">        if (null != utilizer &amp;&amp; !utilizer.getCode().equals(this.getDataType())) {</span>
+<span class="nc" id="L72">            String[] args = {this.getModelId().toString(), utilizer.getDescr()};</span>
+<span class="nc" id="L73">            this.addFieldError(&quot;modelId&quot;, this.getText(&quot;error.dataObjectModel.modelId.wrongUtilizer&quot;, args));</span>
+        }
+<span class="fc" id="L75">    }</span>
+
+    public String newModel() {
+<span class="fc" id="L78">        this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="fc" id="L79">        return SUCCESS;</span>
+    }
+
+    public String edit() {
+<span class="fc" id="L83">        this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+        try {
+<span class="fc" id="L85">            long modelId = this.getModelId().longValue();</span>
+<span class="fc" id="L86">            DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+<span class="fc" id="L87">            this.setFormValues(model);</span>
+<span class="nc" id="L88">        } catch (Throwable t) {</span>
+<span class="nc" id="L89">            _logger.error(&quot;error in edit&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;edit&quot;);
+<span class="nc" id="L91">            return FAILURE;</span>
+<span class="fc" id="L92">        }</span>
+<span class="fc" id="L93">        return SUCCESS;</span>
+    }
+
+    public String save() {
+        try {
+<span class="fc" id="L98">            DataObjectModel model = this.getBeanFromForm();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L100">                this.getDataObjectModelManager().addDataObjectModel(model);</span>
+            } else {
+<span class="fc" id="L102">                this.getDataObjectModelManager().updateDataObjectModel(model);</span>
+            }
+<span class="nc" id="L104">        } catch (Throwable t) {</span>
+<span class="nc" id="L105">            _logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L106">            return FAILURE;</span>
+<span class="fc" id="L107">        }</span>
+<span class="fc" id="L108">        return SUCCESS;</span>
+    }
+
+    private String checkDelete() {
+<span class="fc" id="L112">        String check = null;</span>
+<span class="fc" id="L113">        long modelId = this.getModelId().longValue();</span>
+<span class="fc" id="L114">        Map&lt;String, List&lt;IPage&gt;&gt; referencingPages = this.getDataObjectModelManager().getReferencingPages(modelId);</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (!referencingPages.isEmpty()) {</span>
+<span class="nc" id="L116">            List&lt;String&gt; referencedDataObjects = new ArrayList&lt;String&gt;(referencingPages.keySet());</span>
+<span class="nc" id="L117">            this.setReferencingPages(referencingPages);</span>
+<span class="nc" id="L118">            Collections.sort(referencedDataObjects);</span>
+<span class="nc" id="L119">            this.setReferencedDatasOnPages(referencedDataObjects);</span>
+<span class="nc" id="L120">            check = &quot;references&quot;;</span>
+        }
+<span class="fc" id="L122">        return check;</span>
+    }
+
+    public String trash() {
+        try {
+<span class="fc" id="L127">            String check = this.checkDelete();</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L129">                return check;</span>
+            }
+<span class="fc" id="L131">            long modelId = this.getModelId().longValue();</span>
+<span class="fc" id="L132">            DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if (null != model) {</span>
+<span class="fc" id="L134">                this.setDescription(model.getDescription());</span>
+<span class="fc" id="L135">                this.setDataType(model.getDataType());</span>
+            } else {
+<span class="nc" id="L137">                return &quot;noModel&quot;;</span>
+            }
+<span class="nc" id="L139">        } catch (Throwable t) {</span>
+<span class="nc" id="L140">            _logger.error(&quot;error in trash&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;trash&quot;);
+<span class="nc" id="L142">            return FAILURE;</span>
+<span class="fc" id="L143">        }</span>
+<span class="fc" id="L144">        return SUCCESS;</span>
+    }
+
+    public String delete() {
+        try {
+<span class="fc" id="L149">            String check = this.checkDelete();</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">            if (null != check) {</span>
+<span class="nc" id="L151">                return check;</span>
+            }
+<span class="fc" id="L153">            long modelId = this.getModelId().longValue();</span>
+<span class="fc" id="L154">            DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+<span class="fc" id="L155">            this.getDataObjectModelManager().removeDataObjectModel(model);</span>
+<span class="nc" id="L156">        } catch (Throwable t) {</span>
+<span class="nc" id="L157">            _logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L158">            return FAILURE;</span>
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">        return SUCCESS;</span>
+    }
+
+    public List&lt;SmallEntityType&gt; getSmallDataTypes() {
+<span class="nc" id="L164">        return this.getDataObjectManager().getSmallEntityTypes();</span>
+    }
+
+    public Map&lt;String, SmallDataType&gt; getSmallDataTypesMap() {
+<span class="nc" id="L168">        return this.getDataObjectManager().getSmallDataTypesMap();</span>
+    }
+
+    public SmallDataType getSmallDataType(String typeCode) {
+<span class="nc" id="L172">        return this.getSmallDataTypesMap().get(typeCode);</span>
+    }
+
+    public DataObjectModel getDataObjectModel(long modelId) {
+<span class="nc" id="L176">        return this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+    }
+
+    private DataObjectModel getBeanFromForm() {
+<span class="fc" id="L180">        DataObjectModel dataObjectModel = new DataObjectModel();</span>
+<span class="fc" id="L181">        dataObjectModel.setId(this.getModelId());</span>
+<span class="fc" id="L182">        dataObjectModel.setShape(this.getDataObjectShape());</span>
+<span class="fc" id="L183">        dataObjectModel.setDataType(this.getDataType());</span>
+<span class="fc" id="L184">        dataObjectModel.setDescription(this.getDescription());</span>
+<span class="pc bpc" id="L185" title="3 of 4 branches missed.">        if (null != this.getStylesheet() &amp;&amp; this.getStylesheet().trim().length() &gt; 0) {</span>
+<span class="nc" id="L186">            dataObjectModel.setStylesheet(this.getStylesheet());</span>
+        }
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        if (getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L189">            dataObjectModel.setId(new Long(this.getModelId()).longValue());</span>
+        }
+<span class="fc" id="L191">        return dataObjectModel;</span>
+    }
+
+    private void setFormValues(DataObjectModel model) {
+<span class="fc" id="L195">        this.setModelId(new Integer(String.valueOf(model.getId())));</span>
+<span class="fc" id="L196">        this.setDescription(model.getDescription());</span>
+<span class="fc" id="L197">        this.setDataType(model.getDataType());</span>
+<span class="fc" id="L198">        this.setDataObjectShape(model.getShape());</span>
+<span class="fc" id="L199">        this.setStylesheet(model.getStylesheet());</span>
+<span class="fc" id="L200">    }</span>
+
+    /**
+     * Restituisce il contenuto vo in base all'identificativo. Metodo a servizio
+     * dell'interfaccia di visualizzazione contenuti in lista.
+     *
+     * @param dataId L'identificativo del contenuto.
+     * @return Il contenuto vo cercato.
+     */
+    public DataObjectRecordVO getDataObjectVo(String dataId) {
+<span class="nc" id="L210">        DataObjectRecordVO dataObjectVo = null;</span>
+        try {
+<span class="nc" id="L212">            dataObjectVo = this.getDataObjectManager().loadDataObjectVO(dataId);</span>
+<span class="nc" id="L213">        } catch (Throwable t) {</span>
+<span class="nc" id="L214">            _logger.error(&quot;error loading getDataObjectVo for {}&quot;, dataId, t);</span>
+<span class="nc" id="L215">            throw new RuntimeException(&quot;Errore in caricamento DataObject vo&quot;, t);</span>
+<span class="nc" id="L216">        }</span>
+<span class="nc" id="L217">        return dataObjectVo;</span>
+    }
+
+    public DataObject getDataObjectPrototype() {
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        if (null == this.getDataType()) {</span>
+<span class="nc" id="L222">            return null;</span>
+        }
+<span class="nc" id="L224">        return (DataObject) this.getDataObjectManager().getEntityPrototype(this.getDataType());</span>
+    }
+
+    public List&lt;String&gt; getAllowedAttributeMethods(DataObject prototype, String attributeName) {
+<span class="nc" id="L228">        List&lt;String&gt; methods = new ArrayList&lt;String&gt;();</span>
+        try {
+<span class="nc" id="L230">            AttributeInterface attribute = (AttributeInterface) prototype.getAttribute(attributeName);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            if (null == attribute) {</span>
+<span class="nc" id="L232">                throw new EntException(&quot;Null Attribute '&quot; + attributeName + &quot;' for Data Type '&quot;</span>
+<span class="nc" id="L233">                        + prototype.getTypeCode() + &quot;' - '&quot; + prototype.getTypeDescr());</span>
+            }
+<span class="nc" id="L235">            String methodsString = this.getAllowedPublicAttributeMethods().getProperty(attribute.getType());</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">            if (null != methodsString) {</span>
+<span class="nc" id="L237">                String[] methodsArray = methodsString.split(&quot;;&quot;);</span>
+<span class="nc" id="L238">                methods = Arrays.asList(methodsArray);</span>
+<span class="nc" id="L239">            } else {</span>
+<span class="nc" id="L240">                BeanInfo beanInfo = Introspector.getBeanInfo(attribute.getClass(), AbstractAttribute.class);</span>
+<span class="nc" id="L241">                PropertyDescriptor[] prDescrs = beanInfo.getPropertyDescriptors();</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                for (int i = 0; i &lt; prDescrs.length; i++) {</span>
+<span class="nc" id="L243">                    PropertyDescriptor propertyDescriptor = prDescrs[i];</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                    if (null != propertyDescriptor.getReadMethod()) {</span>
+<span class="nc" id="L245">                        methods.add(propertyDescriptor.getDisplayName());</span>
+                    }
+                }
+            }
+<span class="nc" id="L249">        } catch (Throwable t) {</span>
+<span class="nc" id="L250">            _logger.error(&quot;error in getAllowedAttributeMethods&quot;, t);</span>
+<span class="nc" id="L251">        }</span>
+<span class="nc" id="L252">        return methods;</span>
+    }
+
+    public int getStrutsAction() {
+<span class="fc" id="L256">        return _strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L260">        this._strutsAction = strutsAction;</span>
+<span class="fc" id="L261">    }</span>
+
+    public Integer getModelId() {
+<span class="fc" id="L264">        return _modelId;</span>
+    }
+
+    public void setModelId(Integer modelId) {
+<span class="fc" id="L268">        this._modelId = modelId;</span>
+<span class="fc" id="L269">    }</span>
+
+    public String getDataType() {
+<span class="fc" id="L272">        return _dataType;</span>
+    }
+
+    public void setDataType(String dataType) {
+<span class="fc" id="L276">        this._dataType = dataType;</span>
+<span class="fc" id="L277">    }</span>
+
+    public String getDescription() {
+<span class="fc" id="L280">        return _description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="fc" id="L284">        this._description = description;</span>
+<span class="fc" id="L285">    }</span>
+
+    public String getDataObjectShape() {
+<span class="fc" id="L288">        return _dataObjectShape;</span>
+    }
+
+    public void setDataObjectShape(String dataObjectShape) {
+<span class="fc" id="L292">        this._dataObjectShape = dataObjectShape;</span>
+<span class="fc" id="L293">    }</span>
+
+    public String getStylesheet() {
+<span class="fc" id="L296">        return _stylesheet;</span>
+    }
+
+    public void setStylesheet(String stylesheet) {
+<span class="fc" id="L300">        this._stylesheet = stylesheet;</span>
+<span class="fc" id="L301">    }</span>
+
+    public List&lt;String&gt; getAllowedPublicDataObjectMethods() {
+<span class="nc" id="L304">        return _allowedPublicDataObjectMethods;</span>
+    }
+
+    public void setAllowedPublicDataObjectMethods(List&lt;String&gt; allowedPublicDataObjectMethods) {
+<span class="fc" id="L308">        this._allowedPublicDataObjectMethods = allowedPublicDataObjectMethods;</span>
+<span class="fc" id="L309">    }</span>
+
+    public Properties getAllowedPublicAttributeMethods() {
+<span class="nc" id="L312">        return _allowedPublicAttributeMethods;</span>
+    }
+
+    public void setAllowedPublicAttributeMethods(Properties allowedPublicAttributeMethods) {
+<span class="fc" id="L316">        this._allowedPublicAttributeMethods = allowedPublicAttributeMethods;</span>
+<span class="fc" id="L317">    }</span>
+
+    public Map getReferencingPages() {
+<span class="fc" id="L320">        return _referencingPages;</span>
+    }
+
+    protected void setReferencingPages(Map referencingPages) {
+<span class="nc" id="L324">        this._referencingPages = referencingPages;</span>
+<span class="nc" id="L325">    }</span>
+
+    public List&lt;String&gt; getReferencedDatasOnPages() {
+<span class="nc" id="L328">        return _referencedDatasOnPages;</span>
+    }
+
+    protected void setReferencedDatasOnPages(List&lt;String&gt; referencedDatasOnPages) {
+<span class="nc" id="L332">        this._referencedDatasOnPages = referencedDatasOnPages;</span>
+<span class="nc" id="L333">    }</span>
+
+    protected IDataObjectModelManager getDataObjectModelManager() {
+<span class="fc" id="L336">        return _dataObjectModelManager;</span>
+    }
+
+    public void setDataObjectModelManager(IDataObjectModelManager dataObjectModelManager) {
+<span class="fc" id="L340">        this._dataObjectModelManager = dataObjectModelManager;</span>
+<span class="fc" id="L341">    }</span>
+
+    protected IDataObjectManager getDataObjectManager() {
+<span class="nc" id="L344">        return _dataObjectManager;</span>
+    }
+
+    public void setDataObjectManager(IDataObjectManager dataObjectManager) {
+<span class="fc" id="L348">        this._dataObjectManager = dataObjectManager;</span>
+<span class="fc" id="L349">    }</span>
+
+    private int _strutsAction;
+    private Integer _modelId;
+    private String _dataType;
+    private String _description;
+    private String _dataObjectShape;
+    private String _stylesheet;
+
+    private List&lt;String&gt; _allowedPublicDataObjectMethods;
+    private Properties _allowedPublicAttributeMethods;
+
+    private Map _referencingPages;
+    private List&lt;String&gt; _referencedDatasOnPages;
+
+    private IDataObjectModelManager _dataObjectModelManager;
+    private IDataObjectManager _dataObjectManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

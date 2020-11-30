@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.common</a> &gt; <span class="el_source">DispatchAction.java</span></div><h1>DispatchAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.common;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.IAuthenticationProviderManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.apsadmin.system.BaseAction;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.servlet.http.HttpSession;
+
+/**
+ * Action specifica per la gestione delle operazioni di login.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L31">public class DispatchAction extends BaseAction {</span>
+
+<span class="fc" id="L33">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DispatchAction.class);</span>
+
+    @Override
+    public void validate() {
+<span class="fc" id="L37">        super.validate();</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (this.hasFieldErrors()) return;</span>
+<span class="fc" id="L39">        _logger.debug(&quot;Authentication : user {} - password ******** &quot;, this.getUsername());</span>
+<span class="fc" id="L40">        UserDetails user = null;</span>
+        try {
+<span class="fc" id="L42">            user = this.getAuthenticationProvider().getUser(this.getUsername(), this.getPassword());</span>
+<span class="nc" id="L43">        } catch (Throwable t) {</span>
+<span class="nc" id="L44">            _logger.error(&quot;error in LoginAction &quot;, t);</span>
+<span class="nc" id="L45">            throw new RuntimeException(&quot;Login error : username &quot; + this.getUsername(), t);</span>
+<span class="fc" id="L46">        }</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (null == user) {</span>
+<span class="fc" id="L48">            _logger.debug(&quot;Login failed : username {} - password ******** &quot;, this.getUsername());</span>
+<span class="fc" id="L49">            this.addActionError(this.getText(&quot;error.user.login.loginFailed&quot;));</span>
+        } else {
+            //UTENTE RICONOSCIUTO ED ATTIVO
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">            if (!user.isAccountNotExpired()) {</span>
+<span class="nc" id="L53">                this.addActionError(this.getText(&quot;error.user.login.accountExpired&quot;));</span>
+<span class="nc" id="L54">                this.getSession().removeAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="nc" id="L55">                return;</span>
+            }
+<span class="fc" id="L57">            this.getSession().setAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER, user);</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if (!user.isCredentialsNotExpired()) {</span>
+<span class="nc" id="L59">                this.addActionError(this.getText(&quot;error.user.login.credentialsExpired&quot;));</span>
+<span class="nc" id="L60">                return;</span>
+            }
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            if (this.getAuthorizationManager().isAuthOnPermission(user, Permission.SUPERUSER)</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                    || this.getAuthorizationManager().isAuthOnPermission(user, Permission.BACKOFFICE)) {</span>
+<span class="fc" id="L64">                _logger.info(&quot;User - {} logged&quot;, user.getUsername());</span>
+            } else {
+<span class="nc" id="L66">                this.addActionError(this.getText(&quot;error.user.login.userNotAbilitated&quot;));</span>
+            }
+        }
+<span class="fc" id="L69">    }</span>
+
+
+    /**
+     * Esegue l'operazione di richiesta login utente.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String doLogin() {
+<span class="fc" id="L78">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'operazione di richiesta logout utente.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String doLogout() {
+<span class="nc" id="L87">        this.getSession().invalidate();</span>
+<span class="nc" id="L88">        return &quot;homepage&quot;;</span>
+    }
+
+    public String getUsername() {
+<span class="fc" id="L92">        return _username;</span>
+    }
+
+    public void setUsername(String username) {
+<span class="fc" id="L96">        this._username = username;</span>
+<span class="fc" id="L97">    }</span>
+
+    public String getPassword() {
+<span class="fc" id="L100">        return _password;</span>
+    }
+
+    public void setPassword(String password) {
+<span class="fc" id="L104">        this._password = password;</span>
+<span class="fc" id="L105">    }</span>
+
+    protected HttpSession getSession() {
+<span class="fc" id="L108">        return this.getRequest().getSession();</span>
+    }
+
+    protected IAuthenticationProviderManager getAuthenticationProvider() {
+<span class="fc" id="L112">        return _authenticationProvider;</span>
+    }
+
+    public void setAuthenticationProvider(IAuthenticationProviderManager authenticationProvider) {
+<span class="fc" id="L116">        this._authenticationProvider = authenticationProvider;</span>
+<span class="fc" id="L117">    }</span>
+
+   private String _username;
+
+    private String _password;
+
+    private IAuthenticationProviderManager _authenticationProvider;
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
