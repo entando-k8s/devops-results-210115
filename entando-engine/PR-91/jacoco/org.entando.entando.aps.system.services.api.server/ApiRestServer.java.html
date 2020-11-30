@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiRestServer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api.server</a> &gt; <span class="el_source">ApiRestServer.java</span></div><h1>ApiRestServer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api.server;
+
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.role.Role;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import org.apache.cxf.jaxrs.impl.ResponseBuilderImpl;
+import org.entando.entando.aps.system.services.api.IApiErrorCodes;
+import org.entando.entando.aps.system.services.api.UnmarshalUtils;
+import org.entando.entando.aps.system.services.api.model.*;
+import org.entando.entando.aps.system.services.oauth2.IApiOAuth2TokenManager;
+import org.entando.entando.aps.system.services.oauth2.model.OAuth2AccessTokenImpl;
+import org.entando.entando.web.common.interceptor.EntandoBearerTokenExtractor;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.*;
+import javax.ws.rs.core.*;
+import java.util.*;
+import java.util.Map.Entry;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L44">public class ApiRestServer {</span>
+
+<span class="nc" id="L46">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiRestServer.class);</span>
+
+    @GET
+    @Produces({&quot;application/xml&quot;, &quot;text/plain&quot;, &quot;application/json&quot;, &quot;application/javascript&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doGet(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                        @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L53">        return this.buildGetDeleteResponse(langCode, ApiMethod.HttpMethod.GET, null, resourceName, request, ui);</span>
+    }
+
+    @GET
+    @Produces({&quot;application/xml&quot;, &quot;text/plain&quot;, &quot;application/json&quot;, &quot;application/javascript&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doGet(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                        @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L61">        return this.buildGetDeleteResponse(langCode, ApiMethod.HttpMethod.GET, namespace, resourceName, request, ui);</span>
+    }
+
+    @POST
+    @Consumes({&quot;application/xml&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doPostFromXmlBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                                    @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L70">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.POST, null, resourceName, request, ui, MediaType.APPLICATION_XML_TYPE);</span>
+    }
+
+    @POST
+    @Consumes({&quot;application/xml&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doPostFromXmlBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                                    @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L79">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.POST, namespace, resourceName, request, ui, MediaType.APPLICATION_XML_TYPE);</span>
+    }
+
+    @POST
+    @Consumes({&quot;application/json&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doPostFromJsonBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                                     @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L88">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.POST, null, resourceName, request, ui, MediaType.APPLICATION_JSON_TYPE);</span>
+    }
+
+    @POST
+    @Consumes({&quot;application/json&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doPostFromJsonBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                                     @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L97">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.POST, namespace, resourceName, request, ui, MediaType.APPLICATION_JSON_TYPE);</span>
+    }
+
+    @PUT
+    @Consumes({&quot;application/xml&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doPutFromXmlBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                                   @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L106">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.PUT, null, resourceName, request, ui, MediaType.APPLICATION_XML_TYPE);</span>
+    }
+
+    @PUT
+    @Consumes({&quot;application/xml&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doPutFromXmlBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                                   @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L115">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.PUT, namespace, resourceName, request, ui, MediaType.APPLICATION_XML_TYPE);</span>
+    }
+
+    @PUT
+    @Consumes({&quot;application/json&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doPutFromJsonBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                                    @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L124">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.PUT, null, resourceName, request, ui, MediaType.APPLICATION_JSON_TYPE);</span>
+    }
+
+    @PUT
+    @Consumes({&quot;application/json&quot;})
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doPutFromJsonBody(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                                    @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L133">        return this.buildPostPutResponse(langCode, ApiMethod.HttpMethod.PUT, namespace, resourceName, request, ui, MediaType.APPLICATION_JSON_TYPE);</span>
+    }
+
+    @DELETE
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{resourceName}&quot;)
+    public Object doDelete(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;resourceName&quot;) String resourceName,
+                           @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L141">        return this.buildGetDeleteResponse(langCode, ApiMethod.HttpMethod.DELETE, null, resourceName, request, ui);</span>
+    }
+
+    @DELETE
+    @Produces({&quot;application/json&quot;, &quot;application/xml&quot;})
+    @Path(&quot;/{langCode}/{namespace}/{resourceName}&quot;)
+    public Object doDelete(@PathParam(&quot;langCode&quot;) String langCode, @PathParam(&quot;namespace&quot;) String namespace,
+                           @PathParam(&quot;resourceName&quot;) String resourceName, @Context HttpServletRequest request, @Context UriInfo ui) {
+<span class="nc" id="L149">        return this.buildGetDeleteResponse(langCode, ApiMethod.HttpMethod.DELETE, namespace, resourceName, request, ui);</span>
+    }
+
+    protected Object buildGetDeleteResponse(String langCode, ApiMethod.HttpMethod httpMethod,
+                                            String namespace, String resourceName, HttpServletRequest request, UriInfo ui) {
+<span class="nc" id="L154">        Object responseObject = null;</span>
+        try {
+<span class="nc" id="L156">            IResponseBuilder responseBuilder = (IResponseBuilder) ApsWebApplicationUtils.getBean(SystemConstants.API_RESPONSE_BUILDER, request);</span>
+<span class="nc" id="L157">            Properties properties = this.extractProperties(langCode, ui, request);</span>
+<span class="nc" id="L158">            ApiMethod apiMethod = responseBuilder.extractApiMethod(httpMethod, namespace, resourceName);</span>
+<span class="nc" id="L159">            this.extractOAuthParameters(request, apiMethod, properties);</span>
+<span class="nc" id="L160">            responseObject = responseBuilder.createResponse(apiMethod, properties);</span>
+<span class="nc" id="L161">        } catch (ApiException ae) {</span>
+<span class="nc" id="L162">            responseObject = this.buildErrorResponse(httpMethod, namespace, resourceName, ae);</span>
+<span class="nc" id="L163">        } catch (Throwable t) {</span>
+<span class="nc" id="L164">            responseObject = this.buildErrorResponse(httpMethod, namespace, resourceName, t);</span>
+<span class="nc" id="L165">        }</span>
+<span class="nc" id="L166">        return this.createResponse(responseObject);</span>
+    }
+
+    protected Object buildPostPutResponse(String langCode, ApiMethod.HttpMethod httpMethod,
+                                          String namespace, String resourceName, HttpServletRequest request, UriInfo ui, MediaType mediaType) {
+<span class="nc" id="L171">        Object responseObject = null;</span>
+        try {
+<span class="nc" id="L173">            IResponseBuilder responseBuilder = (IResponseBuilder) ApsWebApplicationUtils.getBean(SystemConstants.API_RESPONSE_BUILDER, request);</span>
+<span class="nc" id="L174">            Properties properties = this.extractProperties(langCode, ui, request);</span>
+<span class="nc" id="L175">            ApiMethod apiMethod = responseBuilder.extractApiMethod(httpMethod, namespace, resourceName);</span>
+<span class="nc" id="L176">            this.extractOAuthParameters(request, apiMethod, properties);</span>
+<span class="nc" id="L177">            Object bodyObject = UnmarshalUtils.unmarshal(apiMethod.getExpectedType(), request, mediaType);</span>
+<span class="nc" id="L178">            responseObject = responseBuilder.createResponse(apiMethod, bodyObject, properties);</span>
+<span class="nc" id="L179">        } catch (ApiException ae) {</span>
+<span class="nc" id="L180">            responseObject = this.buildErrorResponse(httpMethod, namespace, resourceName, ae);</span>
+<span class="nc" id="L181">        } catch (Throwable t) {</span>
+<span class="nc" id="L182">            responseObject = this.buildErrorResponse(httpMethod, namespace, resourceName, t);</span>
+<span class="nc" id="L183">        }</span>
+<span class="nc" id="L184">        return this.createResponse(responseObject);</span>
+    }
+
+    protected Properties extractProperties(String langCode, UriInfo ui, HttpServletRequest request) throws Throwable {
+<span class="nc" id="L188">        ILangManager langManager = (ILangManager) ApsWebApplicationUtils.getBean(SystemConstants.LANGUAGE_MANAGER, request);</span>
+<span class="nc" id="L189">        Properties properties = this.extractRequestParameters(ui);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (null == langManager.getLang(langCode)) {</span>
+<span class="nc" id="L191">            langCode = langManager.getDefaultLang().getCode();</span>
+        }
+<span class="nc" id="L193">        String applicationBaseUrl = this.extractApplicationBaseUrl(request);</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if (null != applicationBaseUrl) {</span>
+<span class="nc" id="L195">            properties.put(SystemConstants.API_APPLICATION_BASE_URL_PARAMETER, applicationBaseUrl);</span>
+        }
+<span class="nc" id="L197">        properties.put(SystemConstants.API_LANG_CODE_PARAMETER, langCode);</span>
+<span class="nc" id="L198">        properties.put(SystemConstants.API_PRODUCES_MEDIA_TYPE_PARAMETER, this.extractProducesMediaType(request));</span>
+<span class="nc" id="L199">        return properties;</span>
+    }
+
+    protected Properties extractRequestParameters(UriInfo ui) {
+<span class="nc" id="L203">        MultivaluedMap&lt;String, String&gt; queryParams = ui.getQueryParameters(false);</span>
+<span class="nc" id="L204">        Properties properties = new Properties();</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">        if (null != queryParams) {</span>
+<span class="nc" id="L206">            List&lt;String&gt; reservedParameters = SystemConstants.API_RESERVED_PARAMETERS;</span>
+<span class="nc" id="L207">            Set&lt;Entry&lt;String, List&lt;String&gt;&gt;&gt; entries = queryParams.entrySet();</span>
+<span class="nc" id="L208">            Iterator&lt;Entry&lt;String, List&lt;String&gt;&gt;&gt; iter = entries.iterator();</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            while (iter.hasNext()) {</span>
+<span class="nc" id="L210">                Entry&lt;String, List&lt;String&gt;&gt; entry = iter.next();</span>
+<span class="nc" id="L211">                String key = entry.getKey();</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (!reservedParameters.contains(key)) {</span>
+                    //extract only the first value
+<span class="nc" id="L214">                    properties.put(key, entry.getValue().get(0));</span>
+                }
+<span class="nc" id="L216">            }</span>
+        }
+<span class="nc" id="L218">        return properties;</span>
+    }
+
+    protected String extractApplicationBaseUrl(HttpServletRequest request) throws Exception {
+<span class="nc" id="L222">        String applicationBaseUrl = null;</span>
+        try {
+<span class="nc" id="L224">            IURLManager urlManager = (IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, request);</span>
+<span class="nc" id="L225">            applicationBaseUrl = urlManager.getApplicationBaseURL(request);</span>
+<span class="nc" id="L226">        } catch (Exception t) {</span>
+<span class="nc" id="L227">            _logger.error(&quot;Error extracting application base url&quot;, t);</span>
+<span class="nc" id="L228">        }</span>
+<span class="nc" id="L229">        return applicationBaseUrl;</span>
+    }
+
+    protected MediaType extractProducesMediaType(HttpServletRequest request) {
+<span class="nc" id="L233">        String pathInfo = request.getPathInfo();</span>
+<span class="nc" id="L234">        int index = pathInfo.indexOf('.');</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        if (index &lt; 0) {</span>
+<span class="nc" id="L236">            return MediaType.APPLICATION_XML_TYPE;</span>
+        }
+<span class="nc" id="L238">        String extension = pathInfo.substring(index + 1);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        if (extension.equalsIgnoreCase(&quot;json&quot;)) {</span>
+<span class="nc" id="L240">            return MediaType.APPLICATION_JSON_TYPE;</span>
+        } else {
+<span class="nc" id="L242">            return MediaType.APPLICATION_XML_TYPE;</span>
+        }
+    }
+
+    protected StringApiResponse buildErrorResponse(ApiMethod.HttpMethod httpMethod, String namespace, String resourceName, Throwable t) {
+<span class="nc" id="L247">        StringBuilder buffer = new StringBuilder();</span>
+<span class="nc" id="L248">        buffer.append(&quot;Method '&quot;).append(httpMethod).append(&quot;' Resource '&quot;).append(resourceName).append(&quot;'&quot;);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (null != namespace) {</span>
+<span class="nc" id="L250">            buffer.append(&quot; Namespace '&quot;).append(namespace).append(&quot;'&quot;);</span>
+        }
+<span class="nc" id="L252">        final String message = buffer.toString();</span>
+<span class="nc" id="L253">        _logger.error(&quot;Error building api response  - {}&quot;, message, t);</span>
+<span class="nc" id="L254">        StringApiResponse response = new StringApiResponse();</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if (t instanceof ApiException) {</span>
+<span class="nc" id="L256">            response.addErrors(((ApiException) t).getErrors());</span>
+        } else {
+<span class="nc" id="L258">            ApiError error = new ApiError(IApiErrorCodes.SERVER_ERROR, &quot;Error building response - &quot; + message, Response.Status.INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L259">            response.addError(error);</span>
+        }
+<span class="nc" id="L261">        response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L262">        return response;</span>
+    }
+
+    protected void extractOAuthParameters(HttpServletRequest request, ApiMethod apiMethod, Properties properties) throws ApiException {
+<span class="nc" id="L266">        IUserManager userManager = (IUserManager) ApsWebApplicationUtils.getBean(SystemConstants.USER_MANAGER, request);</span>
+<span class="nc" id="L267">        IAuthorizationManager authManager = (IAuthorizationManager) ApsWebApplicationUtils.getBean(SystemConstants.AUTHORIZATION_SERVICE, request);</span>
+        try {
+<span class="nc" id="L269">            properties.put(SystemConstants.API_REQUEST_PARAMETER, request);</span>
+<span class="nc" id="L270">            UserDetails user = null;</span>
+<span class="nc" id="L271">            String permission = apiMethod.getRequiredPermission();</span>
+<span class="nc" id="L272">            _logger.debug(&quot;Permission required: {}&quot;, permission);</span>
+<span class="nc" id="L273">            String accessToken = new EntandoBearerTokenExtractor().extractToken(request);</span>
+<span class="nc" id="L274">            IApiOAuth2TokenManager tokenManager = (IApiOAuth2TokenManager) ApsWebApplicationUtils.getBean(SystemConstants.OAUTH_TOKEN_MANAGER, request);</span>
+<span class="nc" id="L275">            final OAuth2AccessTokenImpl token = (OAuth2AccessTokenImpl) tokenManager.readAccessToken(accessToken);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            if (token != null) {</span>
+                // Validate the access token
+<span class="nc bnc" id="L278" title="All 2 branches missed.">                if (!token.getValue().equals(accessToken)) {</span>
+<span class="nc" id="L279">                    throw new ApiException(IApiErrorCodes.API_AUTHENTICATION_REQUIRED, &quot;Token does not match&quot;, Response.Status.UNAUTHORIZED);</span>
+                } // check if access token is expired
+<span class="nc bnc" id="L281" title="All 2 branches missed.">                else if (token.isExpired()) {</span>
+<span class="nc" id="L282">                    throw new ApiException(IApiErrorCodes.API_AUTHENTICATION_REQUIRED, &quot;Token expired&quot;, Response.Status.UNAUTHORIZED);</span>
+                }
+<span class="nc" id="L284">                String username = token.getLocalUser();</span>
+<span class="nc" id="L285">                user = userManager.getUser(username);</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                if (user != null) {</span>
+<span class="nc" id="L287">                    user.addAuthorizations(authManager.getUserAuthorizations(username));</span>
+<span class="nc" id="L288">                    properties.put(SystemConstants.API_USER_PARAMETER, user);</span>
+<span class="nc" id="L289">                    _logger.info(&quot;User {} requesting resource that requires {} permission &quot;, username, permission);</span>
+<span class="nc" id="L290">                    UserDetails userOnSession = (UserDetails) request.getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="nc bnc" id="L291" title="All 4 branches missed.">                    if (null == userOnSession || userOnSession.getUsername().equals(SystemConstants.GUEST_USER_NAME)) {</span>
+<span class="nc" id="L292">                        user.setAccessToken(accessToken);</span>
+<span class="nc" id="L293">                        request.getSession().setAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER, user);</span>
+                    } 
+                }
+<span class="nc bnc" id="L296" title="All 2 branches missed.">            } else if (accessToken != null) {</span>
+<span class="nc" id="L297">                _logger.warn(&quot;Token not found from access token&quot;);</span>
+            }
+<span class="nc bnc" id="L299" title="All 2 branches missed.">            if (null != user) {</span>
+<span class="nc" id="L300">                String username = user.getUsername();</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">                if (permission != null) {</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">                    if (!authManager.isAuthOnPermission(user, permission)) {</span>
+<span class="nc" id="L303">                        List&lt;Role&gt; roles = authManager.getUserRoles(user);</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">                        for (Role role : roles) {</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">                            _logger.debug(&quot;User {} requesting resource has {} permission &quot;, username, (null != role.getPermissions()) ? role.getPermissions().toString() : &quot;&quot;);</span>
+<span class="nc" id="L306">                        }</span>
+<span class="nc" id="L307">                        throw new ApiException(IApiErrorCodes.API_AUTHORIZATION_REQUIRED, &quot;Authorization Required&quot;, Response.Status.UNAUTHORIZED);</span>
+                    }
+                }
+<span class="nc bnc" id="L310" title="All 2 branches missed.">            } else if (apiMethod.getRequiredAuth()) {</span>
+<span class="nc" id="L311">                throw new ApiException(IApiErrorCodes.API_AUTHENTICATION_REQUIRED, &quot;Authentication Required&quot;, Response.Status.UNAUTHORIZED);</span>
+            }
+<span class="nc" id="L313">        } catch (EntException ex) {</span>
+<span class="nc" id="L314">            _logger.error(&quot;System exception {}&quot;, ex);</span>
+<span class="nc" id="L315">            throw new ApiException(IApiErrorCodes.SERVER_ERROR, ex.getMessage(), Response.Status.INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L316">        }</span>
+<span class="nc" id="L317">    }</span>
+
+    protected Response createResponse(Object responseObject) {
+<span class="nc" id="L320">        ResponseBuilderImpl responsex = new ResponseBuilderImpl();</span>
+<span class="nc" id="L321">        responsex.entity(responseObject);</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">        if (responseObject instanceof AbstractApiResponse) {</span>
+<span class="nc" id="L323">            Response.Status status = Response.Status.OK;</span>
+<span class="nc" id="L324">            AbstractApiResponse mainResponse = (AbstractApiResponse) responseObject;</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            if (null != mainResponse.getErrors()) {</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">                for (int i = 0; i &lt; mainResponse.getErrors().size(); i++) {</span>
+<span class="nc" id="L327">                    ApiError error = mainResponse.getErrors().get(i);</span>
+<span class="nc" id="L328">                    Response.Status errorStatus = error.getStatus();</span>
+<span class="nc bnc" id="L329" title="All 4 branches missed.">                    if (null != errorStatus &amp;&amp; status.getStatusCode() &lt; errorStatus.getStatusCode()) {</span>
+<span class="nc" id="L330">                        status = errorStatus;</span>
+                    }
+                }
+            }
+<span class="nc" id="L334">            responsex.status(status);</span>
+<span class="nc" id="L335">        } else {</span>
+<span class="nc" id="L336">            responsex.status(Response.Status.OK);</span>
+        }
+<span class="nc" id="L338">        return responsex.build();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

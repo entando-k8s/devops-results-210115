@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryManagerCacheWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.category.cache</a> &gt; <span class="el_source">CategoryManagerCacheWrapper.java</span></div><h1>CategoryManagerCacheWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.category.cache;
+
+import com.agiletec.aps.system.common.AbstractCacheWrapper;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryDAO;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.util.ApsProperties;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.ArrayUtils;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.springframework.cache.Cache;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L37">public class CategoryManagerCacheWrapper extends AbstractCacheWrapper implements ICategoryManagerCacheWrapper {</span>
+
+<span class="fc" id="L39">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(CategoryManagerCacheWrapper.class);</span>
+
+    @Override
+    public void release() {
+<span class="fc" id="L43">        Cache cache = this.getCache();</span>
+<span class="fc" id="L44">        List&lt;String&gt; codes = (List&lt;String&gt;) this.get(cache, CATEGORY_CODES_CACHE_NAME, List.class);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (null != codes) {</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">            for (String code : codes) {</span>
+<span class="nc" id="L47">                cache.evict(CATEGORY_CACHE_NAME_PREFIX + code);</span>
+<span class="nc" id="L48">            }</span>
+<span class="nc" id="L49">            cache.evict(CATEGORY_CODES_CACHE_NAME);</span>
+        }
+<span class="fc" id="L51">        cache.evict(CATEGORY_STATUS_CACHE_NAME);</span>
+<span class="fc" id="L52">        cache.evict(CATEGORY_ROOT_CACHE_NAME);</span>
+<span class="fc" id="L53">    }</span>
+
+    @Override
+    public void initCache(ICategoryDAO categoryDAO, ILangManager langManager) throws EntException {
+<span class="fc" id="L57">        List&lt;Category&gt; categories = null;</span>
+        try {
+<span class="fc" id="L59">            categories = categoryDAO.loadCategories(langManager);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (categories.isEmpty()) {</span>
+<span class="nc" id="L61">                Category root = this.createRoot(langManager);</span>
+<span class="nc" id="L62">                categoryDAO.addCategory(root);</span>
+<span class="nc" id="L63">                categories.add(root);</span>
+            }
+<span class="fc" id="L65">            Cache cache = this.getCache();</span>
+<span class="fc" id="L66">            this.initCache(cache, categories);</span>
+<span class="nc" id="L67">        } catch (Throwable t) {</span>
+<span class="nc" id="L68">            logger.error(&quot;Error loading the category tree&quot;, t);</span>
+<span class="nc" id="L69">            throw new EntException(&quot;Error loading the category tree.&quot;, t);</span>
+<span class="fc" id="L70">        }</span>
+<span class="fc" id="L71">    }</span>
+
+    protected Category createRoot(ILangManager langManager) {
+<span class="nc" id="L74">        Category root = new Category();</span>
+<span class="nc" id="L75">        root.setCode(&quot;home&quot;);</span>
+<span class="nc" id="L76">        root.setParentCode(&quot;home&quot;);</span>
+<span class="nc" id="L77">        List&lt;Lang&gt; langs = langManager.getLangs();</span>
+<span class="nc" id="L78">        ApsProperties titles = new ApsProperties();</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        for (Lang lang : langs) {</span>
+<span class="nc" id="L80">            titles.setProperty(lang.getCode(), &quot;Home&quot;);</span>
+<span class="nc" id="L81">        }</span>
+<span class="nc" id="L82">        root.setTitles(titles);</span>
+<span class="nc" id="L83">        return root;</span>
+    }
+
+    private void initCache(Cache cache, List&lt;Category&gt; categories) throws EntException {
+<span class="fc" id="L87">        Category root = null;</span>
+<span class="fc" id="L88">        Map&lt;String, Category&gt; categoryMap = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (Category cat : categories) {</span>
+<span class="fc" id="L90">            categoryMap.put(cat.getCode(), cat);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            if (cat.getCode().equals(cat.getParentCode())) {</span>
+<span class="fc" id="L92">                root = cat;</span>
+            }
+<span class="fc" id="L94">        }</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        for (Category cat : categories) {</span>
+<span class="fc" id="L96">            Category parent = categoryMap.get(cat.getParentCode());</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (cat != root) {</span>
+<span class="fc" id="L98">                parent.addChildCode(cat.getCode());</span>
+            }
+<span class="fc" id="L100">            cat.setParentCode(parent.getCode());</span>
+<span class="fc" id="L101">        }</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        if (root == null) {</span>
+<span class="nc" id="L103">            throw new EntException(&quot;Error found in the category tree: undefined root&quot;);</span>
+        }
+<span class="fc" id="L105">        this.insertObjectsOnCache(cache, root, categoryMap);</span>
+<span class="fc" id="L106">    }</span>
+
+    protected void insertObjectsOnCache(Cache cache, Category root, Map&lt;String, Category&gt; categoryMap) {
+<span class="fc" id="L109">        cache.put(CATEGORY_ROOT_CACHE_NAME, root);</span>
+<span class="fc" id="L110">        Iterator&lt;Category&gt; iter = categoryMap.values().iterator();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L112">            Category category = iter.next();</span>
+<span class="fc" id="L113">            cache.put(CATEGORY_CACHE_NAME_PREFIX + category.getCode(), category);</span>
+<span class="fc" id="L114">        }</span>
+<span class="fc" id="L115">    }</span>
+
+    @Override
+    public Category getCategory(String code) {
+<span class="fc" id="L119">        Category category = this.get(CATEGORY_CACHE_NAME_PREFIX + code, Category.class);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (null != category) {</span>
+<span class="fc" id="L121">            return category.clone();</span>
+        }
+<span class="fc" id="L123">        return null;</span>
+    }
+
+    @Override
+    public void addCategory(Category category) {
+<span class="fc" id="L128">        Cache cache = this.getCache();</span>
+<span class="fc" id="L129">        List&lt;String&gt; codes = (List&lt;String&gt;) this.get(cache, CATEGORY_CODES_CACHE_NAME, List.class);</span>
+<span class="pc bpc" id="L130" title="3 of 4 branches missed.">        if (null != codes &amp;&amp; !codes.contains(category.getCode())) {</span>
+<span class="nc" id="L131">            codes.add(category.getCode());</span>
+<span class="nc" id="L132">            cache.put(CATEGORY_CODES_CACHE_NAME, codes);</span>
+        }
+<span class="fc" id="L134">        Category parent = this.getCategory(category.getParentCode());</span>
+<span class="fc" id="L135">        String[] childCodes = parent.getChildrenCodes();</span>
+<span class="fc" id="L136">        childCodes = ArrayUtils.add(childCodes, category.getCode());</span>
+<span class="fc" id="L137">        parent.setChildrenCodes(childCodes);</span>
+<span class="fc" id="L138">        cache.put(CATEGORY_CACHE_NAME_PREFIX + parent.getCode(), parent);</span>
+<span class="fc" id="L139">        this.checkRootModification(parent, cache);</span>
+<span class="fc" id="L140">        cache.put(CATEGORY_CACHE_NAME_PREFIX + category.getCode(), category);</span>
+<span class="fc" id="L141">    }</span>
+
+    @Override
+    public void updateCategory(Category category) {
+<span class="fc" id="L145">        Cache cache = this.getCache();</span>
+<span class="fc" id="L146">        cache.put(CATEGORY_CACHE_NAME_PREFIX + category.getCode(), category);</span>
+<span class="fc" id="L147">        this.checkRootModification(category, cache);</span>
+<span class="fc" id="L148">    }</span>
+
+    @Override
+    public void deleteCategory(String code) {
+<span class="fc" id="L152">        Cache cache = this.getCache();</span>
+<span class="fc" id="L153">        Category category = this.getCategory(code);</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (null == category) {</span>
+<span class="nc" id="L155">            return;</span>
+        }
+<span class="fc" id="L157">        Category parent = this.getCategory(category.getParentCode());</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (null != parent.getChildrenCodes()) {</span>
+<span class="fc" id="L159">            List&lt;String&gt; childrenCodes = new ArrayList&lt;&gt;(Arrays.asList(parent.getChildrenCodes()));</span>
+<span class="fc" id="L160">            boolean executedRemove = childrenCodes.remove(code);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">            if (executedRemove) {</span>
+<span class="fc" id="L162">                parent.setChildrenCodes(childrenCodes.toArray(new String[childrenCodes.size()]));</span>
+<span class="fc" id="L163">                cache.put(CATEGORY_CACHE_NAME_PREFIX + parent.getCode(), parent);</span>
+<span class="fc" id="L164">                this.checkRootModification(parent, cache);</span>
+            }
+        }
+<span class="fc" id="L167">        List&lt;String&gt; codes = (List&lt;String&gt;) this.get(cache, CATEGORY_CODES_CACHE_NAME, List.class);</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (null != codes) {</span>
+<span class="nc" id="L169">            codes.remove(code);</span>
+<span class="nc" id="L170">            cache.put(CATEGORY_CODES_CACHE_NAME, codes);</span>
+        }
+<span class="fc" id="L172">        cache.evict(CATEGORY_CACHE_NAME_PREFIX + code);</span>
+<span class="fc" id="L173">    }</span>
+
+    private void checkRootModification(Category category, Cache cache) {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        if (category.isRoot()) {</span>
+<span class="fc" id="L177">            cache.put(CATEGORY_ROOT_CACHE_NAME, category);</span>
+        }
+<span class="fc" id="L179">    }</span>
+
+    @Override
+    public Category getRoot() {
+<span class="fc" id="L183">        Category category = this.get(CATEGORY_ROOT_CACHE_NAME, Category.class);</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if (null != category) {</span>
+<span class="fc" id="L185">            return category.clone();</span>
+        }
+<span class="nc" id="L187">        return null;</span>
+    }
+
+    @Override
+    protected String getCacheName() {
+<span class="fc" id="L192">        return CATEGORY_MANAGER_CACHE_NAME;</span>
+    }
+
+    @Override
+    public void moveCategory(String categoryCode, String newParentCode) {
+<span class="fc" id="L197">        Cache cache = this.getCache();</span>
+<span class="fc" id="L198">        Category categoryNode1 = this.getCategory(categoryCode);</span>
+<span class="fc" id="L199">        Category categoryNode2 = this.getCategory(newParentCode);</span>
+
+<span class="fc" id="L201">        Category oldParent = this.getCategory(categoryNode1.getParentCode());</span>
+<span class="fc" id="L202">        int index1 = Arrays.asList(oldParent.getChildrenCodes()).indexOf(categoryCode);</span>
+<span class="fc" id="L203">        String[] newChildren = ArrayUtils.remove(oldParent.getChildrenCodes(), index1);</span>
+<span class="fc" id="L204">        oldParent.setChildrenCodes(newChildren);</span>
+<span class="fc" id="L205">        cache.put(CATEGORY_CACHE_NAME_PREFIX + oldParent.getCode(), oldParent);</span>
+
+<span class="fc" id="L207">        String[] oldChildDest = categoryNode2.getChildrenCodes();</span>
+<span class="fc" id="L208">        categoryNode1.setParentCode(categoryNode2.getCode());</span>
+<span class="fc" id="L209">        cache.put(CATEGORY_CACHE_NAME_PREFIX + categoryNode1.getCode(), categoryNode1);</span>
+
+<span class="fc" id="L211">        String[] newChildren2 = ArrayUtils.add(oldChildDest, categoryNode1.getCode());</span>
+<span class="fc" id="L212">        categoryNode2.setChildrenCodes(newChildren2);</span>
+<span class="fc" id="L213">        cache.put(CATEGORY_CACHE_NAME_PREFIX + categoryNode2.getCode(), categoryNode2);</span>
+<span class="fc" id="L214">    }</span>
+
+    @Override
+    public Map&lt;String, Integer&gt; getMoveNodeStatus() {
+<span class="fc" id="L218">        return (Map&lt;String, Integer&gt;) this.get(CATEGORY_STATUS_CACHE_NAME, Map.class);</span>
+    }
+
+    @Override
+    public void updateMoveNodeStatus(String beanName, Integer status) {
+<span class="fc" id="L223">        Map&lt;String, Integer&gt; statusMap = this.getMoveNodeStatus();</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (null == statusMap) {</span>
+<span class="fc" id="L225">            statusMap = new HashMap&lt;&gt;();</span>
+        }
+<span class="fc" id="L227">        statusMap.put(beanName, status);</span>
+<span class="fc" id="L228">        this.getCache().put(CATEGORY_STATUS_CACHE_NAME, statusMap);</span>
+<span class="fc" id="L229">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

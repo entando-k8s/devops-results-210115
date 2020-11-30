@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiServiceCacheWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api.cache</a> &gt; <span class="el_source">ApiServiceCacheWrapper.java</span></div><h1>ApiServiceCacheWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api.cache;
+
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.services.api.IApiCatalogDAO;
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.entando.entando.aps.system.services.api.model.ApiService;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.cache.Cache;
+
+import com.agiletec.aps.system.common.AbstractGenericCacheWrapper;
+import org.entando.entando.ent.exception.EntException;
+import java.util.ArrayList;
+import org.entando.entando.aps.system.services.api.IApiCatalogManager;
+
+<span class="fc" id="L32">public class ApiServiceCacheWrapper extends AbstractGenericCacheWrapper&lt;ApiService&gt; implements IApiServiceCacheWrapper {</span>
+
+<span class="fc" id="L34">	private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+	@Override
+	protected String getCacheName() {
+<span class="fc" id="L38">		return IApiCatalogManager.API_CATALOG_CACHE_NAME;</span>
+	}
+
+	@Override
+	public void initCache(Map&lt;String, ApiResource&gt; resources, IApiCatalogDAO apiCatalogDAO) throws EntException {
+		try {
+<span class="fc" id="L44">			Cache cache = this.getCache();</span>
+<span class="fc" id="L45">			List&lt;ApiMethod&gt; apiGETMethods = buildApiGetMethods(resources);</span>
+<span class="fc" id="L46">			Map&lt;String, ApiService&gt; services = apiCatalogDAO.loadServices(apiGETMethods);</span>
+<span class="fc" id="L47">			this.insertAndCleanCache(cache, services);</span>
+<span class="nc" id="L48">		} catch (Throwable t) {</span>
+<span class="nc" id="L49">			logger.error(&quot;Error bootstrapping ApiCatalog cache&quot;, t);</span>
+<span class="nc" id="L50">			throw new EntException(&quot;Error bootstrapping ApiCatalog cache&quot;, t);</span>
+<span class="fc" id="L51">		}</span>
+<span class="fc" id="L52">	}</span>
+
+	protected List&lt;ApiMethod&gt; buildApiGetMethods(Map&lt;String, ApiResource&gt; resources) {
+<span class="fc" id="L55">		List&lt;ApiMethod&gt; apiGETMethods = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L56">		List&lt;ApiResource&gt; resourceList = new ArrayList&lt;&gt;(resources.values());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">		for (int i = 0; i &lt; resourceList.size(); i++) {</span>
+<span class="fc" id="L58">			ApiResource apiResource = resourceList.get(i);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">			if (null != apiResource.getGetMethod()) {</span>
+<span class="fc" id="L60">				apiGETMethods.add(apiResource.getGetMethod());</span>
+			}
+		}
+<span class="fc" id="L63">		return apiGETMethods;</span>
+	}
+
+	@Override
+	public Map&lt;String, ApiService&gt; getMasterServices() {
+<span class="fc" id="L68">		return super.getObjectMap();</span>
+	}
+
+	@Override
+	public void addService(ApiService apiService) {
+<span class="nc" id="L73">		this.manage(apiService.getKey(), apiService, Action.ADD);</span>
+<span class="nc" id="L74">	}</span>
+
+	@Override
+	public void updateService(ApiService apiService) {
+<span class="nc" id="L78">		this.manage(apiService.getKey(), apiService, Action.UPDATE);</span>
+<span class="nc" id="L79">	}</span>
+
+	@Override
+	public void removeService(String key) {
+<span class="nc" id="L83">		ApiService apiService = this.get(this.getCacheKeyPrefix() + key, ApiService.class);</span>
+<span class="nc" id="L84">		this.manage(key, apiService, Action.DELETE);</span>
+<span class="nc" id="L85">	}</span>
+
+	@Override
+	protected String getCodesCacheKey() {
+<span class="fc" id="L89">		return APICATALOG_SERVICES_CACHE_NAME;</span>
+	}
+
+	@Override
+	protected String getCacheKeyPrefix() {
+<span class="fc" id="L94">		return APICATALOG_SERVICE_CACHE_NAME_PREFIX;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

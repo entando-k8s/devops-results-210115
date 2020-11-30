@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api.provider.json</a> &gt; <span class="el_source">JSONProvider.java</span></div><h1>JSONProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api.provider.json;
+
+import java.io.OutputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.ext.Provider;
+import javax.xml.bind.JAXBElement;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
+import javax.xml.namespace.QName;
+import javax.xml.stream.XMLStreamWriter;
+import org.apache.cxf.helpers.CastUtils;
+
+import org.apache.cxf.jaxrs.ext.MessageContext;
+import org.apache.cxf.jaxrs.provider.json.utils.JSONUtils;
+import org.apache.cxf.jaxrs.utils.InjectionUtils;
+import org.apache.cxf.jaxrs.utils.JAXBUtils;
+import org.codehaus.jettison.mapped.Configuration;
+import org.codehaus.jettison.mapped.SimpleConverter;
+import org.codehaus.jettison.mapped.TypeConverter;
+
+import org.w3c.dom.Document;
+
+/**
+ * @author E.Santoboni
+ */
+@Produces(&quot;application/json&quot;)
+@Consumes(&quot;application/json&quot;)
+@Provider
+<span class="fc" id="L54">public class JSONProvider&lt;T&gt; extends org.apache.cxf.jaxrs.provider.json.JSONProvider&lt;T&gt;  {</span>
+    
+    private static final String MAPPED_CONVENTION = &quot;mapped&quot;;
+    private static final String BADGER_FISH_CONVENTION = &quot;badgerfish&quot;;
+    private static final String DROP_ROOT_CONTEXT_PROPERTY = &quot;drop.json.root.element&quot;;
+    private static final String ARRAY_KEYS_PROPERTY = &quot;json.array.keys&quot;;
+    private static final String ROOT_IS_ARRAY_PROPERTY = &quot;json.root.is.array&quot;;
+    private static final String DROP_ELEMENT_IN_XML_PROPERTY = &quot;drop.xml.elements&quot;;
+    private static final String IGNORE_EMPTY_JSON_ARRAY_VALUES_PROPERTY = &quot;ignore.empty.json.array.values&quot;;
+    static {
+<span class="fc" id="L64">        new SimpleConverter();</span>
+<span class="fc" id="L65">    }</span>
+    
+<span class="fc" id="L67">    private ConcurrentHashMap&lt;String, String&gt; namespaceMap = new ConcurrentHashMap&lt;String, String&gt;();</span>
+    private boolean serializeAsArray;
+    private List&lt;String&gt; arrayKeys;
+    private String namespaceSeparator;
+    private boolean dropRootElement;
+<span class="fc" id="L72">    private boolean dropElementsInXmlStream = true;</span>
+	private boolean dropCollectionWrapperElement;
+    private boolean ignoreMixedContent;
+    private boolean ignoreEmptyArrayValues;
+<span class="fc" id="L76">    private boolean writeXsiType = true;</span>
+    private boolean ignoreNamespaces;
+<span class="fc" id="L78">    private String convention = MAPPED_CONVENTION;</span>
+    private TypeConverter typeConverter;
+    private boolean attributesToElements;
+<span class="fc" id="L81">    private boolean writeNullAsString = true;</span>
+    private boolean escapeForwardSlashesAlways;
+    
+    @Override
+    public void setAttributesToElements(boolean value) {
+<span class="nc" id="L86">        this.attributesToElements = value;</span>
+<span class="nc" id="L87">		super.setAttributesToElements(value);</span>
+<span class="nc" id="L88">    }</span>
+    
+	@Override
+    public void setConvention(String value) {
+<span class="nc bnc" id="L92" title="All 4 branches missed.">        if (!MAPPED_CONVENTION.equals(value) &amp;&amp; !BADGER_FISH_CONVENTION.equals(value)) {</span>
+<span class="nc" id="L93">            throw new IllegalArgumentException(&quot;Unsupported convention \&quot;&quot; + value);</span>
+        }
+<span class="nc" id="L95">        convention = value;</span>
+<span class="nc" id="L96">		super.setConvention(value);</span>
+<span class="nc" id="L97">    }</span>
+    
+	@Override
+    public void setConvertTypesToStrings(boolean convert) {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (convert) {</span>
+<span class="nc" id="L102">            this.setTypeConverter(new SimpleConverter());</span>
+        }
+<span class="nc" id="L104">		super.setConvertTypesToStrings(convert);</span>
+<span class="nc" id="L105">    }</span>
+    
+    @Override
+    public void setTypeConverter(TypeConverter converter) {
+<span class="nc" id="L109">        this.typeConverter = converter;</span>
+<span class="nc" id="L110">		super.setTypeConverter(converter);</span>
+<span class="nc" id="L111">    }</span>
+    
+    @Override
+    public void setIgnoreNamespaces(boolean ignoreNamespaces) {
+<span class="nc" id="L115">        this.ignoreNamespaces = ignoreNamespaces;</span>
+<span class="nc" id="L116">		super.setIgnoreNamespaces(ignoreNamespaces);</span>
+<span class="nc" id="L117">    }</span>
+    
+    @Override
+    @Context
+    public void setMessageContext(MessageContext mc) {
+<span class="nc" id="L122">        super.setContext(mc);</span>
+<span class="nc" id="L123">    }</span>
+    
+    @Override
+    public void setDropRootElement(boolean drop) {
+<span class="nc" id="L127">        this.dropRootElement = drop;</span>
+<span class="nc" id="L128">		super.setDropRootElement(drop);</span>
+<span class="nc" id="L129">    }</span>
+    
+    @Override
+    public void setIgnoreMixedContent(boolean ignore) {
+<span class="nc" id="L133">        this.ignoreMixedContent = ignore;</span>
+<span class="nc" id="L134">		super.setIgnoreMixedContent(ignore);</span>
+<span class="nc" id="L135">    }</span>
+	
+	@Override
+    public void setSerializeAsArray(boolean asArray) {
+<span class="nc" id="L139">        this.serializeAsArray = asArray;</span>
+<span class="nc" id="L140">		super.setSerializeAsArray(asArray);</span>
+<span class="nc" id="L141">    }</span>
+    
+	@Override
+    public void setArrayKeys(List&lt;String&gt; keys) {
+<span class="nc" id="L145">        this.arrayKeys = keys;</span>
+<span class="nc" id="L146">		super.setArrayKeys(keys);</span>
+<span class="nc" id="L147">    }</span>
+	
+    @Override
+    public void setNamespaceMap(Map&lt;String, String&gt; namespaceMap) {
+<span class="nc" id="L151">        this.namespaceMap.putAll(namespaceMap);</span>
+<span class="nc" id="L152">		super.setNamespaceMap(namespaceMap);</span>
+<span class="nc" id="L153">    }</span>
+	
+	@Override
+	protected void marshalCollection(Class&lt;?&gt; originalCls, Object collection, 
+                                     Type genericType, String encoding, 
+                                     OutputStream os, MediaType m, Annotation[] anns) throws Exception {
+<span class="nc" id="L159">        Class&lt;?&gt; actualClass = InjectionUtils.getActualType(genericType);</span>
+<span class="nc" id="L160">        actualClass = getActualType(actualClass, genericType, anns);</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        Collection&lt;?&gt; c = originalCls.isArray() ? Arrays.asList((Object[]) collection) </span>
+<span class="nc" id="L162">                                             : (Collection&lt;?&gt;) collection;</span>
+<span class="nc" id="L163">        Iterator&lt;?&gt; it = c.iterator();</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        Object firstObj = it.hasNext() ? it.next() : null;</span>
+<span class="nc" id="L165">        String startTag = null;</span>
+<span class="nc" id="L166">        String endTag = null;</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if (!dropCollectionWrapperElement) {</span>
+<span class="nc" id="L168">            QName qname = null;</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if (firstObj instanceof JAXBElement) {</span>
+<span class="nc" id="L170">                JAXBElement&lt;?&gt; el = (JAXBElement&lt;?&gt;)firstObj;</span>
+<span class="nc" id="L171">                qname = el.getName();</span>
+<span class="nc" id="L172">                actualClass = el.getDeclaredType();</span>
+<span class="nc" id="L173">            } else {</span>
+<span class="nc" id="L174">                qname = getCollectionWrapperQName(actualClass, genericType, firstObj, false);</span>
+            }
+<span class="nc" id="L176">            String prefix = &quot;&quot;;</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">            if (!ignoreNamespaces) {</span>
+<span class="nc" id="L178">                prefix = namespaceMap.get(qname.getNamespaceURI());</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                if (prefix != null) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                    if (prefix.length() &gt; 0) {</span>
+<span class="nc" id="L181">                        prefix += &quot;.&quot;;</span>
+                    }
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                } else if (qname.getNamespaceURI().length() &gt; 0) {</span>
+<span class="nc" id="L184">                    prefix = &quot;ns1.&quot;;</span>
+                }
+            }
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            prefix = (prefix == null) ? &quot;&quot; : prefix;</span>
+<span class="nc" id="L188">            startTag = &quot;{\&quot;&quot; + prefix + qname.getLocalPart() + &quot;\&quot;:[&quot;;</span>
+<span class="nc" id="L189">            endTag = &quot;]}&quot;;</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        } else if (serializeAsArray) {</span>
+<span class="nc" id="L191">            startTag = &quot;[&quot;;</span>
+<span class="nc" id="L192">            endTag = &quot;]&quot;;</span>
+        } else {
+<span class="nc" id="L194">            startTag = &quot;{&quot;;</span>
+<span class="nc" id="L195">            endTag = &quot;}&quot;;</span>
+        }
+<span class="nc" id="L197">        os.write(startTag.getBytes());</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if (firstObj != null) {</span>
+<span class="nc" id="L199">            XmlJavaTypeAdapter adapter = </span>
+<span class="nc" id="L200">                org.apache.cxf.jaxrs.utils.JAXBUtils.getAdapter(firstObj.getClass(), anns);</span>
+<span class="nc" id="L201">            marshalCollectionMember(JAXBUtils.useAdapter(firstObj, adapter, true),</span>
+                                    actualClass, genericType, encoding, os);
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L204">                os.write(&quot;,&quot;.getBytes());</span>
+<span class="nc" id="L205">                marshalCollectionMember(JAXBUtils.useAdapter(it.next(), adapter, true), </span>
+                                        actualClass, genericType, encoding, os);
+            }
+        }
+<span class="nc" id="L209">        os.write(endTag.getBytes());</span>
+<span class="nc" id="L210">    }</span>
+	
+    @Override
+    protected XMLStreamWriter createWriter(Object actualObject, Class&lt;?&gt; actualClass, 
+        Type genericType, String enc, OutputStream os, boolean isCollection) throws Exception {
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">        if (BADGER_FISH_CONVENTION.equals(convention)) {</span>
+<span class="nc" id="L216">            return JSONUtils.createBadgerFishWriter(os, enc);</span>
+        }
+<span class="fc" id="L218">        boolean dropElementsInXmlStreamProp = getBooleanJsonProperty(DROP_ELEMENT_IN_XML_PROPERTY, </span>
+                                                                     dropElementsInXmlStream);
+<span class="fc" id="L220">        boolean dropRootNeeded = getBooleanJsonProperty(DROP_ROOT_CONTEXT_PROPERTY, dropRootElement);</span>
+<span class="pc bpc" id="L221" title="3 of 4 branches missed.">        boolean dropRootInXmlNeeded = dropRootNeeded &amp;&amp; dropElementsInXmlStreamProp;</span>
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        QName qname = actualClass == Document.class </span>
+<span class="nc" id="L223">            ? org.apache.cxf.helpers.DOMUtils.getElementQName(((Document)actualObject).getDocumentElement()) </span>
+<span class="fc" id="L224">            : this.getQName(actualClass, genericType, actualObject);</span>
+<span class="pc bpc" id="L225" title="6 of 8 branches missed.">        if (qname != null &amp;&amp; ignoreNamespaces &amp;&amp; (isCollection || dropRootInXmlNeeded)) {        </span>
+<span class="nc" id="L226">            qname = new QName(qname.getLocalPart());</span>
+        }
+<span class="pc bpc" id="L228" title="2 of 4 branches missed.">        Configuration config = </span>
+<span class="fc" id="L229">            JSONUtils.createConfiguration(namespaceMap, </span>
+                                          writeXsiType &amp;&amp; !ignoreNamespaces,
+                                          attributesToElements,
+                                          typeConverter);
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">        if (namespaceSeparator != null) {</span>
+<span class="nc" id="L234">            config.setJsonNamespaceSeparator(namespaceSeparator);</span>
+        }
+<span class="pc bpc" id="L236" title="3 of 4 branches missed.">        if (!dropElementsInXmlStreamProp &amp;&amp; super.outDropElements != null) {</span>
+<span class="nc" id="L237">            config.setIgnoredElements(outDropElements);</span>
+        }
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">        if (!writeNullAsString) {</span>
+<span class="nc" id="L240">            config.setWriteNullAsString(writeNullAsString);</span>
+        }
+<span class="fc" id="L242">        boolean ignoreEmpty = getBooleanJsonProperty(IGNORE_EMPTY_JSON_ARRAY_VALUES_PROPERTY, ignoreEmptyArrayValues);</span>
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">        if (ignoreEmpty) {</span>
+<span class="nc" id="L244">            config.setIgnoreEmptyArrayValues(ignoreEmpty);</span>
+        }
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        if (escapeForwardSlashesAlways) {</span>
+<span class="nc" id="L247">            config.setEscapeForwardSlashAlways(escapeForwardSlashesAlways);</span>
+        }
+<span class="pc bpc" id="L249" title="3 of 4 branches missed.">        boolean dropRootInJsonStream = dropRootNeeded &amp;&amp; !dropElementsInXmlStreamProp;</span>
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (dropRootInJsonStream) {</span>
+<span class="nc" id="L251">            config.setDropRootElement(true);</span>
+        }
+<span class="fc" id="L253">        List&lt;String&gt; theArrayKeys = getArrayKeys();</span>
+<span class="fc" id="L254">        boolean rootIsArray = isRootArray(theArrayKeys);</span>
+<span class="pc bpc" id="L255" title="7 of 8 branches missed.">        if (ignoreNamespaces &amp;&amp; rootIsArray &amp;&amp; (theArrayKeys == null || dropRootInJsonStream)) {</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">            if (theArrayKeys == null) {</span>
+<span class="nc" id="L257">                theArrayKeys = new LinkedList&lt;String&gt;();</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">            } else if (dropRootInJsonStream) {</span>
+<span class="nc" id="L259">                theArrayKeys = new LinkedList&lt;String&gt;(theArrayKeys);</span>
+            }
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            if (qname != null) {</span>
+<span class="nc" id="L262">                theArrayKeys.add(qname.getLocalPart());</span>
+            }
+        }
+        
+<span class="pc bpc" id="L266" title="4 of 8 branches missed.">        XMLStreamWriter writer = ApsJSONUtils.createStreamWriter(os, qname, </span>
+             writeXsiType &amp;&amp; !ignoreNamespaces, config, rootIsArray, theArrayKeys,
+             isCollection || dropRootInXmlNeeded, enc);
+<span class="fc" id="L269">        writer = ApsJSONUtils.createIgnoreMixedContentWriterIfNeeded(writer, ignoreMixedContent);</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">        writer = ApsJSONUtils.createIgnoreNsWriterIfNeeded(writer, ignoreNamespaces, !writeXsiType);</span>
+<span class="fc" id="L271">        return createTransformWriterIfNeeded(writer, os, dropElementsInXmlStreamProp);</span>
+    }
+    
+    protected List&lt;String&gt; getArrayKeys() {
+<span class="fc" id="L275">        MessageContext mc = getContext();</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">        if (mc != null) {</span>
+<span class="nc" id="L277">            Object prop = mc.get(ARRAY_KEYS_PROPERTY);</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">            if (prop instanceof List) {</span>
+<span class="nc" id="L279">                return CastUtils.cast((List&lt;?&gt;)prop);</span>
+            }
+        }
+<span class="fc" id="L282">        return arrayKeys;</span>
+    }
+    
+    protected boolean isRootArray(List&lt;String&gt; theArrayKeys) {
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        return theArrayKeys != null ? true : getBooleanJsonProperty(ROOT_IS_ARRAY_PROPERTY, serializeAsArray);</span>
+    }
+    
+    private QName getQName(Class&lt;?&gt; cls, Type type, Object object) 
+        throws Exception {
+<span class="fc" id="L291">        QName qname = getJaxbQName(cls, type, object, false);</span>
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">        if (qname != null) {</span>
+<span class="fc" id="L293">            String prefix = getPrefix(qname.getNamespaceURI());</span>
+<span class="fc" id="L294">            return new QName(qname.getNamespaceURI(), qname.getLocalPart(), prefix);</span>
+        }
+<span class="nc" id="L296">        return null;</span>
+    }
+    
+    private String getPrefix(String namespace) {
+<span class="fc" id="L300">        String prefix = namespaceMap.get(namespace);</span>
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">        return prefix == null ? &quot;&quot; : prefix;</span>
+    }
+    
+    @Override
+    public void setWriteXsiType(boolean writeXsiType) {
+<span class="nc" id="L306">        this.writeXsiType = writeXsiType;</span>
+<span class="nc" id="L307">		super.setWriteXsiType(writeXsiType);</span>
+<span class="nc" id="L308">    }</span>
+    
+    @Override
+    public void setDropElementsInXmlStream(boolean drop) {
+<span class="nc" id="L312">        this.dropElementsInXmlStream = drop;</span>
+<span class="nc" id="L313">		super.setDropElementsInXmlStream(drop);</span>
+<span class="nc" id="L314">    }</span>
+	
+	@Override
+    public void setDropCollectionWrapperElement(boolean drop) {
+<span class="nc" id="L318">        this.dropCollectionWrapperElement = drop;</span>
+<span class="nc" id="L319">		super.setDropCollectionWrapperElement(drop);</span>
+<span class="nc" id="L320">    }</span>
+    
+    @Override
+    public void setWriteNullAsString(boolean writeNullAsString) {
+<span class="nc" id="L324">        this.writeNullAsString = writeNullAsString;</span>
+<span class="nc" id="L325">		super.setWriteNullAsString(writeNullAsString);</span>
+<span class="nc" id="L326">    }</span>
+
+    @Override
+    public void setIgnoreEmptyArrayValues(boolean ignoreEmptyArrayElements) {
+<span class="nc" id="L330">        this.ignoreEmptyArrayValues = ignoreEmptyArrayElements;</span>
+<span class="nc" id="L331">		super.setIgnoreEmptyArrayValues(ignoreEmptyArrayElements);</span>
+<span class="nc" id="L332">    }</span>
+	
+    @Override
+    public void setEscapeForwardSlashesAlways(boolean escape) {
+<span class="nc" id="L336">        this.escapeForwardSlashesAlways = escape;</span>
+<span class="nc" id="L337">		super.setEscapeForwardSlashesAlways(escape);</span>
+<span class="nc" id="L338">    }</span>
+	
+	
+	@Override
+    public void setNamespaceSeparator(String namespaceSeparator) {
+<span class="nc" id="L343">        this.namespaceSeparator = namespaceSeparator;</span>
+<span class="nc" id="L344">		super.setNamespaceSeparator(namespaceSeparator);</span>
+<span class="nc" id="L345">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

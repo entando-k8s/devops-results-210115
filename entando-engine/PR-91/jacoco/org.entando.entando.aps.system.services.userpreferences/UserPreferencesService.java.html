@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserPreferencesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.userpreferences</a> &gt; <span class="el_source">UserPreferencesService.java</span></div><h1>UserPreferencesService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.userpreferences;
+
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.web.userpreferences.model.UserPreferencesDto;
+import org.entando.entando.web.userpreferences.model.UserPreferencesRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+<span class="fc" id="L24">public class UserPreferencesService implements IUserPreferencesService {</span>
+
+<span class="fc" id="L26">    private final Logger logger = LoggerFactory.getLogger(this.getClass());</span>
+
+    public static final String ERRCODE_USER_PREFERENCES_DOES_NOT_EXISTS = &quot;1&quot;;
+
+    IUserPreferencesManager userPreferencesManager;
+
+    @Override
+    public UserPreferencesDto getUserPreferences(String username) {
+        try {
+<span class="fc" id="L35">            UserPreferences userPreferences = userPreferencesManager.getUserPreferences(username);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">            if (userPreferences == null) {</span>
+<span class="fc" id="L37">                createNewDefaultUserPreferences(username);</span>
+<span class="fc" id="L38">                userPreferences = userPreferencesManager.getUserPreferences(username);</span>
+            }
+<span class="fc" id="L40">            return new UserPreferencesDto(userPreferences);</span>
+<span class="nc" id="L41">        } catch (EntException e) {</span>
+<span class="nc" id="L42">            logger.error(&quot;Error getting userPreferences for {}&quot;, username, e);</span>
+<span class="nc" id="L43">            throw new RestServerError(&quot;Error getting userPreferences&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public UserPreferencesDto updateUserPreferences(String username, UserPreferencesRequest request) {
+        try {
+<span class="fc" id="L50">            UserPreferences userPreferences = userPreferencesManager.getUserPreferences(username);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            if (userPreferences != null) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">                if (request.getWizard() != null) {</span>
+<span class="fc" id="L53">                    userPreferences.setWizard(request.getWizard());</span>
+                }
+<span class="fc bfc" id="L55" title="All 2 branches covered.">                if (request.getLoadOnPageSelect() != null) {</span>
+<span class="fc" id="L56">                    userPreferences.setLoadOnPageSelect(request.getLoadOnPageSelect());</span>
+                }
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                if (request.getTranslationWarning() != null) {</span>
+<span class="fc" id="L59">                    userPreferences.setTranslationWarning(request.getTranslationWarning());</span>
+                }
+<span class="fc" id="L61">                userPreferencesManager.updateUserPreferences(userPreferences);</span>
+<span class="fc" id="L62">                return new UserPreferencesDto(userPreferencesManager.getUserPreferences(username));</span>
+            } else {
+<span class="fc" id="L64">                throw new ResourceNotFoundException(ERRCODE_USER_PREFERENCES_DOES_NOT_EXISTS, &quot;userPreferences&quot;,</span>
+                        username);
+            }
+<span class="nc" id="L67">        } catch (EntException e) {</span>
+<span class="nc" id="L68">            logger.error(&quot;Error updating userPreferences for {}&quot;, username, e);</span>
+<span class="nc" id="L69">            throw new RestServerError(&quot;Error updating userPreferences&quot;, e);</span>
+        }
+    }
+
+    private void createNewDefaultUserPreferences(String username) {
+        try {
+<span class="fc" id="L75">            UserPreferences userPreferences = new UserPreferences();</span>
+<span class="fc" id="L76">            userPreferences.setUsername(username);</span>
+<span class="fc" id="L77">            userPreferences.setWizard(true);</span>
+<span class="fc" id="L78">            userPreferences.setLoadOnPageSelect(true);</span>
+<span class="fc" id="L79">            userPreferences.setTranslationWarning(true);</span>
+<span class="fc" id="L80">            userPreferencesManager.addUserPreferences(userPreferences);</span>
+<span class="nc" id="L81">        } catch (EntException e) {</span>
+<span class="nc" id="L82">            logger.error(&quot;Error in creating new default userPreferences for {}&quot;, username, e);</span>
+<span class="nc" id="L83">            throw new RestServerError(&quot;Error creating new default userPreferences&quot;, e);</span>
+<span class="fc" id="L84">        }</span>
+<span class="fc" id="L85">    }</span>
+
+    public void setUserPreferencesManager(
+            IUserPreferencesManager userPreferencesManager) {
+<span class="fc" id="L89">        this.userPreferencesManager = userPreferencesManager;</span>
+<span class="fc" id="L90">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

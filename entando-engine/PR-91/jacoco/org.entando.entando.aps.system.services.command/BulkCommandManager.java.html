@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BulkCommandManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.command</a> &gt; <span class="el_source">BulkCommandManager.java</span></div><h1>BulkCommandManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.command;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.entando.entando.aps.system.common.command.BaseBulkCommand;
+import org.entando.entando.aps.system.common.command.report.BulkCommandReport;
+import org.entando.entando.aps.system.common.command.thread.ApsCommandThread;
+import org.entando.entando.aps.system.services.command.util.BulkCommandContainer;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.util.DateConverter;
+
+/**
+ * Service responsible for the execution of commands.
+ * 
+ * @author E.Mezzano
+ *
+ */
+<span class="fc" id="L36">public class BulkCommandManager extends AbstractService implements IBulkCommandManager {</span>
+
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BulkCommandManager.class);</span>
+
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L42">		_logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L43">	}</span>
+
+	@Override
+	public void destroy() {
+<span class="fc" id="L47">		super.destroy();</span>
+<span class="fc" id="L48">		this.stopCommands();</span>
+<span class="fc" id="L49">	}</span>
+
+	@Override
+	protected void release() {
+<span class="fc" id="L53">		super.release();</span>
+<span class="fc" id="L54">	}</span>
+	
+	@Override
+	public void cleanCache() {
+<span class="fc" id="L58">		this.cleanCommands();</span>
+<span class="fc" id="L59">	}</span>
+
+
+	@Override
+	public &lt;I&gt; BulkCommandReport&lt;I&gt; addCommand(String owner, BaseBulkCommand&lt;I, ?, ?&gt; command) {
+<span class="nc" id="L64">		return this.addCommand(owner, command, null);</span>
+	}
+
+	@Override
+	public &lt;I&gt; BulkCommandReport&lt;I&gt; addCommand(String owner, BaseBulkCommand&lt;I, ?, ?&gt; command, Boolean execInThread) {
+<span class="nc" id="L69">		String commandId = this.generateId();</span>
+<span class="nc" id="L70">		command.setId(commandId);</span>
+<span class="nc" id="L71">		this.runCommand(command, execInThread);</span>
+<span class="nc" id="L72">		this.putCommandInMap(owner, command);</span>
+<span class="nc" id="L73">		return command.getReport();</span>
+	}
+
+	@Override
+	public BaseBulkCommand&lt;?, ?, ?&gt; getCommand(String owner, String commandId) {
+<span class="nc" id="L78">		BulkCommandContainer container = this.getCommandContainer(owner, commandId);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">		BaseBulkCommand&lt;?, ?, ?&gt; command = container != null ? container.getCommand() : null;</span>
+<span class="nc" id="L80">		return command;</span>
+	}
+
+	@Override
+	public BulkCommandReport&lt;?&gt; getCommandReport(String owner, String commandId) {
+<span class="nc" id="L85">		BaseBulkCommand&lt;?, ?, ?&gt; command = this.getCommand(owner, commandId);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">		BulkCommandReport&lt;?&gt; report = command != null ? command.getReport() : null;</span>
+<span class="nc" id="L87">		return report;</span>
+	}
+
+	protected BulkCommandContainer getCommandContainer(String owner, String commandId) {
+<span class="nc" id="L91">		BulkCommandContainer container = null;</span>
+<span class="nc" id="L92">		Map&lt;String, BulkCommandContainer&gt; commandsByOwner = this._commands.get(owner);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">		if (commandsByOwner != null) {</span>
+<span class="nc" id="L94">			container = commandsByOwner.get(commandId);</span>
+		}
+<span class="nc" id="L96">		return container;</span>
+	}
+
+	protected void runCommand(BaseBulkCommand&lt;?, ?, ?&gt; command, Boolean execInThread) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">		if (this.isToExecInThread(command, execInThread)) {</span>
+<span class="nc" id="L101">			ApsCommandThread thread = new ApsCommandThread(command);</span>
+<span class="nc" id="L102">			thread.start();</span>
+<span class="nc" id="L103">		} else {</span>
+<span class="nc" id="L104">			command.apply();</span>
+		}
+<span class="nc" id="L106">	}</span>
+
+	protected boolean isToExecInThread(BaseBulkCommand&lt;?, ?, ?&gt; command, Boolean execInThread) {
+<span class="nc" id="L109">		boolean inThread = false;</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">		if (execInThread == null) {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">			inThread = command.getItems().size() &gt; 10;</span>
+		} else {
+<span class="nc" id="L113">			inThread = execInThread;</span>
+		}
+<span class="nc" id="L115">		return inThread;</span>
+	}
+
+	protected synchronized void putCommandInMap(String owner, BaseBulkCommand&lt;?, ?, ?&gt; command) {
+<span class="nc" id="L119">		BulkCommandContainer container = new BulkCommandContainer();</span>
+<span class="nc" id="L120">		container.setOwner(owner);</span>
+<span class="nc" id="L121">		container.setCommand(command);</span>
+		
+<span class="nc" id="L123">		Map&lt;String, BulkCommandContainer&gt; commandsByOwner = this._commands.get(owner);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">		if (commandsByOwner == null) {</span>
+<span class="nc" id="L125">			commandsByOwner = new HashMap&lt;String, BulkCommandContainer&gt;();</span>
+<span class="nc" id="L126">			this._commands.put(owner, commandsByOwner);</span>
+		}
+<span class="nc" id="L128">		commandsByOwner.put(command.getId(), container);</span>
+<span class="nc" id="L129">	}</span>
+
+	protected String generateId() {
+<span class="nc" id="L132">		StringBuilder str = new StringBuilder(&quot;cmd_&quot;);</span>
+<span class="nc" id="L133">		str.append(DateConverter.getFormattedDate(new Date(), &quot;ddMMyyyymmssSSS&quot;));</span>
+<span class="nc" id="L134">		synchronized(this) {</span>
+<span class="nc" id="L135">			this._sec = (this._sec++) % 10;</span>
+<span class="nc" id="L136">			str.append(this._sec);</span>
+<span class="nc" id="L137">		}</span>
+<span class="nc" id="L138">		return str.toString();</span>
+	}
+	
+
+	protected synchronized void cleanCommands() {
+<span class="fc" id="L143">		Map&lt;String, Map&lt;String, BulkCommandContainer&gt;&gt; newcommands = new HashMap&lt;String, Map&lt;String,BulkCommandContainer&gt;&gt;();</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">		for (Map&lt;String, BulkCommandContainer&gt; commandsByOwner : this._commands.values()) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			for (BulkCommandContainer container : commandsByOwner.values()) {</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if (!this.isCommandExpired(container.getCommand())) {</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">					if (null == newcommands.get(container.getOwner())) {</span>
+<span class="nc" id="L148">						newcommands.put(container.getOwner(), new HashMap&lt;String, BulkCommandContainer&gt;());</span>
+					}
+<span class="nc" id="L150">					newcommands.get(container.getOwner()).put(container.getCommand().getId(), container);</span>
+				}
+<span class="nc" id="L152">			}</span>
+<span class="nc" id="L153">		}</span>
+<span class="fc" id="L154">		this._commands = newcommands;</span>
+<span class="fc" id="L155">	}</span>
+
+
+	protected synchronized void stopCommands() {
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">		for (Map&lt;String, BulkCommandContainer&gt; commandsByOwner : this._commands.values()) {</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">			for (BulkCommandContainer container : commandsByOwner.values()) {</span>
+<span class="nc" id="L161">				BaseBulkCommand&lt;?, ?, ?&gt; command = container.getCommand();</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">				if (!command.isEnded()) {</span>
+<span class="nc" id="L163">					command.stopCommand();</span>
+				}
+<span class="nc" id="L165">			}</span>
+<span class="nc" id="L166">		}</span>
+<span class="fc" id="L167">	}</span>
+
+	protected boolean isCommandExpired(BaseBulkCommand&lt;?, ?, ?&gt; command) {
+<span class="nc" id="L170">		boolean expired = false;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">		if (command.isEnded()) {</span>
+<span class="nc" id="L172">			Date endingDate = command.getEndingTime();</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">			if (endingDate != null) {</span>
+<span class="nc" id="L174">				long endingTime = (new Date()).getTime() - endingDate.getTime();</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">				expired = endingTime &gt; CACHE_TIME;</span>
+			}
+		}
+<span class="nc" id="L178">		return expired;</span>
+	}
+
+	protected Map&lt;String, Map&lt;String, BulkCommandContainer&gt;&gt; getCommands() {
+<span class="nc" id="L182">		return this._commands;</span>
+	}
+
+<span class="fc" id="L185">	protected int _sec = 0;</span>
+<span class="fc" id="L186">	private Map&lt;String, Map&lt;String, BulkCommandContainer&gt;&gt; _commands = new HashMap&lt;String, Map&lt;String, BulkCommandContainer&gt;&gt;();</span>
+	private static final long CACHE_TIME = 3600000;// 1 h
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

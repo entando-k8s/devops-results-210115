@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileBrowserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.storage</a> &gt; <span class="el_source">FileBrowserService.java</span></div><h1>FileBrowserService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.storage;
+
+import com.agiletec.aps.util.FileTextReader;
+import java.security.SecureRandom;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.DtoBuilder;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.storage.model.BasicFileAttributeViewDto;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.filebrowser.model.FileBrowserFileRequest;
+import org.entando.entando.web.filebrowser.model.FileBrowserRequest;
+import org.entando.entando.web.filebrowser.validator.FileBrowserValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.validation.BindingResult;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L44">public class FileBrowserService implements IFileBrowserService {</span>
+
+<span class="fc" id="L46">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    private IStorageManager storageManager;
+
+    protected IDtoBuilder&lt;BasicFileAttributeView, BasicFileAttributeViewDto&gt; getFileAttributeViewDtoDtoBuilder() {
+<span class="fc" id="L51">        return new DtoBuilder&lt;BasicFileAttributeView, BasicFileAttributeViewDto&gt;() {</span>
+            @Override
+            protected BasicFileAttributeViewDto toDto(BasicFileAttributeView src) {
+<span class="fc" id="L54">                return new BasicFileAttributeViewDto(src);</span>
+            }
+        };
+    }
+
+    @Override
+    public List&lt;BasicFileAttributeViewDto&gt; browseFolder(String currentPath, Boolean protectedFolder) {
+<span class="fc" id="L61">        this.checkResource(currentPath, &quot;Folder&quot;, protectedFolder);</span>
+<span class="fc" id="L62">        List&lt;BasicFileAttributeViewDto&gt; dtos = null;</span>
+        try {
+<span class="fc" id="L64">            BasicFileAttributeView[] views = null;</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (null == protectedFolder) {</span>
+<span class="fc" id="L66">                views = new BasicFileAttributeView[]{this.getRootFolder(false), this.getRootFolder(true)};</span>
+            } else {
+<span class="fc" id="L68">                views = this.getStorageManager().listAttributes(currentPath, protectedFolder);</span>
+            }
+<span class="fc" id="L70">            dtos = this.getFileAttributeViewDtoDtoBuilder().convert(Arrays.asList(views));</span>
+<span class="fc" id="L71">            dtos.stream().forEach(i -&gt; i.buildPath(currentPath));</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (null != protectedFolder) {</span>
+<span class="fc" id="L73">                dtos.stream().forEach(i -&gt; i.setProtectedFolder(protectedFolder));</span>
+            }
+<span class="nc" id="L75">        } catch (Throwable t) {</span>
+<span class="nc" id="L76">            logger.error(&quot;error browsing folder {} - type {}&quot;, currentPath, protectedFolder);</span>
+<span class="nc" id="L77">            throw new RestServerError(&quot;error browsing folder&quot;, t);</span>
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">        return dtos;</span>
+    }
+
+    private RootFolderAttributeView getRootFolder(boolean protectedFolder) {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        String folderName = (protectedFolder) ? &quot;protected&quot; : &quot;public&quot;;</span>
+<span class="fc" id="L84">        return new RootFolderAttributeView(folderName, protectedFolder);</span>
+    }
+
+    @Override
+    public byte[] getFileStream(String currentPath, Boolean protectedFolder) {
+<span class="fc" id="L89">        this.checkResource(currentPath, &quot;File&quot;, protectedFolder);</span>
+<span class="fc" id="L90">        File tempFile = null;</span>
+<span class="fc" id="L91">        byte[] bytes = null;</span>
+        try {
+<span class="fc" id="L93">            String[] sections = currentPath.split(&quot;/&quot;);</span>
+<span class="fc" id="L94">            InputStream stream = this.getStorageManager().getStream(currentPath, protectedFolder);</span>
+<span class="fc" id="L95">            tempFile = FileTextReader.createTempFile(new SecureRandom().nextInt(100) + sections[sections.length - 1], stream);</span>
+<span class="fc" id="L96">            bytes = FileTextReader.fileToByteArray(tempFile);</span>
+<span class="nc" id="L97">        } catch (Throwable t) {</span>
+<span class="nc" id="L98">            logger.error(&quot;error extracting stream for path {} - type {}&quot;, currentPath, protectedFolder);</span>
+<span class="nc" id="L99">            throw new RestServerError(&quot;error extracting stream&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">            if (null != tempFile) {</span>
+<span class="fc" id="L102">                boolean deleted = tempFile.delete();</span>
+
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">                if (!deleted) {</span>
+<span class="nc" id="L105">                    logger.warn(&quot;Failed to delete temp file {}&quot;, tempFile.getAbsolutePath());</span>
+                }
+            }
+        }
+<span class="fc" id="L109">        return bytes;</span>
+    }
+
+    @Override
+    public void addFile(FileBrowserFileRequest request, BindingResult bindingResult) {
+<span class="fc" id="L114">        String path = request.getPath();</span>
+<span class="fc" id="L115">        String parentFolder = path.substring(0, path.lastIndexOf(&quot;/&quot;));</span>
+
+        try {
+<span class="fc" id="L118">            this.createFolderIfNotExists(parentFolder, request.isProtectedFolder());</span>
+<span class="fc" id="L119">            this.checkResource(parentFolder, &quot;Parent Folder&quot;, request.isProtectedFolder());</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            if (this.getStorageManager().exists(request.getPath(), request.isProtectedFolder())) {</span>
+<span class="fc" id="L121">                bindingResult.reject(FileBrowserValidator.ERRCODE_RESOURCE_ALREADY_EXIST,</span>
+<span class="fc" id="L122">                        new String[]{request.getPath(), String.valueOf(request.isProtectedFolder())}, &quot;fileBrowser.file.exists&quot;);</span>
+<span class="fc" id="L123">                throw new ValidationConflictException(bindingResult);</span>
+            }
+<span class="fc" id="L125">            InputStream is = new ByteArrayInputStream(request.getBase64());</span>
+<span class="fc" id="L126">            this.getStorageManager().saveFile(path, request.isProtectedFolder(), is);</span>
+<span class="fc" id="L127">        } catch (ValidationConflictException vge) {</span>
+<span class="fc" id="L128">            throw vge;</span>
+<span class="nc" id="L129">        } catch (Throwable t) {</span>
+<span class="nc" id="L130">            logger.error(&quot;error adding file path {} - type {}&quot;, path, request.isProtectedFolder());</span>
+<span class="nc" id="L131">            throw new RestServerError(&quot;error adding file&quot;, t);</span>
+<span class="fc" id="L132">        }</span>
+<span class="fc" id="L133">    }</span>
+
+    @Override
+    public void updateFile(FileBrowserFileRequest request, BindingResult bindingResult) {
+<span class="fc" id="L137">        String path = request.getPath();</span>
+<span class="fc" id="L138">        this.checkResource(path, &quot;File&quot;, request.isProtectedFolder());</span>
+        try {
+<span class="fc" id="L140">            InputStream is = new ByteArrayInputStream(request.getBase64());</span>
+<span class="fc" id="L141">            this.getStorageManager().saveFile(path, request.isProtectedFolder(), is);</span>
+<span class="nc" id="L142">        } catch (ValidationConflictException vge) {</span>
+<span class="nc" id="L143">            throw vge;</span>
+<span class="nc" id="L144">        } catch (Throwable t) {</span>
+<span class="nc" id="L145">            logger.error(&quot;error updating file path {} - type {}&quot;, path, request.isProtectedFolder());</span>
+<span class="nc" id="L146">            throw new RestServerError(&quot;error updating file&quot;, t);</span>
+<span class="fc" id="L147">        }</span>
+<span class="fc" id="L148">    }</span>
+
+    @Override
+    public void deleteFile(String currentPath, Boolean protectedResource) {
+        try {
+<span class="fc" id="L153">            this.getStorageManager().deleteFile(currentPath, protectedResource);</span>
+<span class="nc" id="L154">        } catch (ValidationConflictException vge) {</span>
+<span class="nc" id="L155">            throw vge;</span>
+<span class="nc" id="L156">        } catch (Throwable t) {</span>
+<span class="nc" id="L157">            logger.error(&quot;error deleting file path {} - type {}&quot;, currentPath, protectedResource);</span>
+<span class="nc" id="L158">            throw new RestServerError(&quot;error deleting file&quot;, t);</span>
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">    }</span>
+
+    @Override
+    public void addDirectory(FileBrowserRequest request, BindingResult bindingResult) {
+<span class="fc" id="L164">        String path = request.getPath();</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (path.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L166">            path = path.substring(0, path.length() - 2);</span>
+        }
+<span class="fc" id="L168">        String parentFolder = path.substring(0, path.lastIndexOf(&quot;/&quot;));</span>
+<span class="fc" id="L169">        this.checkResource(parentFolder, &quot;Parent Folder&quot;, request.isProtectedFolder());</span>
+        try {
+<span class="fc bfc" id="L171" title="All 2 branches covered.">            if (this.getStorageManager().exists(request.getPath(), request.isProtectedFolder())) {</span>
+<span class="fc" id="L172">                bindingResult.reject(FileBrowserValidator.ERRCODE_RESOURCE_ALREADY_EXIST,</span>
+<span class="fc" id="L173">                        new String[]{request.getPath(), String.valueOf(request.isProtectedFolder())}, &quot;fileBrowser.directory.exists&quot;);</span>
+<span class="fc" id="L174">                throw new ValidationConflictException(bindingResult);</span>
+            }
+<span class="fc" id="L176">            this.getStorageManager().createDirectory(path, request.isProtectedFolder());</span>
+<span class="fc" id="L177">        } catch (ValidationConflictException vge) {</span>
+<span class="fc" id="L178">            throw vge;</span>
+<span class="nc" id="L179">        } catch (Throwable t) {</span>
+<span class="nc" id="L180">            logger.error(&quot;error adding directory path {} - type {}&quot;, path, request.isProtectedFolder());</span>
+<span class="nc" id="L181">            throw new RestServerError(&quot;error adding directory&quot;, t);</span>
+<span class="fc" id="L182">        }</span>
+<span class="fc" id="L183">    }</span>
+
+    @Override
+    public void deleteDirectory(String currentPath, Boolean protectedFolder) {
+        try {
+<span class="fc" id="L188">            this.getStorageManager().deleteDirectory(currentPath, protectedFolder);</span>
+<span class="nc" id="L189">        } catch (ValidationConflictException vge) {</span>
+<span class="nc" id="L190">            throw vge;</span>
+<span class="nc" id="L191">        } catch (Throwable t) {</span>
+<span class="nc" id="L192">            logger.error(&quot;error deleting directory path {} - type {}&quot;, currentPath, protectedFolder);</span>
+<span class="nc" id="L193">            throw new RestServerError(&quot;error deleting directory&quot;, t);</span>
+<span class="fc" id="L194">        }</span>
+<span class="fc" id="L195">    }</span>
+
+    public boolean exists(String currentPath, Boolean protectedFolder) throws EntException {
+<span class="nc" id="L198">        return this.getStorageManager().exists(currentPath, protectedFolder);</span>
+    }
+
+    @Override
+    public boolean exists(String code) throws EntException {
+<span class="fc" id="L203">        return this.getStorageManager().exists(code, false);</span>
+    }
+
+    protected void createFolderIfNotExists(String path, boolean protectedFolder) throws EntException {
+<span class="fc" id="L207">        boolean exists = this.getStorageManager().exists(path, protectedFolder);</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        if (!exists) {</span>
+<span class="fc" id="L209">            this.getStorageManager().createDirectory(path, protectedFolder);</span>
+        }
+<span class="fc" id="L211">    }</span>
+
+    protected void checkResource(String currentPath, String objectName, Boolean protectedFolder) {
+<span class="fc bfc" id="L214" title="All 4 branches covered.">        if (null == protectedFolder &amp;&amp; !StringUtils.isEmpty(currentPath)) {</span>
+<span class="fc" id="L215">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(objectName, objectName);</span>
+<span class="fc" id="L216">            bindingResult.reject(FileBrowserValidator.ERRCODE_REQUIRED_FOLDER_TYPE, &quot;fileBrowser.browser.protectedFolder.required&quot;);</span>
+<span class="fc" id="L217">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc bfc" id="L219" title="All 2 branches covered.">        if (null == protectedFolder) {</span>
+<span class="fc" id="L220">            return;</span>
+        }
+        try {
+<span class="fc" id="L223">            boolean exists = this.getStorageManager().exists(currentPath, protectedFolder);</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">            if (!exists) {</span>
+<span class="fc" id="L225">                logger.warn(&quot;no resource found for path {} - type {}&quot;, currentPath, protectedFolder);</span>
+<span class="fc" id="L226">                throw new ResourceNotFoundException(FileBrowserValidator.ERRCODE_RESOURCE_DOES_NOT_EXIST, objectName, currentPath);</span>
+            }
+<span class="fc" id="L228">        } catch (ResourceNotFoundException e) {</span>
+<span class="fc" id="L229">            throw e;</span>
+<span class="nc" id="L230">        } catch (Exception e) {</span>
+<span class="nc" id="L231">            logger.error(&quot;Error checking resource {} , protected {} &quot;, currentPath, protectedFolder, e);</span>
+<span class="nc" id="L232">            throw new RestServerError(&quot;error checking resource&quot;, e);</span>
+<span class="fc" id="L233">        }</span>
+<span class="fc" id="L234">    }</span>
+
+    public IStorageManager getStorageManager() {
+<span class="fc" id="L237">        return storageManager;</span>
+    }
+
+    public void setStorageManager(IStorageManager storageManager) {
+<span class="fc" id="L241">        this.storageManager = storageManager;</span>
+<span class="fc" id="L242">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

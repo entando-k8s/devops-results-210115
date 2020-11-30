@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.user.validator</a> &gt; <span class="el_source">UserValidator.java</span></div><h1>UserValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.user.validator;
+
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.role.IRoleManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.web.common.RestErrorCodes;
+import org.entando.entando.web.common.exceptions.ResourcePermissionsException;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.entando.entando.web.entity.validator.AbstractEntityTypeValidator;
+import org.entando.entando.web.user.model.UserAuthoritiesRequest;
+import org.entando.entando.web.user.model.UserPasswordRequest;
+import org.entando.entando.web.user.model.UserRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.Errors;
+import org.springframework.validation.MapBindingResult;
+
+@Component
+<span class="fc" id="L50">public class UserValidator extends AbstractPaginationValidator {</span>
+
+<span class="fc" id="L52">    private final org.slf4j.Logger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+<span class="fc" id="L54">    private Pattern patternUsername = Pattern.compile(&quot;([a-z0-9_\\.])+&quot;);</span>
+<span class="fc" id="L55">    private Pattern patternPassword = Pattern.compile(&quot;([a-zA-Z0-9_\\.])+&quot;);</span>
+
+    public static final String ERRCODE_USER_ALREADY_EXISTS = &quot;1&quot;;
+
+    public static final String ERRCODE_USER_NOT_FOUND = &quot;1&quot;;
+
+    public static final String ERRCODE_USERNAME_FORMAT_INVALID = &quot;2&quot;;
+
+    public static final String ERRCODE_PASSWORD_FORMAT_INVALID = &quot;3&quot;;
+
+    public static final String ERRCODE_USERNAME_MISMATCH = &quot;2&quot;;
+    public static final String ERRCODE_OLD_PASSWORD_FORMAT = &quot;4&quot;;
+    public static final String ERRCODE_NEW_PASSWORD_EQUALS = &quot;5&quot;;
+
+    public static final String ERRCODE_AUTHORITIES_INVALID_REQ = &quot;2&quot;;
+
+    public static final String ERRCODE_SELF_UPDATE = &quot;6&quot;;
+
+    public static final String ERRCODE_DELETE_ADMIN = &quot;7&quot;;
+
+    public static final String ERRCODE_SELF_DELETE = &quot;8&quot;;
+
+    public static final String ERRCODE_UPDATE_OTHER = &quot;9&quot;;
+
+    @Autowired
+    @Qualifier(&quot;compatiblePasswordEncoder&quot;)
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    IUserManager userManager;
+
+    @Autowired
+    IGroupManager groupManager;
+
+    @Autowired
+    IRoleManager roleManager;
+
+    @Autowired
+    IUserProfileManager userProfileManager;
+
+    public IUserManager getUserManager() {
+<span class="fc" id="L96">        return userManager;</span>
+    }
+
+    public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L100">        this.userManager = userManager;</span>
+<span class="fc" id="L101">    }</span>
+
+    public IGroupManager getGroupManager() {
+<span class="fc" id="L104">        return groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L108">        this.groupManager = groupManager;</span>
+<span class="fc" id="L109">    }</span>
+
+    public IRoleManager getRoleManager() {
+<span class="fc" id="L112">        return roleManager;</span>
+    }
+
+    public void setRoleManager(IRoleManager roleManager) {
+<span class="fc" id="L116">        this.roleManager = roleManager;</span>
+<span class="fc" id="L117">    }</span>
+
+    public PasswordEncoder getPasswordEncoder() {
+<span class="nc" id="L120">        return passwordEncoder;</span>
+    }
+
+    public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
+<span class="fc" id="L124">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc" id="L125">    }</span>
+
+    @Override
+    public boolean supports(Class&lt;?&gt; paramClass) {
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        return UserAuthoritiesRequest.class.equals(paramClass) || UserRequest.class.equals(paramClass);</span>
+    }
+
+    @Override
+    public void validate(Object target, Errors errors) {
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (target instanceof UserAuthoritiesRequest) {</span>
+<span class="fc" id="L135">            UserAuthoritiesRequest request = (UserAuthoritiesRequest) target;</span>
+<span class="fc" id="L136">            validateGroupsAndRoles(request, errors);</span>
+        }
+<span class="fc" id="L138">    }</span>
+
+    public void validateUserPost(UserRequest request, BindingResult bindingResult) {
+<span class="fc" id="L141">        String username = request.getUsername();</span>
+<span class="fc" id="L142">        UserDetails user = this.extractUser(username);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        if (null != user) {</span>
+<span class="fc" id="L144">            bindingResult.reject(UserValidator.ERRCODE_USER_ALREADY_EXISTS, new String[]{username}, &quot;user.exists&quot;);</span>
+<span class="fc" id="L145">            throw new ValidationConflictException(bindingResult);</span>
+        }
+<span class="fc" id="L147">        Matcher matcherUsername = patternUsername.matcher(username);</span>
+<span class="fc" id="L148">        int usLength = username.length();</span>
+<span class="fc bfc" id="L149" title="All 6 branches covered.">        if (usLength &lt; 4 || usLength &gt; 80 || !matcherUsername.matches()) {</span>
+<span class="fc" id="L150">            bindingResult.reject(UserValidator.ERRCODE_USERNAME_FORMAT_INVALID, new String[]{username}, &quot;user.username.format.invalid&quot;);</span>
+        }
+<span class="fc" id="L152">        this.checkNewPassword(username, request.getPassword(), bindingResult);</span>
+<span class="fc" id="L153">        String profileTypeCode = request.getProfileType();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        if (null != profileTypeCode) {</span>
+<span class="fc" id="L155">            IUserProfile userProfile = userProfileManager.getProfileType(profileTypeCode);</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">            if (null == userProfile) {</span>
+<span class="nc" id="L157">                throw new ResourceNotFoundException(AbstractEntityTypeValidator.ERRCODE_ENTITY_TYPE_DOES_NOT_EXIST, &quot;Profile Type&quot;, profileTypeCode);</span>
+            }
+        }
+<span class="fc" id="L160">    }</span>
+
+    public static boolean isAdminUser(String username) {
+<span class="fc" id="L163">        return StringUtils.equalsIgnoreCase(&quot;admin&quot;, username);</span>
+    }
+
+    public static boolean isUserDeletingHimself(String username, String currentUser) {
+<span class="fc" id="L167">        return StringUtils.equalsIgnoreCase(currentUser, username);</span>
+    }
+
+    public static BindingResult createDeleteAdminError() {
+<span class="fc" id="L171">        Map&lt;String, String&gt; map = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L172">        map.put(&quot;username&quot;, &quot;admin&quot;);</span>
+<span class="fc" id="L173">        BindingResult bindingResult = new MapBindingResult(map, &quot;username&quot;);</span>
+<span class="fc" id="L174">        bindingResult.reject(UserValidator.ERRCODE_DELETE_ADMIN, new String[]{}, &quot;user.admin.cant.delete&quot;);</span>
+<span class="fc" id="L175">        return bindingResult;</span>
+    }
+    public static BindingResult createSelfDeleteUserError(BindingResult bindingResult) {
+<span class="fc" id="L178">        bindingResult.reject(UserValidator.ERRCODE_SELF_DELETE, new String[]{}, &quot;user.self.delete.error&quot;);</span>
+<span class="fc" id="L179">        return bindingResult;</span>
+    }
+
+    public void validateGroupsAndRoles(UserAuthoritiesRequest request, Errors errors) {
+<span class="fc" id="L183">        List&lt;String&gt; invalidAuths = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L184">        request.forEach(authority -&gt; {</span>
+<span class="fc bfc" id="L185" title="All 4 branches covered.">            if (authority.getGroup() != null &amp;&amp; this.getGroupManager().getGroup(authority.getGroup()) == null) {</span>
+<span class="fc" id="L186">                invalidAuths.add(authority.getGroup());</span>
+            }
+<span class="pc bpc" id="L188" title="1 of 4 branches missed.">            if (authority.getRole() != null &amp;&amp; this.getRoleManager().getRole(authority.getRole()) == null) {</span>
+<span class="nc" id="L189">                invalidAuths.add(authority.getRole());</span>
+            }
+<span class="fc" id="L191">        });</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        if (!invalidAuths.isEmpty()) {</span>
+<span class="fc" id="L193">            errors.reject(ERRCODE_AUTHORITIES_INVALID_REQ, invalidAuths.toArray(), &quot;user.authorities.invalid.req&quot;);</span>
+        }
+<span class="fc" id="L195">    }</span>
+
+    public void validateUpdateSelf(String username, String currentUser, BindingResult bindingResult) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        if (username.equals(currentUser)) {</span>
+<span class="fc" id="L199">            bindingResult.reject(ERRCODE_SELF_UPDATE, new String[]{username}, &quot;user.authorities.self.update&quot;);</span>
+<span class="fc" id="L200">            throw new ResourcePermissionsException(bindingResult);</span>
+        }
+<span class="fc" id="L202">    }</span>
+
+    public void validateSameUser(String username, String currentUser, BindingResult bindingResult) {
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (!username.equals(currentUser)) {</span>
+<span class="nc" id="L206">            bindingResult.reject(ERRCODE_UPDATE_OTHER, new String[]{username}, &quot;user.preferences.update.other&quot;);</span>
+<span class="nc" id="L207">            throw new ResourcePermissionsException(bindingResult);</span>
+        }
+<span class="fc" id="L209">    }</span>
+
+    public void validatePutBody(String username, UserRequest userRequest, BindingResult bindingResult) {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        if (!StringUtils.equals(username, userRequest.getUsername())) {</span>
+<span class="fc" id="L213">            bindingResult.rejectValue(&quot;username&quot;, ERRCODE_USERNAME_MISMATCH, new String[]{username, userRequest.getUsername()}, &quot;user.username.mismatch&quot;);</span>
+<span class="fc" id="L214">            throw new ValidationConflictException(bindingResult);</span>
+        } else {
+<span class="fc" id="L216">            UserDetails user = this.extractUser(username);</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (null == user) {</span>
+<span class="nc" id="L218">                throw new ResourceNotFoundException(ERRCODE_USER_NOT_FOUND, &quot;username&quot;, username);</span>
+            }
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            if (null != userRequest.getPassword()) {</span>
+<span class="fc" id="L221">                this.checkNewPassword(username, userRequest.getPassword(), bindingResult);</span>
+            }
+        }
+<span class="fc" id="L224">    }</span>
+
+    public void validateChangePasswords(String username, UserPasswordRequest passwordRequest, BindingResult bindingResult) {
+<span class="fc" id="L227">        UserDetails user = this.extractUser(username);</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        if (!StringUtils.equals(username, passwordRequest.getUsername())) {</span>
+<span class="fc" id="L229">            bindingResult.rejectValue(&quot;username&quot;, ERRCODE_USERNAME_MISMATCH, new String[]{username, passwordRequest.getUsername()}, &quot;user.username.mismatch&quot;);</span>
+<span class="fc" id="L230">            throw new ValidationConflictException(bindingResult);</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        } else if (null == user) {</span>
+<span class="fc" id="L232">            throw new ResourceNotFoundException(ERRCODE_USER_NOT_FOUND, &quot;username&quot;, username);</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        } else if (StringUtils.equals(passwordRequest.getNewPassword(), passwordRequest.getOldPassword())) {</span>
+<span class="fc" id="L234">            bindingResult.rejectValue(&quot;newPassword&quot;, ERRCODE_NEW_PASSWORD_EQUALS, new String[]{}, &quot;user.passwords.same&quot;);</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">        } else if (!this.verifyPassword(passwordRequest.getUsername(), passwordRequest.getOldPassword())) {</span>
+<span class="fc" id="L236">            bindingResult.rejectValue(&quot;oldPassword&quot;, ERRCODE_OLD_PASSWORD_FORMAT, new String[]{}, &quot;user.password.old.invalid&quot;);</span>
+        } else {
+<span class="fc" id="L238">            this.checkNewPassword(username, passwordRequest.getNewPassword(), bindingResult);</span>
+        }
+<span class="fc" id="L240">    }</span>
+
+    private void checkNewPassword(String username, String password, BindingResult bindingResult) {
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">        if (null == password) {</span>
+<span class="nc" id="L244">            bindingResult.reject(RestErrorCodes.NOT_NULL, new String[]{username}, &quot;user.password.NotBlank&quot;);</span>
+<span class="nc" id="L245">            return;</span>
+        }
+<span class="fc" id="L247">        int pwLength = password.length();</span>
+<span class="fc" id="L248">        Matcher matcherPassword = patternPassword.matcher(password);</span>
+<span class="pc bpc" id="L249" title="1 of 6 branches missed.">        if (pwLength &lt; 8 || pwLength &gt; 20 || !matcherPassword.matches()) {</span>
+<span class="fc" id="L250">            bindingResult.reject(UserValidator.ERRCODE_PASSWORD_FORMAT_INVALID, new String[]{username}, &quot;user.password.format.invalid&quot;);</span>
+        }
+<span class="fc" id="L252">    }</span>
+
+    private boolean verifyPassword(String username, String password) {
+        try {
+<span class="fc" id="L256">            UserDetails user = this.getUserManager().getUser(username, password);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">            if (user != null) {</span>
+<span class="fc" id="L258">                return true;</span>
+            }
+<span class="nc" id="L260">        } catch (EntException e) {</span>
+<span class="nc" id="L261">            logger.error(&quot;Invalid password for username {}&quot;, username, e);</span>
+<span class="fc" id="L262">        }</span>
+<span class="fc" id="L263">        return false;</span>
+    }
+
+    private UserDetails extractUser(String username) {
+<span class="fc" id="L267">        UserDetails user = null;</span>
+        try {
+<span class="fc" id="L269">            user = this.getUserManager().getUser(username);</span>
+<span class="nc" id="L270">        } catch (EntException e) {</span>
+<span class="nc" id="L271">            logger.error(&quot;Error loading user {}&quot;, username, e);</span>
+<span class="nc" id="L272">            throw new RestServerError(&quot;Error loading user&quot;, e);</span>
+<span class="fc" id="L273">        }</span>
+<span class="fc" id="L274">        return user;</span>
+    }
+
+    @Override
+    protected String getDefaultSortProperty() {
+<span class="fc" id="L279">        return &quot;username&quot;;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
