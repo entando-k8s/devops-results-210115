@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmsPageManagerWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services.page</a> &gt; <span class="el_source">CmsPageManagerWrapper.java</span></div><h1>CmsPageManagerWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services.page;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import org.entando.entando.plugins.jacms.aps.system.services.content.widget.RowContentListHelper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentUtilizer;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L34">public class CmsPageManagerWrapper implements ContentUtilizer {</span>
+
+<span class="fc" id="L36">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CmsPageManagerWrapper.class);</span>
+
+    @Override
+    public String getName() {
+<span class="fc" id="L40">        return &quot;CmsPageManagerWrapper&quot;;</span>
+    }
+
+    @Override
+    public List getContentUtilizers(String contentId) throws EntException {
+<span class="fc" id="L45">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L47">            IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc" id="L48">            this.searchContentUtilizers(root, pages, contentId);</span>
+<span class="nc" id="L49">        } catch (Throwable t) {</span>
+<span class="nc" id="L50">            _logger.error(&quot;Error loading referenced pages&quot;, t);</span>
+<span class="nc" id="L51">            throw new EntException(&quot;Error loading referenced pages with content &quot; + contentId, t);</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">        return pages;</span>
+    }
+
+    public void searchContentUtilizers(IPage targetPage, List&lt;IPage&gt; pages, String contentId) throws EntException {
+<span class="pc bpc" id="L57" title="1 of 4 branches missed.">        if (null == contentId || null == targetPage) {</span>
+<span class="fc" id="L58">            return;</span>
+        }
+        try {
+<span class="fc" id="L61">            boolean found = this.findContentUtilizers(targetPage.getWidgets(), contentId);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            if (found) {</span>
+<span class="fc" id="L63">                pages.add(targetPage);</span>
+            }
+<span class="fc" id="L65">            boolean isOnline = targetPage.isOnline();</span>
+<span class="fc" id="L66">            String[] children = targetPage.getChildrenCodes();</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">            if (null != children) {</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                    IPage child = (isOnline)</span>
+<span class="fc" id="L70">                            ? this.getPageManager().getOnlinePage(children[i])</span>
+<span class="pc" id="L71">                            : this.getPageManager().getDraftPage(children[i]);</span>
+<span class="fc" id="L72">                    this.searchContentUtilizers(child, pages, contentId);</span>
+                }
+            }
+<span class="nc" id="L75">        } catch (Throwable t) {</span>
+<span class="nc" id="L76">            _logger.error(&quot;Error loading referenced pages&quot;, t);</span>
+<span class="nc" id="L77">            throw new EntException(&quot;Error loading referenced pages with content &quot; + contentId, t);</span>
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">    }</span>
+
+    public boolean findContentUtilizers(Widget[] widgets, String contentId) throws EntException {
+<span class="fc" id="L82">        boolean found = false;</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (null != widgets) {</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">            for (Widget widget : widgets) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">                ApsProperties config = (null != widget) ? widget.getConfig() : null;</span>
+<span class="pc bpc" id="L86" title="1 of 4 branches missed.">                if (null == config || config.isEmpty()) {</span>
+<span class="nc" id="L87">                    continue;</span>
+                }
+<span class="fc" id="L89">                String extracted = config.getProperty(&quot;contentId&quot;);</span>
+<span class="fc bfc" id="L90" title="All 4 branches covered.">                if (null != extracted &amp;&amp; contentId.equals(extracted)) {</span>
+<span class="fc" id="L91">                    found = true;</span>
+                } else {
+<span class="fc" id="L93">                    String contents = config.getProperty(&quot;contents&quot;);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">                    List&lt;Properties&gt; properties = (null != contents) ? RowContentListHelper.fromParameterToContents(contents) : null;</span>
+<span class="pc bpc" id="L95" title="3 of 4 branches missed.">                    if (null == properties || properties.isEmpty()) {</span>
+<span class="nc" id="L96">                        continue;</span>
+                    }
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                    for (int j = 0; j &lt; properties.size(); j++) {</span>
+<span class="nc" id="L99">                        Properties widgProp = properties.get(j);</span>
+<span class="nc" id="L100">                        String extracted2 = widgProp.getProperty(&quot;contentId&quot;);</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">                        if (null != extracted2 &amp;&amp; contentId.equals(extracted2)) {</span>
+<span class="nc" id="L102">                            found = true;</span>
+<span class="nc" id="L103">                            break;</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="fc" id="L109">        return found;</span>
+    }
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L113">        return _pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L117">        this._pageManager = pageManager;</span>
+<span class="fc" id="L118">    }</span>
+
+    private IPageManager _pageManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

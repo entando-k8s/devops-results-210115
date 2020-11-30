@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExtendedResourceFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content.attribute.action.resource</a> &gt; <span class="el_source">ExtendedResourceFinderAction.java</span></div><h1>ExtendedResourceFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content.attribute.action.resource;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.http.HttpSession;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+import com.agiletec.plugins.jacms.apsadmin.resource.ResourceFinderAction;
+import java.util.Arrays;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * Classe action a servizio della gestione attributi risorsa, estensione della
+ * action gestrice delle operazioni di ricerca risorse.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L41">public class ExtendedResourceFinderAction extends ResourceFinderAction {</span>
+
+<span class="fc" id="L43">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ExtendedResourceFinderAction.class);</span>
+
+    private String contentOnSessionMarker;
+
+    private String resourceId;
+    private String entryContentAnchorDest;
+
+    public String entryFindResource() {
+<span class="nc" id="L51">        this.setCategoryCode(null);</span>
+<span class="nc" id="L52">        return SUCCESS;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getResources() throws Throwable {
+<span class="fc" id="L57">        List&lt;String&gt; resourceIds = null;</span>
+        try {
+<span class="fc" id="L59">            List&lt;String&gt; groupCodes = this.getGroupCodesForFilters();</span>
+<span class="fc" id="L60">            resourceIds = this.getResourceManager().searchResourcesId(this.createSearchFilters(), this.getCategoryCode(), groupCodes);</span>
+<span class="nc" id="L61">        } catch (Throwable t) {</span>
+<span class="nc" id="L62">            logger.error(&quot;error in getResources&quot;, t);</span>
+<span class="nc" id="L63">            throw t;</span>
+<span class="fc" id="L64">        }</span>
+<span class="fc" id="L65">        return resourceIds;</span>
+    }
+    
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedResourcesId(Integer limit) {
+<span class="nc" id="L70">        SearcherDaoPaginatedResult&lt;String&gt; result = null;</span>
+        try {
+<span class="nc" id="L72">            List&lt;String&gt; groupCodes = this.getGroupCodesForFilters();</span>
+<span class="nc" id="L73">            FieldSearchFilter[] filters = this.createSearchFilters();</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (null != limit) {</span>
+<span class="nc" id="L75">                filters = ArrayUtils.add(filters, this.getPagerFilter(limit));</span>
+            }
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            List&lt;String&gt; categories = (StringUtils.isBlank(this.getCategoryCode())) ? null : Arrays.asList(this.getCategoryCode());</span>
+<span class="nc" id="L78">            result = this.getResourceManager().getPaginatedResourcesId(filters, categories, groupCodes);</span>
+<span class="nc" id="L79">        } catch (Throwable t) {</span>
+<span class="nc" id="L80">            logger.error(&quot;error in getPaginateResourcesId&quot;, t);</span>
+<span class="nc" id="L81">            throw new RuntimeException(&quot;error in getPaginateResourcesId&quot;, t);</span>
+<span class="nc" id="L82">        }</span>
+<span class="nc" id="L83">        return result;</span>
+    }
+    
+    private List&lt;String&gt; getGroupCodesForFilters() {
+<span class="fc" id="L87">        List&lt;String&gt; groupCodes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L88">        groupCodes.add(Group.FREE_GROUP_NAME);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (null != this.getContent().getMainGroup()) {</span>
+<span class="fc" id="L90">            groupCodes.add(this.getContent().getMainGroup());</span>
+        }
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        return (groupCodes.contains(Group.ADMINS_GROUP_NAME)) ? null : groupCodes;</span>
+    }
+
+    /**
+     * Restituisce il contenuto in sessione.
+     *
+     * @return Il contenuto in sessione.
+     */
+    public Content getContent() {
+<span class="fc" id="L101">        return (Content) this.getRequest().getSession()</span>
+<span class="fc" id="L102">                .getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + this.getContentOnSessionMarker());</span>
+    }
+
+    /**
+     * Aggiunge una risorsa ad un Attributo.
+     *
+     * @return SUCCESS se è andato a buon fine, FAILURE in caso contrario
+     */
+    public String joinResource() {
+        try {
+<span class="fc" id="L112">            String resourceId = this.getResourceId();</span>
+<span class="fc" id="L113">            ResourceInterface resource = this.getResourceManager().loadResource(resourceId);</span>
+<span class="fc" id="L114">            this.buildEntryContentAnchorDest();</span>
+<span class="fc" id="L115">            List&lt;ResourceInterface&gt; resources = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L116">            resources.add(resource);</span>
+<span class="fc" id="L117">            ResourceAttributeActionHelper.joinResources(resources, this.getRequest());</span>
+<span class="nc" id="L118">        } catch (Throwable t) {</span>
+<span class="nc" id="L119">            logger.error(&quot;error in joinResource&quot;, t);</span>
+<span class="nc" id="L120">            return FAILURE;</span>
+<span class="fc" id="L121">        }</span>
+<span class="fc" id="L122">        return SUCCESS;</span>
+    }
+
+    public ResourceInterface getResource(String resourceId) {
+        try {
+<span class="nc" id="L127">            ResourceInterface resource = this.getResourceManager().loadResource(resourceId);</span>
+<span class="nc" id="L128">            return resource;</span>
+<span class="nc" id="L129">        } catch (Throwable t) {</span>
+<span class="nc" id="L130">            logger.error(&quot;error loading resource&quot;, t);</span>
+<span class="nc" id="L131">            throw new RuntimeException(&quot;error loading resource &quot; + resourceId, t);</span>
+        }
+    }
+
+    private void buildEntryContentAnchorDest() {
+<span class="fc" id="L136">        HttpSession session = this.getRequest().getSession();</span>
+<span class="fc" id="L137">        String anchorDest = ResourceAttributeActionHelper.buildEntryContentAnchorDest(session);</span>
+<span class="fc" id="L138">        this.setEntryContentAnchorDest(anchorDest);</span>
+<span class="fc" id="L139">    }</span>
+
+    public boolean isOnEditContent() {
+<span class="nc" id="L142">        return true;</span>
+    }
+
+    public String getContentOnSessionMarker() {
+<span class="fc" id="L146">        return contentOnSessionMarker;</span>
+    }
+
+    public void setContentOnSessionMarker(String contentOnSessionMarker) {
+<span class="fc" id="L150">        this.contentOnSessionMarker = contentOnSessionMarker;</span>
+<span class="fc" id="L151">    }</span>
+
+    public String getResourceId() {
+<span class="fc" id="L154">        return resourceId;</span>
+    }
+
+    public void setResourceId(String resourceId) {
+<span class="fc" id="L158">        this.resourceId = resourceId;</span>
+<span class="fc" id="L159">    }</span>
+
+    public String getEntryContentAnchorDest() {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if (null == this.entryContentAnchorDest) {</span>
+<span class="nc" id="L163">            this.buildEntryContentAnchorDest();</span>
+        }
+<span class="nc" id="L165">        return entryContentAnchorDest;</span>
+    }
+
+    protected void setEntryContentAnchorDest(String entryContentAnchorDest) {
+<span class="fc" id="L169">        this.entryContentAnchorDest = entryContentAnchorDest;</span>
+<span class="fc" id="L170">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

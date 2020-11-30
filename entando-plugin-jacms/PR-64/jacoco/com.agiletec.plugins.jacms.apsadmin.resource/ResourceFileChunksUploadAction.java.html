@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceFileChunksUploadAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.resource</a> &gt; <span class="el_source">ResourceFileChunksUploadAction.java</span></div><h1>ResourceFileChunksUploadAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.resource;
+
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import static com.opensymphony.xwork2.Action.SUCCESS;
+
+import java.io.*;
+import java.util.Arrays;
+import org.apache.commons.io.FileUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+<span class="fc" id="L25">public class ResourceFileChunksUploadAction extends AbstractResourceAction {</span>
+<span class="fc" id="L26">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ResourceFileChunksUploadAction.class);</span>
+
+<span class="fc" id="L28">    private String RESULT_SUCCESS = &quot;SUCCESS&quot;;</span>
+<span class="fc" id="L29">    private String RESULT_FAILED = &quot;FAILED&quot;;</span>
+<span class="fc" id="L30">    private String RESULT_VALIDATION_ERROR = &quot;VALIDATION_ERROR&quot;;</span>
+
+<span class="fc" id="L32">    private String resultMessage = &quot;&quot;;</span>
+    private String resourceTypeCode;
+    private String fileUploadContentType;
+    private String fileName;
+    private File fileUpload;
+    private Long start;
+    private Long end;
+    private InputStream inputStream;
+    private String uploadId;
+    private String fileSize;
+<span class="fc" id="L42">    private boolean valid = true;</span>
+
+    public String newResource() {
+<span class="nc" id="L45">        return SUCCESS;</span>
+    }
+
+    @Override
+    public void validate() {
+<span class="fc" id="L50">        logger.info(&quot;ResourceFileChunksUploadAction validate&quot;);</span>
+<span class="fc" id="L51">        logger.info(&quot;resourceTypeCode {}&quot;, resourceTypeCode);</span>
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">        if (null==resourceTypeCode || null==fileName)</span>
+        {
+<span class="fc" id="L54">            valid = false;</span>
+        }
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">        else if (resourceTypeCode.equals(&quot;Image&quot;) || resourceTypeCode.equals(&quot;Attach&quot;)) {</span>
+
+<span class="fc" id="L58">            setResourceTypeCode(resourceTypeCode);</span>
+
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (null != this.getResourceTypeCode()) {</span>
+<span class="fc" id="L61">                ResourceInterface resourcePrototype = this.getResourceManager().createResourceType(this.getResourceTypeCode());</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">                if (null != resourcePrototype) {</span>
+<span class="fc" id="L63">                    valid = this.checkRightFileType(resourcePrototype, fileName);</span>
+                } else {
+<span class="nc" id="L65">                    valid = false;</span>
+                }
+<span class="fc" id="L67">            } else {</span>
+<span class="nc" id="L68">                valid = false;</span>
+            }
+        } else {
+<span class="nc" id="L71">            valid = false;</span>
+        }
+<span class="fc" id="L73">        logger.info(&quot;valid {}&quot;, valid);</span>
+<span class="fc" id="L74">    }</span>
+
+    protected boolean checkRightFileType(ResourceInterface resourcePrototype, String fileName) {
+<span class="fc" id="L77">        logger.debug(&quot;Check Right File Type {} for filename {}&quot;, resourcePrototype.getType(), fileName);</span>
+<span class="fc" id="L78">        logger.debug(&quot;Allowed File Types length {}&quot;, resourcePrototype.getAllowedFileTypes().length);</span>
+<span class="fc" id="L79">        logger.debug(&quot;Allowed File Types {}&quot;, Arrays.toString(resourcePrototype.getAllowedFileTypes()));</span>
+
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (fileName.length() &gt; 0) {</span>
+<span class="fc" id="L82">            String docType = fileName.substring(fileName.lastIndexOf('.') + 1).trim();</span>
+<span class="fc" id="L83">            String[] types = resourcePrototype.getAllowedFileTypes();</span>
+<span class="fc" id="L84">            return this.isValidType(docType, types);</span>
+        } else {
+<span class="nc" id="L86">            return false;</span>
+        }
+    }
+
+    protected boolean isValidType(String docType, String[] rightTypes) {
+<span class="fc" id="L91">        boolean isValid = false;</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (rightTypes.length &gt; 0) {</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">            for (int i = 0; i &lt; rightTypes.length; i++) {</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">                if (docType.toLowerCase().equals(rightTypes[i])) {</span>
+<span class="nc" id="L95">                    isValid = true;</span>
+<span class="nc" id="L96">                    break;</span>
+                }
+            }
+        } else {
+<span class="nc" id="L100">            isValid = true;</span>
+        }
+<span class="fc" id="L102">        return isValid;</span>
+    }
+
+    public String upload() {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (valid) {</span>
+<span class="nc" id="L107">            logger.info(&quot;ResourceFileChunksUploadAction Save {}&quot;,fileName);</span>
+<span class="nc" id="L108">            logger.debug(&quot;start {}&quot;, start);</span>
+<span class="nc" id="L109">            logger.debug(&quot;end {}&quot;, end);</span>
+<span class="nc" id="L110">            logger.debug(&quot;fileUpload {}&quot;, fileUpload);</span>
+<span class="nc" id="L111">            logger.debug(&quot;contentType {}&quot;, fileUploadContentType);</span>
+<span class="nc" id="L112">            logger.debug(&quot;filename {}&quot;, fileName);</span>
+<span class="nc" id="L113">            logger.debug(&quot;uploadId {}&quot;, uploadId);</span>
+<span class="nc" id="L114">            logger.debug(&quot;fileSize {}&quot;, fileSize);</span>
+<span class="nc" id="L115">            logger.debug(&quot;resourceTypeCode {}&quot;, resourceTypeCode);</span>
+            try {
+<span class="nc" id="L117">                processChunk(fileUpload, uploadId + &quot;.tmp&quot;, start, end);</span>
+<span class="nc" id="L118">            } catch (IOException ex) {</span>
+<span class="nc" id="L119">                resultMessage = RESULT_FAILED;</span>
+<span class="nc" id="L120">                inputStream = new ByteArrayInputStream(RESULT_FAILED.getBytes());</span>
+<span class="nc" id="L121">                logger.error(&quot;Error processing the file chunk {}&quot;, ex);</span>
+<span class="nc" id="L122">            }</span>
+<span class="nc" id="L123">            resultMessage = RESULT_SUCCESS;</span>
+        } else {
+<span class="fc" id="L125">            resultMessage = RESULT_VALIDATION_ERROR;</span>
+        }
+<span class="fc" id="L127">        inputStream = new ByteArrayInputStream(resultMessage.getBytes());</span>
+<span class="fc" id="L128">        logger.debug(&quot;result {}&quot;, resultMessage);</span>
+
+<span class="fc" id="L130">        return SUCCESS;</span>
+    }
+
+    protected void processChunk(File fileChunk, String filename, Long start, Long End) throws IOException {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (start == 0) {</span>
+<span class="nc" id="L135">            this.createTempFile(fileChunk, filename);</span>
+        } else {
+<span class="nc" id="L137">            this.appendChunk(fileChunk, filename);</span>
+        }
+
+<span class="nc" id="L140">    }</span>
+
+    protected void appendChunk(File fileChunk, String filename) throws IOException {
+<span class="nc" id="L143">        String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="nc" id="L144">        logger.info(&quot;appendChunk to file {}&quot;, tempDir + File.separator + filename);</span>
+<span class="nc" id="L145">        File file = new File(tempDir + File.separator + filename);</span>
+
+<span class="nc" id="L147">        byte[] fileChunkBytes = FileUtils.readFileToByteArray(fileChunk);</span>
+<span class="nc" id="L148">        logger.debug(&quot;appendChunk bytes {}&quot;, fileChunkBytes.length);</span>
+
+<span class="nc" id="L150">        FileUtils.writeByteArrayToFile(file, fileChunkBytes, true);</span>
+<span class="nc" id="L151">        logger.debug(&quot;appendChunk done&quot;);</span>
+
+<span class="nc" id="L153">    }</span>
+
+    protected void createTempFile(File firstChunk, String filename) throws IOException {
+<span class="nc" id="L156">        logger.info(&quot;createTempFile&quot;);</span>
+<span class="nc" id="L157">        String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+
+<span class="nc" id="L159">        logger.debug(&quot;file {}&quot;, tempDir + File.separator + filename);</span>
+
+<span class="nc" id="L161">        File file = new File(tempDir + File.separator + filename);</span>
+<span class="nc" id="L162">        logger.debug(&quot;file.exists() {}&quot;, file.exists());</span>
+<span class="nc" id="L163">        logger.debug(&quot;file.isDirectory() {}&quot;, file.isDirectory());</span>
+<span class="nc bnc" id="L164" title="All 4 branches missed.">        if (!file.exists() &amp;&amp; !file.isDirectory()) {</span>
+            // do something
+
+<span class="nc" id="L167">            logger.debug(&quot;createTempFile START&quot;);</span>
+
+<span class="nc" id="L169">            InputStream inputStream = new FileInputStream(firstChunk);</span>
+<span class="nc" id="L170">            OutputStream out = null;</span>
+            try {
+<span class="nc" id="L172">                out = new FileOutputStream(file);</span>
+<span class="nc" id="L173">                byte buf[] = new byte[1024];</span>
+                int len;
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                while ((len = inputStream.read(buf)) &gt; 0) {</span>
+<span class="nc" id="L176">                    out.write(buf, 0, len);</span>
+                }
+<span class="nc" id="L178">            } catch (IOException ex) {</span>
+<span class="nc" id="L179">                logger.error(&quot;Error creating file from byte array&quot;, ex);</span>
+<span class="nc" id="L180">                throw ex;</span>
+            } finally {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                if (null != out) {</span>
+<span class="nc" id="L183">                    out.close();</span>
+                }
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                if (null != inputStream) {</span>
+<span class="nc" id="L186">                    inputStream.close();</span>
+                }
+            }
+        }
+<span class="nc" id="L190">    }</span>
+
+    public String getFileUploadContentType() {
+<span class="nc" id="L193">        return fileUploadContentType;</span>
+    }
+
+    public void setFileUploadContentType(String fileUploadContentType) {
+<span class="nc" id="L197">        this.fileUploadContentType = fileUploadContentType;</span>
+<span class="nc" id="L198">    }</span>
+
+    public String getFileName() {
+<span class="nc" id="L201">        return fileName;</span>
+    }
+
+    public void setFileName(String fileName) {
+<span class="fc" id="L205">        this.fileName = fileName;</span>
+<span class="fc" id="L206">    }</span>
+
+    public File getFileUpload() {
+<span class="nc" id="L209">        return fileUpload;</span>
+    }
+
+    public void setFileUpload(File fileUpload) {
+<span class="nc" id="L213">        this.fileUpload = fileUpload;</span>
+<span class="nc" id="L214">    }</span>
+
+    public Long getStart() {
+<span class="nc" id="L217">        return start;</span>
+    }
+
+    public void setStart(Long start) {
+<span class="nc" id="L221">        this.start = start;</span>
+<span class="nc" id="L222">    }</span>
+
+    public Long getEnd() {
+<span class="nc" id="L225">        return end;</span>
+    }
+
+    public void setEnd(Long end) {
+<span class="nc" id="L229">        this.end = end;</span>
+<span class="nc" id="L230">    }</span>
+
+    public InputStream getInputStream() {
+<span class="nc" id="L233">        return inputStream;</span>
+    }
+
+    public String getUploadId() {
+<span class="nc" id="L237">        return uploadId;</span>
+    }
+
+    public void setUploadId(String uploadId) {
+<span class="nc" id="L241">        this.uploadId = uploadId;</span>
+<span class="nc" id="L242">    }</span>
+
+    public String getFileSize() {
+<span class="nc" id="L245">        return fileSize;</span>
+    }
+
+    public void setFileSize(String fileSize) {
+<span class="nc" id="L249">        this.fileSize = fileSize;</span>
+<span class="nc" id="L250">    }</span>
+
+    public String getResourceTypeCode() {
+<span class="fc" id="L253">        return resourceTypeCode;</span>
+    }
+
+    public void setResourceTypeCode(String resourceTypeCode) {
+<span class="fc" id="L257">        this.resourceTypeCode = resourceTypeCode;</span>
+<span class="fc" id="L258">    }</span>
+
+    public String getResultMessage() {
+<span class="fc" id="L261">        return resultMessage;</span>
+    }
+
+    public boolean isValid() {
+<span class="nc" id="L265">        return valid;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
