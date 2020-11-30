@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractWidgetExecutorService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.controller.executor</a> &gt; <span class="el_source">AbstractWidgetExecutorService.java</span></div><h1>AbstractWidgetExecutorService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.controller.executor;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.StringReader;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.aps.system.services.guifragment.GuiFragment;
+import org.entando.entando.aps.system.services.guifragment.IGuiFragmentManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.exception.ApsSystemException;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.tags.util.IFrameDecoratorContainer;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+import freemarker.template.Template;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L56">public abstract class AbstractWidgetExecutorService {</span>
+
+<span class="fc" id="L58">	private static final Logger _logger = LoggerFactory.getLogger(AbstractWidgetExecutorService.class);</span>
+
+	protected void buildWidgetsOutput(RequestContext reqCtx, IPage page, String[] widgetOutput) throws ApsSystemException {
+		try {
+<span class="nc" id="L62">			List&lt;IFrameDecoratorContainer&gt; decorators = this.extractDecorators(reqCtx);</span>
+<span class="nc" id="L63">			Widget[] widgets = page.getWidgets();</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">			for (int frame = 0; frame &lt; widgets.length; frame++) {</span>
+<span class="nc" id="L65">				reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME, new Integer(frame));</span>
+<span class="nc" id="L66">				Widget widget = widgets[frame];</span>
+<span class="nc" id="L67">				widgetOutput[frame] = this.buildWidgetOutput(reqCtx, widget, decorators);</span>
+			}
+<span class="nc" id="L69">		} catch (Throwable t) {</span>
+<span class="nc" id="L70">			String msg = &quot;Error detected during widget preprocessing&quot;;</span>
+<span class="nc" id="L71">			_logger.error(msg, t);</span>
+<span class="nc" id="L72">			throw new ApsSystemException(msg, t);</span>
+<span class="nc" id="L73">		}</span>
+<span class="nc" id="L74">	}</span>
+
+	protected String buildWidgetOutput(RequestContext reqCtx, Widget widget, List&lt;IFrameDecoratorContainer&gt; decorators)
+			throws ApsSystemException {
+<span class="nc" id="L78">		StringBuilder buffer = new StringBuilder();</span>
+		try {
+<span class="nc bnc" id="L80" title="All 4 branches missed.">			if (null != widget &amp;&amp; this.isUserAllowed(reqCtx, widget)) {</span>
+<span class="nc" id="L81">				reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET, widget);</span>
+			} else {
+<span class="nc" id="L83">				reqCtx.removeExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+			}
+<span class="nc" id="L85">			buffer.append(this.extractDecoratorsOutput(reqCtx, widget, decorators, false, true));</span>
+<span class="nc bnc" id="L86" title="All 4 branches missed.">			if (null != widget &amp;&amp; this.isUserAllowed(reqCtx, widget)) {</span>
+<span class="nc" id="L87">				String widgetOutput = extractWidgetOutput(reqCtx, widget.getType());</span>
+				// String widgetJspPath = widget.getType().getJspPath();
+<span class="nc" id="L89">				buffer.append(this.extractDecoratorsOutput(reqCtx, widget, decorators, true, true));</span>
+				// buffer.append(this.extractJspOutput(reqCtx, widgetJspPath));
+<span class="nc" id="L91">				buffer.append(widgetOutput);</span>
+<span class="nc" id="L92">				buffer.append(this.extractDecoratorsOutput(reqCtx, widget, decorators, true, false));</span>
+			}
+<span class="nc" id="L94">			buffer.append(this.extractDecoratorsOutput(reqCtx, widget, decorators, false, false));</span>
+<span class="nc" id="L95">		} catch (Throwable t) {</span>
+<span class="nc" id="L96">			String msg = &quot;Error creating widget output&quot;;</span>
+<span class="nc" id="L97">			_logger.error(msg, t);</span>
+<span class="nc" id="L98">			throw new RuntimeException(msg, t);</span>
+<span class="nc" id="L99">		}</span>
+<span class="nc" id="L100">		return buffer.toString();</span>
+	}
+
+	public static String extractWidgetOutput(RequestContext reqCtx, WidgetType type) throws ApsSystemException {
+<span class="nc bnc" id="L104" title="All 2 branches missed.">		if (null == type) {</span>
+<span class="nc" id="L105">			return &quot;&quot;;</span>
+		}
+<span class="nc bnc" id="L107" title="All 2 branches missed.">		String widgetTypeCode = (type.isLogic()) ? type.getParentType().getCode() : type.getCode();</span>
+		try {
+<span class="nc" id="L109">			IGuiFragmentManager guiFragmentManager = (IGuiFragmentManager) ApsWebApplicationUtils.getBean(</span>
+<span class="nc" id="L110">					SystemConstants.GUI_FRAGMENT_MANAGER, reqCtx.getRequest());</span>
+<span class="nc" id="L111">			GuiFragment guiFragment = guiFragmentManager.getUniqueGuiFragmentByWidgetType(widgetTypeCode);</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">			if (null != guiFragment) {</span>
+<span class="nc" id="L113">				String fragmentOutput = extractFragmentOutput(guiFragment, reqCtx);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">				if (StringUtils.isBlank(fragmentOutput)) {</span>
+<span class="nc" id="L115">					_logger.info(&quot;The fragment '{}' of widget '{}' is not available&quot;, guiFragment.getCode(), widgetTypeCode);</span>
+<span class="nc" id="L116">					return &quot;The fragment '&quot; + guiFragment.getCode() + &quot;' of widget '&quot; + widgetTypeCode + &quot;' is not available&quot;;</span>
+				}
+<span class="nc" id="L118">				return fragmentOutput;</span>
+			} else {
+<span class="nc" id="L120">				String widgetJspPath = type.getJspPath();</span>
+<span class="nc" id="L121">				return extractJspWidgetOutput(widgetTypeCode, reqCtx, widgetJspPath);</span>
+			}
+<span class="nc" id="L123">		} catch (Throwable t) {</span>
+<span class="nc" id="L124">			String msg = &quot;Error creating widget output - Type '&quot; + widgetTypeCode + &quot;'&quot;;</span>
+<span class="nc" id="L125">			_logger.error(msg, t);</span>
+<span class="nc" id="L126">			throw new ApsSystemException(msg, t);</span>
+		}
+	}
+
+	protected List&lt;IFrameDecoratorContainer&gt; extractDecorators(RequestContext reqCtx) throws ApsSystemException {
+<span class="nc" id="L131">		HttpServletRequest request = reqCtx.getRequest();</span>
+<span class="nc" id="L132">		WebApplicationContext wac = ApsWebApplicationUtils.getWebApplicationContext(request);</span>
+<span class="nc" id="L133">		List&lt;IFrameDecoratorContainer&gt; containters = new ArrayList&lt;IFrameDecoratorContainer&gt;();</span>
+		try {
+<span class="nc" id="L135">			String[] beanNames = wac.getBeanNamesForType(IFrameDecoratorContainer.class);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">			for (int i = 0; i &lt; beanNames.length; i++) {</span>
+<span class="nc" id="L137">				IFrameDecoratorContainer container = (IFrameDecoratorContainer) wac.getBean(beanNames[i]);</span>
+<span class="nc" id="L138">				containters.add(container);</span>
+			}
+<span class="nc" id="L140">			BeanComparator comparator = new BeanComparator(&quot;order&quot;);</span>
+<span class="nc" id="L141">			Collections.sort(containters, comparator);</span>
+<span class="nc" id="L142">		} catch (Throwable t) {</span>
+<span class="nc" id="L143">			_logger.error(&quot;Error extracting widget decorators&quot;, t);</span>
+<span class="nc" id="L144">			throw new ApsSystemException(&quot;Error extracting widget decorators&quot;, t);</span>
+<span class="nc" id="L145">		}</span>
+<span class="nc" id="L146">		return containters;</span>
+	}
+
+	protected String extractDecoratorsOutput(RequestContext reqCtx, Widget widget, List&lt;IFrameDecoratorContainer&gt; decorators,
+			boolean isWidgetDecorator, boolean includeHeader) throws Throwable {
+<span class="nc bnc" id="L151" title="All 4 branches missed.">		if (null == decorators || decorators.isEmpty()) {</span>
+<span class="nc" id="L152">			return &quot;&quot;;</span>
+		}
+<span class="nc" id="L154">		StringBuilder builder = new StringBuilder();</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">		for (int i = 0; i &lt; decorators.size(); i++) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">			IFrameDecoratorContainer decoratorContainer = (includeHeader) ? decorators.get(i) : decorators.get(decorators.size() - i - 1);</span>
+<span class="nc bnc" id="L157" title="All 4 branches missed.">			if ((isWidgetDecorator != decoratorContainer.isWidgetDecorator()) || !decoratorContainer.needsDecoration(widget, reqCtx)) {</span>
+<span class="nc" id="L158">				continue;</span>
+			}
+<span class="nc bnc" id="L160" title="All 2 branches missed.">			String fragmentCode = (includeHeader) ? decoratorContainer.getHeaderFragmentCode() : decoratorContainer.getFooterFragmentCode();</span>
+<span class="nc" id="L161">			String fragmentOutput = extractFragmentOutput(fragmentCode, reqCtx);</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">			if (StringUtils.isNotBlank(fragmentCode)) {</span>
+<span class="nc" id="L163">				builder.append(fragmentOutput);</span>
+			} else {
+<span class="nc bnc" id="L165" title="All 2 branches missed.">				String jspPath = (includeHeader) ? decoratorContainer.getHeaderJspPath() : decoratorContainer.getFooterJspPath();</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">				if (StringUtils.isNotBlank(jspPath)) {</span>
+<span class="nc" id="L167">					String output = extractJspOutput(reqCtx, jspPath);</span>
+<span class="nc" id="L168">					builder.append(output);</span>
+				}
+			}
+		}
+<span class="nc" id="L172">		return builder.toString();</span>
+	}
+
+	protected String extractFragmentOutput(String fragmentCode, RequestContext reqCtx) throws Throwable {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">		if (StringUtils.isBlank(fragmentCode)) {</span>
+<span class="nc" id="L177">			return null;</span>
+		}
+<span class="nc" id="L179">		IGuiFragmentManager guiFragmentManager = (IGuiFragmentManager) ApsWebApplicationUtils.getBean(SystemConstants.GUI_FRAGMENT_MANAGER,</span>
+<span class="nc" id="L180">				reqCtx.getRequest());</span>
+<span class="nc" id="L181">		GuiFragment fragment = guiFragmentManager.getGuiFragment(fragmentCode);</span>
+<span class="nc" id="L182">		return extractFragmentOutput(fragment, reqCtx);</span>
+	}
+
+	protected static String extractFragmentOutput(GuiFragment fragment, RequestContext reqCtx) throws Throwable {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">		if (null == fragment) {</span>
+<span class="nc" id="L187">			return null;</span>
+		}
+		try {
+<span class="nc" id="L190">			String currentGui = fragment.getCurrentGui();</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">			if (StringUtils.isBlank(currentGui)) {</span>
+<span class="nc" id="L192">				_logger.info(&quot;The fragment '{}' is not available&quot;, fragment.getCode());</span>
+<span class="nc" id="L193">				return &quot;&quot;;</span>
+			}
+<span class="nc" id="L195">			ExecutorBeanContainer ebc = (ExecutorBeanContainer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_EXECUTOR_BEAN_CONTAINER);</span>
+<span class="nc" id="L196">			Integer frame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc" id="L197">			Widget currentWidget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L198">			StringBuilder templateName = new StringBuilder(String.valueOf(frame)).append(&quot;_&quot;).append(fragment.getCode());</span>
+<span class="nc bnc" id="L199" title="All 4 branches missed.">			if (null != currentWidget &amp;&amp; null != currentWidget.getType()) {</span>
+<span class="nc" id="L200">				templateName.append(&quot;_&quot;).append(currentWidget.getType().getCode());</span>
+			}
+<span class="nc" id="L202">			ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="nc" id="L203">			Writer out = new OutputStreamWriter(baos);</span>
+<span class="nc" id="L204">			Template template = new Template(templateName.toString(), new StringReader(currentGui), ebc.getConfiguration());</span>
+<span class="nc" id="L205">			template.process(ebc.getTemplateModel(), out);</span>
+<span class="nc" id="L206">			out.flush();</span>
+<span class="nc" id="L207">			return baos.toString().trim();</span>
+<span class="nc" id="L208">		} catch (Throwable t) {</span>
+<span class="nc" id="L209">			String msg = &quot;Error creating fragment output - code '&quot; + fragment.getCode() + &quot;'&quot;;</span>
+<span class="nc" id="L210">			_logger.error(msg, t);</span>
+<span class="nc" id="L211">			throw new ApsSystemException(msg, t);</span>
+		}
+	}
+
+	protected boolean isUserAllowed(RequestContext reqCtx, Widget widget) {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">		if (null == widget) {</span>
+<span class="nc" id="L217">			return false;</span>
+		}
+<span class="nc" id="L219">		String widgetTypeGroup = widget.getType().getMainGroup();</span>
+		try {
+<span class="nc bnc" id="L221" title="All 4 branches missed.">			if (null == widgetTypeGroup || widgetTypeGroup.equals(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L222">				return true;</span>
+			}
+<span class="nc" id="L224">			IAuthorizationManager authorizationManager = (IAuthorizationManager) ApsWebApplicationUtils.getBean(</span>
+<span class="nc" id="L225">					SystemConstants.AUTHORIZATION_SERVICE, reqCtx.getRequest());</span>
+<span class="nc" id="L226">			UserDetails currentUser = (UserDetails) reqCtx.getRequest().getSession().getAttribute(</span>
+					SystemConstants.SESSIONPARAM_CURRENT_USER);
+<span class="nc" id="L228">			return authorizationManager.isAuthOnGroup(currentUser, widgetTypeGroup);</span>
+<span class="nc" id="L229">		} catch (Throwable t) {</span>
+<span class="nc" id="L230">			_logger.error(&quot;Error checking user authorities&quot;, t);</span>
+		}
+<span class="nc" id="L232">		return false;</span>
+	}
+
+	protected static String extractJspWidgetOutput(String widgetTypeCode, RequestContext reqCtx, String jspPath) throws Throwable {
+		try {
+<span class="nc" id="L237">			return extractJspOutput(reqCtx, jspPath);</span>
+<span class="nc" id="L238">		} catch (IOException e) {</span>
+<span class="nc" id="L239">			_logger.error(&quot;The widget '{}' is unavailable. Expected jsp path '{}'&quot;, widgetTypeCode, jspPath, e);</span>
+<span class="nc" id="L240">			return &quot;The widget '&quot; + widgetTypeCode + &quot;' is unavailable&quot;;</span>
+<span class="nc" id="L241">		} catch (Throwable t) {</span>
+<span class="nc" id="L242">			_logger.error(&quot;Error extracting jsp output&quot;, t);</span>
+<span class="nc" id="L243">			throw t;</span>
+		}
+	}
+
+	protected static String extractJspOutput(RequestContext reqCtx, String jspPath) throws ServletException, IOException {
+<span class="nc" id="L248">		HttpServletRequest request = reqCtx.getRequest();</span>
+<span class="nc" id="L249">		HttpServletResponse response = reqCtx.getResponse();</span>
+<span class="nc" id="L250">		BufferedHttpResponseWrapper wrapper = new BufferedHttpResponseWrapper(response);</span>
+<span class="nc" id="L251">		ServletContext context = request.getSession().getServletContext();</span>
+<span class="nc" id="L252">		String url = response.encodeRedirectURL(jspPath);</span>
+<span class="nc" id="L253">		RequestDispatcher dispatcher = context.getRequestDispatcher(url);</span>
+<span class="nc" id="L254">		dispatcher.include(request, wrapper);</span>
+<span class="nc" id="L255">		return wrapper.getOutput();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
