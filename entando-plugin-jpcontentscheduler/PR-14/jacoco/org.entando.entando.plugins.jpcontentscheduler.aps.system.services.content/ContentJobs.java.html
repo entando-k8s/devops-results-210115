@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentJobs.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Scheduler</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content</a> &gt; <span class="el_source">ContentJobs.java</span></div><h1>ContentJobs.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import com.agiletec.aps.system.services.lang.ILangManager;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.ContentThreadConstants;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentState;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentSuspendMove;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.util.Utils;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.scheduling.quartz.QuartzJobBean;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.exception.ApsSystemException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.IContentModelManager;
+
+<span class="fc" id="L62">public class ContentJobs extends QuartzJobBean implements ApplicationContextAware {</span>
+
+<span class="fc" id="L64">	private static final Logger _logger = LoggerFactory.getLogger(ContentJobs.class);</span>
+
+	private static final String APPLICATION_CONTEXT_KEY = &quot;applicationContext&quot;;
+
+	private IContentSchedulerManager _contentSchedulerManager;
+	private IContentManager _contentManager;
+	private ICategoryManager _categoryManager;
+	private IPageManager _pageManager;
+	private IContentModelManager _contentModelManager;
+
+	private ApplicationContext _ctx;
+
+	@Autowired
+	private ILangManager langManager;
+
+	@Override
+	public void setApplicationContext(ApplicationContext ac) throws BeansException {
+<span class="nc" id="L81">		this._ctx = ac;</span>
+<span class="nc" id="L82">	}</span>
+
+	private ApplicationContext getApplicationContext(JobExecutionContext context) throws Exception {
+<span class="nc" id="L85">		ApplicationContext appCtx = (ApplicationContext) context.getScheduler().getContext()</span>
+<span class="nc" id="L86">				.get(APPLICATION_CONTEXT_KEY);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">		if (appCtx == null) {</span>
+<span class="nc" id="L88">			throw new JobExecutionException(</span>
+					ContentThreadConstants.APP_CTX_ERROR + &quot;\&quot;&quot; + APPLICATION_CONTEXT_KEY + &quot;\&quot;&quot;);
+		}
+<span class="nc" id="L91">		return appCtx;</span>
+	}
+
+	private void initBeans(ApplicationContext appCtx) {
+<span class="nc" id="L95">		this.setContentSchedulerManager(</span>
+<span class="nc" id="L96">				(IContentSchedulerManager) appCtx.getBean(&quot;jpcontentschedulerContentSchedulerManager&quot;));</span>
+<span class="nc" id="L97">		this.setContentModelManager((IContentModelManager) appCtx.getBean(&quot;jacmsContentModelManager&quot;));</span>
+<span class="nc" id="L98">		this.setCategoryManager((ICategoryManager) appCtx.getBean(&quot;CategoryManager&quot;));</span>
+<span class="nc" id="L99">		this.setPageManager((IPageManager) appCtx.getBean(&quot;PageManager&quot;));</span>
+<span class="nc" id="L100">	}</span>
+
+	@Override
+	protected void executeInternal(JobExecutionContext context) throws JobExecutionException {
+		try {
+<span class="nc" id="L105">			ApplicationContext appCtx = getApplicationContext(context);</span>
+<span class="nc" id="L106">			this.initBeans(appCtx);</span>
+<span class="nc" id="L107">			this.executeJob(appCtx);</span>
+<span class="nc" id="L108">		} catch (Exception ex) {</span>
+<span class="nc" id="L109">			_logger.error(&quot;error in executeInternal&quot;, ex);</span>
+<span class="nc" id="L110">			throw new RuntimeException(&quot;Errore in inserimento/sospensione contenuti online&quot;, ex);</span>
+<span class="nc" id="L111">		}</span>
+<span class="nc" id="L112">	}</span>
+
+	public void executeJob(ApplicationContext appCtx) throws JobExecutionException {
+		try {
+<span class="fc" id="L116">			if (this.getContentSchedulerManager().getConfig()</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">					.isActive()/* &amp;&amp; isCurrentSiteAllowed() */) {</span>
+<span class="fc" id="L118">				Date startJobDate = new Date();</span>
+<span class="fc" id="L119">				_logger.info(ContentThreadConstants.START_TIME_LOG + Utils.printTimeStamp(startJobDate));</span>
+<span class="fc" id="L120">				List&lt;ContentState&gt; removedContents = new ArrayList&lt;ContentState&gt;();</span>
+<span class="fc" id="L121">				List&lt;ContentState&gt; publishedContents = new ArrayList&lt;ContentState&gt;();</span>
+<span class="fc" id="L122">				List&lt;ContentState&gt; moveContents = new ArrayList&lt;ContentState&gt;();</span>
+				try {
+<span class="fc" id="L124">					this.publishContentsJob(publishedContents);</span>
+					// System.out.println(&quot;CONTENUTI DA PUBLICARE -&gt; &quot; +
+					// publishedContents);
+<span class="fc" id="L127">					this.suspendOrMoveContentsJob(removedContents, moveContents, appCtx);</span>
+					try {
+<span class="fc" id="L129">						Collections.sort(publishedContents);</span>
+<span class="fc" id="L130">						Collections.sort(removedContents);</span>
+<span class="fc" id="L131">						Collections.sort(moveContents);</span>
+<span class="fc" id="L132">						Date endJobDate = new Date();</span>
+<span class="fc" id="L133">						_logger.info(ContentThreadConstants.END_TIME_LOG + Utils.printTimeStamp(endJobDate));</span>
+<span class="fc" id="L134">						this.getContentSchedulerManager().sendMailWithResults(publishedContents, removedContents,</span>
+								moveContents, startJobDate, endJobDate);
+<span class="nc" id="L136">					} catch (Throwable t) {</span>
+<span class="nc" id="L137">						throw new ApsSystemException(ContentThreadConstants.ERROR_ON_MAIL, t);</span>
+<span class="fc" id="L138">					}</span>
+<span class="nc" id="L139">				} catch (Throwable t) {</span>
+<span class="nc" id="L140">					ApsSystemUtils.logThrowable(t, this, t.getMessage());</span>
+<span class="nc" id="L141">					throw new RuntimeException(&quot;Errore in inserimento/sospensione contenuti online&quot;, t);</span>
+<span class="fc" id="L142">				}</span>
+			}
+<span class="nc" id="L144">		} catch (Throwable t) {</span>
+<span class="nc" id="L145">			ApsSystemUtils.logThrowable(t, this, t.getMessage());</span>
+<span class="nc" id="L146">			throw new RuntimeException(&quot;Errore inizializzazione spring bean: &quot;, t);</span>
+<span class="fc" id="L147">		}</span>
+<span class="fc" id="L148">	}</span>
+
+	private void publishContentsJob(List&lt;ContentState&gt; publishedContents) throws ApsSystemException {
+		try {
+			// Restituisce gli id dei contenuti che hanno un attributo con nome
+			// key Data_inizio e valore la data corrente
+<span class="fc" id="L154">			List&lt;String&gt; contentIds = this.getContentSchedulerManager().getContentIdToPublish();</span>
+			// System.out.println(&quot;CONTENUTI DA PUBLICARE ESTRATTI -&gt; &quot; +
+			// contentIds);
+<span class="fc" id="L157">			Iterator&lt;String&gt; iter = contentIds.iterator();</span>
+			// Cicla di contenuti da pubblicare in data odierna
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">			while (iter.hasNext()) {</span>
+<span class="nc" id="L160">				String contentId = null;</span>
+				try {
+<span class="nc" id="L162">					contentId = (String) iter.next();</span>
+<span class="nc" id="L163">					Content contentToPublish = this.getContentManager().loadContent(contentId, false);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">					if (null == contentToPublish) {</span>
+<span class="nc" id="L165">						publishedContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+								ContentThreadConstants.PUBLISH_ACTION, ContentThreadConstants.NULL_CONTENT));
+<span class="nc" id="L167">						_logger.info(&quot;Pubblicazione automatica non riuscita: &quot; + contentId + &quot; - &quot;</span>
+								+ ContentThreadConstants.NULL_CONTENT);
+<span class="nc" id="L169">						continue;</span>
+					}
+<span class="nc bnc" id="L171" title="All 2 branches missed.">					if (contentToPublish.isOnLine()) {</span>
+<span class="nc" id="L172">						publishedContents.add(new ContentState(contentToPublish.getId(), contentToPublish.getTypeCode(),</span>
+<span class="nc" id="L173">								contentToPublish.getDescription(), ContentThreadConstants.PUBLISH_ACTION,</span>
+								ContentThreadConstants.ISALREADYONLINE));
+<span class="nc" id="L175">						_logger.info(&quot;Pubblicazione automatica non riuscita: &quot; + contentToPublish.getId() + &quot; - &quot;</span>
+								+ ContentThreadConstants.ISALREADYONLINE);
+<span class="nc" id="L177">						continue;</span>
+					}
+<span class="nc bnc" id="L179" title="All 2 branches missed.">					if (!Content.STATUS_READY.equals(contentToPublish.getStatus())) {</span>
+<span class="nc" id="L180">						publishedContents.add(new ContentState(contentToPublish.getId(), contentToPublish.getTypeCode(),</span>
+<span class="nc" id="L181">								contentToPublish.getDescription(), ContentThreadConstants.PUBLISH_ACTION,</span>
+								ContentThreadConstants.NOTREADYSTATUS));
+<span class="nc" id="L183">						_logger.info(&quot;Pubblicazione automatica non riuscita: &quot; + contentToPublish.getId() + &quot; - &quot;</span>
+								+ ContentThreadConstants.NOTREADYSTATUS);
+<span class="nc" id="L185">						continue;</span>
+					}
+<span class="nc" id="L187">					boolean validation = this.scanEntity(contentToPublish);</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">					if (!validation) {</span>
+<span class="nc" id="L189">						publishedContents.add(new ContentState(contentToPublish.getId(), contentToPublish.getTypeCode(),</span>
+<span class="nc" id="L190">								contentToPublish.getDescription(), ContentThreadConstants.PUBLISH_ACTION,</span>
+								ContentThreadConstants.CONTENTWITHERRORS));
+<span class="nc" id="L192">						_logger.info(&quot;Pubblicazione automatica non riuscita: &quot; + contentToPublish.getId() + &quot; - &quot;</span>
+								+ ContentThreadConstants.CONTENTWITHERRORS);
+<span class="nc" id="L194">						continue;</span>
+					}
+					// pubblicazione on line del contenuto e modifica data di
+					// ultima modifica
+<span class="nc" id="L198">					this.getContentManager().insertOnLineContent(contentToPublish);</span>
+<span class="nc" id="L199">					_logger.info(&quot;Pubblicato automaticamente contenuto &quot; + contentToPublish.getId());</span>
+<span class="nc" id="L200">					publishedContents.add(new ContentState(contentToPublish.getId(), contentToPublish.getTypeCode(),</span>
+<span class="nc" id="L201">							contentToPublish.getDescription(), ContentThreadConstants.PUBLISH_ACTION,</span>
+							ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc" id="L203">				} catch (Throwable t) {</span>
+<span class="nc" id="L204">					ApsSystemUtils.logThrowable(t, this, ContentThreadConstants.UNEXPECTED_ERROR);</span>
+<span class="nc" id="L205">					publishedContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+<span class="nc" id="L206">							ContentThreadConstants.PUBLISH_ACTION, t.getMessage()));</span>
+<span class="nc" id="L207">				}</span>
+<span class="nc" id="L208">			}</span>
+<span class="nc" id="L209">		} catch (Throwable t) {</span>
+<span class="nc" id="L210">			throw new ApsSystemException(ContentThreadConstants.ERROR_ON_PUBLISH, t);</span>
+<span class="fc" id="L211">		}</span>
+<span class="fc" id="L212">	}</span>
+
+	public boolean scanEntity(Content currentContent) {
+		try {
+<span class="nc" id="L216">			List&lt;AttributeInterface&gt; attributes = currentContent.getAttributeList();</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">			for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="nc" id="L218">				AttributeInterface entityAttribute = attributes.get(i);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">				if (entityAttribute.isActive()) {</span>
+<span class="nc" id="L220">					List&lt;AttributeFieldError&gt; errors = entityAttribute.validate(new AttributeTracer(), langManager);</span>
+<span class="nc bnc" id="L221" title="All 4 branches missed.">					if (null != errors &amp;&amp; errors.size() &gt; 0) {</span>
+<span class="nc" id="L222">						return false;</span>
+					}
+				}
+			}
+<span class="nc" id="L226">		} catch (Throwable t) {</span>
+<span class="nc" id="L227">			_logger.error(&quot;Error scanning Entity&quot;, t);</span>
+<span class="nc" id="L228">			throw new RuntimeException(&quot;Error scanning Entity&quot;, t);</span>
+<span class="nc" id="L229">		}</span>
+<span class="nc" id="L230">		return true;</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private void suspendOrMoveContentsJob(List&lt;ContentState&gt; removedContents, List&lt;ContentState&gt; moveContents,
+			ApplicationContext appCtx) throws ApsSystemException {
+		try {
+			// Restituisce gli id dei contenuti che hanno un attributo con nome
+			// key Data_fine e valore la data corrente
+<span class="fc" id="L239">			List&lt;ContentSuspendMove&gt; content = this.getContentSchedulerManager().getContentAttrDataFine();</span>
+			// Cicla per tipo di contenuto
+<span class="fc bfc" id="L241" title="All 2 branches covered.">			for (ContentSuspendMove c : content) {</span>
+<span class="fc" id="L242">				List&lt;String&gt; contentIds = c.getIdsContents();</span>
+				// se suspend = true si effettua la depubblicazione
+<span class="pc bpc" id="L244" title="2 of 4 branches missed.">				if (c.getSuspend() != null &amp;&amp; c.getSuspend().equalsIgnoreCase(&quot;true&quot;)) {</span>
+<span class="fc" id="L245">					Iterator&lt;String&gt; iter = contentIds.iterator();</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">					while (iter.hasNext()) {</span>
+<span class="nc" id="L247">						String contentId = null;</span>
+						try {
+<span class="nc" id="L249">							contentId = (String) iter.next();</span>
+<span class="nc" id="L250">							Content contentToSuspend = this.getContentManager().loadContent(contentId, false);</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">							if (null == contentToSuspend) {</span>
+<span class="nc" id="L252">								removedContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+										ContentThreadConstants.SUSPEND_ACTION, ContentThreadConstants.NULL_CONTENT));
+<span class="nc" id="L254">								ApsSystemUtils.getLogger().info(&quot;Sospensione automatica non riuscita: &quot; + contentId</span>
+										+ &quot; - &quot; + ContentThreadConstants.NULL_CONTENT);
+<span class="nc" id="L256">								continue;</span>
+							}
+<span class="nc bnc" id="L258" title="All 2 branches missed.">							if (!contentToSuspend.isOnLine()) {</span>
+<span class="nc" id="L259">								removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L260">										contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+										ContentThreadConstants.SUSPEND_ACTION,
+										ContentThreadConstants.ISALREADYSUSPENDED));
+<span class="nc" id="L263">								ApsSystemUtils.getLogger().info(&quot;Sospensione automatica non riuscita: &quot;</span>
+<span class="nc" id="L264">										+ contentToSuspend.getId() + &quot; - &quot; + ContentThreadConstants.ISALREADYSUSPENDED);</span>
+<span class="nc" id="L265">								continue;</span>
+							}
+							// controllo se il contenuto è correlato a delle
+							// pagine
+<span class="nc" id="L269">							Map&lt;String, List&gt; references = Utils.getReferencingObjects(contentToSuspend, appCtx);</span>
+<span class="nc" id="L270">							String operation = &quot;suspend&quot;;</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">							if (references.size() &gt; 0) {</span>
+								// se i vincoli sono la presenza del contenuto
+								// nelle pagine.
+<span class="nc" id="L274">								List&lt;IPage&gt; listaPagine = references.get(&quot;CmsPageManagerWrapperUtilizers&quot;);</span>
+<span class="nc bnc" id="L275" title="All 4 branches missed.">								if (listaPagine != null &amp;&amp; listaPagine.size() &gt; 0) {</span>
+<span class="nc" id="L276">									String contentIdOfContentToPublish = c.getFieldNameContentReplace();</span>
+<span class="nc" id="L277">									String contenutoSostitutivo = null;</span>
+<span class="nc bnc" id="L278" title="All 4 branches missed.">									if (contentIdOfContentToPublish != null &amp;&amp; !contentIdOfContentToPublish.isEmpty()) {</span>
+<span class="nc" id="L279">                                                                                contenutoSostitutivo = contentIdOfContentToPublish;</span>
+									}
+<span class="nc" id="L281">									String contentModelIdOfContentToPublish = c.getFieldNameModelContentReplace();</span>
+<span class="nc" id="L282">									String modelContenutoSostitutivo = null;</span>
+<span class="nc bnc" id="L283" title="All 4 branches missed.">									if (contentModelIdOfContentToPublish != null &amp;&amp; !contentModelIdOfContentToPublish.isEmpty()) {</span>
+<span class="nc" id="L284">                                                                            modelContenutoSostitutivo = contentModelIdOfContentToPublish;</span>
+									}
+									// Contenuto sostitutivo impostato nel caso
+									// in cui non sia presente il campo per il
+									// contenuto sostitutivo
+<span class="nc" id="L289">									String contSostIdRepl = c.getContentIdReplace();</span>
+<span class="nc" id="L290">									String contSostModelRepl = c.getContentModelReplace();</span>
+<span class="nc bnc" id="L291" title="All 4 branches missed.">									if (contenutoSostitutivo == null || contenutoSostitutivo.isEmpty()) {</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">										if (contSostIdRepl != null) {</span>
+<span class="nc" id="L293">											contenutoSostitutivo = contSostIdRepl;</span>
+<span class="nc" id="L294">											modelContenutoSostitutivo = contSostModelRepl;</span>
+										} else {
+<span class="nc" id="L296">											ApsSystemUtils.getLogger().info(</span>
+													&quot;Errore nella Sospensione/Spostamento dei contenuti, manca l'attributo 'contentReplace' nella configurazione del plugin&quot;);
+										}
+									}
+<span class="nc bnc" id="L300" title="All 4 branches missed.">									if (contenutoSostitutivo != null &amp;&amp; !contenutoSostitutivo.isEmpty()) {</span>
+										// Controlli sul contenuto sostitutivo
+<span class="nc" id="L302">										Content contentToReplace = this.getContentManager()</span>
+<span class="nc" id="L303">												.loadContent(contenutoSostitutivo, false);</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">										if (null == contentToReplace) {</span>
+<span class="nc" id="L305">											removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L306">													contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+													ContentThreadConstants.SUSPEND_ACTION,
+													ContentThreadConstants.NULL_CONTENT_REPLACE));
+<span class="nc" id="L309">											ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L310">													.info(&quot;Sospensione automatica non riuscita: &quot;</span>
+<span class="nc" id="L311">															+ contentToSuspend.getId() + &quot; - &quot;</span>
+															+ ContentThreadConstants.NULL_CONTENT_REPLACE);
+<span class="nc" id="L313">											continue;</span>
+										}
+<span class="nc bnc" id="L315" title="All 2 branches missed.">										if (!contentToReplace.isOnLine()) {</span>
+<span class="nc" id="L316">											removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L317">													contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+													ContentThreadConstants.SUSPEND_ACTION,
+													ContentThreadConstants.ISNOTONLINE));
+<span class="nc" id="L320">											ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L321">													.info(&quot;Sospensione automatica non riuscita: &quot;</span>
+<span class="nc" id="L322">															+ contentToSuspend.getId() + &quot; - &quot;</span>
+															+ ContentThreadConstants.ISNOTONLINE);
+<span class="nc" id="L324">											continue;</span>
+										}
+<span class="nc" id="L326">										boolean contentModelExist = false;</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">										if (modelContenutoSostitutivo != null) {</span>
+<span class="nc" id="L328">											List&lt;ContentModel&gt; listcontentModel = this.getContentModelManager()</span>
+<span class="nc" id="L329">													.getModelsForContentType(contentToReplace.getTypeCode());</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">											for (ContentModel contMod : listcontentModel) {</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">												if (String.valueOf(contMod.getId()).equals(modelContenutoSostitutivo)) {</span>
+<span class="nc" id="L332">													contentModelExist = true;</span>
+<span class="nc" id="L333">													break;</span>
+												}
+<span class="nc" id="L335">											}</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">											if (!contentModelExist) {</span>
+<span class="nc" id="L337">												modelContenutoSostitutivo = contentToReplace.getDefaultModel();</span>
+											}
+										}
+
+										// Trova l'elenco delle pagine in cui il
+										// contenuto è settato
+<span class="nc bnc" id="L343" title="All 2 branches missed.">										for (IPage page : listaPagine) {</span>
+<span class="nc" id="L344">											int framePos = -1;</span>
+<span class="nc" id="L345">											Widget widget = null;</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">											for (int i = 0; i &lt; page.getWidgets().length; i++) {</span>
+<span class="nc" id="L347">												Widget w = page.getWidgets()[i];</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">												if (w != null) {</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">													if (w.getConfig() != null) {</span>
+<span class="nc" id="L350">														ApsProperties prop = w.getConfig();</span>
+<span class="nc" id="L351">														String codeContentPage = prop.getProperty(&quot;contentId&quot;);</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">														if (codeContentPage != null &amp;&amp; codeContentPage</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">																.equalsIgnoreCase(contentToSuspend.getId())) {</span>
+															// trova il widget
+															// ed il framepos,
+															// poi setta il
+															// contenuto
+															// sotitutivo
+<span class="nc" id="L359">															ApsProperties propconfig = new ApsProperties();</span>
+<span class="nc" id="L360">															propconfig.setProperty(&quot;contentId&quot;, contenutoSostitutivo);</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">															if (modelContenutoSostitutivo != null) {</span>
+<span class="nc" id="L362">																propconfig.setProperty(&quot;modelId&quot;,</span>
+																		modelContenutoSostitutivo);
+															}
+<span class="nc" id="L365">															w.setConfig(propconfig);</span>
+<span class="nc" id="L366">															framePos = i;</span>
+<span class="nc" id="L367">															widget = w;</span>
+<span class="nc" id="L368">															break;</span>
+														}
+													}
+												}
+											} // fine ciclo dei widget
+<span class="nc bnc" id="L373" title="All 4 branches missed.">											if (framePos != -1 &amp;&amp; widget != null) {</span>
+<span class="nc" id="L374">												this.getPageManager().joinWidget(page.getCode(), widget, framePos);</span>
+<span class="nc" id="L375">                                                                                                this.getPageManager().setPageOnline(page.getCode());</span>
+<span class="nc" id="L376">												operation = &quot;replaceContent&quot;;</span>
+											}
+<span class="nc" id="L378">										}</span>
+<span class="nc" id="L379">									} else {</span>
+<span class="nc" id="L380">										removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L381">												contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+												ContentThreadConstants.SUSPEND_ACTION,
+												ContentThreadConstants.CONTENT_WITH_REFERENCES));
+<span class="nc" id="L384">										ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L385">												.info(&quot;Sospensione automatica non riuscita: &quot; + contentToSuspend.getId()</span>
+														+ &quot; - &quot; + ContentThreadConstants.CONTENT_WITH_REFERENCES);
+<span class="nc" id="L387">										continue;</span>
+									}
+<span class="nc" id="L389">								} else {</span>
+									// se i vincoli non sono pagine --&gt;
+									// verificare abilitazione controllo sui
+									// link
+<span class="nc" id="L393">									String controlLink = this.getContentSchedulerManager()</span>
+<span class="nc" id="L394">											.getSystemParam(&quot;referencesUnlink&quot;);</span>
+<span class="nc" id="L395">									boolean controlActive = false;</span>
+<span class="nc bnc" id="L396" title="All 4 branches missed.">									if (controlLink == null || controlLink.isEmpty()) {</span>
+										// se il campo non è esistente metto a
+										// true cosi non avviene la
+										// depubblicazione
+<span class="nc" id="L400">										controlActive = true;</span>
+									}
+<span class="nc bnc" id="L402" title="All 4 branches missed.">									if (controlLink != null &amp;&amp; controlLink.equalsIgnoreCase(&quot;enabled&quot;)) {</span>
+<span class="nc" id="L403">										controlActive = true;</span>
+									}
+<span class="nc bnc" id="L405" title="All 2 branches missed.">									if (controlActive) {</span>
+										// controllo sui link abilitato, non
+										// avviene la depubblicazione
+<span class="nc" id="L408">										removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L409">												contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+												ContentThreadConstants.SUSPEND_ACTION,
+												ContentThreadConstants.CONTENT_WITH_REFERENCE_CONTENT));
+<span class="nc" id="L412">										ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L413">												.info(&quot;Sospensione automatica non riuscita: &quot; + contentToSuspend.getId()</span>
+														+ &quot; - &quot; + ContentThreadConstants.CONTENT_WITH_REFERENCE_CONTENT);
+<span class="nc" id="L415">										continue;</span>
+									} else {
+										// controllo sui link non abilitato si
+										// depubblica comunque, mettendo in
+										// evidenza nella mail la
+										// presenza di possibili link rotti
+										// List&lt;Content&gt; listaContenutiRef =
+										// references.get(&quot;jacmsContentManagerUtilizers&quot;);
+<span class="nc" id="L423">										operation = &quot;controlDisabled&quot;;</span>
+									}
+								}
+							} // fine if contenuti con referenze
+
+							// Aggiungo la categoria globale, se non sono state
+							// precisate categorie assegnate al tipo di
+							// contenuto
+<span class="nc" id="L431">							Category catGlobal = null;</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">							if (c.getGlobalCat() != null) {</span>
+<span class="nc" id="L433">								catGlobal = this.getCategoryManager().getCategory(c.getGlobalCat());</span>
+							} else {
+								// senza categoria globale non posso effettuare
+								// lo spostamento o la depubblicazione
+<span class="nc" id="L437">								ApsSystemUtils.getLogger().info(</span>
+										&quot;Errore nella Sospensione/Spostamento dei contenuti, manca l'attributo 'globalcat' nella configurazione del plugin&quot;);
+<span class="nc" id="L439">								continue;</span>
+							}
+
+<span class="nc bnc" id="L442" title="All 4 branches missed.">							if (c.getCatType() != null &amp;&amp; c.getCatType().size() &gt; 0) {</span>
+<span class="nc bnc" id="L443" title="All 2 branches missed.">								for (String code : c.getCatType()) {</span>
+<span class="nc" id="L444">									Category cat = this.getCategoryManager().getCategory(code);</span>
+<span class="nc bnc" id="L445" title="All 2 branches missed.">									if (!contentToSuspend.getCategories().contains(cat)) {</span>
+<span class="nc" id="L446">										contentToSuspend.addCategory(cat);</span>
+									}
+<span class="nc" id="L448">								}</span>
+							} else {
+<span class="nc bnc" id="L450" title="All 2 branches missed.">								if (catGlobal == null) {</span>
+<span class="nc" id="L451">									ApsSystemUtils.getLogger().info(</span>
+											&quot;Errore nella Sospensione/Spostamento dei contenuti, l'attributo 'globalcat' non corrisponde ad alcuna categoria esistente&quot;);
+<span class="nc" id="L453">									continue;</span>
+								}
+<span class="nc bnc" id="L455" title="All 2 branches missed.">								if (!contentToSuspend.getCategories().contains(catGlobal)) {</span>
+<span class="nc" id="L456">									contentToSuspend.addCategory(catGlobal);</span>
+								}
+							}
+							// Sospendi contenuto = non più visibile online e
+							// non viene cambiata la data di ultima modifica
+<span class="nc" id="L461">							this.getContentSchedulerManager().removeOnLineContent(contentToSuspend, false);</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">							if (operation.equals(&quot;suspend&quot;)) {</span>
+<span class="nc" id="L463">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L464">										.info(&quot;Sospeso automaticamente contenuto &quot; + contentToSuspend.getId());</span>
+<span class="nc" id="L465">								removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L466">										contentToSuspend.getTypeCode(), contentToSuspend.getDescription(),</span>
+										ContentThreadConstants.SUSPEND_ACTION, ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc bnc" id="L468" title="All 2 branches missed.">							} else if (operation.equals(&quot;replaceContent&quot;)) {</span>
+<span class="nc" id="L469">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L470">										.info(&quot;Sospeso automaticamente contenuto &quot; + contentToSuspend.getId());</span>
+<span class="nc" id="L471">								removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L472">										contentToSuspend.getTypeCode(),</span>
+<span class="nc" id="L473">										contentToSuspend.getDescription() + &quot; - &quot;</span>
+												+ ContentThreadConstants.REPLACE_CONTENT,
+										ContentThreadConstants.SUSPEND_ACTION, ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc bnc" id="L476" title="All 2 branches missed.">							} else if (operation.equals(&quot;controlDisabled&quot;)) {</span>
+<span class="nc" id="L477">								removedContents.add(new ContentState(contentToSuspend.getId(),</span>
+<span class="nc" id="L478">										contentToSuspend.getTypeCode(),</span>
+<span class="nc" id="L479">										contentToSuspend.getDescription() + &quot; - &quot;</span>
+												+ ContentThreadConstants.CONTENT_WITH_REFERENCES_AND_BROKEN_LINK,
+										ContentThreadConstants.SUSPEND_ACTION, ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc" id="L482">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L483">										.info(&quot;Sospensione automatica riuscita: &quot; + contentToSuspend.getId() + &quot; - &quot;</span>
+												+ ContentThreadConstants.CONTENT_WITH_REFERENCES_AND_BROKEN_LINK);
+							}
+<span class="nc" id="L486">						} catch (Throwable t) {</span>
+<span class="nc" id="L487">							ApsSystemUtils.logThrowable(t, this, ContentThreadConstants.UNEXPECTED_ERROR);</span>
+<span class="nc" id="L488">							removedContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+<span class="nc" id="L489">									ContentThreadConstants.SUSPEND_ACTION, t.getMessage()));</span>
+<span class="nc" id="L490">						}</span>
+<span class="nc" id="L491">					} // chiusura while</span>
+<span class="pc bnc" id="L492" title="All 4 branches missed.">				} else if (c.getSuspend() != null &amp;&amp; c.getSuspend().equalsIgnoreCase(&quot;false&quot;)) { // SPOSTA</span>
+																									// IN
+																									// ARCHIVIO
+					// se suspend = false si effettua lo spostamento del
+					// contenuto in archivio senza depubblicare
+<span class="nc" id="L497">					Iterator&lt;String&gt; iter = contentIds.iterator();</span>
+<span class="nc bnc" id="L498" title="All 2 branches missed.">					while (iter.hasNext()) {</span>
+<span class="nc" id="L499">						String contentId = null;</span>
+						try {
+<span class="nc" id="L501">							contentId = (String) iter.next();</span>
+<span class="nc" id="L502">							Content contentToMove = this.getContentManager().loadContent(contentId, false);</span>
+<span class="nc bnc" id="L503" title="All 2 branches missed.">							if (null == contentToMove) {</span>
+<span class="nc" id="L504">								moveContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+										ContentThreadConstants.MOVE_ACTION, ContentThreadConstants.NULL_CONTENT));
+<span class="nc" id="L506">								ApsSystemUtils.getLogger().info(&quot;Spostamento automatico in archivio non riuscito: &quot;</span>
+										+ contentId + &quot; - &quot; + ContentThreadConstants.NULL_CONTENT);
+<span class="nc" id="L508">								continue;</span>
+							}
+<span class="nc bnc" id="L510" title="All 2 branches missed.">							if (!contentToMove.isOnLine()) {</span>
+<span class="nc" id="L511">								moveContents.add(new ContentState(contentToMove.getId(), contentToMove.getTypeCode(),</span>
+<span class="nc" id="L512">										contentToMove.getDescription(), ContentThreadConstants.MOVE_ACTION,</span>
+										ContentThreadConstants.ISALREADYSUSPENDED));
+<span class="nc" id="L514">								ApsSystemUtils.getLogger().info(&quot;Spostamento automatico in archivio non riuscito: &quot;</span>
+<span class="nc" id="L515">										+ contentToMove.getId() + &quot; - &quot; + ContentThreadConstants.ISALREADYSUSPENDED);</span>
+<span class="nc" id="L516">								continue;</span>
+							}
+<span class="nc" id="L518">							boolean alreadyMove = false;</span>
+<span class="nc" id="L519">							String operation = &quot;move&quot;;</span>
+<span class="nc" id="L520">							Map&lt;String, List&gt; references = Utils.getReferencingObjects(contentToMove, appCtx);</span>
+<span class="nc bnc" id="L521" title="All 2 branches missed.">							if (references.size() &gt; 0) {</span>
+								// Trovati dei vincoli con il contenuto da
+								// spostare
+								// Trova l'elenco delle pagine in cui il
+								// contenuto è settato
+<span class="nc" id="L526">								List&lt;IPage&gt; listaPagine = references.get(&quot;PageManagerUtilizers&quot;);</span>
+<span class="nc bnc" id="L527" title="All 4 branches missed.">								if (listaPagine != null &amp;&amp; listaPagine.size() &gt; 0) {</span>
+<span class="nc" id="L528">									String contentIdOfContentToPublish = c.getFieldNameContentReplace();</span>
+<span class="nc" id="L529">									String contenutoSostitutivo = null;</span>
+<span class="nc bnc" id="L530" title="All 4 branches missed.">									if (contentIdOfContentToPublish != null &amp;&amp; !contentIdOfContentToPublish.isEmpty()) {</span>
+<span class="nc" id="L531">                                                                                contenutoSostitutivo = contentIdOfContentToPublish;</span>
+									}
+<span class="nc" id="L533">									String contentModelIdOfContentToPublish = c.getFieldNameModelContentReplace();</span>
+<span class="nc" id="L534">									String modelContenutoSostitutivo = null;</span>
+<span class="nc bnc" id="L535" title="All 4 branches missed.">									if (contentModelIdOfContentToPublish != null &amp;&amp; !contentModelIdOfContentToPublish.isEmpty()) {</span>
+<span class="nc" id="L536">                                                                            modelContenutoSostitutivo = contentModelIdOfContentToPublish;</span>
+									}
+									// Contenuto sostitutivo impostato nel caso
+									// in cui non sia presente il campo per il
+									// contenuto sostitutivo
+<span class="nc" id="L541">									String contSostIdRepl = c.getContentIdReplace();</span>
+<span class="nc" id="L542">									String contSostModelRepl = c.getContentModelReplace();</span>
+<span class="nc bnc" id="L543" title="All 4 branches missed.">									if (contenutoSostitutivo == null || contenutoSostitutivo.isEmpty()) {</span>
+<span class="nc bnc" id="L544" title="All 2 branches missed.">										if (contSostIdRepl != null) {</span>
+<span class="nc" id="L545">											contenutoSostitutivo = contSostIdRepl;</span>
+<span class="nc" id="L546">											modelContenutoSostitutivo = contSostModelRepl;</span>
+										} else {
+<span class="nc" id="L548">											ApsSystemUtils.getLogger().info(</span>
+													&quot;Errore nella Sospensione/Spostamento dei contenuti, manca l'attributo 'contentReplace' nella configurazione del plugin&quot;);
+										}
+									}
+<span class="nc bnc" id="L552" title="All 4 branches missed.">									if (contenutoSostitutivo != null &amp;&amp; !contenutoSostitutivo.isEmpty()) {</span>
+										// Controlli sulla correttezza del
+										// contenuto sostitutivo
+<span class="nc" id="L555">										Content contentToReplace = this.getContentManager()</span>
+<span class="nc" id="L556">												.loadContent(contenutoSostitutivo, false);</span>
+<span class="nc bnc" id="L557" title="All 2 branches missed.">										if (null == contentToReplace) {</span>
+<span class="nc" id="L558">											moveContents.add(new ContentState(contentToMove.getId(),</span>
+<span class="nc" id="L559">													contentToMove.getTypeCode(), contentToMove.getDescription(),</span>
+													ContentThreadConstants.SUSPEND_ACTION,
+													ContentThreadConstants.NULL_CONTENT_REPLACE));
+<span class="nc" id="L562">											ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L563">													.info(&quot;Spostamento automatico in archivio: &quot; + contentToMove.getId()</span>
+															+ &quot; - &quot; + ContentThreadConstants.NULL_CONTENT_REPLACE);
+<span class="nc" id="L565">											continue;</span>
+										}
+<span class="nc bnc" id="L567" title="All 2 branches missed.">										if (!contentToReplace.isOnLine()) {</span>
+<span class="nc" id="L568">											moveContents.add(new ContentState(contentToMove.getId(),</span>
+<span class="nc" id="L569">													contentToMove.getTypeCode(), contentToMove.getDescription(),</span>
+													ContentThreadConstants.SUSPEND_ACTION,
+													ContentThreadConstants.ISNOTONLINE));
+<span class="nc" id="L572">											ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L573">													.info(&quot;Spostamento automatico in archivio: &quot; + contentToMove.getId()</span>
+															+ &quot; - &quot; + ContentThreadConstants.ISNOTONLINE);
+<span class="nc" id="L575">											continue;</span>
+										}
+<span class="nc" id="L577">										boolean contentModelExist = false;</span>
+<span class="nc bnc" id="L578" title="All 2 branches missed.">										if (modelContenutoSostitutivo != null) {</span>
+<span class="nc" id="L579">											List&lt;ContentModel&gt; listcontentModel = this.getContentModelManager()</span>
+<span class="nc" id="L580">													.getModelsForContentType(contentToReplace.getTypeCode());</span>
+<span class="nc bnc" id="L581" title="All 2 branches missed.">											for (ContentModel contMod : listcontentModel) {</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">												if (String.valueOf(contMod.getId()).equals(modelContenutoSostitutivo)) {</span>
+<span class="nc" id="L583">													contentModelExist = true;</span>
+<span class="nc" id="L584">													break;</span>
+												}
+<span class="nc" id="L586">											}</span>
+<span class="nc bnc" id="L587" title="All 2 branches missed.">											if (!contentModelExist) {</span>
+<span class="nc" id="L588">												modelContenutoSostitutivo = contentToReplace.getDefaultModel();</span>
+											}
+										}
+										// scorro la lista di pagine
+<span class="nc bnc" id="L592" title="All 2 branches missed.">										for (IPage page : listaPagine) {</span>
+<span class="nc" id="L593">											int framePos = -1;</span>
+<span class="nc" id="L594">											Widget widget = null;</span>
+<span class="nc bnc" id="L595" title="All 2 branches missed.">											for (int i = 0; i &lt; page.getWidgets().length; i++) {</span>
+<span class="nc" id="L596">												Widget w = page.getWidgets()[i];</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">												if (w != null) {</span>
+<span class="nc bnc" id="L598" title="All 2 branches missed.">													if (w.getConfig() != null) {</span>
+<span class="nc" id="L599">														ApsProperties prop = w.getConfig();</span>
+<span class="nc" id="L600">														String codeContentPage = prop.getProperty(&quot;contentId&quot;);</span>
+<span class="nc bnc" id="L601" title="All 2 branches missed.">														if (codeContentPage.equalsIgnoreCase(contentToMove.getId())) {</span>
+															// trova il widget
+															// ed il framepos,
+															// poi setta il
+															// contenuto
+															// sotitutivo
+<span class="nc" id="L607">															ApsProperties propconfig = new ApsProperties();</span>
+<span class="nc" id="L608">															propconfig.setProperty(&quot;contentId&quot;, contenutoSostitutivo);</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">															if (modelContenutoSostitutivo != null) {</span>
+<span class="nc" id="L610">																propconfig.setProperty(&quot;modelId&quot;,</span>
+																		modelContenutoSostitutivo);
+															}
+<span class="nc" id="L613">															w.setConfig(propconfig);</span>
+<span class="nc" id="L614">															framePos = i;</span>
+<span class="nc" id="L615">															widget = w;</span>
+<span class="nc" id="L616">															break;</span>
+														}
+													}
+												}
+											} // fine ciclo dei widget
+<span class="nc bnc" id="L621" title="All 4 branches missed.">											if (framePos != -1 &amp;&amp; widget != null) {</span>
+<span class="nc" id="L622">												this.getPageManager().joinWidget(page.getCode(), widget, framePos);</span>
+<span class="nc" id="L623">                                                                                                this.getPageManager().setPageOnline(page.getCode());</span>
+<span class="nc" id="L624">												operation = &quot;replaceContent&quot;;</span>
+											}
+<span class="nc" id="L626">										}</span>
+<span class="nc" id="L627">									} else {</span>
+<span class="nc" id="L628">										moveContents.add(new ContentState(contentToMove.getId(),</span>
+<span class="nc" id="L629">												contentToMove.getTypeCode(), contentToMove.getDescription(),</span>
+												ContentThreadConstants.SUSPEND_ACTION,
+												ContentThreadConstants.CONTENT_WITH_REFERENCES));
+<span class="nc" id="L632">										ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L633">												.info(&quot;Spostamento automatico in archivio: &quot; + contentToMove.getId()</span>
+														+ &quot; - &quot; + ContentThreadConstants.CONTENT_WITH_REFERENCES);
+<span class="nc" id="L635">										continue;</span>
+									}
+								}
+							}
+							// Aggiungo la categoria globale, se non sono state
+							// precisate categorie assegnate al tipo di
+							// contenuto
+<span class="nc" id="L642">							Category catGlobal = null;</span>
+<span class="nc bnc" id="L643" title="All 2 branches missed.">							if (c.getGlobalCat() != null) {</span>
+<span class="nc" id="L644">								catGlobal = this.getCategoryManager().getCategory(c.getGlobalCat());</span>
+							} else {
+								// senza categoria globale non posso effettuare
+								// lo spostamento o la depubblicazione
+<span class="nc" id="L648">								ApsSystemUtils.getLogger().info(</span>
+										&quot;Errore nella Sospensione/Spostamento dei contenuti, manca l'attributo 'globalcat' nella configurazione del plugin&quot;);
+<span class="nc" id="L650">								continue;</span>
+							}
+<span class="nc bnc" id="L652" title="All 4 branches missed.">							if (c.getCatType() != null &amp;&amp; c.getCatType().size() &gt; 0) {</span>
+<span class="nc bnc" id="L653" title="All 2 branches missed.">								for (String code : c.getCatType()) {</span>
+<span class="nc" id="L654">									Category cat = this.getCategoryManager().getCategory(code);</span>
+<span class="nc bnc" id="L655" title="All 2 branches missed.">									if (!contentToMove.getCategories().contains(cat)) {</span>
+<span class="nc" id="L656">										contentToMove.addCategory(cat);</span>
+<span class="nc" id="L657">										alreadyMove = true;</span>
+									}
+<span class="nc" id="L659">								}</span>
+							} else {
+<span class="nc bnc" id="L661" title="All 2 branches missed.">								if (catGlobal == null) {</span>
+<span class="nc" id="L662">									ApsSystemUtils.getLogger().info(</span>
+											&quot;Errore nella Sospensione/Spostamento dei contenuti, l'attributo 'globalcat' non corrisponde ad alcuna categoria esistente&quot;);
+<span class="nc" id="L664">									continue;</span>
+								}
+<span class="nc bnc" id="L666" title="All 2 branches missed.">								if (!contentToMove.getCategories().contains(catGlobal)) {</span>
+<span class="nc" id="L667">									contentToMove.addCategory(catGlobal);</span>
+<span class="nc" id="L668">									alreadyMove = true;</span>
+								}
+							}
+<span class="nc bnc" id="L671" title="All 4 branches missed.">							if (!alreadyMove &amp;&amp; operation.equals(&quot;move&quot;)) {</span>
+								// se non son state inserite nuove categorie -
+								// non c'è bisogno di effettuare il save
+								// se non c'è stata alcuna sostituzione nelle
+								// pagine
+<span class="nc" id="L676">								ApsSystemUtils.getLogger().info(</span>
+<span class="nc" id="L677">										&quot;Spostamento automatico in archivio non riuscito: &quot; + contentToMove.getId());</span>
+<span class="nc" id="L678">								moveContents.add(new ContentState(contentToMove.getId(), contentToMove.getTypeCode(),</span>
+<span class="nc" id="L679">										contentToMove.getDescription(), ContentThreadConstants.MOVE_ACTION,</span>
+										ContentThreadConstants.ISALREADYMOVED));
+<span class="nc" id="L681">								continue;</span>
+<span class="nc bnc" id="L682" title="All 4 branches missed.">							} else if (!alreadyMove &amp;&amp; operation.equals(&quot;replaceContent&quot;)) {// se</span>
+																							// c'è
+																							// stata
+																							// una
+																							// sostituzione
+<span class="nc" id="L687">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L688">										.info(&quot;Spostamento automatico contenuto &quot; + contentToMove.getId());</span>
+<span class="nc" id="L689">								moveContents.add(new ContentState(contentToMove.getId(), contentToMove.getTypeCode(),</span>
+<span class="nc" id="L690">										contentToMove.getDescription() + &quot; - &quot; + ContentThreadConstants.REPLACE_CONTENT,</span>
+										ContentThreadConstants.MOVE_ACTION, ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc" id="L692">								continue;</span>
+							}
+							// Spostamento del contenuto in archivio - senza
+							// modifica della data di ultima mod e senza
+							// depubblicazione
+<span class="nc" id="L697">							this.getContentSchedulerManager().moveOnLineContent(contentToMove, false, false);</span>
+<span class="nc bnc" id="L698" title="All 4 branches missed.">							if (alreadyMove &amp;&amp; operation.equals(&quot;move&quot;)) {</span>
+<span class="nc" id="L699">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L700">										.info(&quot;Spostamento automatico contenuto &quot; + contentToMove.getId());</span>
+<span class="nc" id="L701">								moveContents.add(new ContentState(contentToMove.getId(), contentToMove.getTypeCode(),</span>
+<span class="nc" id="L702">										contentToMove.getDescription(), ContentThreadConstants.MOVE_ACTION,</span>
+										ContentThreadConstants.ACTION_SUCCESS));
+<span class="nc bnc" id="L704" title="All 4 branches missed.">							} else if (alreadyMove &amp;&amp; operation.equals(&quot;replaceContent&quot;)) {</span>
+<span class="nc" id="L705">								ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L706">										.info(&quot;Spostamento automatico contenuto &quot; + contentToMove.getId());</span>
+<span class="nc" id="L707">								moveContents.add(new ContentState(contentToMove.getId(), contentToMove.getTypeCode(),</span>
+<span class="nc" id="L708">										contentToMove.getDescription() + &quot; - &quot; + ContentThreadConstants.REPLACE_CONTENT,</span>
+										ContentThreadConstants.MOVE_ACTION, ContentThreadConstants.ACTION_SUCCESS));
+							}
+<span class="nc" id="L711">						} catch (Throwable t) {</span>
+<span class="nc" id="L712">							ApsSystemUtils.logThrowable(t, this, ContentThreadConstants.UNEXPECTED_ERROR);</span>
+<span class="nc" id="L713">							moveContents.add(new ContentState(contentId, &quot;null&quot;, &quot;null&quot;,</span>
+<span class="nc" id="L714">									ContentThreadConstants.MOVE_ACTION, t.getMessage()));</span>
+<span class="nc" id="L715">						}</span>
+<span class="nc" id="L716">					} // chiusura while</span>
+<span class="nc" id="L717">				} else {</span>
+<span class="nc" id="L718">					ApsSystemUtils.getLogger()</span>
+<span class="nc" id="L719">							.info(&quot;Errore nella Sospensione/Spostamento dei contenuti, manca l'attributo suspend nella configurazione del tipo di contenuto &quot;</span>
+<span class="nc" id="L720">									+ c.getTypeContent());</span>
+<span class="nc" id="L721">					continue;</span>
+				}
+<span class="fc" id="L723">			}</span>
+<span class="nc" id="L724">		} catch (Throwable t) {</span>
+<span class="nc" id="L725">			ApsSystemUtils.logThrowable(t, this, &quot;removeOnLine&quot;);</span>
+<span class="nc" id="L726">			throw new RuntimeException(&quot;Errore in sospensione contenuti online&quot;, t);</span>
+<span class="fc" id="L727">		}</span>
+<span class="fc" id="L728">	}</span>
+
+	public IContentManager getContentManager() {
+<span class="nc" id="L731">		return _contentManager;</span>
+	}
+
+	public void setContentManager(IContentManager manager) {
+<span class="fc" id="L735">		this._contentManager = manager;</span>
+<span class="fc" id="L736">	}</span>
+
+	public IContentSchedulerManager getContentSchedulerManager() {
+<span class="fc" id="L739">		return _contentSchedulerManager;</span>
+	}
+
+	public void setContentSchedulerManager(IContentSchedulerManager contentSchedulerManager) {
+<span class="fc" id="L743">		this._contentSchedulerManager = contentSchedulerManager;</span>
+<span class="fc" id="L744">	}</span>
+
+	public ICategoryManager getCategoryManager() {
+<span class="nc" id="L747">		return _categoryManager;</span>
+	}
+
+	public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L751">		this._categoryManager = categoryManager;</span>
+<span class="fc" id="L752">	}</span>
+
+	public IPageManager getPageManager() {
+<span class="nc" id="L755">		return _pageManager;</span>
+	}
+
+	public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L759">		this._pageManager = pageManager;</span>
+<span class="fc" id="L760">	}</span>
+
+	public IContentModelManager getContentModelManager() {
+<span class="nc" id="L763">		return _contentModelManager;</span>
+	}
+
+	public void setContentModelManager(IContentModelManager contentModelManager) {
+<span class="fc" id="L767">		this._contentModelManager = contentModelManager;</span>
+<span class="fc" id="L768">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
