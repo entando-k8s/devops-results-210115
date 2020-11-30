@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeycloakAuthenticationFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">entando-keycloak-auth</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.servlet.security</a> &gt; <span class="el_source">KeycloakAuthenticationFilter.java</span></div><h1>KeycloakAuthenticationFilter.java</h1><pre class="source lang-java linenums">package org.entando.entando.aps.servlet.security;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.authorization.Authorization;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.role.Role;
+import com.agiletec.aps.system.services.user.IAuthenticationProviderManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.entando.entando.keycloak.services.KeycloakAuthorizationManager;
+import org.entando.entando.keycloak.services.KeycloakConfiguration;
+import org.entando.entando.keycloak.services.oidc.OpenIDConnectService;
+import org.entando.entando.keycloak.services.oidc.model.AccessToken;
+import org.entando.entando.keycloak.services.oidc.model.TokenRoles;
+import org.entando.entando.web.common.model.RestError;
+import org.entando.entando.web.common.model.RestResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.www.NonceExpiredException;
+import org.springframework.stereotype.Service;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.List;
+
+import static java.util.Optional.ofNullable;
+
+import org.entando.entando.ent.exception.EntException;
+
+@Service
+public class KeycloakAuthenticationFilter extends AbstractAuthenticationProcessingFilter implements AuthenticationFailureHandler {
+
+<span class="fc" id="L48">    private static final Logger log = LoggerFactory.getLogger(KeycloakAuthenticationFilter.class);</span>
+
+    private final ObjectMapper objectMapper;
+    private final KeycloakConfiguration configuration;
+    private final IUserManager userManager;
+    private final OpenIDConnectService oidcService;
+    private final IAuthenticationProviderManager authenticationProviderManager;
+    private final KeycloakAuthorizationManager keycloakGroupManager;
+
+    @Autowired
+    public KeycloakAuthenticationFilter(final KeycloakConfiguration configuration,
+                                        final IUserManager userManager,
+                                        final OpenIDConnectService oidcService,
+                                        final IAuthenticationProviderManager authenticationProviderManager,
+                                        final KeycloakAuthorizationManager keycloakGroupManager) {
+<span class="fc" id="L63">        super(&quot;/api/**&quot;);</span>
+<span class="fc" id="L64">        this.objectMapper = new ObjectMapper();</span>
+<span class="fc" id="L65">        this.configuration = configuration;</span>
+<span class="fc" id="L66">        this.keycloakGroupManager = keycloakGroupManager;</span>
+<span class="fc" id="L67">        this.setAuthenticationManager(authenticationProviderManager);</span>
+<span class="fc" id="L68">        this.userManager = userManager;</span>
+<span class="fc" id="L69">        this.oidcService = oidcService;</span>
+<span class="fc" id="L70">        this.authenticationProviderManager = authenticationProviderManager;</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    public Authentication attemptAuthentication(final HttpServletRequest request, final HttpServletResponse response) throws AuthenticationException {
+<span class="fc" id="L75">        final String authorization = request.getHeader(&quot;Authorization&quot;);</span>
+
+<span class="pc bpc" id="L77" title="2 of 4 branches missed.">        if (authorization == null || !authorization.matches(&quot;^[Bb]earer .*&quot;)) {</span>
+<span class="nc" id="L78">            final UserDetails guestUser = userManager.getGuestUser();</span>
+<span class="nc" id="L79">            final GuestAuthentication guestAuthentication = new GuestAuthentication(guestUser);</span>
+<span class="nc" id="L80">            SecurityContextHolder.getContext().setAuthentication(guestAuthentication);</span>
+<span class="nc" id="L81">            saveUserOnSession(request, guestUser);</span>
+<span class="nc" id="L82">            return guestAuthentication;</span>
+        }
+
+<span class="fc" id="L85">        final String bearerToken = authorization.substring(&quot;Bearer &quot;.length());</span>
+<span class="fc" id="L86">        final ResponseEntity&lt;AccessToken&gt; resp = oidcService.validateToken(bearerToken);</span>
+<span class="fc" id="L87">        final AccessToken accessToken = resp.getBody();</span>
+
+<span class="pc bpc" id="L89" title="2 of 4 branches missed.">        if (HttpStatus.NOT_FOUND.equals(resp.getStatusCode()) || HttpStatus.UNAUTHORIZED.equals(resp.getStatusCode())) {</span>
+<span class="nc" id="L90">            log.error(&quot;Invalid OAuth2 configuration&quot;);</span>
+<span class="nc" id="L91">            throw new BadCredentialsException(&quot;Invalid OAuth configuration&quot;);</span>
+        }
+
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">        if (accessToken == null || !accessToken.isActive()) {</span>
+<span class="nc" id="L95">            throw new NonceExpiredException(&quot;Invalid or expired token&quot;);</span>
+        }
+
+        try {
+<span class="fc" id="L99">            final UserDetails user = authenticationProviderManager.getUser(accessToken.getUsername());</span>
+<span class="fc" id="L100">            final UserAuthentication userAuthentication = new UserAuthentication(user);</span>
+
+<span class="fc" id="L102">            ofNullable(accessToken.getResourceAccess())</span>
+<span class="fc" id="L103">                    .map(access -&gt; access.get(configuration.getClientId()))</span>
+<span class="fc" id="L104">                    .map(TokenRoles::getRoles)</span>
+<span class="fc" id="L105">                    .ifPresent(permissions -&gt; addAuthorizations(permissions, user));</span>
+
+<span class="fc" id="L107">            SecurityContextHolder.getContext().setAuthentication(userAuthentication);</span>
+<span class="fc" id="L108">            saveUserOnSession(request, user);</span>
+
+            // TODO optimise to not check on every request
+<span class="fc" id="L111">            keycloakGroupManager.processNewUser(user);</span>
+
+<span class="fc" id="L113">            return userAuthentication;</span>
+<span class="nc" id="L114">        } catch (EntException e) {</span>
+<span class="nc" id="L115">            log.error(&quot;System exception&quot;, e);</span>
+<span class="nc" id="L116">            throw new InsufficientAuthenticationException(&quot;error parsing OAuth parameters&quot;);</span>
+        }
+    }
+
+    private void addAuthorizations(final List&lt;String&gt; permissions, final UserDetails user) {
+
+<span class="fc" id="L122">        permissions.stream()</span>
+<span class="fc" id="L123">                .filter(permission -&gt; permission.equals(Permission.SUPERUSER))</span>
+<span class="fc" id="L124">                .findFirst()</span>
+<span class="fc" id="L125">                .ifPresent(permission -&gt; {</span>
+
+<span class="fc" id="L127">                    final Role role = new Role();</span>
+<span class="fc" id="L128">                    role.setName(&quot;admin&quot;);</span>
+<span class="fc" id="L129">                    role.addPermission(Permission.SUPERUSER);</span>
+
+<span class="fc" id="L131">                    final Group group = new Group();</span>
+<span class="fc" id="L132">                    group.setName(Group.ADMINS_GROUP_NAME);</span>
+
+<span class="fc" id="L134">                    user.addAuthorization(new Authorization(group, role));</span>
+<span class="fc" id="L135">                });</span>
+<span class="fc" id="L136">    }</span>
+
+    private void saveUserOnSession(final HttpServletRequest request, final UserDetails guestUser) {
+<span class="fc" id="L139">        request.getSession().setAttribute(&quot;user&quot;, guestUser);</span>
+<span class="fc" id="L140">        request.getSession().setAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER, guestUser);</span>
+<span class="fc" id="L141">    }</span>
+
+    @Override
+    protected void successfulAuthentication(final HttpServletRequest request,
+                                            final HttpServletResponse response,
+                                            final FilterChain chain,
+                                            final Authentication authResult) throws IOException, ServletException {
+<span class="nc" id="L148">        chain.doFilter(request, response);</span>
+<span class="nc" id="L149">    }</span>
+
+    @Override
+    protected void unsuccessfulAuthentication(final HttpServletRequest request,
+                                              final HttpServletResponse response,
+                                              final AuthenticationException failed) throws IOException {
+<span class="nc" id="L155">        this.onAuthenticationFailure(request, response, failed);</span>
+<span class="nc" id="L156">    }</span>
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        AuthenticationException exception) throws IOException {
+<span class="nc" id="L162">        final RestResponse&lt;Void, Void&gt; restResponse = new RestResponse&lt;&gt;(null, null);</span>
+<span class="nc" id="L163">        restResponse.addError(new RestError(HttpStatus.UNAUTHORIZED.toString(), exception.getMessage()));</span>
+
+<span class="nc" id="L165">        response.setStatus(HttpStatus.UNAUTHORIZED.value());</span>
+<span class="nc" id="L166">        response.addHeader(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="nc" id="L167">        response.getOutputStream().println(objectMapper.writeValueAsString(restResponse));</span>
+<span class="nc" id="L168">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
