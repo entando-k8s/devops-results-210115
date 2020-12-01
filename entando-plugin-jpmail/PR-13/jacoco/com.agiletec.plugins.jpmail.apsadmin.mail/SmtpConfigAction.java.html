@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SmtpConfigAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Email Sender</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpmail.apsadmin.mail</a> &gt; <span class="el_source">SmtpConfigAction.java</span></div><h1>SmtpConfigAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpmail.apsadmin.mail;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.exception.ApsSystemException;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.plugins.jpmail.aps.services.mail.IMailManager;
+import com.agiletec.plugins.jpmail.aps.services.mail.MailConfig;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+
+<span class="fc" id="L38">public class SmtpConfigAction extends BaseAction {</span>
+
+	public String edit() {
+		try {
+<span class="fc" id="L42">			MailConfig config = this.getMailManager().getMailConfig();</span>
+<span class="fc" id="L43">			this.populateForm(config);</span>
+<span class="nc" id="L44">		} catch (Throwable t) {</span>
+<span class="nc" id="L45">			ApsSystemUtils.logThrowable(t, this, &quot;edit&quot;);</span>
+<span class="nc" id="L46">			return FAILURE;</span>
+<span class="fc" id="L47">		}</span>
+<span class="fc" id="L48">		return SUCCESS;</span>
+	}
+
+	public String save() {
+		try {
+<span class="fc" id="L53">			MailConfig config = this.prepareConfig();</span>
+<span class="fc" id="L54">			this.getMailManager().updateMailConfig(config);</span>
+<span class="fc" id="L55">			this.addActionMessage(this.getText(&quot;message.eMailConfig.savedConfirm&quot;));</span>
+<span class="nc" id="L56">		} catch (Throwable t) {</span>
+<span class="nc" id="L57">			ApsSystemUtils.logThrowable(t, this, &quot;save&quot;);</span>
+<span class="nc" id="L58">			return FAILURE;</span>
+<span class="fc" id="L59">		}</span>
+<span class="fc" id="L60">		return SUCCESS;</span>
+	}
+
+	public String testSmtp() {
+		MailConfig config;
+		try {
+<span class="nc" id="L66">			config = this.prepareConfig();</span>
+<span class="nc" id="L67">			boolean smtpServerTest = this.getMailManager().smtpServerTest(config);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			if (!smtpServerTest) {</span>
+<span class="nc" id="L69">				this.addActionError(this.getText(&quot;note.smtp.ko&quot;));</span>
+			} else {
+<span class="nc" id="L71">				this.addActionMessage(this.getText(&quot;note.smtp.ok&quot;));</span>
+			}
+<span class="nc" id="L73">		} catch (Throwable t) {</span>
+<span class="nc" id="L74">			ApsSystemUtils.logThrowable(t, this, &quot;testSmtp&quot;);</span>
+<span class="nc" id="L75">			return FAILURE;</span>
+<span class="nc" id="L76">		}</span>
+<span class="nc" id="L77">		return SUCCESS;</span>
+	}
+
+	public String testMail() {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">		if (hasEmailCurrentUser()) {</span>
+<span class="nc" id="L82">			IUserProfile userProfile = (IUserProfile) this.getCurrentUser().getProfile();</span>
+<span class="nc" id="L83">			String mail = userProfile.getValue(userProfile.getMailAttributeName()).toString();</span>
+<span class="nc" id="L84">			String mailText = this.getText(&quot;test.mail.subject&quot;);</span>
+<span class="nc" id="L85">			String mailSubject = this.getText(&quot;test.mail.text&quot;);</span>
+<span class="nc" id="L86">			String[] mailAddresses = {mail};</span>
+			try {
+<span class="nc" id="L88">				String sender = null;</span>
+<span class="nc" id="L89">				Map&lt;String, String&gt; senders = this.getMailManager().getMailConfig().getSenders();</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">				if (null != senders &amp;&amp; !senders.isEmpty()) {</span>
+<span class="nc" id="L91">					List&lt;String&gt; codes = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L92">					codes.addAll(senders.keySet());</span>
+<span class="nc" id="L93">					sender = codes.get(0);</span>
+				}
+<span class="nc bnc" id="L95" title="All 2 branches missed.">				if (null == sender) {</span>
+<span class="nc" id="L96">					this.addActionError(this.getText(&quot;note.mail.nosender&quot;));</span>
+<span class="nc" id="L97">					return INPUT;</span>
+				}
+<span class="nc" id="L99">				this.getMailManager().sendMailForTest(mailText, mailSubject, mailAddresses, sender);</span>
+<span class="nc" id="L100">				this.addActionMessage(this.getText(&quot;note.mail.ok&quot;));</span>
+<span class="nc" id="L101">			} catch (Throwable t) {</span>
+<span class="nc" id="L102">				this.addActionError(this.getText(&quot;note.mail.ko&quot;));</span>
+<span class="nc" id="L103">				ApsSystemUtils.logThrowable(t, this, &quot;testMail&quot;);</span>
+<span class="nc" id="L104">			}</span>
+<span class="nc" id="L105">		} else {</span>
+<span class="nc" id="L106">			this.addActionError(this.getText(&quot;note.mail.missing&quot;));</span>
+		}
+<span class="nc" id="L108">		return SUCCESS;</span>
+	}
+	
+	/**
+	 * Populate the action with the content of the given MailConfig.
+	 * @param config The configuration used to populate the action.
+	 */
+	protected void populateForm(MailConfig config) {
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">		if (config != null) {</span>
+<span class="fc" id="L117">			this.setActive(config.isActive());</span>
+<span class="fc" id="L118">			this.setDebug(config.isDebug());</span>
+<span class="fc" id="L119">			this.setSmtpHost(config.getSmtpHost());</span>
+<span class="fc" id="L120">			this.setSmtpPort(config.getSmtpPort());</span>
+<span class="fc" id="L121">			this.setSmtpTimeout(config.getSmtpTimeout());</span>
+<span class="fc" id="L122">			this.setSmtpUserName(config.getSmtpUserName());</span>
+<span class="fc" id="L123">			this.setSmtpPassword(config.getSmtpPassword());</span>
+<span class="fc" id="L124">			this.setSmtpProtocol(config.getSmtpProtocol());</span>
+<span class="fc" id="L125">			this.setCheckServerIdentity(config.isCheckServerIdentity());</span>
+		} else {
+<span class="nc" id="L127">			config = new MailConfig();</span>
+		}
+<span class="fc" id="L129">	}</span>
+	
+	/**
+	 * Prepares a MailConfig starting from the action form fields.
+	 * @return a MailConfig starting from the action form fields.
+	 * @throws ApsSystemException In case of errors.
+	 */
+	protected MailConfig prepareConfig() throws ApsSystemException {
+<span class="fc" id="L137">		MailConfig config = this.getMailManager().getMailConfig();</span>
+<span class="fc" id="L138">		config.setActive(this.isActive());</span>
+<span class="fc" id="L139">		config.setDebug(this.isDebug());</span>
+<span class="fc" id="L140">		config.setSmtpHost(this.getSmtpHost());</span>
+<span class="fc" id="L141">		config.setSmtpPort(this.getSmtpPort());</span>
+<span class="fc" id="L142">		config.setSmtpTimeout(this.getSmtpTimeout());</span>
+<span class="fc" id="L143">		config.setSmtpProtocol(this.getSmtpProtocol());</span>
+<span class="fc" id="L144">		config.setCheckServerIdentity(this.isCheckServerIdentity());</span>
+<span class="pc bpc" id="L145" title="3 of 4 branches missed.">		if (StringUtils.isBlank(this.getSmtpUserName()) &amp;&amp; StringUtils.isBlank(this.getSmtpPassword())) {</span>
+<span class="nc" id="L146">			config.setSmtpUserName(this.getSmtpUserName());</span>
+<span class="nc" id="L147">			config.setSmtpPassword(this.getSmtpPassword());</span>
+		} else {
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">			if (StringUtils.isNotBlank(this.getSmtpPassword())) {</span>
+<span class="fc" id="L150">				config.setSmtpPassword(this.getSmtpPassword());</span>
+			}
+<span class="fc bfc" id="L152" title="All 2 branches covered.">			if (!config.getSmtpUserName().equals(this.getSmtpUserName())) {</span>
+<span class="fc" id="L153">				config.setSmtpUserName(this.getSmtpUserName());</span>
+			}
+		}
+<span class="fc" id="L156">		return config;</span>
+	}
+
+	public boolean hasEmailCurrentUser() {
+<span class="nc" id="L160">		IUserProfile userProfile = (IUserProfile) this.getCurrentUser().getProfile();</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">		if (null != userProfile) {</span>
+<span class="nc" id="L162">			Object mailAttribute = userProfile.getValue(userProfile.getMailAttributeName());</span>
+<span class="nc bnc" id="L163" title="All 4 branches missed.">			if (null != mailAttribute &amp;&amp; StringUtils.isNotBlank(mailAttribute.toString())) {</span>
+<span class="nc" id="L164">				return true;</span>
+			}
+		}
+<span class="nc" id="L167">		return false;</span>
+	}
+
+	/*
+	 * Validation Service method
+	 */
+	public boolean isValidProtocol() {
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		return (null != this.getSmtpProtocol()</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">				&amp;&amp; this.getSmtpProtocol().intValue() &gt;= 0</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">				&amp;&amp; this.getSmtpProtocol().intValue() &lt;= 2);</span>
+	}
+	
+	public boolean isActive() {
+<span class="fc" id="L180">		return _active;</span>
+	}
+	public void setActive(boolean active) {
+<span class="fc" id="L183">		this._active = active;</span>
+<span class="fc" id="L184">	}</span>
+	
+	/**
+	 * Returns the smtp host name.
+	 * @return The smtp host name.
+	 */
+	public String getSmtpHost() {
+<span class="fc" id="L191">		return _smtpHost;</span>
+	}
+	
+	/**
+	 * Sets the smtp host name.
+	 * @param smtpHost The smtp host name.
+	 */
+	public void setSmtpHost(String smtpHost) {
+<span class="fc" id="L199">		this._smtpHost = smtpHost;</span>
+<span class="fc" id="L200">	}</span>
+	
+	/**
+	 * Return the smtp port.
+	 * @return The smtp port.
+	 */
+	public Integer getSmtpPort() {
+<span class="fc" id="L207">		return _smtpPort;</span>
+	}
+	
+	/**
+	 * Sets the smtp port.
+	 * @param smtpPort The smtp port.
+	 */
+	public void setSmtpPort(Integer smtpPort) {
+<span class="fc" id="L215">		this._smtpPort = smtpPort;</span>
+<span class="fc" id="L216">	}</span>
+
+	/**
+	 * Return the smtp timeout.
+	 * @return The smtp timeout.
+	 */
+	public Integer getSmtpTimeout() {
+<span class="fc" id="L223">		return _smtpTimeout;</span>
+	}
+	
+	/**
+	 * Sets the smtp timeout. If 0 or null uses default.
+	 * @param smtpTimeout The smtp timeout.
+	 */
+	public void setSmtpTimeout(Integer smtpTimeout) {
+<span class="fc" id="L231">		this._smtpTimeout = smtpTimeout;</span>
+<span class="fc" id="L232">	}</span>
+	
+	/**
+	 * Returns the smtp username.
+	 * @return The smtp username.
+	 */
+	public String getSmtpUserName() {
+<span class="fc" id="L239">		return _smtpUserName;</span>
+	}
+	
+	/**
+	 * Sets the smtp username.
+	 * @param smtpUserName The smtp username.
+	 */
+	public void setSmtpUserName(String smtpUserName) {
+<span class="fc" id="L247">		this._smtpUserName = smtpUserName;</span>
+<span class="fc" id="L248">	}</span>
+	
+	/**
+	 * Returns the smtp password.
+	 * @return The smtp password.
+	 */
+	public String getSmtpPassword() {
+<span class="fc" id="L255">		return _smtpPassword;</span>
+	}
+	
+	/**
+	 * Sets the smtp password.
+	 * @param smtpPassword The smtp password.
+	 */
+	public void setSmtpPassword(String smtpPassword) {
+<span class="fc" id="L263">		this._smtpPassword = smtpPassword;</span>
+<span class="fc" id="L264">	}</span>
+	
+	/**
+	 * Returns the debug flag, used to trace debug informations.
+	 * @return The debug flag.
+	 */
+	public boolean isDebug() {
+<span class="fc" id="L271">		return _debug;</span>
+	}
+	
+	/**
+	 * Sets the debug flag, used to trace debug informations.
+	 * @param debug The debug flag.
+	 */
+	public void setDebug(boolean debug) {
+<span class="fc" id="L279">		this._debug = debug;</span>
+<span class="fc" id="L280">	}</span>
+	
+	protected IMailManager getMailManager() {
+<span class="fc" id="L283">		return _mailManager;</span>
+	}
+	public void setMailManager(IMailManager mailManager) {
+<span class="fc" id="L286">		this._mailManager = mailManager;</span>
+<span class="fc" id="L287">	}</span>
+
+	/**
+	 * Set the transport security layer protocol
+	 * @param smtpProtocol the smtp protocol
+	 */
+	public void setSmtpProtocol(Integer smtpProtocol) {
+<span class="fc" id="L294">		this._smtpProtocol = smtpProtocol;</span>
+<span class="fc" id="L295">	}</span>
+
+	/**
+	 * Returns the flag that control if the host of the server validation is required in case of TLS connection
+	 */
+	public boolean isCheckServerIdentity() {
+<span class="fc" id="L301">		return this._checkServerIdentity;</span>
+	}
+
+	/**
+	 * Sets the flag to control if the host of the server validation is required in case of TLS connection
+	 *
+	 * @param checkServerIdentity the smtp protocol
+	 */
+	public void setCheckServerIdentity(boolean checkServerIdentity) {
+<span class="fc" id="L310">		this._checkServerIdentity = checkServerIdentity;</span>
+<span class="fc" id="L311">	}</span>
+
+	/**
+	 * Get the transport security layer protocol
+	 * @return the smtp protocol
+	 */
+	public Integer getSmtpProtocol() {
+<span class="fc" id="L318">		return _smtpProtocol;</span>
+	}
+	
+	public InputStream getInputStream() {
+<span class="nc" id="L322">		return _inputStream;</span>
+	}
+	public void setInputStream(InputStream inputStream) {
+<span class="nc" id="L325">		this._inputStream = inputStream;</span>
+<span class="nc" id="L326">	}</span>
+	
+	private boolean _active;
+	private String _smtpHost;
+	private Integer _smtpPort;
+	private Integer _smtpTimeout;
+	private String _smtpUserName;
+	private String _smtpPassword;
+	private Integer _smtpProtocol;
+	private boolean _checkServerIdentity;
+	private boolean _debug;
+	private IMailManager _mailManager;
+	private InputStream _inputStream;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
