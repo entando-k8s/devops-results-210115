@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiServiceFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.api</a> &gt; <span class="el_source">ApiServiceFinderAction.java</span></div><h1>ApiServiceFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.api;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.entando.entando.aps.system.services.api.model.ApiService;
+import org.entando.entando.apsadmin.api.model.ApiSelectItem;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L34">public class ApiServiceFinderAction extends AbstractApiFinderAction {</span>
+
+<span class="fc" id="L36">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiServiceFinderAction.class);</span>
+	
+	public String updateAllStatusOfGroup() {
+		try {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">			if (this.getServiceGroup() == null) {</span>
+<span class="nc" id="L41">				this.addActionMessage(this.getText(&quot;error.service.group.required&quot;));</span>
+<span class="nc" id="L42">				return INPUT;</span>
+			}
+<span class="nc" id="L44">			Map&lt;String, List&lt;ApiSelectItem&gt;&gt; groups = this.getServiceFlavours();</span>
+<span class="nc" id="L45">			List&lt;ApiSelectItem&gt; group = groups.get(this.getServiceGroup());</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			if (group == null) {</span>
+<span class="nc" id="L47">				this.addActionMessage(this.getText(&quot;error.service.group.invalid&quot;));</span>
+<span class="nc" id="L48">				return INPUT;</span>
+			}
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			for (int i = 0; i &lt; group.size(); i++) {</span>
+<span class="nc" id="L51">				ApiSelectItem serviceItem = group.get(i);</span>
+<span class="nc" id="L52">				ApiService service = this.getApiCatalogManager().getApiService(serviceItem.getKey());</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">				boolean activeService = (this.getRequest().getParameter(service.getKey() + &quot;_active&quot;) != null);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">				boolean publicService = (this.getRequest().getParameter(service.getKey() + &quot;_public&quot;) != null);</span>
+<span class="nc bnc" id="L55" title="All 6 branches missed.">				if (activeService != service.isActive() || publicService != !service.isHidden()) {</span>
+<span class="nc" id="L56">					service.setActive(activeService);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">					service.setHidden(!publicService);</span>
+<span class="nc" id="L58">					this.getApiCatalogManager().updateService(service);</span>
+<span class="nc" id="L59">					this.addActionMessage(this.getText(&quot;message.service.status.updated&quot;, new String[]{serviceItem.getKey(), serviceItem.getValue()}));</span>
+<span class="nc" id="L60">					_logger.info(&quot;Updated api service status - Service Key '{}'&quot;, serviceItem.getKey());</span>
+				}
+			}
+<span class="nc" id="L63">		} catch (Throwable t) {</span>
+<span class="nc" id="L64">			_logger.error(&quot;error in updateAllStatusOfGroup&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;updateAllStatusOfGroup&quot;);
+<span class="nc" id="L66">			return FAILURE;</span>
+<span class="nc" id="L67">		}</span>
+<span class="nc" id="L68">		return SUCCESS;</span>
+	}
+	
+	public Map&lt;String, List&lt;ApiSelectItem&gt;&gt; getServiceFlavours() {
+<span class="nc" id="L72">		Map&lt;String, List&lt;ApiSelectItem&gt;&gt; groups = new HashMap&lt;String, List&lt;ApiSelectItem&gt;&gt;();</span>
+		try {
+<span class="nc" id="L74">			this.buildServiceGroups(groups);</span>
+<span class="nc" id="L75">			Iterator&lt;List&lt;ApiSelectItem&gt;&gt; groupIter = groups.values().iterator();</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			while (groupIter.hasNext()) {</span>
+<span class="nc" id="L77">				List&lt;ApiSelectItem&gt; group = groupIter.next();</span>
+<span class="nc" id="L78">				BeanComparator comparator = new BeanComparator(&quot;value&quot;);</span>
+<span class="nc" id="L79">				Collections.sort(group, comparator);</span>
+<span class="nc" id="L80">			}</span>
+<span class="nc" id="L81">		} catch (Throwable t) {</span>
+<span class="nc" id="L82">			_logger.error(&quot;Error extracting Flavours services&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getServiceFlavours&quot;);
+<span class="nc" id="L84">			throw new RuntimeException(&quot;Error extracting Flavours services&quot;, t);</span>
+<span class="nc" id="L85">		}</span>
+<span class="nc" id="L86">		return groups;</span>
+	}
+	
+	private void buildServiceGroups(Map&lt;String, List&lt;ApiSelectItem&gt;&gt; groups) throws Throwable {
+		try {
+<span class="nc" id="L91">			Map&lt;String, ApiService&gt; serviceMap = this.getApiCatalogManager().getServices();</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">			if (null == serviceMap || serviceMap.isEmpty()) return;</span>
+<span class="nc" id="L93">			Iterator&lt;ApiService&gt; services = serviceMap.values().iterator();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			while (services.hasNext()) {</span>
+<span class="nc" id="L95">				ApiService apiService = services.next();</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">				if (this.includeServiceIntoMapping(apiService)) {</span>
+<span class="nc" id="L97">					ApiMethod masterMethod = apiService.getMaster();</span>
+<span class="nc" id="L98">					String pluginCode = masterMethod.getPluginCode();</span>
+<span class="nc bnc" id="L99" title="All 4 branches missed.">					if (null != pluginCode &amp;&amp; pluginCode.trim().length() &gt; 0) {</span>
+<span class="nc" id="L100">						this.addService(pluginCode, apiService, groups);</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">					} else if (masterMethod.getSource().equals(&quot;core&quot;)) {</span>
+<span class="nc" id="L102">						this.addService(masterMethod.getSource(), apiService, groups);</span>
+					} else {
+<span class="nc" id="L104">						this.addService(&quot;custom&quot;, apiService, groups);</span>
+					}
+				}
+<span class="nc" id="L107">			}</span>
+<span class="nc" id="L108">		} catch (Throwable t) {</span>
+<span class="nc" id="L109">			_logger.error(&quot;error in buildServiceGroups&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;buildServiceGroups&quot;);
+<span class="nc" id="L111">			throw t;</span>
+<span class="nc" id="L112">		}</span>
+<span class="nc" id="L113">	}</span>
+	
+	protected boolean includeServiceIntoMapping(ApiService apiService) {
+<span class="nc" id="L116">		return true;</span>
+	}
+	
+	private void addService(String groupCode, ApiService apiService, Map&lt;String, List&lt;ApiSelectItem&gt;&gt; groups) {
+<span class="nc" id="L120">		List&lt;ApiSelectItem&gt; group = groups.get(groupCode);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">		if (null == group) {</span>
+<span class="nc" id="L122">			group = new ArrayList&lt;ApiSelectItem&gt;();</span>
+<span class="nc" id="L123">			groups.put(groupCode, group);</span>
+		}
+<span class="nc" id="L125">		String description = super.getTitle(apiService.getKey(), apiService.getDescription());</span>
+<span class="nc" id="L126">		ApiSelectItem item = new ApiSelectItem(apiService.getKey(), description, groupCode);</span>
+<span class="nc" id="L127">		item.setActiveItem(apiService.isActive());</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">		item.setPublicItem(!apiService.isHidden());</span>
+<span class="nc" id="L129">		group.add(item);</span>
+<span class="nc" id="L130">	}</span>
+	
+	@Override
+	protected boolean includeIntoMapping(ApiResource apiResource) {
+<span class="nc" id="L134">		ApiMethod GETMethod = apiResource.getGetMethod();</span>
+<span class="nc bnc" id="L135" title="All 4 branches missed.">        return (null != GETMethod &amp;&amp; GETMethod.isCanSpawnOthers());</span>
+    }
+	
+	public String getServiceGroup() {
+<span class="nc" id="L139">		return _serviceGroup;</span>
+	}
+	public void setServiceGroup(String serviceGroup) {
+<span class="nc" id="L142">		this._serviceGroup = serviceGroup;</span>
+<span class="nc" id="L143">	}</span>
+	
+	private String _serviceGroup;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

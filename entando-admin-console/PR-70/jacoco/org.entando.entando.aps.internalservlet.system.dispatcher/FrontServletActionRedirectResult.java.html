@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FrontServletActionRedirectResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.internalservlet.system.dispatcher</a> &gt; <span class="el_source">FrontServletActionRedirectResult.java</span></div><h1>FrontServletActionRedirectResult.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.internalservlet.system.dispatcher;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.Page;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.tags.InternalServletTag;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.config.entities.ResultConfig;
+import com.opensymphony.xwork2.util.reflection.ReflectionExceptionHandler;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.result.ServletRedirectResult;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Redirect Action Result with ancot for internal servlet actions.
+ *
+ * @author E.Santoboni
+ */
+public class FrontServletActionRedirectResult extends ServletRedirectResult implements ReflectionExceptionHandler {
+
+<span class="fc" id="L45">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(FrontServletActionRedirectResult.class);</span>
+
+    protected String actionName;
+    protected String namespace;
+    protected String method;
+    protected String anchorDest;
+
+    public FrontServletActionRedirectResult() {
+<span class="fc" id="L53">        super();</span>
+<span class="fc" id="L54">    }</span>
+
+    public FrontServletActionRedirectResult(String actionName) {
+<span class="nc" id="L57">        this(null, actionName, null, null);</span>
+<span class="nc" id="L58">    }</span>
+
+    public FrontServletActionRedirectResult(String actionName, String method) {
+<span class="nc" id="L61">        this(null, actionName, method, null);</span>
+<span class="nc" id="L62">    }</span>
+
+    public FrontServletActionRedirectResult(String namespace, String actionName, String method) {
+<span class="nc" id="L65">        this(namespace, actionName, method, null);</span>
+<span class="nc" id="L66">    }</span>
+
+    public FrontServletActionRedirectResult(String namespace, String actionName, String method, String anchor) {
+<span class="nc" id="L69">        super(null, anchor);</span>
+<span class="nc" id="L70">        this.namespace = namespace;</span>
+<span class="nc" id="L71">        this.actionName = actionName;</span>
+<span class="nc" id="L72">        this.method = method;</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void execute(ActionInvocation invocation) throws Exception {
+        try {
+<span class="fc" id="L78">            this.actionName = this.conditionalParse(this.actionName, invocation);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">            if (this.namespace == null) {</span>
+<span class="fc" id="L80">                this.namespace = invocation.getProxy().getNamespace();</span>
+            } else {
+<span class="nc" id="L82">                this.namespace = this.conditionalParse(this.namespace, invocation);</span>
+            }
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            if (this.method == null) {</span>
+<span class="fc" id="L85">                this.method = &quot;&quot;;</span>
+            } else {
+<span class="nc" id="L87">                this.method = this.conditionalParse(this.method, invocation);</span>
+            }
+<span class="fc" id="L89">            String anchorDest = null;</span>
+<span class="fc" id="L90">            Map&lt;String, String&gt; redirectParams = new HashMap&lt;String, String&gt;();</span>
+<span class="fc" id="L91">            ResultConfig resultConfig = invocation.getProxy().getConfig().getResults().get(invocation.getResultCode());</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">            if (resultConfig != null) {</span>
+<span class="nc" id="L93">                this.extractResultParams(redirectParams, resultConfig, invocation);</span>
+<span class="nc" id="L94">                anchorDest = this.extractAnchorDest(resultConfig, invocation);</span>
+            }
+<span class="fc" id="L96">            HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="fc" id="L97">            RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="fc" id="L98">            this.extractInternalServletParams(redirectParams, reqCtx);</span>
+<span class="fc" id="L99">            IURLManager urlManager = (IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, request);</span>
+<span class="fc" id="L100">            Page currentPage = (Page) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="fc" id="L101">            Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="fc" id="L102">            ConfigInterface configManager = (ConfigInterface) ApsWebApplicationUtils.getBean(SystemConstants.BASE_CONFIG_MANAGER, request);</span>
+<span class="fc" id="L103">            String urlType = configManager.getParam(SystemConstants.CONFIG_PARAM_BASE_URL);</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">            boolean needRequest = (null != urlType &amp;&amp; !urlType.equals(SystemConstants.CONFIG_PARAM_BASE_URL_RELATIVE));</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            String url = urlManager.createURL(currentPage, currentLang, redirectParams, false, (needRequest) ? request : null);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">            if (null != anchorDest) {</span>
+<span class="nc" id="L107">                url += &quot;#&quot; + anchorDest;</span>
+            }
+<span class="fc" id="L109">            this.setLocation(url);</span>
+<span class="nc" id="L110">        } catch (Throwable t) {</span>
+<span class="nc" id="L111">            _logger.error(&quot;error in execute&quot;, t);</span>
+<span class="fc" id="L112">        }</span>
+<span class="fc" id="L113">        super.execute(invocation);</span>
+<span class="fc" id="L114">    }</span>
+
+    protected void extractResultParams(Map&lt;String, String&gt; redirectParams, ResultConfig resultConfig, ActionInvocation invocation) {
+<span class="nc" id="L117">        Map resultConfigParams = resultConfig.getParams();</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        for (Iterator i = resultConfigParams.entrySet().iterator(); i.hasNext();) {</span>
+<span class="nc" id="L119">            Map.Entry e = (Map.Entry) i.next();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if (!this.getProhibitedResultParams().contains(e.getKey())) {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                String potentialValue = e.getValue() == null ? &quot;&quot; : conditionalParse(e.getValue().toString(), invocation);</span>
+<span class="nc bnc" id="L122" title="All 6 branches missed.">                if (!suppressEmptyParameters || ((potentialValue != null) &amp;&amp; (potentialValue.length() &gt; 0))) {</span>
+<span class="nc" id="L123">                    redirectParams.put(e.getKey().toString(), potentialValue);</span>
+                }
+            }
+<span class="nc" id="L126">        }</span>
+<span class="nc" id="L127">    }</span>
+
+    protected String extractAnchorDest(ResultConfig resultConfig, ActionInvocation invocation) {
+<span class="nc" id="L130">        Map&lt;String, String&gt; resultConfigParams = resultConfig.getParams();</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        for (Iterator i = resultConfigParams.entrySet().iterator(); i.hasNext();) {</span>
+<span class="nc" id="L132">            Map.Entry e = (Map.Entry) i.next();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            if (e.getKey().equals(&quot;anchorDest&quot;)) {</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                String potentialValue = e.getValue() == null ? &quot;&quot; : conditionalParse(e.getValue().toString(), invocation);</span>
+<span class="nc bnc" id="L135" title="All 4 branches missed.">                if (potentialValue != null &amp;&amp; potentialValue.length() &gt; 0) {</span>
+<span class="nc" id="L136">                    return potentialValue;</span>
+                }
+            }
+<span class="nc" id="L139">        }</span>
+<span class="nc" id="L140">        return null;</span>
+    }
+
+    protected void extractInternalServletParams(Map&lt;String, String&gt; redirectParams, RequestContext reqCtx) {
+<span class="fc" id="L144">        String actionPath = &quot;/ExtStr2&quot; + this.namespace + &quot;/&quot; + this.actionName;</span>
+<span class="fc" id="L145">        Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="fc" id="L146">        redirectParams.put(InternalServletTag.REQUEST_PARAM_ACTIONPATH, actionPath);</span>
+<span class="fc" id="L147">        redirectParams.put(InternalServletTag.REQUEST_PARAM_FRAMEDEST, currentFrame.toString());</span>
+<span class="fc" id="L148">    }</span>
+
+    /**
+     * Sets the action name
+     *
+     * @param actionName The name
+     */
+    public void setActionName(String actionName) {
+<span class="fc" id="L156">        this.actionName = actionName;</span>
+<span class="fc" id="L157">    }</span>
+
+    /**
+     * Sets the namespace
+     *
+     * @param namespace The namespace
+     */
+    public void setNamespace(String namespace) {
+<span class="nc" id="L165">        this.namespace = namespace;</span>
+<span class="nc" id="L166">    }</span>
+
+    /**
+     * Sets the method
+     *
+     * @param method The method
+     */
+    public void setMethod(String method) {
+<span class="nc" id="L174">        this.method = method;</span>
+<span class="nc" id="L175">    }</span>
+
+    protected String getAnchorDest() {
+<span class="nc" id="L178">        return anchorDest;</span>
+    }
+
+    /**
+     * Sets the anchor destination
+     *
+     * @param anchorDest The anchor destination
+     */
+    public void setAnchorDest(String anchorDest) {
+<span class="nc" id="L187">        this.anchorDest = anchorDest;</span>
+<span class="nc" id="L188">    }</span>
+
+    @Override
+    protected List&lt;String&gt; getProhibitedResultParams() {
+<span class="nc" id="L192">        return Arrays.asList(new String[]{</span>
+            DEFAULT_PARAM, &quot;namespace&quot;, &quot;method&quot;, &quot;encode&quot;, &quot;parse&quot;, &quot;location&quot;,
+            &quot;prependServletContext&quot;, &quot;supressEmptyParameters&quot;, &quot;anchor&quot;, &quot;anchorDest&quot;});
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,462 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageTreeMenuAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">PageTreeMenuAction.java</span></div><h1>PageTreeMenuAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.api.IApiCatalogManager;
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.page.IPageTokenManager;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+
+/**
+ * Action per la gestione dell'albero delle pagine della sidebar a destra nella
+ * pagina configuratore delle pagine.
+ *
+ * @author A.Pintus
+ */
+<span class="fc" id="L46">public class PageTreeMenuAction extends PageTreeAction {</span>
+
+<span class="fc" id="L48">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageTreeMenuAction.class);</span>
+
+    public String intro() {
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        String pageCode = (this.getSelectedNode() != null ? this.getSelectedNode() : this.getPageCode());</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">        if (StringUtils.isBlank(pageCode)) {</span>
+<span class="nc" id="L53">            ITreeNode rootNode = this.getAllowedTreeRootNode();</span>
+<span class="nc" id="L54">            pageCode = rootNode.getCode();</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">            if (AbstractPortalAction.VIRTUAL_ROOT_CODE.equals(pageCode)) {</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">                if (null != rootNode.getChildrenCodes() &amp;&amp; rootNode.getChildrenCodes().length &gt; 0) {</span>
+<span class="nc" id="L57">                    pageCode = rootNode.getChildrenCodes()[0];</span>
+                } else {
+<span class="nc" id="L59">                    this.addActionError(this.getText(&quot;error.page.virtualRootSelected&quot;));</span>
+<span class="nc" id="L60">                    return &quot;noRoot&quot;;</span>
+                }
+            }
+        }
+<span class="fc" id="L64">        this.setPageCode(pageCode);</span>
+<span class="fc" id="L65">        this.setSelectedNode(pageCode);</span>
+<span class="fc" id="L66">        String check = this.checkSelectedNode(pageCode);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (null != check) {</span>
+<span class="fc" id="L68">            return check;</span>
+        }
+<span class="fc" id="L70">        return SUCCESS;</span>
+    }
+
+    @Override
+    public String buildTree() {
+<span class="nc" id="L75">        this.intro();</span>
+<span class="nc" id="L76">        return super.buildTree();</span>
+    }
+
+    public IPage getCurrentPage() {
+<span class="nc" id="L80">        return this.getPage(this.getPageCode());</span>
+    }
+
+    @Deprecated
+    public List&lt;List&lt;SelectItem&gt;&gt; getShowletFlavours() {
+<span class="nc" id="L85">        return this.getWidgetFlavours();</span>
+    }
+
+    public List&lt;List&lt;SelectItem&gt;&gt; getWidgetFlavours() {
+<span class="nc" id="L89">        List&lt;String&gt; pluginCodes = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L90">        Map&lt;String, List&lt;SelectItem&gt;&gt; mapping = this.getWidgetFlavoursMapping(pluginCodes);</span>
+<span class="nc" id="L91">        List&lt;List&lt;SelectItem&gt;&gt; group = new ArrayList&lt;List&lt;SelectItem&gt;&gt;();</span>
+        try {
+<span class="nc" id="L93">            this.addGroup(USER_WIDGETS_CODE, mapping, group);</span>
+<span class="nc" id="L94">            this.addGroup(CUSTOM_WIDGETS_CODE, mapping, group);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">            for (int i = 0; i &lt; pluginCodes.size(); i++) {</span>
+<span class="nc" id="L96">                String pluginCode = pluginCodes.get(i);</span>
+<span class="nc" id="L97">                this.addGroup(pluginCode, mapping, group);</span>
+            }
+<span class="nc" id="L99">            this.addGroup(STOCK_WIDGETS_CODE, mapping, group);</span>
+<span class="nc" id="L100">        } catch (Throwable t) {</span>
+<span class="nc" id="L101">            _logger.error(&quot;error in getWidgetFlavours&quot;, t);</span>
+<span class="nc" id="L102">            throw new RuntimeException(&quot;Error extracting Widget flavours&quot;, t);</span>
+<span class="nc" id="L103">        }</span>
+<span class="nc" id="L104">        return group;</span>
+    }
+
+    @Deprecated
+    protected Map&lt;String, List&lt;SelectItem&gt;&gt; getShowletFlavoursMapping(List&lt;String&gt; pluginCodes) {
+<span class="nc" id="L109">        return this.getWidgetFlavoursMapping(pluginCodes);</span>
+    }
+
+    protected Map&lt;String, List&lt;SelectItem&gt;&gt; getWidgetFlavoursMapping(List&lt;String&gt; pluginCodes) {
+<span class="nc" id="L113">        Map&lt;String, List&lt;SelectItem&gt;&gt; mapping = new HashMap&lt;String, List&lt;SelectItem&gt;&gt;();</span>
+<span class="nc" id="L114">        List&lt;WidgetType&gt; types = this.getWidgetTypeManager().getWidgetTypes();</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        for (int i = 0; i &lt; types.size(); i++) {</span>
+<span class="nc" id="L116">            WidgetType type = types.get(i);</span>
+<span class="nc" id="L117">            String pluginCode = type.getPluginCode();</span>
+<span class="nc bnc" id="L118" title="All 4 branches missed.">            if (null != pluginCode &amp;&amp; pluginCode.trim().length() &gt; 0) {</span>
+                //is a plugin's widgets
+<span class="nc bnc" id="L120" title="All 2 branches missed.">                if (!pluginCodes.contains(pluginCode)) {</span>
+<span class="nc" id="L121">                    pluginCodes.add(pluginCode);</span>
+                }
+<span class="nc" id="L123">                this.addFlavourWidgetType(pluginCode, type, mapping);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            } else if (type.isUserType()) {</span>
+                //is a user widgets
+<span class="nc" id="L126">                this.addFlavourWidgetType(USER_WIDGETS_CODE, type, mapping);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            } else if (this.getStockWidgetCodes().contains(type.getCode())) {</span>
+<span class="nc" id="L128">                this.addFlavourWidgetType(STOCK_WIDGETS_CODE, type, mapping);</span>
+            } else {
+<span class="nc" id="L130">                this.addFlavourWidgetType(CUSTOM_WIDGETS_CODE, type, mapping);</span>
+            }
+        }
+<span class="nc" id="L133">        Collections.sort(pluginCodes);</span>
+<span class="nc" id="L134">        return mapping;</span>
+    }
+
+    @Deprecated
+    protected void addFlavourShowletType(String mapCode, WidgetType type, Map&lt;String, List&lt;SelectItem&gt;&gt; mapping) {
+<span class="nc" id="L139">        this.addFlavourWidgetType(mapCode, type, mapping);</span>
+<span class="nc" id="L140">    }</span>
+
+    protected void addFlavourWidgetType(String mapCode, WidgetType type, Map&lt;String, List&lt;SelectItem&gt;&gt; mapping) {
+<span class="nc" id="L143">        List&lt;SelectItem&gt; widgetTypes = mapping.get(mapCode);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (null == widgetTypes) {</span>
+<span class="nc" id="L145">            widgetTypes = new ArrayList&lt;SelectItem&gt;();</span>
+<span class="nc" id="L146">            mapping.put(mapCode, widgetTypes);</span>
+        }
+<span class="nc" id="L148">        String title = super.getTitle(type.getCode(), type.getTitles());</span>
+<span class="nc" id="L149">        SelectItem item = new SelectItem(type.getCode(), title, mapCode);</span>
+<span class="nc" id="L150">        widgetTypes.add(item);</span>
+<span class="nc" id="L151">    }</span>
+
+    private void addGroup(String code, Map&lt;String, List&lt;SelectItem&gt;&gt; mapping, List&lt;List&lt;SelectItem&gt;&gt; group) {
+<span class="nc" id="L154">        List&lt;SelectItem&gt; singleGroup = mapping.get(code);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (null != singleGroup) {</span>
+<span class="nc" id="L156">            BeanComparator comparator = new BeanComparator(&quot;value&quot;);</span>
+<span class="nc" id="L157">            Collections.sort(singleGroup, comparator);</span>
+<span class="nc" id="L158">            group.add(singleGroup);</span>
+        }
+<span class="nc" id="L160">    }</span>
+
+    /**
+     * Returns the 'bread crumbs' targets.
+     *
+     * @param pageCode The code of the page being represented in the bread
+     * crumbs path.
+     * @return The bread crumbs targets requested.
+     */
+    public List&lt;IPage&gt; getBreadCrumbsTargets(String pageCode) {
+<span class="nc" id="L170">        IPage page = this.getPage(pageCode);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L172">            return null;</span>
+        }
+<span class="nc" id="L174">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L175">        this.getSubBreadCrumbsTargets(pages, page);</span>
+<span class="nc" id="L176">        return pages;</span>
+    }
+
+    private void getSubBreadCrumbsTargets(List&lt;IPage&gt; pages, IPage current) {
+<span class="nc" id="L180">        pages.add(0, current);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">        IPage parent = (current.isOnlineInstance()) ? </span>
+<span class="nc" id="L182">                this.getPageManager().getOnlinePage(current.getParentCode()) : </span>
+<span class="nc" id="L183">                this.getPageManager().getDraftPage(current.getParentCode());</span>
+<span class="nc bnc" id="L184" title="All 4 branches missed.">        if (parent != null &amp;&amp; !parent.getCode().equals(current.getCode())) {</span>
+<span class="nc" id="L185">            this.getSubBreadCrumbsTargets(pages, parent);</span>
+        }
+<span class="nc" id="L187">    }</span>
+
+    /**
+     * Check if the current user can access the specified page.
+     *
+     * @param page The page to check against the current user.
+     * @return True if the user has can access the given page, false otherwise.
+     */
+    @Override
+    public boolean isUserAllowed(IPage page) {
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (page == null) {</span>
+<span class="nc" id="L198">            return false;</span>
+        }
+<span class="fc" id="L200">        String pageGroup = page.getGroup();</span>
+<span class="fc" id="L201">        return this.isCurrentUserMemberOf(pageGroup);</span>
+    }
+
+    @Override
+    protected String checkSelectedNode(String selectedNode) {
+<span class="pc bpc" id="L206" title="2 of 4 branches missed.">        if (null == selectedNode || selectedNode.trim().length() == 0) {</span>
+<span class="nc" id="L207">            this.addActionError(this.getText(&quot;error.page.noSelection&quot;));</span>
+<span class="nc" id="L208">            return &quot;pageTree&quot;;</span>
+        }
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (AbstractPortalAction.VIRTUAL_ROOT_CODE.equals(selectedNode)) {</span>
+<span class="nc" id="L211">            this.addActionError(this.getText(&quot;error.page.virtualRootSelected&quot;));</span>
+<span class="nc" id="L212">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc" id="L214">        IPage selectedPage = this.getPage(selectedNode);</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">        if (null == selectedPage) {</span>
+<span class="nc" id="L216">            this.addActionError(this.getText(&quot;error.page.selectedPage.null&quot;));</span>
+<span class="nc" id="L217">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc bfc" id="L219" title="All 2 branches covered.">        if (!this.isUserAllowed(selectedPage)) {</span>
+<span class="fc" id="L220">            this.addActionError(this.getText(&quot;error.page.userNotAllowed&quot;));</span>
+<span class="fc" id="L221">            return &quot;pageTree&quot;;</span>
+        }
+<span class="fc" id="L223">        return null;</span>
+    }
+
+    @Override
+    public IPage getPage(String pageCode) {
+<span class="fc" id="L228">        return this.getPageManager().getDraftPage(pageCode);</span>
+    }
+
+    /**
+     * Return the list of the system languages. The default language is placed
+     * first.
+     *
+     * @return The list of the system languages.
+     */
+    public List&lt;Lang&gt; getLangs() {
+<span class="nc" id="L238">        return this.getLangManager().getLangs();</span>
+    }
+
+    /**
+     * Return the map of the system groups. The map is indexed by the group
+     * name.
+     *
+     * @return The map containing the system groups.
+     */
+    public Map&lt;String, Group&gt; getSystemGroups() {
+<span class="nc" id="L248">        return this.getGroupManager().getGroupsMap();</span>
+    }
+
+    @Deprecated
+    public Map&lt;String, ApiMethod&gt; getShowletTypeApiMappings() {
+<span class="nc" id="L253">        return this.getWidgetTypeApiMappings();</span>
+    }
+
+    public Map&lt;String, ApiMethod&gt; getWidgetTypeApiMappings() {
+<span class="nc" id="L257">        Map&lt;String, ApiMethod&gt; mappings = null;</span>
+        try {
+<span class="nc" id="L259">            mappings = this.getApiCatalogManager().getRelatedWidgetMethods();</span>
+<span class="nc" id="L260">        } catch (Throwable t) {</span>
+<span class="nc" id="L261">            _logger.error(&quot;error in getWidgetTypeApiMappings&quot;, t);</span>
+<span class="nc" id="L262">        }</span>
+<span class="nc" id="L263">        return mappings;</span>
+    }
+
+    public boolean isInternalServletWidget(String widgetTypeCode) {
+<span class="nc" id="L267">        return this.getInternalServletWidgetCode().equals(widgetTypeCode);</span>
+    }
+
+    @Deprecated
+    protected String getStockShowletCodes() {
+<span class="nc" id="L272">        return this.getStockWidgetCodes();</span>
+    }
+
+    @Deprecated
+    public void setStockShowletCodes(String stockShowletCodes) {
+<span class="nc" id="L277">        this.setStockWidgetCodes(stockShowletCodes);</span>
+<span class="nc" id="L278">    }</span>
+
+    protected String getStockWidgetCodes() {
+<span class="nc" id="L281">        return _stockWidgetCodes;</span>
+    }
+
+    public void setStockWidgetCodes(String stockWidgetCodes) {
+<span class="fc" id="L285">        this._stockWidgetCodes = stockWidgetCodes;</span>
+<span class="fc" id="L286">    }</span>
+
+    protected String getInternalServletWidgetCode() {
+<span class="nc" id="L289">        return _internalServletWidgetCode;</span>
+    }
+
+    public void setInternalServletWidgetCode(String internalServletWidgetCode) {
+<span class="fc" id="L293">        this._internalServletWidgetCode = internalServletWidgetCode;</span>
+<span class="fc" id="L294">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="nc" id="L297">        return _groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L301">        this._groupManager = groupManager;</span>
+<span class="fc" id="L302">    }</span>
+
+    protected IApiCatalogManager getApiCatalogManager() {
+<span class="nc" id="L305">        return _apiCatalogManager;</span>
+    }
+
+    public void setApiCatalogManager(IApiCatalogManager apiCatalogManager) {
+<span class="fc" id="L309">        this._apiCatalogManager = apiCatalogManager;</span>
+<span class="fc" id="L310">    }</span>
+
+    protected IWidgetTypeManager getWidgetTypeManager() {
+<span class="nc" id="L313">        return _widgetTypeManager;</span>
+    }
+
+    public void setWidgetTypeManager(IWidgetTypeManager widgetTypeManager) {
+<span class="fc" id="L317">        this._widgetTypeManager = widgetTypeManager;</span>
+<span class="fc" id="L318">    }</span>
+
+    private String _stockWidgetCodes;
+    private String _internalServletWidgetCode;
+
+    private IGroupManager _groupManager;
+
+    private IWidgetTypeManager _widgetTypeManager;
+    private IApiCatalogManager _apiCatalogManager;
+
+    public static final String USER_WIDGETS_CODE = &quot;userShowletCode&quot;;
+    public static final String CUSTOM_WIDGETS_CODE = &quot;customShowletCode&quot;;
+    public static final String STOCK_WIDGETS_CODE = &quot;stockShowletCode&quot;;
+
+    /**
+     * @deprecated Use {@link #USER_WIDGETS_CODE} instead
+     */
+    public static final String USER_SHOWLETS_CODE = USER_WIDGETS_CODE;
+
+    /**
+     * @deprecated Use {@link #CUSTOM_WIDGETS_CODE} instead
+     */
+    public static final String CUSTOM_SHOWLETS_CODE = CUSTOM_WIDGETS_CODE;
+
+    /**
+     * @deprecated Use {@link #STOCK_WIDGETS_CODE} instead
+     */
+    public static final String STOCK_SHOWLETS_CODE = STOCK_WIDGETS_CODE;
+
+    @Deprecated
+    public String viewShowlets() {
+<span class="nc" id="L349">        return viewWidgets();</span>
+    }
+
+    public String viewWidgets() {
+<span class="nc" id="L353">        return SUCCESS;</span>
+    }
+
+    @Deprecated
+    public List&lt;IPage&gt; getShowletUtilizers(String widgetTypeCode) {
+<span class="nc" id="L358">        return this.getWidgetUtilizers(widgetTypeCode);</span>
+    }
+
+    public List&lt;IPage&gt; getWidgetUtilizers(String widgetTypeCode) {
+<span class="nc" id="L362">        List&lt;IPage&gt; utilizers = null;</span>
+        try {
+<span class="nc" id="L364">            utilizers = this.getPageManager().getOnlineWidgetUtilizers(widgetTypeCode);</span>
+<span class="nc" id="L365">        } catch (Throwable t) {</span>
+<span class="nc" id="L366">            _logger.error(&quot;Error on extracting widgetUtilizers : widget type code {}&quot;, t);</span>
+<span class="nc" id="L367">            throw new RuntimeException(&quot;Error on extracting widgetUtilizers : widget type code &quot; + widgetTypeCode, t);</span>
+<span class="nc" id="L368">        }</span>
+<span class="nc" id="L369">        return utilizers;</span>
+    }
+
+    public Group getGroup(String groupCode) {
+<span class="nc" id="L373">        Group group = this.getGroupManager().getGroup(groupCode);</span>
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        if (null == group) {</span>
+<span class="nc" id="L375">            group = this.getGroupManager().getGroup(Group.FREE_GROUP_NAME);</span>
+        }
+<span class="nc" id="L377">        return group;</span>
+    }
+
+    public String getPreviewToken() {
+<span class="nc bnc" id="L381" title="All 2 branches missed.">        if (StringUtils.isNotBlank(this.getPageCode())) {</span>
+<span class="nc" id="L382">            return this.pageTokenMager.encrypt(this.getPageCode());</span>
+        }
+<span class="nc" id="L384">        return null;</span>
+    }
+
+    @Deprecated
+    public String viewShowletUtilizers() {
+<span class="nc" id="L389">        return viewWidgetUtilizers();</span>
+    }
+
+    public String viewWidgetUtilizers() {
+<span class="nc" id="L393">        return SUCCESS;</span>
+    }
+
+    public List&lt;IPage&gt; getWidgetUtilizers() {
+<span class="nc" id="L397">        return this.getWidgetUtilizers(this.getWidgetTypeCode());</span>
+    }
+
+    @Deprecated
+    public List&lt;IPage&gt; getShowletUtilizers() {
+<span class="nc" id="L402">        return this.getWidgetUtilizers();</span>
+    }
+
+    public WidgetType getWidgetType(String typeCode) {
+<span class="nc" id="L406">        return this.getWidgetTypeManager().getWidgetType(typeCode);</span>
+    }
+
+    @Deprecated
+    public WidgetType getShowletType(String typeCode) {
+<span class="nc" id="L411">        return this.getWidgetType(typeCode);</span>
+    }
+
+    @Deprecated
+    public String getShowletTypeCode() {
+<span class="nc" id="L416">        return this.getWidgetTypeCode();</span>
+    }
+
+    @Deprecated
+    public void setShowletTypeCode(String widgetTypeCode) {
+<span class="nc" id="L421">        this._widgetTypeCode = widgetTypeCode;</span>
+<span class="nc" id="L422">    }</span>
+
+    public String getWidgetTypeCode() {
+<span class="nc" id="L425">        return _widgetTypeCode;</span>
+    }
+
+    public void setWidgetTypeCode(String widgetTypeCode) {
+<span class="nc" id="L429">        this._widgetTypeCode = widgetTypeCode;</span>
+<span class="nc" id="L430">    }</span>
+
+    protected IPageActionHelper getPageActionHelper() {
+<span class="nc" id="L433">        return _pageActionHelper;</span>
+    }
+
+    public void setPageActionHelper(IPageActionHelper pageActionHelper) {
+<span class="fc" id="L437">        this._pageActionHelper = pageActionHelper;</span>
+<span class="fc" id="L438">    }</span>
+
+    public String getPageCode() {
+<span class="nc" id="L441">        return pageCode;</span>
+    }
+
+    public void setPageCode(String pageCode) {
+<span class="fc" id="L445">        this.pageCode = pageCode;</span>
+<span class="fc" id="L446">    }</span>
+
+    public IPageTokenManager getPageTokenMager() {
+<span class="nc" id="L449">        return pageTokenMager;</span>
+    }
+
+    public void setPageTokenMager(IPageTokenManager pageTokenMager) {
+<span class="fc" id="L453">        this.pageTokenMager = pageTokenMager;</span>
+<span class="fc" id="L454">    }</span>
+
+    private String _widgetTypeCode;
+    private IPageActionHelper _pageActionHelper;
+    private String pageCode;
+    private IPageTokenManager pageTokenMager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

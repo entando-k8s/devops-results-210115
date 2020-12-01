@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageTreeAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal</a> &gt; <span class="el_source">PageTreeAction.java</span></div><h1>PageTreeAction.java</h1><pre class="source lang-java linenums">/*
+* Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+*
+* This library is free software; you can redistribute it and/or modify it under
+* the terms of the GNU Lesser General Public License as published by the Free
+* Software Foundation; either version 2.1 of the License, or (at your option)
+* any later version.
+*
+* This library is distributed in the hope that it will be useful, but WITHOUT
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+* FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+* details.
+ */
+package com.agiletec.apsadmin.portal;
+
+import java.util.Collection;
+
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.apsadmin.portal.helper.IPageActionHelper;
+import com.agiletec.apsadmin.system.AbstractTreeAction;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.apsadmin.portal.rs.model.PageResponse;
+
+/**
+ * Action principale per la gestione dell'albero delle pagine.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L38">public class PageTreeAction extends AbstractTreeAction {</span>
+
+<span class="fc" id="L40">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageTreeAction.class);</span>
+
+	@Override
+	public String execute() throws Exception {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">		if (null != this.getSelectedNode()) {</span>
+<span class="fc" id="L45">			this.getTreeNodesToOpen().add(this.getSelectedNode());</span>
+		}
+<span class="fc" id="L47">		return super.execute();</span>
+	}
+
+	public String moveUp() {
+<span class="fc" id="L51">		return this.movePage(true);</span>
+	}
+
+	public String moveDown() {
+<span class="fc" id="L55">		return this.movePage(false);</span>
+	}
+
+	protected String movePage(boolean moveUp) {
+<span class="fc" id="L59">		String selectedNode = this.getSelectedNode();</span>
+		try {
+<span class="fc" id="L61">			String check = this.checkSelectedNode(selectedNode);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">			if (null != check) {</span>
+<span class="fc" id="L63">				return check;</span>
+			}
+<span class="fc" id="L65">			IPage currentPage = this.getPageManager().getDraftPage(selectedNode);</span>
+<span class="fc" id="L66">            IPage parentPage = this.getPageManager().getDraftPage(currentPage.getParentCode());</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">			if (!isUserAllowed(parentPage)) {</span>
+<span class="nc" id="L68">				_logger.info(&quot;User not allowed!&quot;);</span>
+<span class="nc" id="L69">				this.addActionError(this.getText(&quot;error.page.userNotAllowed&quot;));</span>
+<span class="nc" id="L70">				return SUCCESS;</span>
+			}
+<span class="fc bfc" id="L72" title="All 2 branches covered.">			if (this.getPageManager().getDraftRoot().getCode().equals(currentPage.getCode())) {</span>
+<span class="fc" id="L73">				_logger.info(&quot;Root page cannot be moved&quot;);</span>
+<span class="fc" id="L74">				this.addActionError(this.getText(&quot;error.page.move.rootNotAllowed&quot;));</span>
+<span class="fc" id="L75">				return SUCCESS;</span>
+			}
+<span class="fc" id="L77">			boolean result = this.getPageManager().movePage(selectedNode, moveUp);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">			if (!result) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">				if (moveUp) {</span>
+<span class="fc" id="L80">					_logger.info(&quot;page movement not allowed&quot;);</span>
+<span class="fc" id="L81">					this.addActionError(this.getText(&quot;error.page.movementUp.notAllowed&quot;));</span>
+				} else {
+<span class="fc" id="L83">					_logger.info(&quot;page movement not allowed&quot;);</span>
+<span class="fc" id="L84">					this.addActionError(this.getText(&quot;error.page.movementDown.notAllowed&quot;));</span>
+				}
+			}
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			_logger.error(&quot;error in movePage&quot;, t);</span>
+<span class="nc" id="L89">			return FAILURE;</span>
+<span class="fc" id="L90">		}</span>
+<span class="fc" id="L91">		return SUCCESS;</span>
+	}
+
+	public String moveTree() {
+<span class="fc" id="L95">		String selectedNode = this.getSelectedNode();</span>
+<span class="fc" id="L96">		String parentPageCode = this.getRequest().getParameter(&quot;parentPageCode&quot;);</span>
+		try {
+<span class="fc" id="L98">			String check = this.checkMovePage(selectedNode, parentPageCode);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (null != check) {</span>
+<span class="fc" id="L100">				this.addActionMessage(check);</span>
+<span class="fc" id="L101">				return check;</span>
+			}
+<span class="fc" id="L103">			IPage currentPage = this.getPage(selectedNode);</span>
+<span class="fc" id="L104">			IPage parent = this.getPage(parentPageCode);</span>
+<span class="fc" id="L105">			this.getPageManager().movePage(currentPage, parent);</span>
+<span class="fc" id="L106">			this.addActionMessage(SUCCESS);</span>
+<span class="nc" id="L107">		} catch (Throwable t) {</span>
+<span class="nc" id="L108">			_logger.error(&quot;error in move page&quot;, t);</span>
+<span class="nc" id="L109">			this.addActionMessage(FAILURE);</span>
+<span class="nc" id="L110">			return FAILURE;</span>
+<span class="fc" id="L111">		}</span>
+<span class="fc" id="L112">		return SUCCESS;</span>
+	}
+
+	protected String checkMovePage(String selectedNode, String parentPageCode) {
+<span class="fc" id="L116">		IPage currentPage = this.getPage(selectedNode);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (null == currentPage) {</span>
+<span class="fc" id="L118">			_logger.info(&quot;Required a selected node&quot;);</span>
+<span class="fc" id="L119">			this.addActionError(this.getText(&quot;error.page.selectPage&quot;));</span>
+<span class="fc" id="L120">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		if (StringUtils.isBlank(parentPageCode)) {</span>
+<span class="fc" id="L123">			_logger.warn(&quot;Missing parentPageCode parameter&quot;);</span>
+<span class="fc" id="L124">			this.addActionError(this.getText(&quot;error.parentPage.noSelection&quot;));</span>
+<span class="fc" id="L125">			return &quot;pageTree&quot;;</span>
+		}
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">		if (currentPage.getCode().equals(this.getPageManager().getDraftRoot().getCode())) {</span>
+<span class="nc" id="L128">			_logger.info(&quot;Root page cannot be moved&quot;);</span>
+<span class="nc" id="L129">			this.addActionError(this.getText(&quot;error.page.move.rootNotAllowed&quot;));</span>
+<span class="nc" id="L130">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc" id="L132">		IPage parent = this.getPage(parentPageCode);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">		if (null == parent) {</span>
+<span class="nc" id="L134">			_logger.info(&quot;Invalid parentPageCode parameter: '{}'&quot;, parentPageCode);</span>
+<span class="nc" id="L135">			this.addActionError(this.getText(&quot;error.parentPage.noSelection&quot;));</span>
+<span class="nc" id="L136">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (parent.getCode().equals(currentPage.getParentCode())) {</span>
+<span class="fc" id="L139">			_logger.info(&quot;trying to move a node under its own parent..&quot;);</span>
+<span class="fc" id="L140">			List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L141">			args.add(selectedNode);</span>
+<span class="fc" id="L142">			args.add(parent.getCode());</span>
+<span class="fc" id="L143">			this.addActionError(this.getText(&quot;error.page.move.childUnderParent.notAllowed&quot;, args));</span>
+<span class="fc" id="L144">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (parent.isChildOf(selectedNode, this.getPageManager())) {</span>
+<span class="fc" id="L147">			_logger.info(&quot;trying to move a node under its own child..&quot;);</span>
+<span class="fc" id="L148">			this.addActionError(this.getText(&quot;error.page.move.parentUnderChild.notAllowed&quot;));</span>
+<span class="fc" id="L149">			return &quot;pageTree&quot;;</span>
+		}
+		//group check
+<span class="fc" id="L152">	        String currentGroup = currentPage.getGroup();</span>
+<span class="fc" id="L153">	        String parentGroup = parent.getGroup();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">	        if (!currentGroup.equals(parentGroup) // same group always allowed</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">	                &amp;&amp; !parentGroup.equals(Group.FREE_GROUP_NAME)) { // reserved page in free page allowed</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">	            if (currentGroup.equals(Group.FREE_GROUP_NAME)) { // A free page CAN'T be moved inside a reserved node.</span>
+<span class="fc" id="L157">	                _logger.info(&quot;trying to move a free page under a reserved page..&quot;);</span>
+<span class="fc" id="L158">	                this.addActionError(this.getText(&quot;error.page.move.freeUnderReserved.notAllowed&quot;));</span>
+<span class="fc" id="L159">	                return &quot;pageTree&quot;;</span>
+	            }
+	            // Reserved pages with different groups:
+<span class="fc" id="L162">	            _logger.info(&quot;trying to move a node under a node with a differt restriction..&quot;);</span>
+<span class="fc" id="L163">	            String[] args = new String[]{currentGroup, parentGroup};</span>
+<span class="fc" id="L164">	            this.addActionError(this.getText(&quot;error.page.move.differentRestriction.notAllowed&quot;, args));</span>
+<span class="fc" id="L165">	            return &quot;pageTree&quot;;</span>
+	        }
+	        // online/draft check
+<span class="pc bpc" id="L168" title="1 of 4 branches missed.">	        if(currentPage.isOnline() &amp;&amp; !parent.isOnline()) {</span>
+<span class="fc" id="L169">	            this.addActionError(this.getText(&quot;error.page.move.onlineUnderDraft.notAllowed&quot;));</span>
+<span class="fc" id="L170">	            return &quot;pageTree&quot;;</span>
+	        }
+<span class="fc" id="L172">		return null;</span>
+	}
+
+	public PageResponse getPageResponse() {
+<span class="nc" id="L176">		IPage page = null;</span>
+<span class="nc" id="L177">		IPage onlinePage = null;</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">		if (org.apache.commons.lang3.StringUtils.isNotBlank(this.getSelectedNode())) {</span>
+<span class="nc" id="L179">			page = this.getPage(this.getSelectedNode());</span>
+<span class="nc" id="L180">			onlinePage = this.getPageManager().getOnlinePage(this.getSelectedNode());</span>
+		}
+<span class="nc" id="L182">		PageResponse response = new PageResponse(this, page, onlinePage);</span>
+<span class="nc" id="L183">		return response;</span>
+	}
+
+	public String moveWidgetUp() {
+<span class="fc" id="L187">		return this.moveWidget(this.getFrame() - 1);</span>
+	}
+
+	public String moveWidgetDown() {
+<span class="fc" id="L191">		return this.moveWidget(this.getFrame() + 1);</span>
+	}
+
+	protected String moveWidget(int destFrame) {
+		try {
+<span class="fc" id="L196">			int frame = this.getFrame();</span>
+<span class="fc" id="L197">			this.getPageManager().moveWidget(this.getSelectedNode(), frame, destFrame);</span>
+<span class="nc" id="L198">		} catch (Throwable t) {</span>
+<span class="nc" id="L199">			_logger.error(&quot;error in moveWidget&quot;, t);</span>
+<span class="nc" id="L200">			return FAILURE;</span>
+<span class="fc" id="L201">		}</span>
+<span class="fc" id="L202">		return SUCCESS;</span>
+	}
+
+	public String copy() {
+<span class="nc" id="L206">		String selectedNode = this.getSelectedNode();</span>
+<span class="nc" id="L207">		String check = this.checkSelectedNode(selectedNode);</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">		if (null != check) {</span>
+<span class="nc" id="L209">			return check;</span>
+		}
+		//FIXME RICORDARSI DELL'AREA DI NOTIFICA QUANDO PASSEREMO ALL'ULTIMO LAYER... se Ã¨ possibile mettere un'indicazione della pagina copiata
+<span class="nc" id="L212">		this.setCopyingPageCode(selectedNode);</span>
+<span class="nc" id="L213">		return SUCCESS;</span>
+	}
+
+	protected String checkSelectedNode(String selectedNode) {
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">		if (StringUtils.isBlank(selectedNode)) {</span>
+<span class="nc" id="L218">			_logger.info(&quot;no page to copy selected!&quot;);</span>
+<span class="nc" id="L219">			this.addActionError(this.getText(&quot;error.page.noSelection&quot;));</span>
+<span class="nc" id="L220">			return &quot;pageTree&quot;;</span>
+		}
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">		if (AbstractPortalAction.VIRTUAL_ROOT_CODE.equals(selectedNode)) {</span>
+<span class="nc" id="L223">			_logger.info(&quot;trying to copy root page..&quot;);</span>
+<span class="nc" id="L224">			this.addActionError(this.getText(&quot;error.page.virtualRootSelected&quot;));</span>
+<span class="nc" id="L225">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc" id="L227">		IPage selectedPage = this.getPageManager().getDraftPage(selectedNode);</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">		if (null == selectedPage) {</span>
+<span class="nc" id="L229">			_logger.info(&quot;elected page is null!&quot;);</span>
+<span class="nc" id="L230">			this.addActionError(this.getText(&quot;error.page.selectedPage.null&quot;));</span>
+<span class="nc" id="L231">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc bfc" id="L233" title="All 2 branches covered.">		if (!this.isUserAllowed(selectedPage)) {</span>
+<span class="fc" id="L234">			_logger.info(&quot;user {} has no permission to copy this page!&quot;, this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L235">			this.addActionError(this.getText(&quot;error.page.userNotAllowed&quot;));</span>
+<span class="fc" id="L236">			return &quot;pageTree&quot;;</span>
+		}
+<span class="fc" id="L238">		return null;</span>
+	}
+
+	/**
+	 * Check if the current user can access the specified page.
+	 *
+	 * @param page The page to check against the current user.
+	 * @return True if the user has can access the given page, false otherwise.
+	 */
+	protected boolean isUserAllowed(IPage page) {
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">		if (page == null) {</span>
+<span class="nc" id="L249">			return false;</span>
+		}
+<span class="fc" id="L251">		String pageGroup = page.getGroup();</span>
+<span class="fc" id="L252">		Collection&lt;String&gt; codes = this.getNodeGroupCodes();</span>
+<span class="fc" id="L253">		return codes.contains(pageGroup);</span>
+	}
+
+	/**
+	 * Return the page given its code.
+	 *
+	 * @param pageCode The code of the requested page.
+	 * @return The page associated to the given code, null if the code is
+	 * unknown.
+	 */
+	public IPage getPage(String pageCode) {
+<span class="fc" id="L264">		return this.getPageManager().getDraftPage(pageCode);</span>
+	}
+
+	@Deprecated
+	public IPage getRoot() {
+<span class="nc" id="L269">		return this.getPageManager().getDraftRoot();</span>
+	}
+
+	@Deprecated
+	public ITreeNode getTreeRootNode() {
+<span class="nc" id="L274">		return this.getAllowedTreeRootNode();</span>
+	}
+
+	public String getSelectedNode() {
+<span class="fc" id="L278">		return _selectedNode;</span>
+	}
+
+	public void setSelectedNode(String selectedNode) {
+<span class="fc" id="L282">		this._selectedNode = selectedNode;</span>
+<span class="fc" id="L283">	}</span>
+
+	public String getCopyingPageCode() {
+<span class="nc" id="L286">		return _copyingPageCode;</span>
+	}
+
+	public void setCopyingPageCode(String copyingPageCode) {
+<span class="nc" id="L290">		this._copyingPageCode = copyingPageCode;</span>
+<span class="nc" id="L291">	}</span>
+
+	public Integer getFrame() {
+<span class="fc" id="L294">		return _frame;</span>
+	}
+
+	public void setFrame(Integer frame) {
+<span class="fc" id="L298">		this._frame = frame;</span>
+<span class="fc" id="L299">	}</span>
+
+	@Override
+	protected IPageActionHelper getTreeHelper() {
+<span class="fc" id="L303">		return (IPageActionHelper) super.getTreeHelper();</span>
+	}
+
+	protected IPageManager getPageManager() {
+<span class="fc" id="L307">		return _pageManager;</span>
+	}
+
+	public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L311">		this._pageManager = pageManager;</span>
+<span class="fc" id="L312">	}</span>
+
+	private String _selectedNode;
+
+	private String _copyingPageCode;
+
+	private Integer _frame;
+
+	private IPageManager _pageManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

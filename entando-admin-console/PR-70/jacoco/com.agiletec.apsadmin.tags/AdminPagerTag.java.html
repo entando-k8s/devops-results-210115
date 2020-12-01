@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminPagerTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.tags</a> &gt; <span class="el_source">AdminPagerTag.java</span></div><h1>AdminPagerTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.tags;
+
+import java.util.Collection;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.jsp.JspException;
+
+import org.apache.struts2.util.SubsetIteratorFilter;
+import org.apache.struts2.views.jsp.StrutsBodyTagSupport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.tags.util.IPagerVO;
+import com.agiletec.apsadmin.tags.util.AdminPagerTagHelper;
+import com.agiletec.apsadmin.tags.util.ComponentPagerVO;
+import com.opensymphony.xwork2.util.ValueStack;
+
+/**
+ * This tag is intend for the administration interface only.
+ * Takes an iterator and outputs a subset of it.
+ * @author E.Santoboni
+ */
+<span class="nc" id="L36">public class AdminPagerTag extends StrutsBodyTagSupport {</span>
+
+<span class="nc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AdminPagerTag.class);</span>
+	
+	@Override
+	public int doStartTag() throws JspException {
+<span class="nc" id="L42">		Object source = this.findValue(this.getSource());</span>
+<span class="nc" id="L43">		ServletRequest request =  this.pageContext.getRequest();</span>
+<span class="nc" id="L44">		ValueStack stack = this.getStack();</span>
+<span class="nc" id="L45">		ComponentPagerVO compPagerVo = new ComponentPagerVO(stack);</span>
+		try {
+<span class="nc" id="L47">			AdminPagerTagHelper helper = this.getPagerHelper();</span>
+<span class="nc" id="L48">			IPagerVO pagerVo = helper.getPagerVO((Collection)source, </span>
+<span class="nc" id="L49">					this.getPagerId(), this.getCount(), this.isAdvanced(), this.getOffset(), request);</span>
+<span class="nc" id="L50">			compPagerVo.initPager(pagerVo);</span>
+<span class="nc" id="L51">			stack.getContext().put(this.getObjectName(), compPagerVo);</span>
+<span class="nc" id="L52">			stack.setValue(&quot;#attr['&quot; + this.getObjectName() + &quot;']&quot;, compPagerVo, false);</span>
+<span class="nc" id="L53">		} catch (Throwable t) {</span>
+<span class="nc" id="L54">			_logger.error(&quot;Error creating the pager&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;doStartTag&quot;);
+<span class="nc" id="L56">			throw new JspException(&quot;Error creating the pager&quot;, t);</span>
+<span class="nc" id="L57">		}</span>
+<span class="nc" id="L58">		SubsetIteratorFilter subsetIteratorFilter = new SubsetIteratorFilter();</span>
+<span class="nc" id="L59">		subsetIteratorFilter.setCount(this.getCount());</span>
+<span class="nc" id="L60">		subsetIteratorFilter.setDecider(null);</span>
+<span class="nc" id="L61">		subsetIteratorFilter.setSource(source);</span>
+<span class="nc" id="L62">		subsetIteratorFilter.setStart(compPagerVo.getBegin());</span>
+<span class="nc" id="L63">		subsetIteratorFilter.execute();</span>
+<span class="nc" id="L64">		this.setSubsetIteratorFilter(subsetIteratorFilter);</span>
+<span class="nc" id="L65">		this.getStack().push(subsetIteratorFilter);</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">		if (getId() != null) {</span>
+<span class="nc" id="L67">			pageContext.setAttribute(getId(), subsetIteratorFilter);</span>
+		}
+<span class="nc" id="L69">		return EVAL_BODY_INCLUDE;</span>
+	}
+	
+	protected AdminPagerTagHelper getPagerHelper() {
+<span class="nc" id="L73">		return new AdminPagerTagHelper();</span>
+	}
+	
+	public String getPagerId() {
+<span class="nc" id="L77">		return _pagerId;</span>
+	}
+	public void setPagerId(String pagerId) {
+<span class="nc" id="L80">		this._pagerId = pagerId;</span>
+<span class="nc" id="L81">	}</span>
+	
+	@Override
+	public int doEndTag() throws JspException {
+<span class="nc" id="L85">		this.getStack().pop();</span>
+<span class="nc" id="L86">		this.setSubsetIteratorFilter(null);</span>
+<span class="nc" id="L87">		return EVAL_PAGE;</span>
+	}
+	
+	public int getCount() {
+<span class="nc" id="L91">		return _count;</span>
+	}
+	public void setCount(int count) {
+<span class="nc" id="L94">		this._count = count;</span>
+<span class="nc" id="L95">	}</span>
+	
+	public String getSource() {
+<span class="nc" id="L98">		return _source;</span>
+	}
+	public void setSource(String source) {
+<span class="nc" id="L101">		this._source = source;</span>
+<span class="nc" id="L102">	}</span>
+	
+	public SubsetIteratorFilter getSubsetIteratorFilter() {
+<span class="nc" id="L105">		return _subsetIteratorFilter;</span>
+	}
+	public void setSubsetIteratorFilter(SubsetIteratorFilter subsetIteratorFilter) {
+<span class="nc" id="L108">		this._subsetIteratorFilter = subsetIteratorFilter;</span>
+<span class="nc" id="L109">	}</span>
+	
+	protected String getObjectName() {
+<span class="nc" id="L112">		return _objectName;</span>
+	}
+	public void setObjectName(String objectName) {
+<span class="nc" id="L115">		this._objectName = objectName;</span>
+<span class="nc" id="L116">	}</span>
+
+	protected boolean isAdvanced() {
+<span class="nc" id="L119">		return _advanced;</span>
+	}
+	public void setAdvanced(boolean advanced) {
+<span class="nc" id="L122">		this._advanced = advanced;</span>
+<span class="nc" id="L123">	}</span>
+	
+	protected int getOffset() {
+<span class="nc" id="L126">		return _offset;</span>
+	}
+	public void setOffset(int offset) {
+<span class="nc" id="L129">		this._offset = offset;</span>
+<span class="nc" id="L130">	}</span>
+	
+	private String _pagerId;
+	
+	private int _count;
+	private String _source;
+
+<span class="nc" id="L137">	private SubsetIteratorFilter _subsetIteratorFilter = null;</span>
+
+	private String _objectName;
+
+	private int _offset;
+	private boolean _advanced;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
