@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagedMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.web.response</a> &gt; <span class="el_source">PagedMetadata.java</span></div><h1>PagedMetadata.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.web.response;
+
+import static java.util.Optional.ofNullable;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.Data;
+import org.entando.kubernetes.model.web.request.Filter;
+import org.entando.kubernetes.model.web.request.PagedListRequest;
+
+@Data
+public class PagedMetadata&lt;T&gt; {
+
+    private int page;
+    private int pageSize;
+    private int lastPage;
+    private long totalItems;
+    private String sort;
+    private String direction;
+    private Filter[] filters;
+
+    private Map&lt;String, String&gt; additionalParams;
+
+    @JsonIgnore
+    private long actualSize;
+
+    @JsonIgnore
+    private List&lt;T&gt; body;
+
+<span class="fc" id="L34">    public PagedMetadata() {</span>
+<span class="fc" id="L35">        this.filters = new Filter[0];</span>
+<span class="fc" id="L36">        this.additionalParams = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L37">    }</span>
+
+    /**
+     * Constructor to build PagedMetadata using a trimmed body.
+     *
+     * @param req        the page request
+     * @param body       the trimmed body list
+     * @param totalItems the full body size
+     */
+    public PagedMetadata(final PagedListRequest req, final List&lt;T&gt; body, final long totalItems) {
+<span class="fc" id="L47">        this(req, totalItems);</span>
+
+<span class="fc" id="L49">        this.body = body;</span>
+<span class="fc" id="L50">    }</span>
+
+    /**
+     * Constructor to build PagedMetadata by trimming the full body.
+     *
+     * @param req      the page request
+     * @param fullBody the full body list
+     */
+    public PagedMetadata(final PagedListRequest req, final List&lt;T&gt; fullBody) {
+<span class="nc" id="L59">        this(req, fullBody.size());</span>
+
+<span class="nc" id="L61">        int start = (req.getPage() - 1) * req.getPageSize();</span>
+<span class="nc" id="L62">        int end = start + req.getPageSize();</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        end = end &lt;= fullBody.size() ? end : fullBody.size();</span>
+<span class="nc" id="L64">        this.body = fullBody.subList(start, end);</span>
+<span class="nc" id="L65">    }</span>
+
+    public PagedMetadata(final PagedListRequest req, final long totalItems, List&lt;T&gt; body) {
+<span class="nc" id="L68">        this(req, totalItems);</span>
+<span class="nc" id="L69">        this.body = body;</span>
+<span class="nc" id="L70">    }</span>
+
+    public PagedMetadata(final PagedListRequest req, final long totalItems) {
+<span class="fc" id="L73">        this();</span>
+
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        this.actualSize = req.getPageSize() == 0 ? totalItems : req.getPageSize();</span>
+<span class="fc" id="L76">        this.page = req.getPage();</span>
+<span class="fc" id="L77">        this.pageSize = req.getPageSize();</span>
+<span class="fc" id="L78">        this.lastPage = (int) Math.ceil((double) totalItems / (double) this.actualSize);</span>
+<span class="fc" id="L79">        this.totalItems = totalItems;</span>
+
+<span class="fc" id="L81">        ofNullable(req.getSort()).ifPresent(this::setSort);</span>
+<span class="fc" id="L82">        ofNullable(req.getDirection()).ifPresent(this::setDirection);</span>
+<span class="fc" id="L83">        ofNullable(req.getFilters()).ifPresent(this::setFilters);</span>
+<span class="fc" id="L84">    }</span>
+
+    public PagedMetadata(final int page, final int size, final int last, final int totalItems) {
+<span class="nc" id="L87">        this();</span>
+
+<span class="nc" id="L89">        this.page = page;</span>
+<span class="nc" id="L90">        this.pageSize = size;</span>
+<span class="nc" id="L91">        this.lastPage = last;</span>
+<span class="nc" id="L92">        this.totalItems = totalItems;</span>
+<span class="nc" id="L93">    }</span>
+
+    public &lt;Y&gt; PagedMetadata&lt;Y&gt; map(final Function&lt;T, Y&gt; mapper) {
+<span class="nc" id="L96">        final PagedMetadata&lt;Y&gt; newPaged = new PagedMetadata&lt;&gt;();</span>
+<span class="nc" id="L97">        newPaged.page = this.page;</span>
+<span class="nc" id="L98">        newPaged.pageSize = this.pageSize;</span>
+<span class="nc" id="L99">        newPaged.lastPage = this.lastPage;</span>
+<span class="nc" id="L100">        newPaged.totalItems = this.totalItems;</span>
+<span class="nc" id="L101">        newPaged.sort = this.sort;</span>
+<span class="nc" id="L102">        newPaged.direction = this.direction;</span>
+<span class="nc" id="L103">        newPaged.filters = this.filters;</span>
+<span class="nc" id="L104">        newPaged.additionalParams = this.additionalParams;</span>
+<span class="nc" id="L105">        newPaged.actualSize = this.actualSize;</span>
+<span class="nc" id="L106">        newPaged.body = body.stream().map(mapper).collect(Collectors.toList());</span>
+<span class="nc" id="L107">        return newPaged;</span>
+    }
+
+    public PagedRestResponse&lt;T&gt; toRestResponse() {
+<span class="nc" id="L111">        return new PagedRestResponse&lt;&gt;(this);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
