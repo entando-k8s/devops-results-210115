@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeycloakAuthorizationManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">entando-keycloak-auth</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.keycloak.services</a> &gt; <span class="el_source">KeycloakAuthorizationManager.java</span></div><h1>KeycloakAuthorizationManager.java</h1><pre class="source lang-java linenums">package org.entando.entando.keycloak.services;
+
+import com.agiletec.aps.system.services.authorization.Authorization;
+import com.agiletec.aps.system.services.authorization.AuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.GroupManager;
+import com.agiletec.aps.system.services.role.Role;
+import com.agiletec.aps.system.services.role.RoleManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
+
+import org.entando.entando.ent.exception.EntException;
+
+@Service
+public class KeycloakAuthorizationManager {
+
+    private final KeycloakConfiguration configuration;
+    private final AuthorizationManager authorizationManager;
+    private final GroupManager groupManager;
+    private final RoleManager roleManager;
+
+    private static final int GROUP_POSITION = 0;
+    private static final int ROLE_POSITION = 1;
+
+    @Autowired
+    public KeycloakAuthorizationManager(final KeycloakConfiguration configuration,
+                                        final AuthorizationManager authorizationManager,
+                                        final GroupManager groupManager,
+<span class="fc" id="L37">                                        final RoleManager roleManager) {</span>
+<span class="fc" id="L38">        this.configuration = configuration;</span>
+<span class="fc" id="L39">        this.authorizationManager = authorizationManager;</span>
+<span class="fc" id="L40">        this.groupManager = groupManager;</span>
+<span class="fc" id="L41">        this.roleManager = roleManager;</span>
+<span class="fc" id="L42">    }</span>
+
+    public void processNewUser(final UserDetails user) {
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(configuration.getDefaultAuthorizations())) {</span>
+<span class="nc" id="L46">            return;</span>
+        }
+<span class="fc" id="L48">        final Set&lt;String&gt; defaultAuthorizations = Sets.newHashSet(configuration.getDefaultAuthorizations().split(&quot;,&quot;));</span>
+<span class="fc" id="L49">        final Set&lt;String&gt; userAuthorizations = user.getAuthorizations().stream().map(authorization -&gt; {</span>
+<span class="fc" id="L50">            final String group = ofNullable(authorization.getGroup()).map(Group::getName).orElse(&quot;&quot;);</span>
+<span class="fc" id="L51">            final String role = ofNullable(authorization.getRole()).map(Role::getName).orElse(&quot;&quot;);</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">            return StringUtils.isEmpty(role) ? group : group + &quot;:&quot; + role;</span>
+<span class="fc" id="L53">        }).collect(Collectors.toSet());</span>
+
+<span class="fc" id="L55">        defaultAuthorizations.stream()</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">                .filter(defaultGroup -&gt; !userAuthorizations.contains(defaultGroup))</span>
+<span class="fc" id="L57">                .forEach(authorization -&gt; this.assignGroupToUser(authorization, user));</span>
+<span class="fc" id="L58">    }</span>
+
+    private void assignGroupToUser(final String authorization, final UserDetails user) {
+<span class="fc" id="L61">        final String[] split = authorization.split(&quot;:&quot;);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        String groupName = split.length &gt; 0 ? split[GROUP_POSITION] : &quot;&quot;;</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        String roleName = split.length &gt; 1 ? split[ROLE_POSITION] : &quot;&quot;;</span>
+        try {
+<span class="fc" id="L65">            final Group group = ofNullable(groupName).filter(StringUtils::isNotEmpty)</span>
+<span class="fc" id="L66">                    .map(this::findOrCreateGroup).orElse(null);</span>
+<span class="fc" id="L67">            final Role role = ofNullable(roleName).filter(StringUtils::isNotEmpty)</span>
+<span class="fc" id="L68">                    .map(this::findOrCreateRole).orElse(null);</span>
+<span class="fc" id="L69">            groupName = ofNullable(group).map(Group::getName).orElse(null); // null or &quot;&quot; ?</span>
+<span class="fc" id="L70">            roleName = ofNullable(role).map(Role::getName).orElse(null); // null or &quot;&quot; ?</span>
+<span class="fc" id="L71">            authorizationManager.addUserAuthorization(user.getUsername(), groupName, roleName);</span>
+<span class="fc" id="L72">            user.addAuthorization(new Authorization(group, role));</span>
+<span class="nc" id="L73">        } catch (EntException e) {</span>
+<span class="nc" id="L74">            throw new RuntimeException(e);</span>
+<span class="fc" id="L75">        }</span>
+<span class="fc" id="L76">    }</span>
+
+    private Group findOrCreateGroup(final String groupName) {
+        try {
+<span class="fc" id="L80">            Group group = groupManager.getGroup(groupName);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            if (group == null) {</span>
+<span class="fc" id="L82">                group = new Group();</span>
+<span class="fc" id="L83">                group.setName(groupName);</span>
+<span class="fc" id="L84">                group.setDescription(groupName);</span>
+<span class="fc" id="L85">                groupManager.addGroup(group);</span>
+            }
+<span class="fc" id="L87">            return group;</span>
+<span class="nc" id="L88">        } catch (EntException e) {</span>
+<span class="nc" id="L89">            throw new RuntimeException(e);</span>
+        }
+    }
+
+    private Role findOrCreateRole(final String roleName) {
+        try {
+<span class="fc" id="L95">            Role role = roleManager.getRole(roleName);</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">            if (role == null) {</span>
+<span class="fc" id="L97">                role = new Role();</span>
+<span class="fc" id="L98">                role.setName(roleName);</span>
+<span class="fc" id="L99">                role.setDescription(roleName);</span>
+<span class="fc" id="L100">                roleManager.addRole(role);</span>
+            }
+<span class="fc" id="L102">            return role;</span>
+<span class="nc" id="L103">        } catch (EntException e) {</span>
+<span class="nc" id="L104">            throw new RuntimeException(e);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

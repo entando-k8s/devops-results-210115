@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OpenIDConnectService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">entando-keycloak-auth</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.keycloak.services.oidc</a> &gt; <span class="el_source">OpenIDConnectService.java</span></div><h1>OpenIDConnectService.java</h1><pre class="source lang-java linenums">package org.entando.entando.keycloak.services.oidc;
+
+import org.entando.entando.KeycloakWiki;
+import org.entando.entando.keycloak.services.KeycloakConfiguration;
+import org.entando.entando.keycloak.services.oidc.exception.AccountDisabledException;
+import org.entando.entando.keycloak.services.oidc.exception.CredentialsExpiredException;
+import org.entando.entando.keycloak.services.oidc.exception.InvalidCredentialsException;
+import org.entando.entando.keycloak.services.oidc.exception.OidcException;
+import org.entando.entando.keycloak.services.oidc.model.AccessToken;
+import org.entando.entando.keycloak.services.oidc.model.AuthResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.Base64;
+
+import static org.entando.entando.KeycloakWiki.wiki;
+
+@Service(&quot;oidcService&quot;)
+public class OpenIDConnectService {
+
+<span class="fc" id="L34">    private static final Logger log = LoggerFactory.getLogger(OpenIDConnectService.class);</span>
+
+    private final KeycloakConfiguration configuration;
+    private final String authToken;
+
+    @Autowired
+<span class="nc" id="L40">    public OpenIDConnectService(final KeycloakConfiguration configuration) {</span>
+<span class="nc" id="L41">        this.configuration = configuration;</span>
+
+<span class="nc" id="L43">        final String authData = configuration.getClientId() + &quot;:&quot; + configuration.getClientSecret();</span>
+<span class="nc" id="L44">        authToken = Base64.getEncoder().encodeToString(authData.getBytes());</span>
+<span class="nc" id="L45">    }</span>
+
+    public AuthResponse login(final String username, final String password) throws OidcException {
+        try {
+<span class="nc" id="L49">            final ResponseEntity&lt;AuthResponse&gt; response = request(username, password);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">            return HttpStatus.OK.equals(response.getStatusCode()) ? response.getBody() : null;</span>
+<span class="nc" id="L51">        } catch (HttpClientErrorException e) {</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode())) {</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">                if (e.getResponseBodyAsString().contains(&quot;Account is not fully set up&quot;)) {</span>
+<span class="nc" id="L54">                    throw new CredentialsExpiredException(e);</span>
+                }
+<span class="nc bnc" id="L56" title="All 2 branches missed.">                if (e.getResponseBodyAsString().contains(&quot;Account disabled&quot;)) {</span>
+<span class="nc" id="L57">                    throw new AccountDisabledException(e);</span>
+                }
+<span class="nc" id="L59">                log.error(&quot;There was an error while trying to authenticate, &quot; +</span>
+                        &quot;this might indicate a misconfiguration on Keycloak {}&quot;,
+<span class="nc" id="L61">                        e.getResponseBodyAsString(), e);</span>
+            }
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if (HttpStatus.UNAUTHORIZED.equals(e.getStatusCode())) {</span>
+<span class="nc" id="L64">                throw new InvalidCredentialsException(e);</span>
+            }
+<span class="nc" id="L66">            throw new OidcException(e);</span>
+        }
+    }
+
+    public AuthResponse authenticateAPI() throws OidcException {
+        try {
+<span class="nc" id="L72">            final ResponseEntity&lt;AuthResponse&gt; response = requestClient();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            return HttpStatus.OK.equals(response.getStatusCode()) ? response.getBody() : null;</span>
+<span class="nc" id="L74">        } catch (HttpClientErrorException e) {</span>
+<span class="nc bnc" id="L75" title="All 4 branches missed.">            if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode()) &amp;&amp; e.getResponseBodyAsString().contains(&quot;unauthorized_client&quot;)) {</span>
+<span class="nc" id="L76">                log.error(&quot;Unable to validate token because the Client credentials are invalid. &quot; +</span>
+                          &quot;Please make sure the credentials from keycloak is correctly set in the params or environment variable.&quot; +
+<span class="nc" id="L78">                          &quot;For more details, refer to the wiki &quot; + wiki(KeycloakWiki.EN_APP_CLIENT_CREDENTIALS), e);</span>
+<span class="nc" id="L79">                throw new InvalidCredentialsException(e);</span>
+            }
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (HttpStatus.UNAUTHORIZED.equals(e.getStatusCode())) {</span>
+<span class="nc" id="L82">                log.error(&quot;There was an error while trying to load user because the &quot; +</span>
+                        &quot;client on Keycloak doesn't have permission to do that. &quot; +
+                        &quot;The client needs to have Service Accounts enabled and the permission 'realm-admin' on client 'realm-management'. &quot; +
+<span class="nc" id="L85">                        &quot;For more details, refer to the wiki &quot; + wiki(KeycloakWiki.EN_APP_CLIENT_FORBIDDEN), e);</span>
+<span class="nc" id="L86">                throw new OidcException(e);</span>
+            }
+<span class="nc" id="L88">            log.error(&quot;There was an error while trying to authenticate, &quot; +</span>
+                            &quot;this might indicate a misconfiguration on Keycloak {}&quot;,
+<span class="nc" id="L90">                    e.getResponseBodyAsString(), e);</span>
+<span class="nc" id="L91">            throw new OidcException(e);</span>
+        }
+    }
+
+    public String getRedirectUrl(final String redirectUri, final String state) throws UnsupportedEncodingException {
+<span class="nc" id="L96">        return new StringBuilder(configuration.getAuthUrl())</span>
+<span class="nc" id="L97">                .append(&quot;/realms/&quot;).append(configuration.getRealm())</span>
+<span class="nc" id="L98">                .append(&quot;/protocol/openid-connect/auth&quot;)</span>
+<span class="nc" id="L99">                .append(&quot;?response_type=code&quot;)</span>
+<span class="nc" id="L100">                .append(&quot;&amp;client_id=&quot;).append(configuration.getClientId())</span>
+<span class="nc" id="L101">                .append(&quot;&amp;redirect_uri=&quot;).append(URLEncoder.encode(redirectUri, &quot;UTF-8&quot;))</span>
+<span class="nc" id="L102">                .append(&quot;&amp;state=&quot;).append(state)</span>
+<span class="nc" id="L103">                .append(&quot;&amp;login=true&quot;)</span>
+<span class="nc" id="L104">                .append(&quot;&amp;scope=openid&quot;)</span>
+<span class="nc" id="L105">                .toString();</span>
+    }
+
+    private ResponseEntity&lt;AuthResponse&gt; request(final String username, final String password) {
+<span class="nc" id="L109">        final RestTemplate restTemplate = new RestTemplate();</span>
+<span class="nc" id="L110">        final HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; req = createLoginRequest(username, password);</span>
+<span class="nc" id="L111">        final String url = String.format(&quot;%s/realms/%s/protocol/openid-connect/token&quot;, configuration.getAuthUrl(), configuration.getRealm());</span>
+<span class="nc" id="L112">        return restTemplate.postForEntity(url, req, AuthResponse.class);</span>
+    }
+
+    private ResponseEntity&lt;AuthResponse&gt; requestClient() {
+<span class="nc" id="L116">        final RestTemplate restTemplate = new RestTemplate();</span>
+<span class="nc" id="L117">        final HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; req = createApiAuthenticationRequest();</span>
+<span class="nc" id="L118">        final String url = String.format(&quot;%s/realms/%s/protocol/openid-connect/token&quot;, configuration.getAuthUrl(), configuration.getRealm());</span>
+<span class="nc" id="L119">        return restTemplate.postForEntity(url, req, AuthResponse.class);</span>
+    }
+
+    private HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; createLoginRequest(final String username, final String password) {
+<span class="nc" id="L123">        final MultiValueMap&lt;String, String&gt; body = new LinkedMultiValueMap&lt;&gt;();</span>
+<span class="nc" id="L124">        body.add(&quot;username&quot;, username);</span>
+<span class="nc" id="L125">        body.add(&quot;password&quot;, password);</span>
+<span class="nc" id="L126">        body.add(&quot;grant_type&quot;, &quot;password&quot;);</span>
+
+<span class="nc" id="L128">        final HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L129">        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);</span>
+<span class="nc" id="L130">        headers.add(&quot;Authorization&quot;, &quot;Basic &quot; + authToken);</span>
+<span class="nc" id="L131">        return new HttpEntity&lt;&gt;(body, headers);</span>
+    }
+
+    private HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; createRefreshTokenRequest(final String refreshToken) {
+<span class="nc" id="L135">        final MultiValueMap&lt;String, String&gt; body = new LinkedMultiValueMap&lt;&gt;();</span>
+<span class="nc" id="L136">        body.add(&quot;grant_type&quot;, &quot;refresh_token&quot;);</span>
+<span class="nc" id="L137">        body.add(&quot;refresh_token&quot;, refreshToken);</span>
+
+<span class="nc" id="L139">        final HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L140">        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);</span>
+<span class="nc" id="L141">        headers.add(&quot;Authorization&quot;, &quot;Basic &quot; + authToken);</span>
+<span class="nc" id="L142">        return new HttpEntity&lt;&gt;(body, headers);</span>
+    }
+
+    private HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; createApiAuthenticationRequest() {
+<span class="nc" id="L146">        final MultiValueMap&lt;String, String&gt; body = new LinkedMultiValueMap&lt;&gt;();</span>
+<span class="nc" id="L147">        body.add(&quot;grant_type&quot;, &quot;client_credentials&quot;);</span>
+
+<span class="nc" id="L149">        final HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L150">        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);</span>
+<span class="nc" id="L151">        headers.add(&quot;Authorization&quot;, &quot;Basic &quot; + authToken);</span>
+<span class="nc" id="L152">        return new HttpEntity&lt;&gt;(body, headers);</span>
+    }
+
+    public ResponseEntity&lt;AccessToken&gt; validateToken(final String bearerToken) {
+<span class="nc" id="L156">        final RestTemplate restTemplate = new RestTemplate();</span>
+<span class="nc" id="L157">        final HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; req = createValidationRequest(bearerToken);</span>
+<span class="nc" id="L158">        final String url = String.format(&quot;%s/realms/%s/protocol/openid-connect/token/introspect&quot;, configuration.getAuthUrl(), configuration.getRealm());</span>
+<span class="nc" id="L159">        return restTemplate.postForEntity(url, req, AccessToken.class);</span>
+    }
+
+    public ResponseEntity&lt;AuthResponse&gt; refreshToken(final String refreshToken) {
+<span class="nc" id="L163">        final RestTemplate restTemplate = new RestTemplate();</span>
+<span class="nc" id="L164">        final HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; req = createRefreshTokenRequest(refreshToken);</span>
+<span class="nc" id="L165">        final String url = String.format(&quot;%s/realms/%s/protocol/openid-connect/token&quot;, configuration.getAuthUrl(), configuration.getRealm());</span>
+<span class="nc" id="L166">        return restTemplate.postForEntity(url, req, AuthResponse.class);</span>
+    }
+
+    public ResponseEntity&lt;AuthResponse&gt; requestToken(final String code, final String redirectUri) {
+<span class="nc" id="L170">        final RestTemplate restTemplate = new RestTemplate();</span>
+<span class="nc" id="L171">        final HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; req = createAuthorizationCodeRequest(code, redirectUri);</span>
+<span class="nc" id="L172">        final String url = String.format(&quot;%s/realms/%s/protocol/openid-connect/token&quot;, configuration.getAuthUrl(), configuration.getRealm());</span>
+<span class="nc" id="L173">        return restTemplate.postForEntity(url, req, AuthResponse.class);</span>
+    }
+
+    private HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; createAuthorizationCodeRequest(final String code, final String redirectUri) {
+<span class="nc" id="L177">        final MultiValueMap&lt;String, String&gt; body = new LinkedMultiValueMap&lt;&gt;();</span>
+<span class="nc" id="L178">        body.add(&quot;code&quot;, code);</span>
+<span class="nc" id="L179">        body.add(&quot;redirect_uri&quot;, redirectUri);</span>
+<span class="nc" id="L180">        body.add(&quot;grant_type&quot;, &quot;authorization_code&quot;);</span>
+
+<span class="nc" id="L182">        final HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L183">        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);</span>
+<span class="nc" id="L184">        headers.add(&quot;Authorization&quot;, &quot;Basic &quot; + authToken);</span>
+<span class="nc" id="L185">        return new HttpEntity&lt;&gt;(body, headers);</span>
+    }
+
+    private HttpEntity&lt;MultiValueMap&lt;String, String&gt;&gt; createValidationRequest(final String bearerToken) {
+<span class="nc" id="L189">        final MultiValueMap&lt;String, String&gt; body = new LinkedMultiValueMap&lt;&gt;();</span>
+<span class="nc" id="L190">        body.add(&quot;token&quot;, bearerToken);</span>
+<span class="nc" id="L191">        body.add(&quot;client_id&quot;, configuration.getClientId());</span>
+<span class="nc" id="L192">        body.add(&quot;client_secret&quot;, configuration.getClientSecret());</span>
+
+<span class="nc" id="L194">        final HttpHeaders headers = new HttpHeaders();</span>
+<span class="nc" id="L195">        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);</span>
+<span class="nc" id="L196">        return new HttpEntity&lt;&gt;(body, headers);</span>
+    }
+
+    public String getLogoutUrl(final String redirectUri) throws UnsupportedEncodingException {
+<span class="nc" id="L200">        return new StringBuilder(configuration.getAuthUrl())</span>
+<span class="nc" id="L201">                .append(&quot;/realms/&quot;).append(configuration.getRealm())</span>
+<span class="nc" id="L202">                .append(&quot;/protocol/openid-connect/logout&quot;)</span>
+<span class="nc" id="L203">                .append(&quot;?redirect_uri=&quot;).append(URLEncoder.encode(redirectUri, &quot;UTF-8&quot;))</span>
+<span class="nc" id="L204">                .toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
