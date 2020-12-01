@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageActionAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.apsadmin.portal</a> &gt; <span class="el_source">PageActionAspect.java</span></div><h1>PageActionAspect.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.apsadmin.portal;
+
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.portal.PageAction;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.opensymphony.xwork2.Action;
+
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.struts2.ServletActionContext;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.FriendlyCodeVO;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ISeoMappingManager;
+import org.entando.entando.plugins.jpseo.aps.system.services.metatag.Metatag;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.PageMetatag;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageExtraConfigDOM;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageMetadata;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+@Aspect
+<span class="fc" id="L57">public class PageActionAspect {</span>
+
+<span class="fc" id="L59">    private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(PageActionAspect.class);</span>
+
+    public static final String PARAM_FRIENDLY_CODE = &quot;friendlyCode&quot;;
+    public static final String PARAM_METATAGS = &quot;pageMetatags&quot;;
+    public static final String PARAM_METATAG_ATTRIBUTE_NAMES = &quot;pageMetatagAttributeName&quot;;
+    public static final String PARAM_DESCRIPTION_PREFIX = &quot;description_lang_&quot;;
+    public static final String PARAM_DESCRIPTION_USE_DEFAULT_PREFIX = &quot;description_useDefaultLang_&quot;;
+    public static final String PARAM_KEYWORDS_PREFIX = &quot;keywords_lang_&quot;;
+    public static final String PARAM_KEYWORDS_USE_DEFAULT_PREFIX = &quot;keywords_useDefaultLang_&quot;;
+    public static final String PARAM_USE_EXTRA_DESCRIPTIONS = &quot;useExtraDescriptions&quot;;
+
+    private ILangManager langManager;
+    private ISeoMappingManager seoMappingManager;
+    private IPageManager pageManager;
+    
+    @Before(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.validate())&quot;)
+    public void executeExtraValidationParent(JoinPoint joinPoint) {
+<span class="fc" id="L76">        this.executeExtraValidation(joinPoint);</span>
+<span class="fc" id="L77">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.plugins.jacms.apsadmin.portal.PageAction.validate())&quot;)
+    public void executeExtraValidation(JoinPoint joinPoint) {
+<span class="fc" id="L81">        PageAction action = (PageAction) joinPoint.getTarget();</span>
+<span class="fc" id="L82">        this.checkFriendlyCode(action);</span>
+<span class="fc" id="L83">        this.extractAndSetSeoFields();</span>
+<span class="fc" id="L84">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.joinExtraGroup())&quot;)
+    public void executeExtraJoinExtraGroup(JoinPoint joinPoint) {
+<span class="fc" id="L88">        this.extractAndSetSeoFields();</span>
+<span class="fc" id="L89">    }</span>
+
+    @Before(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.removeExtraGroup())&quot;)
+    public void executeExtraRemoveExtraGroup(JoinPoint joinPoint) {
+<span class="fc" id="L93">        this.extractAndSetSeoFields();</span>
+<span class="fc" id="L94">    }</span>
+
+    @After(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.edit())&quot;)
+    public void executeExtraValueFormForEdit(JoinPoint joinPoint) {
+<span class="fc" id="L98">        HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="fc" id="L99">        PageAction action = (PageAction) joinPoint.getTarget();</span>
+<span class="fc" id="L100">        String pageCode = action.getSelectedNode();</span>
+<span class="fc" id="L101">        IPage page = action.getPage(pageCode);</span>
+<span class="pc bpc" id="L102" title="2 of 4 branches missed.">        if (null != page &amp;&amp; page.getMetadata() instanceof SeoPageMetadata) {</span>
+<span class="fc" id="L103">            SeoPageMetadata pageMetadata = (SeoPageMetadata) page.getMetadata();</span>
+<span class="fc" id="L104">            request.setAttribute(PARAM_FRIENDLY_CODE, pageMetadata.getFriendlyCode());</span>
+<span class="fc" id="L105">            request.setAttribute(PARAM_USE_EXTRA_DESCRIPTIONS, pageMetadata.isUseExtraDescriptions());</span>
+<span class="fc" id="L106">            ApsProperties props = pageMetadata.getDescriptions();</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">            if (null != props) {</span>
+<span class="fc" id="L108">                Iterator&lt;Object&gt; iter = props.keySet().iterator();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">                while (iter.hasNext()) {</span>
+<span class="fc" id="L110">                    String key = (String) iter.next();</span>
+<span class="fc" id="L111">                    PageMetatag metatag = (PageMetatag) props.get(key);</span>
+<span class="fc" id="L112">                    request.setAttribute(PARAM_DESCRIPTION_PREFIX + key, metatag.getValue());</span>
+<span class="fc" id="L113">                    request.setAttribute(PARAM_DESCRIPTION_USE_DEFAULT_PREFIX + key, metatag.isUseDefaultLangValue());</span>
+<span class="fc" id="L114">                }</span>
+            }
+<span class="fc" id="L116">            ApsProperties keywords = pageMetadata.getKeywords();</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">            if (null != keywords) {</span>
+<span class="fc" id="L118">                Iterator&lt;Object&gt; iter = keywords.keySet().iterator();</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                while (iter.hasNext()) {</span>
+<span class="fc" id="L120">                    String key = (String) iter.next();</span>
+<span class="fc" id="L121">                    PageMetatag metatag = (PageMetatag) keywords.get(key);</span>
+<span class="fc" id="L122">                    request.setAttribute(PARAM_KEYWORDS_PREFIX + key, metatag.getValue());</span>
+<span class="fc" id="L123">                    request.setAttribute(PARAM_KEYWORDS_USE_DEFAULT_PREFIX + key, metatag.isUseDefaultLangValue());</span>
+<span class="fc" id="L124">                }</span>
+            }
+<span class="fc" id="L126">            Map&lt;String, Map&lt;String, PageMetatag&gt;&gt; seoParameters = pageMetadata.getComplexParameters();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">            if (null != seoParameters) {</span>
+<span class="fc" id="L128">                Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="fc" id="L129">                Map&lt;String, Map&lt;String, PageMetatag&gt;&gt; metas = SeoPageExtraConfigDOM.extractRightParams(seoParameters, defaultLang);</span>
+<span class="fc" id="L130">                request.setAttribute(PARAM_METATAGS, metas);</span>
+            }
+<span class="fc" id="L132">            request.setAttribute(PARAM_METATAG_ATTRIBUTE_NAMES, Metatag.getAttributeNames());</span>
+        }
+<span class="fc" id="L134">    }</span>
+    
+    private void extractAndSetSeoFields() {
+<span class="fc" id="L137">        HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="fc" id="L138">        SeoPageActionUtils.extractAndSetDescriptionAndKeywords(request);</span>
+<span class="fc" id="L139">        SeoPageActionUtils.extractAndSetFriendlyCode(request);</span>
+<span class="fc" id="L140">        SeoPageActionUtils.extractAndSetSeoParameters(request);</span>
+<span class="fc" id="L141">        String param = request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS);</span>
+<span class="fc" id="L142">        request.setAttribute(PARAM_USE_EXTRA_DESCRIPTIONS, param);</span>
+<span class="fc" id="L143">    }</span>
+
+    private void checkFriendlyCode(PageAction action) {
+<span class="fc" id="L146">        HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="fc" id="L147">        String code = request.getParameter(PARAM_FRIENDLY_CODE);</span>
+<span class="pc bpc" id="L148" title="1 of 4 branches missed.">        if (null != code &amp;&amp; code.trim().length() &gt; 100) {</span>
+<span class="nc" id="L149">            String[] args = {&quot;100&quot;};</span>
+<span class="nc" id="L150">            action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.friendlyCode.stringlength&quot;, args));</span>
+        }
+<span class="fc bfc" id="L152" title="All 4 branches covered.">        if (null != code &amp;&amp; code.trim().length() &gt; 0) {</span>
+<span class="fc" id="L153">            Pattern pattern = Pattern.compile(&quot;([a-z0-9_])+&quot;);</span>
+<span class="fc" id="L154">            Matcher matcher = pattern.matcher(code);</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">            if (!matcher.matches()) {</span>
+<span class="nc" id="L156">                action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.friendlyCode.wrongCharacters&quot;));</span>
+            }
+        }
+<span class="fc bfc" id="L159" title="All 4 branches covered.">        if (null != code &amp;&amp; code.trim().length() &gt; 0) {</span>
+<span class="fc" id="L160">            FriendlyCodeVO vo = this.getSeoMappingManager().getReference(code);</span>
+<span class="pc bpc" id="L161" title="2 of 6 branches missed.">            if (null != vo &amp;&amp; (vo.getPageCode() == null || !vo.getPageCode().equals(action.getPageCode()))) {</span>
+<span class="fc" id="L162">                action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.page.duplicateFriendlyCode&quot;, new String[]{code}));</span>
+            } else {
+<span class="fc" id="L164">                String pageCode = action.getPageCode();</span>
+<span class="fc" id="L165">                String draftPageReference = this.seoMappingManager.getDraftPageReference(code);</span>
+<span class="pc bpc" id="L166" title="1 of 4 branches missed.">                if (null != draftPageReference &amp;&amp; !pageCode.equals(draftPageReference)) {</span>
+<span class="fc" id="L167">                    action.addFieldError(PARAM_FRIENDLY_CODE, action.getText(&quot;jpseo.error.page.duplicateFriendlyCode&quot;, new String[]{code}));</span>
+                }
+            }
+        }
+<span class="fc" id="L171">        request.setAttribute(PARAM_FRIENDLY_CODE, code);</span>
+<span class="fc" id="L172">    }</span>
+
+    @Around(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.saveAndConfigure())&quot;)
+    public Object executeUpdateAfterSaveAndConfigure(ProceedingJoinPoint joinPoint) {
+<span class="nc" id="L176">        return this.executeUpdateAfterSave(joinPoint);</span>
+    }
+
+    @Around(&quot;execution(* com.agiletec.apsadmin.portal.PageAction.save())&quot;)
+    public Object executeUpdateAfterSave(ProceedingJoinPoint joinPoint) {
+<span class="fc" id="L181">        Object result = null;</span>
+<span class="fc" id="L182">        HttpServletRequest request = ServletActionContext.getRequest();</span>
+        try {
+<span class="fc" id="L184">            result = joinPoint.proceed();</span>
+<span class="nc" id="L185">        } catch (Throwable t) {</span>
+<span class="nc" id="L186">            _logger.error(&quot;error saving page for seo&quot;, t);</span>
+<span class="fc" id="L187">        }</span>
+        try {
+            //se il salvataggio va a buon fine, aggiorna l'oggetto
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">            if (null != result &amp;&amp; result instanceof String) {</span>
+<span class="fc" id="L191">                String resultStr = (String) result;</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                if (resultStr.equalsIgnoreCase(Action.SUCCESS)) {</span>
+<span class="fc" id="L193">                    PageAction action = (PageAction) joinPoint.getTarget();</span>
+<span class="fc" id="L194">                    IPage seoPage = this.buildPageMetadataForUpdate(request, action);</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">                    if (null != seoPage) {</span>
+<span class="fc" id="L196">                        this.getPageManager().updatePage(seoPage);</span>
+                    }
+                }
+            }
+<span class="nc" id="L200">        } catch (Throwable t) {</span>
+<span class="nc" id="L201">            _logger.error(&quot;error updating page for seo&quot;, t);</span>
+<span class="nc" id="L202">            return BaseAction.FAILURE;</span>
+<span class="fc" id="L203">        }</span>
+<span class="fc" id="L204">        return result;</span>
+    }
+
+    protected IPage buildPageMetadataForUpdate(HttpServletRequest request, PageAction action) {
+<span class="fc" id="L208">        IPage seoPage = null;</span>
+<span class="fc" id="L209">        String pagecode = action.getPageCode();</span>
+<span class="fc" id="L210">        ApsProperties descriptions = new ApsProperties();</span>
+<span class="fc" id="L211">        ApsProperties langKeywordsKey = new ApsProperties();</span>
+<span class="fc" id="L212">        String friendlyCode = request.getParameter(PARAM_FRIENDLY_CODE);</span>
+<span class="fc" id="L213">        Iterator&lt;Lang&gt; langsIter = this.getLangManager().getLangs().iterator();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        while (langsIter.hasNext()) {</span>
+<span class="fc" id="L215">            Lang lang = (Lang) langsIter.next();</span>
+<span class="fc" id="L216">            String titleKey = PARAM_DESCRIPTION_PREFIX + lang.getCode();</span>
+<span class="fc" id="L217">            String title = request.getParameter(titleKey);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">            if (null != title) {</span>
+<span class="fc" id="L219">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;description&quot;, title.trim());</span>
+<span class="fc" id="L220">                String useDefaultLangKey = PARAM_DESCRIPTION_USE_DEFAULT_PREFIX + lang.getCode();</span>
+<span class="fc" id="L221">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
+<span class="fc" id="L223">                descriptions.put(lang.getCode(), meta);</span>
+            }
+<span class="fc" id="L225">            String keywordsKey = PARAM_KEYWORDS_PREFIX + lang.getCode();</span>
+<span class="fc" id="L226">            String keywords = request.getParameter(keywordsKey);</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">            if (null != keywords) {</span>
+<span class="nc" id="L228">                PageMetatag meta = new PageMetatag(lang.getCode(), &quot;keywords&quot;, keywords.trim());</span>
+<span class="nc" id="L229">                String useDefaultLangKey = PARAM_KEYWORDS_USE_DEFAULT_PREFIX + lang.getCode();</span>
+<span class="nc" id="L230">                String useDefaultLang = request.getParameter(useDefaultLangKey);</span>
+<span class="nc bnc" id="L231" title="All 4 branches missed.">                meta.setUseDefaultLangValue(!lang.isDefault() &amp;&amp; Boolean.parseBoolean(useDefaultLang));</span>
+<span class="nc" id="L232">                langKeywordsKey.put(lang.getCode(), meta);</span>
+            }
+<span class="fc" id="L234">        }</span>
+<span class="fc" id="L235">        IPage page = this.getPageManager().getDraftPage(pagecode);</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (null != page) {</span>
+<span class="fc" id="L237">            SeoPageMetadata pageMetadata = null;</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">            if (page.getMetadata() instanceof SeoPageMetadata) {</span>
+<span class="fc" id="L239">                pageMetadata = (SeoPageMetadata) page.getMetadata();</span>
+            } else {
+<span class="fc" id="L241">                pageMetadata = new SeoPageMetadata(page.getMetadata());</span>
+            }
+<span class="fc" id="L243">            seoPage = page;</span>
+<span class="fc" id="L244">            pageMetadata.setFriendlyCode(friendlyCode);</span>
+<span class="fc" id="L245">            pageMetadata.setDescriptions(descriptions);</span>
+<span class="fc" id="L246">            pageMetadata.setKeywords(langKeywordsKey);</span>
+<span class="fc" id="L247">            pageMetadata.setComplexParameters(SeoPageActionUtils.extractSeoParameters(request));</span>
+<span class="fc" id="L248">            pageMetadata.setUpdatedAt(new Date());</span>
+<span class="pc bpc" id="L249" title="3 of 4 branches missed.">            pageMetadata.setUseExtraDescriptions(null != request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS) &amp;&amp; request.getParameter(PARAM_USE_EXTRA_DESCRIPTIONS).equalsIgnoreCase(&quot;true&quot;));</span>
+<span class="fc" id="L250">            seoPage.setMetadata(pageMetadata);</span>
+        }
+<span class="fc" id="L252">        return seoPage;</span>
+    }
+    
+    protected ILangManager getLangManager() {
+<span class="fc" id="L256">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L260">        this.langManager = langManager;</span>
+<span class="fc" id="L261">    }</span>
+
+    protected ISeoMappingManager getSeoMappingManager() {
+<span class="fc" id="L264">        return seoMappingManager;</span>
+    }
+
+    public void setSeoMappingManager(ISeoMappingManager seoMappingManager) {
+<span class="fc" id="L268">        this.seoMappingManager = seoMappingManager;</span>
+<span class="fc" id="L269">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L272">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L276">        this.pageManager = pageManager;</span>
+<span class="fc" id="L277">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
