@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoBundleOperationResourceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.digitalexchange.job</a> &gt; <span class="el_source">EntandoBundleOperationResourceController.java</span></div><h1>EntandoBundleOperationResourceController.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.controller.digitalexchange.job;
+
+import static org.springframework.web.servlet.mvc.method.annotation.MvcUriComponentsBuilder.on;
+
+import java.net.URI;
+import java.util.Collections;
+import java.util.Optional;
+import javax.servlet.http.HttpServletRequest;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import org.entando.kubernetes.controller.digitalexchange.job.model.AnalysisReport;
+import org.entando.kubernetes.controller.digitalexchange.job.model.AnalysisRequest;
+import org.entando.kubernetes.controller.digitalexchange.job.model.InstallRequest;
+import org.entando.kubernetes.exception.digitalexchange.InvalidBundleException;
+import org.entando.kubernetes.exception.job.JobConflictException;
+import org.entando.kubernetes.exception.job.JobNotFoundException;
+import org.entando.kubernetes.exception.k8ssvc.BundleNotFoundException;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.debundle.EntandoDeBundleTag;
+import org.entando.kubernetes.model.job.EntandoBundleJobEntity;
+import org.entando.kubernetes.model.job.JobType;
+import org.entando.kubernetes.model.web.response.RestError;
+import org.entando.kubernetes.model.web.response.SimpleRestResponse;
+import org.entando.kubernetes.service.KubernetesService;
+import org.entando.kubernetes.service.digitalexchange.BundleUtilities;
+import org.entando.kubernetes.service.digitalexchange.job.EntandoBundleInstallService;
+import org.entando.kubernetes.service.digitalexchange.job.EntandoBundleJobService;
+import org.entando.kubernetes.service.digitalexchange.job.EntandoBundleUninstallService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.MvcUriComponentsBuilder;
+
+@RestController
+@RequiredArgsConstructor
+public class EntandoBundleOperationResourceController implements EntandoBundleOperationResource {
+
+    private final @NonNull KubernetesService kubeService;
+    private final @NonNull EntandoBundleJobService jobService;
+    private final @NonNull EntandoBundleInstallService installService;
+    private final @NonNull EntandoBundleUninstallService uninstallService;
+
+    @Override
+    public ResponseEntity&lt;SimpleRestResponse&lt;AnalysisReport&gt;&gt; analysis(
+            @PathVariable(&quot;component&quot;) String componentId,
+            @RequestBody(required = false) AnalysisRequest analysisRequest) {
+
+<span class="fc" id="L49">        final AnalysisRequest request = Optional.ofNullable(analysisRequest).orElse(new AnalysisRequest());</span>
+
+<span class="fc" id="L51">        EntandoDeBundle bundle = kubeService.getBundleByName(componentId)</span>
+<span class="pc" id="L52">                .orElseThrow(() -&gt; new BundleNotFoundException(componentId));</span>
+<span class="fc" id="L53">        EntandoDeBundleTag tag = getBundleTagOrFail(bundle, request.getVersion());</span>
+
+<span class="fc" id="L55">        AnalysisReport report = installService</span>
+<span class="fc" id="L56">                .performInstallAnalysis(bundle, tag, EntandoBundleInstallService.PERFORM_CONCURRENT_CHECKS);</span>
+
+<span class="fc" id="L58">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(report));</span>
+    }
+
+    @Override
+    public ResponseEntity&lt;SimpleRestResponse&lt;EntandoBundleJobEntity&gt;&gt; install(
+            @PathVariable(&quot;component&quot;) String componentId,
+            @RequestBody(required = false) InstallRequest installRequest) {
+
+<span class="fc" id="L66">        final InstallRequest request = Optional.ofNullable(installRequest).orElse(new InstallRequest());</span>
+<span class="fc" id="L67">        EntandoDeBundle bundle = kubeService.getBundleByName(componentId)</span>
+<span class="fc" id="L68">                .orElseThrow(() -&gt; new BundleNotFoundException(componentId));</span>
+<span class="fc" id="L69">        EntandoDeBundleTag tag = getBundleTagOrFail(bundle, request.getVersion());</span>
+
+<span class="fc" id="L71">        EntandoBundleJobEntity installJob = jobService.findCompletedOrConflictingInstallJob(bundle)</span>
+<span class="fc" id="L72">                .orElseGet(() -&gt; installService.install(bundle, tag, request.getConflictStrategy(),</span>
+<span class="fc" id="L73">                        request.getActions()));</span>
+
+<span class="fc" id="L75">        return ResponseEntity.created(</span>
+<span class="fc" id="L76">                getJobLocationURI(installJob))</span>
+<span class="fc" id="L77">                .body(new SimpleRestResponse&lt;&gt;(installJob));</span>
+    }
+
+    @Override
+    public SimpleRestResponse&lt;EntandoBundleJobEntity&gt; getLastInstallJob(@PathVariable(&quot;component&quot;) String componentId) {
+<span class="fc" id="L82">        EntandoBundleJobEntity lastInstallJob = jobService.getJobs(componentId)</span>
+<span class="fc" id="L83">                .stream().filter(j -&gt; j.getStatus().isOfType(JobType.INSTALL))</span>
+<span class="fc" id="L84">                .findFirst()</span>
+<span class="fc" id="L85">                .orElseThrow(JobNotFoundException::new);</span>
+
+<span class="fc" id="L87">        return new SimpleRestResponse&lt;&gt;(lastInstallJob);</span>
+    }
+
+    @Override
+    public ResponseEntity&lt;SimpleRestResponse&lt;EntandoBundleJobEntity&gt;&gt; uninstall(
+            @PathVariable(&quot;component&quot;) String componentId, HttpServletRequest request) {
+
+        try {
+<span class="fc" id="L95">            EntandoBundleJobEntity uninstallJob = uninstallService.uninstall(componentId);</span>
+<span class="fc" id="L96">            return ResponseEntity.created(</span>
+<span class="fc" id="L97">                    getJobLocationURI(uninstallJob))</span>
+<span class="fc" id="L98">                    .body(new SimpleRestResponse&lt;&gt;(uninstallJob));</span>
+<span class="fc" id="L99">        } catch (JobConflictException e) {</span>
+<span class="fc" id="L100">            SimpleRestResponse&lt;EntandoBundleJobEntity&gt; restResponse = new SimpleRestResponse&lt;&gt;();</span>
+<span class="fc" id="L101">            restResponse.setErrors(Collections.singletonList(new RestError(&quot;100&quot;, e.getMessage())));</span>
+
+<span class="fc" id="L103">            return ResponseEntity.status(e.getStatus())</span>
+<span class="fc" id="L104">                    .body(restResponse);</span>
+        }
+    }
+
+    @Override
+    public SimpleRestResponse&lt;EntandoBundleJobEntity&gt; getLastUninstallJob(
+            @PathVariable(&quot;component&quot;) String componentId) {
+<span class="nc" id="L111">        EntandoBundleJobEntity lastUninstallJob = jobService.getJobs(componentId)</span>
+<span class="nc" id="L112">                .stream()</span>
+<span class="nc" id="L113">                .filter(j -&gt; j.getStatus().isOfType(JobType.UNINSTALL))</span>
+<span class="nc" id="L114">                .findFirst()</span>
+<span class="nc" id="L115">                .orElseThrow(JobNotFoundException::new);</span>
+<span class="nc" id="L116">        return new SimpleRestResponse&lt;&gt;(lastUninstallJob);</span>
+    }
+
+    private URI getJobLocationURI(EntandoBundleJobEntity job) {
+<span class="fc" id="L120">        return MvcUriComponentsBuilder</span>
+<span class="fc" id="L121">                .fromMethodCall(on(EntandoBundleJobResourceController.class).getJob(job.getId().toString()))</span>
+<span class="fc" id="L122">                .build().toUri();</span>
+    }
+
+    private EntandoDeBundleTag getBundleTagOrFail(EntandoDeBundle bundle, String version) {
+<span class="fc" id="L126">        String versionToFind = BundleUtilities.getBundleVersionOrFail(bundle, version);</span>
+<span class="fc" id="L127">        return bundle.getSpec().getTags().stream().filter(t -&gt; t.getVersion().equals(versionToFind)).findAny()</span>
+<span class="fc" id="L128">                .orElseThrow(</span>
+<span class="nc" id="L129">                        () -&gt; new InvalidBundleException(&quot;Version &quot; + version + &quot; not defined in bundle versions&quot;));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
