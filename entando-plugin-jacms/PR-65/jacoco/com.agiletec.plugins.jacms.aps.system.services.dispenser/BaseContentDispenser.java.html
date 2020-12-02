@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseContentDispenser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.dispenser</a> &gt; <span class="el_source">BaseContentDispenser.java</span></div><h1>BaseContentDispenser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.dispenser;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.PublicContentAuthorizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.linkresolver.ILinkResolverManager;
+import com.agiletec.plugins.jacms.aps.system.services.renderer.IContentRenderer;
+import java.util.stream.Collectors;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * Fornisce i contenuti formattati. Il compito del servizio, in fase di
+ * richiesta di un contenuto formattato, è quello di controllare preliminarmente
+ * le autorizzazzioni dell'utente corrente all'accesso al contenuto;
+ * successivamente (in caso di autorizzazioni valide) restituisce il contenuto
+ * formattato.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L51">public class BaseContentDispenser extends AbstractService implements IContentDispenser {</span>
+
+<span class="fc" id="L53">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BaseContentDispenser.class);</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L57">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    @Deprecated
+    public String getRenderedContent(String contentId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc" id="L63">        ContentRenderizationInfo renderInfo = this.getRenderizationInfo(contentId, modelId, langCode, reqCtx);</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if (null == renderInfo) {</span>
+<span class="nc" id="L65">            return &quot;&quot;;</span>
+        }
+<span class="fc" id="L67">        return renderInfo.getCachedRenderedContent();</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, 
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheKey(#contentId, #modelId, #langCode, #reqCtx)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheGroupsCsv(#contentId, #modelId)&quot;)
+    public ContentRenderizationInfo getRenderizationInfo(String contentId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc" id="L75">        PublicContentAuthorizationInfo authInfo = this.getContentAuthorizationHelper().getAuthorizationInfo(contentId, true);</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (null == authInfo) {</span>
+<span class="nc" id="L77">            return null;</span>
+        }
+<span class="fc" id="L79">        return this.getRenderizationInfo(authInfo, contentId, modelId, langCode, reqCtx);</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, condition = &quot;#cacheable&quot;,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheKey(#contentId, #modelId, #langCode, #reqCtx)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheGroupsCsv(#contentId, #modelId)&quot;)
+    public ContentRenderizationInfo getRenderizationInfo(String contentId,
+            long modelId, String langCode, RequestContext reqCtx, boolean cacheable) {
+<span class="fc" id="L88">        PublicContentAuthorizationInfo authInfo = this.getContentAuthorizationHelper().getAuthorizationInfo(contentId, cacheable);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (null == authInfo) {</span>
+<span class="fc" id="L90">            return null;</span>
+        }
+<span class="fc" id="L92">        return this.getRenderizationInfo(authInfo, contentId, modelId, langCode, reqCtx);</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, condition = &quot;#cacheable&quot;,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheKey(#contentId, #modelId, #langCode, #currentUser)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheGroupsCsv(#contentId, #modelId)&quot;)
+    public ContentRenderizationInfo getRenderizationInfo(String contentId, long modelId, String langCode, UserDetails currentUser, boolean cacheable) {
+<span class="fc" id="L100">        PublicContentAuthorizationInfo authInfo = this.getContentAuthorizationHelper().getAuthorizationInfo(contentId, cacheable);</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        if (null == authInfo) {</span>
+<span class="nc" id="L102">            return null;</span>
+        }
+<span class="fc" id="L104">        return this.getRenderizationInfo(authInfo, contentId, modelId, langCode, currentUser, null);</span>
+    }
+    
+    protected ContentRenderizationInfo getRenderizationInfo(PublicContentAuthorizationInfo authInfo,
+            String contentId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        UserDetails currentUser = (null != reqCtx) ? (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER) : null;</span>
+<span class="fc" id="L110">        return this.getRenderizationInfo(authInfo, contentId, modelId, langCode, currentUser, reqCtx);</span>
+    }
+
+    protected ContentRenderizationInfo getRenderizationInfo(PublicContentAuthorizationInfo authInfo,
+            String contentId, long modelId, String langCode, UserDetails user, RequestContext reqCtx) {
+<span class="fc" id="L115">        ContentRenderizationInfo renderInfo = null;</span>
+        try {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            List&lt;Group&gt; userGroups = (null != user) ? this.getAuthorizationManager().getUserGroups(user) : new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">            if (authInfo.isUserAllowed(userGroups)) {</span>
+<span class="fc" id="L119">                renderInfo = this.getBaseRenderizationInfo(authInfo, contentId, modelId, langCode, user, reqCtx);</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                if (null == renderInfo) {</span>
+<span class="nc" id="L121">                    return null;</span>
+                }
+            } else {
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                String renderedContent = &quot;Current user '&quot; + ((null != user) ? user.getUsername() : &quot;null&quot;) + &quot;' can't view this content&quot;;</span>
+<span class="fc" id="L125">                Content contentToRender = this.getContentManager().loadContent(contentId, true);</span>
+<span class="fc" id="L126">                renderInfo = new ContentRenderizationInfo(contentToRender, renderedContent, modelId, langCode, null);</span>
+<span class="fc" id="L127">                renderInfo.setRenderedContent(renderedContent);</span>
+<span class="fc" id="L128">                return renderInfo;</span>
+            }
+<span class="nc" id="L130">        } catch (Throwable t) {</span>
+<span class="nc" id="L131">            _logger.error(&quot;Error while rendering content {}&quot;, contentId, t);</span>
+<span class="nc" id="L132">            return null;</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">        return renderInfo;</span>
+    }
+
+    @Override
+    public void resolveLinks(ContentRenderizationInfo renderizationInfo, RequestContext reqCtx) {
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (null == renderizationInfo) {</span>
+<span class="nc" id="L140">            return;</span>
+        }
+        try {
+<span class="fc" id="L143">            String finalRenderedContent = this.getLinkResolverManager().resolveLinks(renderizationInfo.getCachedRenderedContent(), renderizationInfo.getContentId(), reqCtx);</span>
+<span class="fc" id="L144">            renderizationInfo.setRenderedContent(finalRenderedContent);</span>
+<span class="nc" id="L145">        } catch (Throwable t) {</span>
+<span class="nc" id="L146">            _logger.error(&quot;Error while resolve links for content {}&quot;, renderizationInfo.getContentId(), t);</span>
+<span class="fc" id="L147">        }</span>
+<span class="fc" id="L148">    }</span>
+    
+    public ContentRenderizationInfo getBaseRenderizationInfo(PublicContentAuthorizationInfo authInfo,
+            String contentId, long modelId, String langCode, UserDetails currentUser, RequestContext reqCtx) {
+<span class="fc" id="L152">        ContentRenderizationInfo renderInfo = null;</span>
+        try {
+<span class="fc bfc" id="L154" title="All 2 branches covered.">            List&lt;Group&gt; userGroups = (null != currentUser) ? this.getAuthorizationManager().getUserGroups(currentUser) : new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">            if (authInfo.isUserAllowed(userGroups)) {</span>
+<span class="fc" id="L156">                Content contentToRender = this.getContentManager().loadContent(contentId, true);</span>
+<span class="fc" id="L157">                String renderedContent = this.buildRenderedContent(contentToRender, modelId, langCode, reqCtx);</span>
+<span class="pc bpc" id="L158" title="2 of 4 branches missed.">                if (null != renderedContent &amp;&amp; renderedContent.trim().length() &gt; 0) {</span>
+<span class="fc" id="L159">                    List&lt;AttributeRole&gt; roles = this.getContentManager().getAttributeRoles();</span>
+<span class="fc" id="L160">                    renderInfo = new ContentRenderizationInfo(contentToRender, renderedContent, modelId, langCode, roles);</span>
+                }
+            }
+<span class="nc" id="L163">        } catch (Throwable t) {</span>
+<span class="nc" id="L164">            _logger.error(&quot;Error while rendering content {}&quot;, contentId, t);</span>
+<span class="nc" id="L165">            return null;</span>
+<span class="fc" id="L166">        }</span>
+<span class="fc" id="L167">        return renderInfo;</span>
+    }
+
+    protected synchronized String buildRenderedContent(Content content, long modelId, String langCode, RequestContext reqCtx) {
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (null == content) {</span>
+<span class="nc" id="L172">            _logger.warn(&quot;Null The content can't be rendered&quot;);</span>
+<span class="nc" id="L173">            return null;</span>
+        }
+<span class="fc" id="L175">        String renderedContent = null;</span>
+<span class="fc" id="L176">        boolean ok = false;</span>
+        try {
+<span class="fc" id="L178">            renderedContent = this.getContentRender().render(content, modelId, langCode, reqCtx);</span>
+<span class="fc" id="L179">            ok = true;</span>
+<span class="nc" id="L180">        } catch (Throwable t) {</span>
+<span class="nc" id="L181">            _logger.error(&quot;error in buildRenderedContent&quot;, t);</span>
+<span class="fc" id="L182">        }</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (!ok) {</span>
+<span class="nc" id="L184">            _logger.warn(&quot;The content {} can't be rendered&quot;, content.getId());</span>
+        }
+<span class="fc" id="L186">        return renderedContent;</span>
+    }
+    
+    public static String getRenderizationInfoCacheKey(String contentId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        UserDetails currentUser = (null != reqCtx) ? (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER) : null;</span>
+<span class="fc" id="L191">        return getRenderizationInfoCacheKey(contentId, modelId, langCode, currentUser);</span>
+    }
+
+    public static String getRenderizationInfoCacheKey(String contentId, long modelId, String langCode, UserDetails currentUser) {
+<span class="fc" id="L195">        StringBuilder key = new StringBuilder();</span>
+<span class="fc" id="L196">        key.append(contentId).append(&quot;_&quot;).append(modelId).append(&quot;_&quot;).append(langCode).append(&quot;_RENDER_INFO_CacheKey&quot;);</span>
+<span class="fc bfc" id="L197" title="All 4 branches covered.">        if (null != currentUser &amp;&amp; !currentUser.getUsername().equals(SystemConstants.GUEST_USER_NAME)) {</span>
+<span class="fc" id="L198">            List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">            if (null != currentUser.getAuthorizations()) {</span>
+<span class="fc" id="L200">                currentUser.getAuthorizations().stream()</span>
+<span class="pc bpc" id="L201" title="2 of 4 branches missed.">                        .filter(auth -&gt; (null != auth &amp;&amp; null != auth.getGroup()))</span>
+<span class="fc" id="L202">                        .forEach(auth -&gt; {</span>
+<span class="fc" id="L203">                            String code = auth.getGroup().getAuthority() + &quot;_&quot;;</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">                            if (null != auth.getRole()) {</span>
+<span class="fc" id="L205">                                code += auth.getRole().getAuthority();</span>
+                            } else {
+<span class="nc" id="L207">                                code += &quot;null&quot;;</span>
+                            }
+<span class="fc" id="L209">                            codes.add(code);</span>
+<span class="fc" id="L210">                        });</span>
+            }
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (!codes.isEmpty()) {</span>
+<span class="fc" id="L213">                Collections.sort(codes);</span>
+<span class="fc" id="L214">                key.append(&quot;_AUTHS:&quot;).append(codes.stream().collect(Collectors.joining(&quot;-&quot;)));</span>
+            }
+        }
+<span class="fc" id="L217">        return key.toString();</span>
+    }
+
+    public static String getRenderizationInfoCacheGroupsCsv(String contentId, long modelId) {
+<span class="fc" id="L221">        StringBuilder builder = new StringBuilder();</span>
+<span class="fc" id="L222">        String typeCode = contentId.substring(0, 3);</span>
+<span class="fc" id="L223">        String contentCacheGroupId = JacmsSystemConstants.CONTENT_CACHE_GROUP_PREFIX + contentId;</span>
+<span class="fc" id="L224">        String modelCacheGroupId = JacmsSystemConstants.CONTENT_MODEL_CACHE_GROUP_PREFIX + modelId;</span>
+<span class="fc" id="L225">        String typeCacheGroupId = JacmsSystemConstants.CONTENT_TYPE_CACHE_GROUP_PREFIX + typeCode;</span>
+<span class="fc" id="L226">        builder.append(contentCacheGroupId).append(&quot;,&quot;).append(modelCacheGroupId).append(&quot;,&quot;).append(typeCacheGroupId);</span>
+<span class="fc" id="L227">        return builder.toString();</span>
+    }
+
+    protected IContentAuthorizationHelper getContentAuthorizationHelper() {
+<span class="fc" id="L231">        return _contentAuthorizationHelper;</span>
+    }
+
+    public void setContentAuthorizationHelper(IContentAuthorizationHelper contentAuthorizationHelper) {
+<span class="fc" id="L235">        this._contentAuthorizationHelper = contentAuthorizationHelper;</span>
+<span class="fc" id="L236">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L239">        return _contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager manager) {
+<span class="fc" id="L243">        this._contentManager = manager;</span>
+<span class="fc" id="L244">    }</span>
+
+    protected IContentRenderer getContentRender() {
+<span class="fc" id="L247">        return _contentRenderer;</span>
+    }
+
+    public void setContentRenderer(IContentRenderer renderer) {
+<span class="fc" id="L251">        this._contentRenderer = renderer;</span>
+<span class="fc" id="L252">    }</span>
+
+    protected ILinkResolverManager getLinkResolverManager() {
+<span class="fc" id="L255">        return _linkResolver;</span>
+    }
+
+    public void setLinkResolver(ILinkResolverManager resolver) {
+<span class="fc" id="L259">        this._linkResolver = resolver;</span>
+<span class="fc" id="L260">    }</span>
+
+    protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L263">        return _authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L267">        this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L268">    }</span>
+
+    private IContentAuthorizationHelper _contentAuthorizationHelper;
+
+    private IContentRenderer _contentRenderer;
+    private IContentManager _contentManager;
+    private ILinkResolverManager _linkResolver;
+    private IAuthorizationManager _authorizationManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

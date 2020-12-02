@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MultipleResourceAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.resource</a> &gt; <span class="el_source">MultipleResourceAction.java</span></div><h1>MultipleResourceAction.java</h1><pre class="source lang-java linenums">/*
+* Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+*
+* This library is free software; you can redistribute it and/or modify it under
+* the terms of the GNU Lesser General Public License as published by the Free
+* Software Foundation; either version 2.1 of the License, or (at your option)
+* any later version.
+*
+* This library is distributed in the hope that it will be useful, but WITHOUT
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+* FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+* details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.resource;
+
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.BaseResourceDataBean;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+<span class="fc" id="L30">public class MultipleResourceAction extends ResourceAction {</span>
+
+<span class="fc" id="L32">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(MultipleResourceAction.class);</span>
+
+<span class="fc" id="L34">    private int fieldCount = 0;</span>
+    private List&lt;String&gt; fileDescriptions;
+    private List&lt;String&gt; fileUploadIDs;
+    private List&lt;String&gt; fileUploadContentTypes;
+    private List&lt;String&gt; fileUploadFileNames;
+
+    public final static String FILE_DESCR_FIELD = &quot;descr_&quot;;
+    public final static String FILE_UPLOAD_ID_FIELD = &quot;fileUploadId_&quot;;
+    public final static String FILE_NAME_FIELD = &quot;fileUploadName_&quot;;
+    public final static String FILE_CONTENT_TYPE_FIELD = &quot;fileUploadContentType_&quot;;
+
+<span class="fc" id="L45">    private List savedId = new ArrayList();</span>
+
+    @Override
+    public void validate() {
+<span class="fc" id="L49">        logger.debug(&quot;MultipleResourceAction validate&quot;);</span>
+<span class="fc" id="L50">        savedId.clear();</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="fc" id="L52">            this.fetchFileDescriptions();</span>
+<span class="fc" id="L53">            addFieldErrors(validateFileDescriptions());</span>
+        } else {
+<span class="fc" id="L55">            this.fetchFileFields();</span>
+<span class="fc" id="L56">            addFieldErrors(validateFileDescriptions());</span>
+<span class="fc" id="L57">            addFieldErrors(validateFileUploadIDs());</span>
+<span class="fc" id="L58">            addFieldErrors(validateFileUploaNames());</span>
+<span class="fc" id="L59">            addFieldErrors(validateFileUploadContentType());</span>
+        }
+<span class="fc" id="L61">    }</span>
+
+    private void addFieldErrors(List&lt;FieldError&gt; fieldErrors) {
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (fieldErrors.isEmpty()) {</span>
+<span class="fc" id="L65">            return; // Nothing to do</span>
+        }
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        for (FieldError fieldError : fieldErrors) {</span>
+<span class="fc" id="L68">            addFieldError(fieldError.getFieldCode(), fieldError.getErrorCode());</span>
+<span class="fc" id="L69">        }</span>
+<span class="fc" id="L70">    }</span>
+
+    private List&lt;FieldError&gt; validateFileDescriptions() {
+<span class="fc" id="L73">        List&lt;FieldError&gt; errors = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (fileDescriptions == null) {</span>
+<span class="nc" id="L75">            errors.add(new FieldError(FILE_DESCR_FIELD + &quot;0&quot;, getText(&quot;error.resource.file.descrEmpty&quot;)));</span>
+<span class="nc" id="L76">            return errors;</span>
+        }
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (fileDescriptions.isEmpty()) {</span>
+<span class="fc" id="L80">            errors.add(new FieldError(FILE_DESCR_FIELD + &quot;0&quot;, getText(&quot;error.resource.file.descrEmpty&quot;)));</span>
+<span class="fc" id="L81">            return errors;</span>
+        }
+
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for (int i = 0; i &lt; fileDescriptions.size(); i++) {</span>
+<span class="fc" id="L85">            String fileDescription = fileDescriptions.get(i);</span>
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            if (StringUtils.isEmpty(fileDescription)) {</span>
+<span class="nc" id="L88">                errors.add(new FieldError(FILE_DESCR_FIELD + i, getText(&quot;error.resource.file.descrEmpty&quot;)));</span>
+            }
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            if (fileDescription.length() &gt; 250) {</span>
+<span class="fc" id="L91">                errors.add(new FieldError(FILE_DESCR_FIELD + i, getText(&quot;error.resource.file.descrTooLong&quot;)));</span>
+            }
+        }
+
+<span class="fc" id="L95">        return errors;</span>
+    }
+
+    private List&lt;FieldError&gt; validateFileUploadIDs() {
+<span class="fc" id="L99">        List&lt;FieldError&gt; errors = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if (fileUploadIDs == null) {</span>
+<span class="nc" id="L101">            errors.add(new FieldError(FILE_UPLOAD_ID_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="nc" id="L102">            return errors;</span>
+        }
+
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (fileUploadIDs.isEmpty()) {</span>
+<span class="fc" id="L106">            errors.add(new FieldError(FILE_UPLOAD_ID_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="fc" id="L107">            return errors;</span>
+        }
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        for (int i = 0; i &lt; fileUploadIDs.size(); i++) {</span>
+<span class="nc" id="L111">            String fileUploadID = fileUploadIDs.get(i);</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            if (StringUtils.isEmpty(fileUploadID)) {</span>
+<span class="nc" id="L114">                errors.add(new FieldError(FILE_UPLOAD_ID_FIELD + i, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+            }
+        }
+
+<span class="nc" id="L118">        return errors;</span>
+    }
+
+    private List&lt;FieldError&gt; validateFileUploaNames() {
+<span class="fc" id="L122">        List&lt;FieldError&gt; errors = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (fileUploadFileNames == null) {</span>
+<span class="nc" id="L124">            errors.add(new FieldError(FILE_NAME_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="nc" id="L125">            return errors;</span>
+        }
+
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        if (fileUploadFileNames.isEmpty()) {</span>
+<span class="fc" id="L129">            errors.add(new FieldError(FILE_NAME_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="fc" id="L130">            return errors;</span>
+        }
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        for (int i = 0; i &lt; fileUploadFileNames.size(); i++) {</span>
+<span class="nc" id="L134">            String fileUploadFileName = fileUploadFileNames.get(i);</span>
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (StringUtils.isEmpty(fileUploadFileName)) {</span>
+<span class="nc" id="L137">                errors.add(new FieldError(FILE_NAME_FIELD + i, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+            }
+        }
+
+<span class="nc" id="L141">        return errors;</span>
+    }
+
+    private List&lt;FieldError&gt; validateFileUploadContentType() {
+<span class="fc" id="L145">        List&lt;FieldError&gt; errors = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        if (fileUploadContentTypes == null) {</span>
+<span class="nc" id="L147">            errors.add(new FieldError(FILE_CONTENT_TYPE_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="nc" id="L148">            return errors;</span>
+        }
+
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        if (fileUploadContentTypes.isEmpty()) {</span>
+<span class="fc" id="L152">            errors.add(new FieldError(FILE_CONTENT_TYPE_FIELD + &quot;0&quot;, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+<span class="fc" id="L153">            return errors;</span>
+        }
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">        for (int i = 0; i &lt; fileUploadContentTypes.size(); i++) {</span>
+<span class="nc" id="L157">            String fileUploadContentType = fileUploadContentTypes.get(i);</span>
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            if (StringUtils.isEmpty(fileUploadContentType)) {</span>
+<span class="nc" id="L160">                errors.add(new FieldError(FILE_CONTENT_TYPE_FIELD + i, getText(&quot;error.resource.filename.uploadError&quot;)));</span>
+            }
+        }
+
+<span class="nc" id="L164">        return errors;</span>
+    }
+
+    @Override
+    public String edit() {
+<span class="fc" id="L169">        logger.debug(&quot;Edit in multiple resource action for id {}&quot;, this.getResourceId());</span>
+        try {
+<span class="fc" id="L171">            savedId.clear();</span>
+<span class="fc" id="L172">            ResourceInterface resource = this.loadResource(this.getResourceId());</span>
+<span class="fc" id="L173">            this.setResourceTypeCode(resource.getType());</span>
+<span class="fc" id="L174">            List&lt;String&gt; fileDescr = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L175">            fileDescr.add(resource.getDescription());</span>
+<span class="fc" id="L176">            setFileDescriptions(fileDescr);</span>
+<span class="fc" id="L177">            List&lt;Category&gt; resCategories = resource.getCategories();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            for (int i = 0; i &lt; resCategories.size(); i++) {</span>
+<span class="fc" id="L179">                Category resCat = resCategories.get(i);</span>
+<span class="fc" id="L180">                this.getCategoryCodes().add(resCat.getCode());</span>
+            }
+<span class="fc" id="L182">            this.setMainGroup(resource.getMainGroup());</span>
+<span class="fc" id="L183">            this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L184">            this.setMetadata(resource.getMetadata());</span>
+<span class="nc" id="L185">        } catch (Throwable t) {</span>
+<span class="nc" id="L186">            logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L187">            return FAILURE;</span>
+<span class="fc" id="L188">        }</span>
+<span class="fc" id="L189">        return SUCCESS;</span>
+    }
+
+    @Override
+    public String joinCategory() {
+<span class="fc" id="L194">        logger.debug(&quot;JoinCategory in multiple resource action for id {}&quot;, this.getResourceId());</span>
+<span class="fc" id="L195">        fetchFileFields();</span>
+<span class="fc" id="L196">        return super.joinCategory();</span>
+    }
+
+    @Override
+    public String removeCategory() {
+<span class="fc" id="L201">        logger.debug(&quot;RemoveCategory in multiple resource action for id {}&quot;, this.getResourceId());</span>
+<span class="fc" id="L202">        fetchFileFields();</span>
+<span class="fc" id="L203">        return super.removeCategory();</span>
+    }
+
+    @Override
+    public String save() {
+<span class="fc" id="L208">        logger.debug(&quot;Save in multiple resource action for id {}&quot;, this.getResourceId());</span>
+<span class="fc" id="L209">        int index = 0;</span>
+<span class="fc" id="L210">        savedId.clear();</span>
+<span class="fc" id="L211">        boolean hasError = false;</span>
+<span class="fc" id="L212">        boolean deleteTempFile = false;</span>
+<span class="fc" id="L213">        File file = null;</span>
+        try {
+<span class="fc" id="L215">            this.fetchFileFields();</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            for (String fileDescription : getFileDescriptions()) {</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">                if (fileDescription.length() &gt; 0) {</span>
+<span class="fc" id="L218">                    BaseResourceDataBean resourceFile = null;</span>
+<span class="fc" id="L219">                    String tempDir = System.getProperty(&quot;java.io.tmpdir&quot;);</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">                    if (listContains(fileUploadIDs, index)) {</span>
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">                        if (null != getFileUploadId(index)) {</span>
+<span class="nc" id="L222">                            logger.info(&quot; file {}&quot;, tempDir + File.separator + getFileUploadId(index) + &quot;.tmp&quot;);</span>
+<span class="nc" id="L223">                            file = new File(tempDir + File.separator + getFileUploadId(index) + &quot;.tmp&quot;);</span>
+<span class="nc" id="L224">                            deleteTempFile = true;</span>
+                        }
+                    }
+<span class="fc" id="L227">                    Map imgMetadata = new HashMap();</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">                    if (null != file) {</span>
+<span class="nc" id="L229">                        logger.debug(&quot;file is not null&quot;);</span>
+<span class="nc" id="L230">                        imgMetadata = super.getImgMetadata(file);</span>
+<span class="nc" id="L231">                        resourceFile = new BaseResourceDataBean(file);</span>
+<span class="nc" id="L232">                        logger.debug(&quot;getFileUploadFileName().get({}): {}&quot;, index, getFileUploadFileName(index));</span>
+<span class="nc" id="L233">                        logger.debug(&quot;getFileUploadContentType().get({}): {}&quot;, index, getFileUploadContentType(index));</span>
+<span class="nc" id="L234">                        resourceFile.setFileName(getFileUploadFileName(index));</span>
+<span class="nc" id="L235">                        resourceFile.setMimeType(getFileUploadContentType(index));</span>
+                    } else {
+<span class="fc" id="L237">                        logger.debug(&quot;file is null&quot;);</span>
+<span class="fc" id="L238">                        resourceFile = new BaseResourceDataBean();</span>
+                    }
+<span class="fc" id="L240">                    resourceFile.setDescr(fileDescription.trim());</span>
+<span class="fc" id="L241">                    resourceFile.setMainGroup(this.getMainGroup());</span>
+<span class="fc" id="L242">                    resourceFile.setResourceType(this.getResourceType());</span>
+<span class="fc" id="L243">                    resourceFile.setCategories(getCategories());</span>
+<span class="fc" id="L244">                    logger.debug(&quot;Save method, action {}&quot;, this.getStrutsAction());</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">                    if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="fc" id="L246">                        logger.debug(&quot;Edit resource &gt; metadata size: {}&quot;, imgMetadata.size());</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">                        if (imgMetadata.size() &gt; 0) {</span>
+<span class="nc" id="L248">                            logger.debug(&quot;Edit resource &gt; metadata size: {}  -&gt; update the metadata list&quot;, imgMetadata.size());</span>
+<span class="nc" id="L249">                            resourceFile.setMetadata(imgMetadata);</span>
+                        } else {
+<span class="fc" id="L251">                            fetchMetadataEdit();</span>
+<span class="fc" id="L252">                            logger.debug(&quot;Edit resource &gt; metadata size: 0  -&gt; use previous metadata list&quot;, getMetadata());</span>
+<span class="fc" id="L253">                            resourceFile.setMetadata(getMetadata());</span>
+                        }
+                    } else {
+<span class="nc" id="L256">                        resourceFile.setMetadata(imgMetadata);</span>
+                    }
+<span class="fc" id="L258">                    String fileUploadName = getFileUploadFileName(index);</span>
+                    try {
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">                        if (ApsAdminSystemConstants.ADD == this.getStrutsAction()) {</span>
+<span class="nc" id="L261">                            this.getResourceManager().addResource(resourceFile);</span>
+<span class="nc" id="L262">                            this.addActionMessage(this.getText(&quot;message.resource.filename.uploaded&quot;,</span>
+                                    new String[]{fileUploadName}));
+<span class="nc" id="L264">                            savedId.add(index);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">                        } else if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="fc" id="L266">                            resourceFile.setResourceId(super.getResourceId());</span>
+<span class="fc" id="L267">                            this.getResourceManager().updateResource(resourceFile);</span>
+                        }
+<span class="nc" id="L269">                    } catch (EntException ex) {</span>
+<span class="nc" id="L270">                        hasError = true;</span>
+<span class="nc" id="L271">                        logger.error(&quot;error loading file {} &quot;, fileUploadName, ex);</span>
+<span class="nc" id="L272">                        this.addFieldError(String.valueOf(index), this.getText(&quot;error.resource.filename.uploadError&quot;,</span>
+                                new String[]{fileUploadName}));
+<span class="fc" id="L274">                    }</span>
+                }
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">                if (deleteTempFile) {</span>
+<span class="nc" id="L277">                    logger.debug(&quot;Delete temp file {}&quot;, file.getAbsolutePath());</span>
+<span class="nc" id="L278">                    file.delete();</span>
+<span class="nc" id="L279">                    deleteTempFile = false;</span>
+                }
+<span class="fc" id="L281">                index++;</span>
+<span class="fc" id="L282">            }</span>
+<span class="nc" id="L283">        } catch (Throwable t) {</span>
+<span class="nc" id="L284">            logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L285">            return FAILURE;</span>
+<span class="fc" id="L286">        }</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">        if (hasError) {</span>
+<span class="nc" id="L288">            logger.error(&quot;error uploading one or more resources&quot;);</span>
+<span class="nc" id="L289">            savedId.forEach(id -&gt; fileDescriptions.remove(id.toString()));</span>
+<span class="nc" id="L290">            return FAILURE;</span>
+        }
+<span class="fc" id="L292">        return SUCCESS;</span>
+    }
+
+    @Override
+    public int getFieldCount() {
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="nc" id="L298">            return 0;</span>
+        }
+<span class="nc" id="L300">        fieldCount = 0;</span>
+<span class="nc" id="L301">        Map&lt;String, String[]&gt; parameterMap = this.getRequest().getParameterMap();</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        for (Map.Entry&lt;String, String[]&gt; entry : parameterMap.entrySet()) {</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            if (entry.getKey().startsWith(FILE_DESCR_FIELD)) {</span>
+<span class="nc" id="L304">                fieldCount++;</span>
+            }
+<span class="nc" id="L306">        }</span>
+<span class="nc" id="L307">        fieldCount = fieldCount - savedId.size();</span>
+<span class="nc" id="L308">        return fieldCount - 1;</span>
+    }
+
+    @Override
+    public void setFieldCount(int fieldCount) {
+<span class="nc" id="L313">        this.fieldCount = fieldCount;</span>
+<span class="nc" id="L314">    }</span>
+
+    public List&lt;String&gt; getFileDescriptions() {
+<span class="fc" id="L317">        return fileDescriptions;</span>
+    }
+
+    public void setFileDescriptions(List&lt;String&gt; fileDescriptions) {
+<span class="fc" id="L321">        this.fileDescriptions = fileDescriptions;</span>
+<span class="fc" id="L322">    }</span>
+
+    public List&lt;String&gt; getFileUploadID() {
+<span class="nc" id="L325">        return fileUploadIDs;</span>
+    }
+
+    public void setFileUpload(List&lt;String&gt; fileUploadIDs) {
+<span class="nc" id="L329">        this.fileUploadIDs = fileUploadIDs;</span>
+<span class="nc" id="L330">    }</span>
+
+    public List&lt;String&gt; getFileUploadIDs() {
+<span class="nc" id="L333">        return fileUploadIDs;</span>
+    }
+
+    public void setFileUploadIDs(List&lt;String&gt; fileUploadIDs) {
+<span class="nc" id="L337">        this.fileUploadIDs = fileUploadIDs;</span>
+<span class="nc" id="L338">    }</span>
+
+    public List&lt;String&gt; getFileUploadFileNames() {
+<span class="nc" id="L341">        return fileUploadFileNames;</span>
+    }
+
+    public void setFileUploadFileNames(List&lt;String&gt; fileUploadFileNames) {
+<span class="nc" id="L345">        this.fileUploadFileNames = fileUploadFileNames;</span>
+<span class="nc" id="L346">    }</span>
+
+    public List&lt;String&gt; getFileUploadContentTypes() {
+<span class="nc" id="L349">        return fileUploadContentTypes;</span>
+    }
+
+    public void setFileUploadContentTypes(List&lt;String&gt; fileUploadContentTypes) {
+<span class="nc" id="L353">        this.fileUploadContentTypes = fileUploadContentTypes;</span>
+<span class="nc" id="L354">    }</span>
+
+    public List&lt;String&gt; getFileUploadFileName() {
+<span class="nc" id="L357">        return fileUploadFileNames;</span>
+    }
+
+    protected List&lt;String&gt; fetchFields(String fieldPrefix) {
+<span class="fc" id="L361">        logger.debug(&quot;fetchFields with prefix {}&quot;, fieldPrefix);</span>
+<span class="fc" id="L362">        List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L363">        Map&lt;String, String[]&gt; parameterMap = this.getRequest().getParameterMap();</span>
+<span class="fc" id="L364">        logger.debug(&quot;parameterMap {}&quot;, parameterMap);</span>
+<span class="fc" id="L365">        SortedSet&lt;String&gt; keys = new TreeSet&lt;&gt;(parameterMap.keySet());</span>
+<span class="fc" id="L366">        int i = 0;</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">        for (String key : keys) {</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">            if (key.startsWith(fieldPrefix)) {</span>
+<span class="fc" id="L369">                String val = parameterMap.get(key)[0];</span>
+<span class="fc" id="L370">                values.add(i, val);</span>
+<span class="fc" id="L371">                logger.debug(&quot;values.add {} {}&quot;, i, val);</span>
+<span class="fc" id="L372">                i++;</span>
+            }
+<span class="fc" id="L374">        }</span>
+<span class="fc" id="L375">        return values;</span>
+    }
+
+    protected void fetchFileFields() {
+<span class="fc" id="L379">        logger.debug(&quot;fetchFileFields&quot;);</span>
+<span class="fc" id="L380">        fetchFileDescriptions();</span>
+<span class="fc" id="L381">        fetchFileUploadIDs();</span>
+<span class="fc" id="L382">        fetchFileUploadContentTypes();</span>
+<span class="fc" id="L383">        fetchFileUploadFileNames();</span>
+<span class="fc" id="L384">    }</span>
+
+    protected void fetchFileDescriptions() {
+<span class="fc" id="L387">        fileDescriptions = fetchFields(FILE_DESCR_FIELD);</span>
+<span class="fc" id="L388">        logger.debug(&quot;fetchFileDescriptions {}&quot;, fileDescriptions);</span>
+<span class="fc" id="L389">    }</span>
+
+    protected void fetchFileUploadIDs() {
+<span class="fc" id="L392">        fileUploadIDs = fetchFields(FILE_UPLOAD_ID_FIELD);</span>
+<span class="fc" id="L393">        logger.debug(&quot;fetchFileUploadIDs {}&quot;, fileUploadIDs);</span>
+<span class="fc" id="L394">    }</span>
+
+    protected void fetchFileUploadContentTypes() {
+<span class="fc" id="L397">        fileUploadContentTypes = fetchFields(FILE_CONTENT_TYPE_FIELD);</span>
+<span class="fc" id="L398">        logger.debug(&quot;fetchFileUploadContentTypes {}&quot;, fileUploadContentTypes);</span>
+<span class="fc" id="L399">    }</span>
+
+    protected void fetchFileUploadFileNames() {
+<span class="fc" id="L402">        fileUploadFileNames = fetchFields(FILE_NAME_FIELD);</span>
+<span class="fc" id="L403">        logger.debug(&quot;fetchFileUploadFileNames {}&quot;, fileUploadContentTypes);</span>
+
+<span class="fc" id="L405">    }</span>
+
+    protected boolean listContains(List list, int i) {
+<span class="pc bpc" id="L408" title="2 of 4 branches missed.">        return list != null &amp;&amp; i &lt;= list.size();</span>
+    }
+
+    public String getFileDescription(int i) {
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">        if (null != fileDescriptions</span>
+<span class="pc bpc" id="L413" title="1 of 2 branches missed.">                &amp;&amp; !fileDescriptions.isEmpty()) {</span>
+<span class="fc" id="L414">            return fileDescriptions.get(i);</span>
+        }
+<span class="nc" id="L416">        return null;</span>
+    }
+
+    public String getFileUploadId(int i) {
+<span class="pc bpc" id="L420" title="1 of 2 branches missed.">        if (null != fileUploadIDs</span>
+<span class="pc bpc" id="L421" title="1 of 2 branches missed.">                &amp;&amp; !fileUploadIDs.isEmpty()) {</span>
+<span class="nc" id="L422">            return fileUploadIDs.get(i);</span>
+        }
+<span class="fc" id="L424">        return null;</span>
+    }
+
+    public String getFileUploadFileName(int i) {
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">        if (null != fileUploadFileNames</span>
+<span class="pc bpc" id="L429" title="1 of 2 branches missed.">                &amp;&amp; !fileUploadFileNames.isEmpty()) {</span>
+<span class="nc" id="L430">            return fileUploadFileNames.get(i);</span>
+        }
+<span class="fc" id="L432">        return null;</span>
+    }
+
+    public String getFileUploadContentType(int i) {
+<span class="nc bnc" id="L436" title="All 2 branches missed.">        if (null != fileUploadContentTypes</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">                &amp;&amp; !fileUploadContentTypes.isEmpty()) {</span>
+<span class="nc" id="L438">            return fileUploadContentTypes.get(i);</span>
+        }
+<span class="nc" id="L440">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

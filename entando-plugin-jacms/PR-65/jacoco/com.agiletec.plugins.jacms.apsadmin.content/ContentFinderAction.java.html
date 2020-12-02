@@ -1,0 +1,1031 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content</a> &gt; <span class="el_source">ContentFinderAction.java</span></div><h1>ContentFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.plugins.jacms.apsadmin.content.rs.model.ContentJO;
+import org.entando.entando.plugins.jacms.apsadmin.content.rs.model.ContentsStatusResponse;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.model.ApsEntity;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.entity.AbstractApsEntityFinderAction;
+import com.agiletec.apsadmin.tags.util.AdminPagerTagHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentsStatus;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.apsadmin.content.helper.IContentActionHelper;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.ArrayUtils;
+
+/**
+ * Action per la ricerca contenuti.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L59">public class ContentFinderAction extends AbstractApsEntityFinderAction {</span>
+
+<span class="fc" id="L61">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentFinderAction.class);</span>
+
+    private static final int DEFAULT_LASTUPDATE_RESPONSE_SIZE = 5;
+
+<span class="fc" id="L65">    private String state = &quot;&quot;;</span>
+<span class="fc" id="L66">    private String text = &quot;&quot;;</span>
+<span class="fc" id="L67">    private String onLineState = &quot;&quot;;</span>
+<span class="fc" id="L68">    private String contentIdToken = &quot;&quot;;</span>
+    private String ownerGroupName;
+    private String categoryCode;
+
+    private String lastOrder;
+    private String lastGroupBy;
+    private String groupBy;
+
+    private boolean viewCode;
+    private boolean viewGroup;
+    private boolean viewStatus;
+    private boolean viewTypeDescr;
+    private boolean viewCreationDate;
+
+    private boolean allContentsSelected;
+    private int strutsAction;
+
+    private Set&lt;String&gt; contentIds;
+    private Set&lt;String&gt; selectedIds;// Used in bulk actions
+    private int lastUpdateResponseSize;
+
+<span class="fc" id="L89">    private String actionCode = null;</span>
+
+<span class="fc" id="L91">    private String pagerName = AdminPagerTagHelper.DEFAULT_PAGER_NAME;</span>
+
+<span class="fc" id="L93">    private boolean openCollapsed = false;</span>
+
+    private IContentManager contentManager;
+    private IGroupManager groupManager;
+    private ICategoryManager categoryManager;
+
+    public boolean isOpenCollapsed() {
+<span class="nc" id="L100">        boolean hasFilterByCat = false;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (null != this.getCategoryCode()) {</span>
+<span class="nc" id="L102">            Category category = this.getCategoryManager().getCategory(this.getCategoryCode());</span>
+<span class="nc bnc" id="L103" title="All 4 branches missed.">            hasFilterByCat = (null != category &amp;&amp; !category.isRoot());</span>
+        }
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        return (this.openCollapsed</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                || (super.isAddedAttributeFilter())</span>
+<span class="nc bnc" id="L107" title="All 4 branches missed.">                || !StringUtils.isBlank(this.getContentType())</span>
+                || hasFilterByCat
+<span class="nc bnc" id="L109" title="All 2 branches missed.">                || !StringUtils.isBlank(this.getState())</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                || !StringUtils.isBlank(this.getOwnerGroupName()));</span>
+    }
+
+    public void setOpenCollapsed(boolean openCollapsed) {
+<span class="nc" id="L114">        this.openCollapsed = openCollapsed;</span>
+<span class="nc" id="L115">    }</span>
+
+    public ContentsStatusResponse getContentsStatusResponse() {
+<span class="nc" id="L118">        ContentsStatusResponse response = null;</span>
+        try {
+<span class="nc" id="L120">            ContentsStatus pagesStatus = this.getContentManager().getContentsStatus();</span>
+<span class="nc" id="L121">            response = new ContentsStatusResponse(pagesStatus);</span>
+<span class="nc" id="L122">        } catch (Throwable t) {</span>
+<span class="nc" id="L123">            logger.error(&quot;Error loading contents status&quot;, t);</span>
+<span class="nc" id="L124">            throw new RuntimeException(&quot;Error loading contents status&quot;, t);</span>
+<span class="nc" id="L125">        }</span>
+<span class="nc" id="L126">        return response;</span>
+    }
+
+    public String getLastUpdated() {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if (this.getLastUpdateResponseSize() &lt; 1) {</span>
+<span class="nc" id="L131">            this.setLastUpdateResponseSize(DEFAULT_LASTUPDATE_RESPONSE_SIZE);</span>
+        }
+<span class="nc" id="L133">        return SUCCESS;</span>
+    }
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    public List&lt;ContentJO&gt; getLastUpdateContentResponse() {
+<span class="nc" id="L138">        List&lt;ContentJO&gt; response = null;</span>
+        try {
+<span class="nc" id="L140">            List&lt;String&gt; groupCodes = this.getGroupManager().getGroups().stream().map(group -&gt; group.getName()).collect(Collectors.toList());</span>
+<span class="nc" id="L141">            EntitySearchFilter modifyOrder = new EntitySearchFilter(IContentManager.CONTENT_MODIFY_DATE_FILTER_KEY, false);</span>
+<span class="nc" id="L142">            modifyOrder.setOrder(EntitySearchFilter.DESC_ORDER);</span>
+<span class="nc" id="L143">            EntitySearchFilter paginationFilter = new EntitySearchFilter(this.getLastUpdateResponseSize(), 0);</span>
+<span class="nc" id="L144">            EntitySearchFilter[] filters = {modifyOrder, paginationFilter};</span>
+<span class="nc" id="L145">            SearcherDaoPaginatedResult&lt;String&gt; paginatedContentsId = this.getContentManager().getPaginatedWorkContentsId(null, false, filters, groupCodes);</span>
+<span class="nc" id="L146">            List&lt;String&gt; ids = paginatedContentsId.getList();</span>
+<span class="nc bnc" id="L147" title="All 4 branches missed.">            if (null != ids &amp;&amp; !ids.isEmpty()) {</span>
+<span class="nc" id="L148">                response = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L149">                Iterator&lt;String&gt; sublist = ids.iterator();</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                while (sublist.hasNext()) {</span>
+<span class="nc" id="L151">                    String contentId = sublist.next();</span>
+<span class="nc" id="L152">                    Content content = this.getContentManager().loadContent(contentId, false);</span>
+<span class="nc" id="L153">                    ContentJO contentJO = new ContentJO(content);</span>
+<span class="nc" id="L154">                    response.add(contentJO);</span>
+<span class="nc" id="L155">                }</span>
+            }
+<span class="nc" id="L157">        } catch (Throwable t) {</span>
+<span class="nc" id="L158">            logger.error(&quot;Error loading last updated content response&quot;, t);</span>
+<span class="nc" id="L159">            throw new RuntimeException(&quot;Error loading last updated content response&quot;, t);</span>
+<span class="nc" id="L160">        }</span>
+<span class="nc" id="L161">        return response;</span>
+    }
+
+    @Override
+    public String execute() {
+        try {
+<span class="fc" id="L167">            ContentFinderSearchInfo searchInfo = this.getContentSearchInfo();</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">            if (null == searchInfo) {</span>
+<span class="fc" id="L169">                searchInfo = new ContentFinderSearchInfo();</span>
+<span class="fc" id="L170">                this.getRequest().getSession().setAttribute(ContentFinderSearchInfo.SESSION_NAME, searchInfo);</span>
+            }
+<span class="fc" id="L172">            this.createFilters();</span>
+<span class="nc" id="L173">        } catch (Throwable t) {</span>
+<span class="nc" id="L174">            logger.error(&quot;error in execute&quot;, t);</span>
+<span class="nc" id="L175">            return FAILURE;</span>
+<span class="fc" id="L176">        }</span>
+<span class="fc" id="L177">        return SUCCESS;</span>
+    }
+
+    public String list() {
+        try {
+<span class="fc" id="L182">            this.getRequest().getSession().setAttribute(ContentFinderSearchInfo.SESSION_NAME,</span>
+                    new ContentFinderSearchInfo());
+<span class="fc" id="L184">            this.createFilters();</span>
+<span class="nc" id="L185">        } catch (Throwable t) {</span>
+<span class="nc" id="L186">            logger.error(&quot;error in execute&quot;, t);</span>
+<span class="nc" id="L187">            return FAILURE;</span>
+<span class="fc" id="L188">        }</span>
+<span class="fc" id="L189">        return SUCCESS;</span>
+    }
+
+    public String results() {
+        try {
+<span class="nc" id="L194">            ContentFinderSearchInfo searchInfo = this.getContentSearchInfo();</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">            if (null == searchInfo) {</span>
+<span class="nc" id="L196">                searchInfo = new ContentFinderSearchInfo();</span>
+<span class="nc" id="L197">                this.getRequest().getSession().setAttribute(ContentFinderSearchInfo.SESSION_NAME, searchInfo);</span>
+            }
+<span class="nc" id="L199">            this.restoreCommonSearchState(searchInfo);</span>
+<span class="nc" id="L200">            this.restoreCategorySearchState(searchInfo);</span>
+<span class="nc" id="L201">            this.restoreEntitySearchState(searchInfo);</span>
+<span class="nc" id="L202">            this.restorePagerSearchState(searchInfo);</span>
+<span class="nc" id="L203">            this.addFilter(searchInfo.getFilter(ContentFinderSearchInfo.ORDER_FILTER));</span>
+<span class="nc" id="L204">        } catch (Throwable t) {</span>
+<span class="nc" id="L205">            logger.error(&quot;error in results&quot;, t);</span>
+<span class="nc" id="L206">            return FAILURE;</span>
+<span class="nc" id="L207">        }</span>
+<span class="nc" id="L208">        return SUCCESS;</span>
+    }
+    
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedContentsId(Integer limit) {
+<span class="nc" id="L212">        SearcherDaoPaginatedResult&lt;String&gt; result = null;</span>
+        try {
+<span class="nc" id="L214">            ContentFinderSearchInfo searchInfo = this.getContentSearchInfo();</span>
+<span class="nc" id="L215">            List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="nc" id="L216">            String[] categories = null;</span>
+<span class="nc" id="L217">            Category category = this.getCategoryManager().getCategory(this.getCategoryCode());</span>
+<span class="nc bnc" id="L218" title="All 4 branches missed.">            if (null != category &amp;&amp; !category.isRoot()) {</span>
+<span class="nc" id="L219">                String catCode = this.getCategoryCode().trim();</span>
+<span class="nc" id="L220">                categories = new String[]{catCode};</span>
+<span class="nc" id="L221">                searchInfo.setCategoryCode(catCode);</span>
+<span class="nc" id="L222">            } else {</span>
+<span class="nc" id="L223">                searchInfo.setCategoryCode(null);</span>
+            }
+<span class="nc" id="L225">            EntitySearchFilter[] filters = this.getFilters();</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            if (null != limit) {</span>
+<span class="nc" id="L227">                filters = ArrayUtils.add(filters, this.getPagerFilter(limit));</span>
+            }
+<span class="nc" id="L229">            result = this.getContentManager().getPaginatedWorkContentsId(categories, false, filters, allowedGroups);</span>
+<span class="nc" id="L230">        } catch (Throwable t) {</span>
+<span class="nc" id="L231">            logger.error(&quot;error in getPaginatedWorkContentsId&quot;, t);</span>
+<span class="nc" id="L232">            throw new RuntimeException(&quot;error in getPaginatedWorkContentsId&quot;, t);</span>
+<span class="nc" id="L233">        }</span>
+<span class="nc" id="L234">        return result;</span>
+    }
+    
+    protected EntitySearchFilter getPagerFilter(Integer limit) {
+<span class="nc" id="L238">        int pagerItem = new AdminPagerTagHelper().getItemNumber(this.getPagerId(), this.getRequest());</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        int item = (pagerItem &gt; 0) ? pagerItem : 1;</span>
+<span class="nc bnc" id="L240" title="All 4 branches missed.">        int realLimit = (null != limit &amp;&amp; limit &gt; 0) ? limit : 10;</span>
+<span class="nc" id="L241">        int offset = (item - 1) * realLimit;</span>
+<span class="nc" id="L242">        return new EntitySearchFilter(realLimit, offset);</span>
+    }
+    
+    public String getPagerId() {
+<span class="nc" id="L246">        return this.getClass().getSimpleName();</span>
+    }
+    
+    /**
+     * Restituisce la lista identificativi di contenuti che deve essere erogata
+     * dall'interfaccia di visualizzazione dei contenuti.La lista deve essere 
+     * filtrata secondo i parametri di ricerca impostati.
+     *
+     * @return La lista di contenuti che deve essere erogata dall'interfaccia di
+     * visualizzazione dei contenuti.
+     * @deprecated 
+     */
+    public List&lt;String&gt; getContents() {
+<span class="fc" id="L259">        List&lt;String&gt; result = null;</span>
+        try {
+<span class="fc" id="L261">            ContentFinderSearchInfo searchInfo = this.getContentSearchInfo();</span>
+<span class="fc" id="L262">            List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="fc" id="L263">            String[] categories = null;</span>
+<span class="fc" id="L264">            Category category = this.getCategoryManager().getCategory(this.getCategoryCode());</span>
+<span class="fc bfc" id="L265" title="All 4 branches covered.">            if (null != category &amp;&amp; !category.isRoot()) {</span>
+<span class="fc" id="L266">                String catCode = this.getCategoryCode().trim();</span>
+<span class="fc" id="L267">                categories = new String[]{catCode};</span>
+<span class="fc" id="L268">                searchInfo.setCategoryCode(catCode);</span>
+<span class="fc" id="L269">            } else {</span>
+<span class="fc" id="L270">                searchInfo.setCategoryCode(null);</span>
+            }
+<span class="fc" id="L272">            result = this.getContentManager().loadWorkContentsId(categories, this.getFilters(), allowedGroups);</span>
+<span class="nc" id="L273">        } catch (Throwable t) {</span>
+<span class="nc" id="L274">            logger.error(&quot;error in getContents&quot;, t);</span>
+<span class="nc" id="L275">            throw new RuntimeException(&quot;error in getContents&quot;, t);</span>
+<span class="fc" id="L276">        }</span>
+<span class="fc" id="L277">        return result;</span>
+    }
+
+    public String changeOrder() {
+        try {
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">            if (null == this.getGroupBy()) {</span>
+<span class="nc" id="L283">                return SUCCESS;</span>
+            }
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            if (this.getGroupBy().equals(this.getLastGroupBy())) {</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">                boolean condition = (null == this.getLastOrder()</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">                        || this.getLastOrder().equals(EntitySearchFilter.ASC_ORDER));</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">                String order = (condition ? EntitySearchFilter.DESC_ORDER : EntitySearchFilter.ASC_ORDER);</span>
+<span class="fc" id="L289">                this.setLastOrder(order);</span>
+<span class="fc" id="L290">            } else {</span>
+<span class="fc" id="L291">                this.setLastOrder(EntitySearchFilter.DESC_ORDER);</span>
+            }
+<span class="fc" id="L293">            this.setLastGroupBy(this.getGroupBy());</span>
+<span class="nc" id="L294">        } catch (Throwable t) {</span>
+<span class="nc" id="L295">            logger.error(&quot;error in changeOrder&quot;, t);</span>
+<span class="nc" id="L296">            throw new RuntimeException(&quot;error in changeOrder&quot;, t);</span>
+<span class="fc" id="L297">        }</span>
+<span class="fc" id="L298">        return this.execute();</span>
+    }
+
+    /**
+     * Esegue la publicazione di un singolo contenuto direttamente
+     * dall'interfaccia di visualizzazione dei contenuti in lista.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String insertOnLine() {
+        try {
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">            if (null == this.getContentIds()) {</span>
+<span class="nc" id="L310">                this.addActionError(this.getText(&quot;error.contents.nothingSelected&quot;));</span>
+<span class="nc" id="L311">                return INPUT;</span>
+            }
+<span class="fc" id="L313">            Iterator&lt;String&gt; iter = this.getContentIds().iterator();</span>
+<span class="fc" id="L314">            List&lt;Content&gt; publishedContents = new ArrayList&lt;Content&gt;();</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">            while (iter.hasNext()) {</span>
+<span class="fc" id="L316">                String contentId = (String) iter.next();</span>
+<span class="fc" id="L317">                Content contentToPublish = this.getContentManager().loadContent(contentId, false);</span>
+<span class="fc" id="L318">                String[] msgArg = new String[1];</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">                if (null == contentToPublish) {</span>
+<span class="nc" id="L320">                    msgArg[0] = contentId;</span>
+<span class="nc" id="L321">                    this.addActionError(this.getText(&quot;error.content.contentToPublishNull&quot;, msgArg));</span>
+<span class="nc" id="L322">                    continue;</span>
+                }
+<span class="fc" id="L324">                msgArg[0] = contentToPublish.getDescription();</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">                if (!this.isUserAllowed(contentToPublish)) {</span>
+<span class="fc" id="L326">                    this.addActionError(this.getText(&quot;error.content.userNotAllowedToPublishContent&quot;, msgArg));</span>
+<span class="fc" id="L327">                    continue;</span>
+                }
+<span class="fc" id="L329">                this.getContentActionHelper().scanEntity(contentToPublish, this);</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">                if (this.getFieldErrors().size() &gt; 0) {</span>
+<span class="fc" id="L331">                    this.addActionError(this.getText(&quot;error.content.publishingContentWithErrors&quot;, msgArg));</span>
+<span class="fc" id="L332">                    continue;</span>
+                }
+<span class="fc" id="L334">                this.getContentManager().insertOnLineContent(contentToPublish);</span>
+<span class="fc" id="L335">                logger.info(&quot;Published content {} by user {}&quot;, contentToPublish.getId(),</span>
+<span class="fc" id="L336">                        this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L337">                publishedContents.add(contentToPublish);</span>
+<span class="fc" id="L338">                this.addActivityStreamInfo(contentToPublish, (ApsAdminSystemConstants.ADD + 10), true);</span>
+<span class="fc" id="L339">            }</span>
+            // RIVISITARE LABEL e LOGICA DI COSTRUZIONE LABEL
+<span class="fc" id="L341">            this.addConfirmMessage(&quot;message.content.publishedContents&quot;, publishedContents);</span>
+<span class="nc" id="L342">        } catch (Throwable t) {</span>
+<span class="nc" id="L343">            logger.error(&quot;error in insertOnLine&quot;, t);</span>
+<span class="nc" id="L344">            throw new RuntimeException(&quot;Error publishing contents&quot;, t);</span>
+<span class="fc" id="L345">        }</span>
+<span class="fc" id="L346">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue la rimozione dall'area pubblica di un singolo contenuto
+     * direttamente dall'interfaccia di visualizzazione dei contenuti in lista.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String removeOnLine() {
+        try {
+<span class="pc bpc" id="L357" title="1 of 2 branches missed.">            if (null == this.getContentIds()) {</span>
+<span class="nc" id="L358">                this.addActionError(this.getText(&quot;error.contents.nothingSelected&quot;));</span>
+<span class="nc" id="L359">                return INPUT;</span>
+            }
+<span class="fc" id="L361">            Iterator&lt;String&gt; contentsIdsItr = this.getContentIds().iterator();</span>
+<span class="fc" id="L362">            List&lt;Content&gt; removedContents = new ArrayList&lt;Content&gt;();</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">            while (contentsIdsItr.hasNext()) {</span>
+<span class="fc" id="L364">                String contentId = (String) contentsIdsItr.next();</span>
+<span class="fc" id="L365">                Content contentToSuspend = this.getContentManager().loadContent(contentId, false);</span>
+<span class="fc" id="L366">                String[] msgArg = new String[1];</span>
+<span class="pc bpc" id="L367" title="1 of 2 branches missed.">                if (null == contentToSuspend) {</span>
+<span class="nc" id="L368">                    msgArg[0] = contentId;</span>
+<span class="nc" id="L369">                    this.addActionError(this.getText(&quot;error.content.contentToSuspendNull&quot;, msgArg));</span>
+<span class="nc" id="L370">                    continue;</span>
+                }
+<span class="fc" id="L372">                msgArg[0] = contentToSuspend.getDescription();</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">                if (!this.isUserAllowed(contentToSuspend)) {</span>
+<span class="fc" id="L374">                    this.addActionError(this.getText(&quot;error.content.userNotAllowedToSuspendContent&quot;, msgArg));</span>
+<span class="fc" id="L375">                    continue;</span>
+                }
+<span class="fc" id="L377">                Map references = this.getContentActionHelper().getReferencingObjects(contentToSuspend,</span>
+<span class="fc" id="L378">                        this.getRequest());</span>
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">                if (references.size() &gt; 0) {</span>
+<span class="nc" id="L380">                    this.addActionError(this.getText(&quot;error.content.suspendingContentWithReferences&quot;, msgArg));</span>
+<span class="nc" id="L381">                    continue;</span>
+                }
+<span class="fc" id="L383">                this.getContentManager().removeOnLineContent(contentToSuspend);</span>
+<span class="fc" id="L384">                logger.info(&quot;Suspended Content '{}' by user {}&quot;, contentToSuspend.getId(),</span>
+<span class="fc" id="L385">                        this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L386">                removedContents.add(contentToSuspend);</span>
+<span class="fc" id="L387">                this.addActivityStreamInfo(contentToSuspend, (ApsAdminSystemConstants.DELETE + 10), true);</span>
+<span class="fc" id="L388">            }</span>
+            // RIVISITARE LABEL e LOGICA DI COSTRUZIONE LABEL
+<span class="fc" id="L390">            this.addConfirmMessage(&quot;message.content.suspendedContents&quot;, removedContents);</span>
+<span class="nc" id="L391">        } catch (Throwable t) {</span>
+<span class="nc" id="L392">            logger.error(&quot;Error on suspending contents&quot;, t);</span>
+<span class="nc" id="L393">            throw new RuntimeException(&quot;Error on suspending contents&quot;, t);</span>
+<span class="fc" id="L394">        }</span>
+<span class="fc" id="L395">        return SUCCESS;</span>
+    }
+
+    /**
+     * We've moved to deletion check here in the 'trash' action so to have
+     * errors notified immediately. Be design we share all the messages with the
+     * 'delete' action.
+     *
+     * @return the result code of the action: &quot;success&quot; if all the contents can
+     * be deleted, &quot;cannotProceed&quot; if blocking errors are detected
+     */
+    public String trash() {
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">        if (null == this.getContentIds()) {</span>
+<span class="nc" id="L408">            this.addActionError(this.getText(&quot;error.contents.nothingSelected&quot;));</span>
+<span class="nc" id="L409">            return INPUT;</span>
+        }
+        try {
+<span class="fc" id="L412">            Iterator&lt;String&gt; itr = this.getContentIds().iterator();</span>
+<span class="fc bfc" id="L413" title="All 2 branches covered.">            while (itr.hasNext()) {</span>
+<span class="fc" id="L414">                String currentContentId = itr.next();</span>
+<span class="fc" id="L415">                String msgArg[] = new String[1];</span>
+<span class="fc" id="L416">                Content contentToTrash = this.getContentManager().loadContent(currentContentId, false);</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">                if (null == contentToTrash) {</span>
+<span class="fc" id="L418">                    msgArg[0] = currentContentId;</span>
+<span class="fc" id="L419">                    this.addActionError(this.getText(&quot;error.content.contentToDeleteNull&quot;, msgArg));</span>
+<span class="fc" id="L420">                    continue;</span>
+                }
+<span class="fc" id="L422">                msgArg[0] = contentToTrash.getDescription();</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">                if (!this.isUserAllowed(contentToTrash)) {</span>
+<span class="fc" id="L424">                    this.addActionError(this.getText(&quot;error.content.userNotAllowedToContentToDelete&quot;, msgArg));</span>
+<span class="fc" id="L425">                    continue;</span>
+                }
+<span class="fc bfc" id="L427" title="All 2 branches covered.">                if (contentToTrash.isOnLine()) {</span>
+<span class="fc" id="L428">                    this.addActionError(this.getText(&quot;error.content.notAllowedToDeleteOnlineContent&quot;, msgArg));</span>
+<span class="fc" id="L429">                    continue;</span>
+                }
+<span class="fc" id="L431">            }</span>
+<span class="nc" id="L432">        } catch (Throwable t) {</span>
+<span class="nc" id="L433">            logger.error(&quot;Error on deleting contents - trash&quot;, t);</span>
+<span class="nc" id="L434">            throw new RuntimeException(&quot;Error on deleting contents&quot;, t);</span>
+<span class="fc" id="L435">        }</span>
+<span class="fc bfc" id="L436" title="All 2 branches covered.">        if (this.getActionErrors().isEmpty()) {</span>
+<span class="fc" id="L437">            return SUCCESS;</span>
+        }
+<span class="fc" id="L439">        return &quot;cannotProceed&quot;;</span>
+    }
+
+    /**
+     * Esegue l'operazione di cancellazione contenuto o gruppo contenuti.
+     *
+     * @return Il codice del risultato.
+     */
+    public String delete() {
+        try {
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">            if (null == this.getContentIds()) {</span>
+<span class="nc" id="L450">                this.addActionError(this.getText(&quot;error.contents.nothingSelected&quot;));</span>
+<span class="nc" id="L451">                return INPUT;</span>
+            }
+<span class="fc" id="L453">            Iterator&lt;String&gt; iter = this.getContentIds().iterator();</span>
+<span class="fc" id="L454">            List&lt;Content&gt; deletedContents = new ArrayList&lt;Content&gt;();</span>
+<span class="fc bfc" id="L455" title="All 2 branches covered.">            while (iter.hasNext()) {</span>
+<span class="fc" id="L456">                String contentId = (String) iter.next();</span>
+<span class="fc" id="L457">                Content contentToDelete = this.getContentManager().loadContent(contentId, false);</span>
+<span class="fc" id="L458">                String[] msgArg = new String[1];</span>
+<span class="pc bpc" id="L459" title="1 of 2 branches missed.">                if (null == contentToDelete) {</span>
+<span class="nc" id="L460">                    msgArg[0] = contentId;</span>
+<span class="nc" id="L461">                    this.addActionError(this.getText(&quot;error.content.contentToDeleteNull&quot;, msgArg));</span>
+<span class="nc" id="L462">                    continue;</span>
+                }
+<span class="fc" id="L464">                msgArg[0] = contentToDelete.getDescription();</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">                if (!this.isUserAllowed(contentToDelete)) {</span>
+<span class="fc" id="L466">                    this.addActionError(this.getText(&quot;error.content.userNotAllowedToContentToDelete&quot;, msgArg));</span>
+<span class="fc" id="L467">                    continue;</span>
+                }
+<span class="fc bfc" id="L469" title="All 2 branches covered.">                if (contentToDelete.isOnLine()) {</span>
+<span class="fc" id="L470">                    this.addActionError(this.getText(&quot;error.content.notAllowedToDeleteOnlineContent&quot;, msgArg));</span>
+<span class="fc" id="L471">                    continue;</span>
+                }
+<span class="fc" id="L473">                this.getContentManager().deleteContent(contentToDelete);</span>
+<span class="fc" id="L474">                logger.info(&quot;Deleted Content '{}' by user {}&quot;, contentToDelete.getId(),</span>
+<span class="fc" id="L475">                        this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L476">                deletedContents.add(contentToDelete);</span>
+<span class="fc" id="L477">                this.addActivityStreamInfo(contentToDelete, ApsAdminSystemConstants.DELETE, false);</span>
+<span class="fc" id="L478">            }</span>
+            // RIVISITARE LABEL e LOGICA DI COSTRUZIONE LABEL
+<span class="fc" id="L480">            this.addConfirmMessage(&quot;message.content.deletedContents&quot;, deletedContents);</span>
+<span class="nc" id="L481">        } catch (Throwable t) {</span>
+<span class="nc" id="L482">            logger.error(&quot;Error deleting contentd - delete&quot;, t);</span>
+<span class="nc" id="L483">            throw new RuntimeException(&quot;Errore in cancellazione contenuti&quot;, t);</span>
+<span class="fc" id="L484">        }</span>
+<span class="fc" id="L485">        return SUCCESS;</span>
+    }
+
+    /**
+     * Restituisce il contenuto vo in base all'identificativo.
+     *
+     * @param contentId L'identificativo del contenuto.
+     * @return Il contenuto vo cercato.
+     */
+    public ContentRecordVO getContentVo(String contentId) {
+<span class="fc" id="L495">        ContentRecordVO contentVo = null;</span>
+        try {
+<span class="fc" id="L497">            contentVo = this.getContentManager().loadContentVO(contentId);</span>
+<span class="nc" id="L498">        } catch (Throwable t) {</span>
+<span class="nc" id="L499">            logger.error(&quot;error in getContentVo for content {}&quot;, contentId, t);</span>
+<span class="nc" id="L500">            throw new RuntimeException(&quot;Errore in caricamento contenuto vo&quot;, t);</span>
+<span class="fc" id="L501">        }</span>
+<span class="fc" id="L502">        return contentVo;</span>
+    }
+
+    public List&lt;SmallEntityType&gt; getContentTypes() {
+<span class="nc" id="L506">        return this.getContentManager().getSmallEntityTypes();</span>
+    }
+
+    public SmallEntityType getSmallContentType(String code) {
+<span class="nc" id="L510">        return this.getContentManager().getSmallContentTypesMap().get(code);</span>
+    }
+
+    /**
+     * Restituisce la lista di stati di contenuto definiti nel sistema, come
+     * insieme di chiave e valore Il metodo è a servizio delle jsp che
+     * richiedono questo dato per fornire una corretta visualizzazione della
+     * pagina.
+     *
+     * @return La lista di stati di contenuto definiti nel sistema.
+     */
+    public List&lt;SelectItem&gt; getAvalaibleStatus() {
+<span class="nc" id="L522">        String[] status = Content.AVAILABLE_STATUS;</span>
+<span class="nc" id="L523">        List&lt;SelectItem&gt; items = new ArrayList&lt;SelectItem&gt;(status.length);</span>
+<span class="nc bnc" id="L524" title="All 2 branches missed.">        for (int i = 0; i &lt; status.length; i++) {</span>
+<span class="nc" id="L525">            SelectItem item = new SelectItem(status[i], &quot;name.contentStatus.&quot; + status[i]);</span>
+<span class="nc" id="L526">            items.add(item);</span>
+        }
+<span class="nc" id="L528">        return items;</span>
+    }
+
+    public String entryBulkActions() {
+        try {
+<span class="nc" id="L533">            Set&lt;String&gt; contentIds = null;</span>
+<span class="nc bnc" id="L534" title="All 2 branches missed.">            if (this.isAllContentsSelected()) {</span>
+<span class="nc" id="L535">                this.getRequest().getSession().setAttribute(ContentFinderSearchInfo.SESSION_NAME,</span>
+                        new ContentFinderSearchInfo());
+<span class="nc" id="L537">                this.createFilters();</span>
+<span class="nc" id="L538">                List&lt;String&gt; allContentIds = this.getContents();</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">                if (allContentIds != null) {</span>
+<span class="nc" id="L540">                    contentIds = new TreeSet&lt;String&gt;(allContentIds);</span>
+                }
+<span class="nc" id="L542">            } else {</span>
+<span class="nc" id="L543">                contentIds = this.getContentIds();</span>
+            }
+<span class="nc" id="L545">            this.setSelectedIds(contentIds);</span>
+<span class="nc bnc" id="L546" title="All 4 branches missed.">            if (contentIds == null || contentIds.isEmpty()) {</span>
+<span class="nc" id="L547">                this.addActionError(this.getText(&quot;error.content.bulkAction.empty&quot;));</span>
+<span class="nc" id="L548">                return INPUT;</span>
+            }
+<span class="nc" id="L550">        } catch (Throwable t) {</span>
+<span class="nc" id="L551">            logger.error(&quot;error in execute&quot;, t);</span>
+<span class="nc" id="L552">            return FAILURE;</span>
+<span class="nc" id="L553">        }</span>
+<span class="nc" id="L554">        return SUCCESS;</span>
+    }
+
+    /**
+     * Restituisce un gruppo in base al nome.
+     *
+     * @param groupName Il nome del gruppo da restituire.
+     * @return Il gruppo cercato.
+     */
+    public Group getGroup(String groupName) {
+<span class="nc" id="L564">        return this.getGroupManager().getGroup(groupName);</span>
+    }
+
+    public List&lt;Group&gt; getAllowedGroups() {
+<span class="nc" id="L568">        return super.getActualAllowedGroups();</span>
+    }
+
+    /**
+     * Restituisce la lista ordinata dei gruppi presenti nel sistema.
+     *
+     * @return La lista dei gruppi presenti nel sistema.
+     */
+    public List&lt;Group&gt; getGroups() {
+<span class="nc" id="L577">        return this.getGroupManager().getGroups();</span>
+    }
+
+    public Category getCategoryRoot() {
+<span class="nc" id="L581">        return (Category) this.getCategoryManager().getRoot();</span>
+    }
+
+    public String getContentType() {
+<span class="nc" id="L585">        return super.getEntityTypeCode();</span>
+    }
+
+    public void setContentType(String contentType) {
+<span class="fc" id="L589">        super.setEntityTypeCode(contentType);</span>
+<span class="fc" id="L590">    }</span>
+
+    public String getState() {
+<span class="fc" id="L593">        return state;</span>
+    }
+
+    public void setState(String state) {
+<span class="fc" id="L597">        this.state = state;</span>
+<span class="fc" id="L598">    }</span>
+
+    public String getText() {
+<span class="fc" id="L601">        return text;</span>
+    }
+
+    public void setText(String text) {
+<span class="fc" id="L605">        this.text = text;</span>
+<span class="fc" id="L606">    }</span>
+
+    public String getOnLineState() {
+<span class="fc" id="L609">        return onLineState;</span>
+    }
+
+    public void setOnLineState(String onLineState) {
+<span class="nc" id="L613">        this.onLineState = onLineState;</span>
+<span class="nc" id="L614">    }</span>
+
+    public void setContentIdToken(String contentIdToken) {
+<span class="fc" id="L617">        this.contentIdToken = contentIdToken;</span>
+<span class="fc" id="L618">    }</span>
+
+    public String getContentIdToken() {
+<span class="fc" id="L621">        return contentIdToken;</span>
+    }
+
+    public String getOwnerGroupName() {
+<span class="fc" id="L625">        return ownerGroupName;</span>
+    }
+
+    public void setOwnerGroupName(String ownerGroupName) {
+<span class="fc" id="L629">        this.ownerGroupName = ownerGroupName;</span>
+<span class="fc" id="L630">    }</span>
+
+    public String getCategoryCode() {
+<span class="fc" id="L633">        return categoryCode;</span>
+    }
+
+    public void setCategoryCode(String categoryCode) {
+<span class="fc" id="L637">        this.categoryCode = categoryCode;</span>
+<span class="fc" id="L638">    }</span>
+
+    public String getLastOrder() {
+<span class="fc" id="L641">        return lastOrder;</span>
+    }
+
+    public void setLastOrder(String order) {
+<span class="fc" id="L645">        this.lastOrder = order;</span>
+<span class="fc" id="L646">    }</span>
+
+    public String getLastGroupBy() {
+<span class="fc" id="L649">        return lastGroupBy;</span>
+    }
+
+    public void setLastGroupBy(String lastGroupBy) {
+<span class="fc" id="L653">        this.lastGroupBy = lastGroupBy;</span>
+<span class="fc" id="L654">    }</span>
+
+    public String getGroupBy() {
+<span class="fc" id="L657">        return groupBy;</span>
+    }
+
+    public void setGroupBy(String groupBy) {
+<span class="fc" id="L661">        this.groupBy = groupBy;</span>
+<span class="fc" id="L662">    }</span>
+
+    public boolean isViewCode() {
+<span class="nc" id="L665">        return viewCode;</span>
+    }
+
+    public void setViewCode(boolean viewCode) {
+<span class="nc" id="L669">        this.viewCode = viewCode;</span>
+<span class="nc" id="L670">    }</span>
+
+    public boolean isViewStatus() {
+<span class="nc" id="L673">        return viewStatus;</span>
+    }
+
+    public void setViewStatus(boolean viewStatus) {
+<span class="nc" id="L677">        this.viewStatus = viewStatus;</span>
+<span class="nc" id="L678">    }</span>
+
+    public boolean isViewCreationDate() {
+<span class="nc" id="L681">        return viewCreationDate;</span>
+    }
+
+    public void setViewCreationDate(boolean viewCreationDate) {
+<span class="nc" id="L685">        this.viewCreationDate = viewCreationDate;</span>
+<span class="nc" id="L686">    }</span>
+
+    public boolean getViewGroup() {
+<span class="nc" id="L689">        return viewGroup;</span>
+    }
+
+    public void setViewGroup(boolean viewGroup) {
+<span class="nc" id="L693">        this.viewGroup = viewGroup;</span>
+<span class="nc" id="L694">    }</span>
+
+    public boolean getViewTypeDescr() {
+<span class="nc" id="L697">        return viewTypeDescr;</span>
+    }
+
+    public void setViewTypeDescr(boolean viewTypeDescr) {
+<span class="nc" id="L701">        this.viewTypeDescr = viewTypeDescr;</span>
+<span class="nc" id="L702">    }</span>
+
+    public String getPagerName() {
+<span class="fc" id="L705">        return pagerName;</span>
+    }
+
+    public void setPagerName(String pagerName) {
+<span class="nc" id="L709">        this.pagerName = pagerName;</span>
+<span class="nc" id="L710">    }</span>
+
+    public Set&lt;String&gt; getContentIds() {
+<span class="fc" id="L713">        return contentIds;</span>
+    }
+
+    public void setContentIds(Set&lt;String&gt; contentIds) {
+<span class="fc" id="L717">        this.contentIds = contentIds;</span>
+<span class="fc" id="L718">    }</span>
+
+    public Set&lt;String&gt; getSelectedIds() {
+<span class="nc" id="L721">        return selectedIds;</span>
+    }
+
+    public void setSelectedIds(Set&lt;String&gt; selectedIds) {
+<span class="nc" id="L725">        this.selectedIds = selectedIds;</span>
+<span class="nc" id="L726">    }</span>
+
+    public String getActionCode() {
+<span class="nc" id="L729">        return actionCode;</span>
+    }
+
+    public void setActionCode(String actionCode) {
+<span class="nc" id="L733">        this.actionCode = actionCode;</span>
+<span class="nc" id="L734">    }</span>
+
+    public boolean isAllContentsSelected() {
+<span class="nc" id="L737">        return allContentsSelected;</span>
+    }
+
+    public void setAllContentsSelected(boolean allContentsSelected) {
+<span class="nc" id="L741">        this.allContentsSelected = allContentsSelected;</span>
+<span class="nc" id="L742">    }</span>
+
+    public int getStrutsAction() {
+<span class="nc" id="L745">        return strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="nc" id="L749">        this.strutsAction = strutsAction;</span>
+<span class="nc" id="L750">    }</span>
+
+    protected boolean isUserAllowed(Content content) {
+<span class="fc" id="L753">        return this.getContentActionHelper().isUserAllowed(content, this.getCurrentUser());</span>
+    }
+
+    protected void addConfirmMessage(String key, List&lt;Content&gt; contents) {
+<span class="fc bfc" id="L757" title="All 2 branches covered.">        if (contents.size() &gt; 0) {</span>
+            // RIVISITARE LOGICA DI COSTRUZIONE MESSAGGIO
+<span class="fc" id="L759">            String confirm = this.getText(key);</span>
+<span class="fc bfc" id="L760" title="All 2 branches covered.">            for (int i = 0; i &lt; contents.size(); i++) {</span>
+<span class="fc" id="L761">                Content content = contents.get(i);</span>
+<span class="fc bfc" id="L762" title="All 2 branches covered.">                if (i &gt; 0) {</span>
+<span class="fc" id="L763">                    confirm += &quot; - &quot;;</span>
+                }
+<span class="fc" id="L765">                confirm += &quot; '&quot; + content.getDescription() + &quot;'&quot;;</span>
+            }
+<span class="fc" id="L767">            this.addActionMessage(confirm);</span>
+        }
+<span class="fc" id="L769">    }</span>
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    protected void restoreCommonSearchState(ContentFinderSearchInfo searchInfo) {
+<span class="nc bnc" id="L773" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IContentManager.CONTENT_STATUS_FILTER_KEY)) {</span>
+<span class="nc" id="L774">            EntitySearchFilter filterToAdd = searchInfo.getFilter(IContentManager.CONTENT_STATUS_FILTER_KEY);</span>
+<span class="nc" id="L775">            this.addFilter(filterToAdd);</span>
+<span class="nc" id="L776">            this.setState((String) filterToAdd.getValue());</span>
+        }
+
+<span class="nc bnc" id="L779" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IContentManager.CONTENT_DESCR_FILTER_KEY)) {</span>
+<span class="nc" id="L780">            EntitySearchFilter filterToAdd = searchInfo.getFilter(IContentManager.CONTENT_DESCR_FILTER_KEY);</span>
+<span class="nc" id="L781">            this.addFilter(filterToAdd);</span>
+<span class="nc" id="L782">            this.setText((String) filterToAdd.getValue());</span>
+        }
+
+<span class="nc bnc" id="L785" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY)) {</span>
+<span class="nc" id="L786">            EntitySearchFilter filterToAdd = searchInfo.getFilter(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY);</span>
+<span class="nc" id="L787">            this.addFilter(filterToAdd);</span>
+<span class="nc" id="L788">            this.setOwnerGroupName((String) filterToAdd.getValue());</span>
+        }
+
+<span class="nc bnc" id="L791" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY)) {</span>
+<span class="nc" id="L792">            EntitySearchFilter filterToAdd = searchInfo.getFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY);</span>
+<span class="nc" id="L793">            this.addFilter(filterToAdd);</span>
+<span class="nc bnc" id="L794" title="All 2 branches missed.">            this.setOnLineState(filterToAdd.isNullOption() ? &quot;no&quot; : &quot;yes&quot;);</span>
+        }
+
+<span class="nc bnc" id="L797" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IContentManager.ENTITY_ID_FILTER_KEY)) {</span>
+<span class="nc" id="L798">            EntitySearchFilter filterToAdd = searchInfo.getFilter(IContentManager.ENTITY_ID_FILTER_KEY);</span>
+<span class="nc" id="L799">            this.addFilter(filterToAdd);</span>
+<span class="nc" id="L800">            this.setContentIdToken((String) filterToAdd.getValue());</span>
+        }
+<span class="nc" id="L802">    }</span>
+
+    protected IContentActionHelper getContentActionHelper() {
+<span class="fc" id="L805">        return (IContentActionHelper) super.getEntityActionHelper();</span>
+    }
+
+    @Override
+    protected void deleteEntity(String entityId) throws Throwable {
+        // method not supported
+<span class="nc" id="L811">    }</span>
+
+    @Override
+    protected IEntityManager getEntityManager() {
+<span class="fc" id="L815">        return this.getContentManager();</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L819">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L823">        this.contentManager = contentManager;</span>
+<span class="fc" id="L824">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="nc" id="L827">        return groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L831">        this.groupManager = groupManager;</span>
+<span class="fc" id="L832">    }</span>
+
+    protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L835">        return categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L839">        this.categoryManager = categoryManager;</span>
+<span class="fc" id="L840">    }</span>
+
+    public int getLastUpdateResponseSize() {
+<span class="nc" id="L843">        return lastUpdateResponseSize;</span>
+    }
+
+    public void setLastUpdateResponseSize(int lastUpdateResponseSize) {
+<span class="nc" id="L847">        this.lastUpdateResponseSize = lastUpdateResponseSize;</span>
+<span class="nc" id="L848">    }</span>
+
+    /**
+     * Restituisce la lista di gruppi (codici) dei contenuti che devono essere
+     * visualizzati in lista. La lista viene ricavata in base alle
+     * autorizzazioni dall'utente corrente.
+     *
+     * @return La lista di gruppi cercata.
+     */
+    protected List&lt;String&gt; getContentGroupCodes() {
+<span class="fc" id="L858">        return super.getActualAllowedGroupCodes();</span>
+    }
+
+    /**
+     * Restitusce i filtri per la selezione e l'ordinamento dei contenuti
+     * erogati nell'interfaccia.
+     *
+     * @return Il filtri di selezione ed ordinamento dei contenuti.
+     */
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    protected EntitySearchFilter[] createFilters() {
+<span class="fc" id="L869">        ContentFinderSearchInfo searchInfo = getContentSearchInfo();</span>
+<span class="fc" id="L870">        this.createBaseFilters();</span>
+
+<span class="pc bpc" id="L872" title="1 of 4 branches missed.">        if (null != this.getState() &amp;&amp; this.getState().trim().length() &gt; 0) {</span>
+<span class="fc" id="L873">            EntitySearchFilter filterToAdd = new EntitySearchFilter(IContentManager.CONTENT_STATUS_FILTER_KEY, false,</span>
+<span class="fc" id="L874">                    this.getState(), false);</span>
+<span class="fc" id="L875">            this.addFilter(filterToAdd);</span>
+<span class="fc" id="L876">            searchInfo.addFilter(IContentManager.CONTENT_STATUS_FILTER_KEY, filterToAdd);</span>
+<span class="fc" id="L877">        } else {</span>
+<span class="fc" id="L878">            searchInfo.removeFilter(IContentManager.CONTENT_STATUS_FILTER_KEY);</span>
+        }
+
+<span class="pc bpc" id="L881" title="1 of 4 branches missed.">        if (null != this.getText() &amp;&amp; this.getText().trim().length() &gt; 0) {</span>
+<span class="fc" id="L882">            EntitySearchFilter filterToAdd = new EntitySearchFilter(IContentManager.CONTENT_DESCR_FILTER_KEY, false,</span>
+<span class="fc" id="L883">                    this.getText(), true);</span>
+<span class="fc" id="L884">            this.addFilter(filterToAdd);</span>
+<span class="fc" id="L885">            searchInfo.addFilter(IContentManager.CONTENT_DESCR_FILTER_KEY, filterToAdd);</span>
+<span class="fc" id="L886">        } else {</span>
+<span class="fc" id="L887">            searchInfo.removeFilter(IContentManager.CONTENT_DESCR_FILTER_KEY);</span>
+        }
+
+<span class="pc bpc" id="L890" title="1 of 4 branches missed.">        if (null != this.getOwnerGroupName() &amp;&amp; this.getOwnerGroupName().trim().length() &gt; 0) {</span>
+<span class="fc" id="L891">            EntitySearchFilter filterToAdd = new EntitySearchFilter(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY,</span>
+<span class="fc" id="L892">                    false, this.getOwnerGroupName(), false);</span>
+<span class="fc" id="L893">            this.addFilter(filterToAdd);</span>
+<span class="fc" id="L894">            searchInfo.addFilter(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY, filterToAdd);</span>
+<span class="fc" id="L895">        } else {</span>
+<span class="fc" id="L896">            searchInfo.removeFilter(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY);</span>
+        }
+
+<span class="pc bpc" id="L899" title="2 of 4 branches missed.">        if (null != this.getOnLineState() &amp;&amp; this.getOnLineState().trim().length() &gt; 0) {</span>
+<span class="nc" id="L900">            EntitySearchFilter filterToAdd = new EntitySearchFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY, false);</span>
+<span class="nc" id="L901">            filterToAdd.setNullOption(this.getOnLineState().trim().equals(&quot;no&quot;));</span>
+<span class="nc" id="L902">            this.addFilter(filterToAdd);</span>
+<span class="nc" id="L903">            searchInfo.addFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY, filterToAdd);</span>
+<span class="nc" id="L904">        } else {</span>
+<span class="fc" id="L905">            searchInfo.removeFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY);</span>
+        }
+
+<span class="pc bpc" id="L908" title="1 of 4 branches missed.">        if (null != this.getContentIdToken() &amp;&amp; this.getContentIdToken().trim().length() &gt; 0) {</span>
+<span class="fc" id="L909">            EntitySearchFilter filterToAdd = new EntitySearchFilter(IContentManager.ENTITY_ID_FILTER_KEY, false,</span>
+<span class="fc" id="L910">                    this.getContentIdToken(), true);</span>
+<span class="fc" id="L911">            this.addFilter(filterToAdd);</span>
+<span class="fc" id="L912">            searchInfo.addFilter(IContentManager.ENTITY_ID_FILTER_KEY, filterToAdd);</span>
+<span class="fc" id="L913">        } else {</span>
+<span class="fc" id="L914">            searchInfo.removeFilter(IContentManager.ENTITY_ID_FILTER_KEY);</span>
+        }
+
+<span class="fc" id="L917">        this.savePagerSearchState(searchInfo);</span>
+<span class="fc" id="L918">        EntitySearchFilter orderFilter = this.getContentActionHelper().getOrderFilter(this.getLastGroupBy(),</span>
+<span class="fc" id="L919">                this.getLastOrder());</span>
+<span class="fc" id="L920">        super.addFilter(orderFilter);</span>
+<span class="fc" id="L921">        searchInfo.addFilter(ContentFinderSearchInfo.ORDER_FILTER, orderFilter);</span>
+
+<span class="fc" id="L923">        return this.getFilters();</span>
+    }
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    protected void createBaseFilters() {
+        try {
+<span class="fc" id="L929">            int initSize = this.getFilters().length;</span>
+<span class="fc" id="L930">            ContentFinderSearchInfo searchInfo = getContentSearchInfo();</span>
+
+<span class="fc" id="L932">            EntitySearchFilter[] roleFilters = this.getEntityActionHelper().getRoleFilters(this);</span>
+<span class="fc" id="L933">            this.addFilters(roleFilters);</span>
+<span class="fc" id="L934">            IApsEntity prototype = this.getEntityPrototype();</span>
+<span class="fc" id="L935">            searchInfo.removeFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY);</span>
+<span class="fc" id="L936">            searchInfo.removeFilterByPrefix(ContentFinderSearchInfo.ATTRIBUTE_FILTER);</span>
+<span class="fc bfc" id="L937" title="All 2 branches covered.">            if (null != prototype) {</span>
+<span class="fc" id="L938">                EntitySearchFilter filterToAdd = new EntitySearchFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY,</span>
+<span class="fc" id="L939">                        false, prototype.getTypeCode(), false);</span>
+<span class="fc" id="L940">                this.addFilter(filterToAdd);</span>
+<span class="fc" id="L941">                searchInfo.addFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY, filterToAdd);</span>
+
+<span class="fc" id="L943">                EntitySearchFilter[] filters = this.getEntityActionHelper().getAttributeFilters(this, prototype);</span>
+<span class="fc" id="L944">                this.addFilters(filters);</span>
+<span class="fc" id="L945">                searchInfo.addAttributeFilters(filters);</span>
+            }
+<span class="fc bfc" id="L947" title="All 2 branches covered.">            this.setAddedAttributeFilter(this.getFilters().length &gt; initSize);</span>
+<span class="nc" id="L948">        } catch (Throwable t) {</span>
+<span class="nc" id="L949">            logger.error(&quot;Error while creating entity filters&quot;, t);</span>
+<span class="nc" id="L950">            throw new RuntimeException(&quot;Error while creating entity filters&quot;, t);</span>
+<span class="fc" id="L951">        }</span>
+<span class="fc" id="L952">    }</span>
+
+    protected void addActivityStreamInfo(Content content, int strutsAction, boolean addLink) {
+<span class="fc" id="L955">        ActivityStreamInfo asi = this.getContentActionHelper().createActivityStreamInfo(content, strutsAction, addLink);</span>
+<span class="fc" id="L956">        super.addActivityStreamInfo(asi);</span>
+<span class="fc" id="L957">    }</span>
+
+    protected void savePagerSearchState(ContentFinderSearchInfo searchInfo) {
+<span class="fc" id="L960">        boolean found = searchInfo.setPagerFromParameters(this.getRequest().getParameterNames());</span>
+<span class="pc bpc" id="L961" title="1 of 2 branches missed.">        if (!found) {</span>
+<span class="fc" id="L962">            String pagerName = this.getPagerName();</span>
+<span class="fc" id="L963">            String pos = this.getRequest().getParameter(pagerName);</span>
+<span class="pc bpc" id="L964" title="3 of 4 branches missed.">            if (StringUtils.isNotBlank(pos) &amp;&amp; StringUtils.isNumeric(pos)) {</span>
+<span class="nc" id="L965">                searchInfo.setPageName(pagerName);</span>
+<span class="nc" id="L966">                searchInfo.setPagePos(new Integer(pos));</span>
+            }
+        }
+<span class="fc" id="L969">    }</span>
+
+    protected void restorePagerSearchState(ContentFinderSearchInfo searchInfo) {
+<span class="nc" id="L972">        String pageName = searchInfo.getPageName();</span>
+<span class="nc bnc" id="L973" title="All 2 branches missed.">        if (StringUtils.isNotBlank(pageName)) {</span>
+<span class="nc" id="L974">            this.getRequest().setAttribute(pageName, searchInfo.getPagePos());</span>
+        }
+<span class="nc" id="L976">    }</span>
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    protected void restoreEntitySearchState(ContentFinderSearchInfo searchInfo) {
+<span class="nc bnc" id="L980" title="All 2 branches missed.">        if (null != searchInfo.getFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY)) {</span>
+<span class="nc" id="L981">            EntitySearchFilter filter = searchInfo.getFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY);</span>
+<span class="nc" id="L982">            this.addFilter(filter);</span>
+<span class="nc" id="L983">            this.setEntityTypeCode((String) filter.getValue());</span>
+
+<span class="nc" id="L985">            EntitySearchFilter[] filters = searchInfo.getFiltersByKeyPrefix(ContentFinderSearchInfo.ATTRIBUTE_FILTER);</span>
+<span class="nc bnc" id="L986" title="All 4 branches missed.">            if (null != filters &amp;&amp; filters.length &gt; 0) {</span>
+<span class="nc bnc" id="L987" title="All 2 branches missed.">                for (EntitySearchFilter entitySearchFilter : filters) {</span>
+<span class="nc" id="L988">                    this.addFilter(entitySearchFilter);</span>
+
+<span class="nc" id="L990">                    String attrName = entitySearchFilter.getKey();</span>
+<span class="nc" id="L991">                    ApsEntity proto = (ApsEntity) this.getEntityPrototype();</span>
+
+<span class="nc" id="L993">                    String[] attributeFilterFieldNames = this.getEntityActionHelper().getAttributeFilterFieldName(proto,</span>
+                            attrName);
+<span class="nc bnc" id="L995" title="All 4 branches missed.">                    if (null != attributeFilterFieldNames &amp;&amp; attributeFilterFieldNames.length == 1) {</span>
+<span class="nc" id="L996">                        this.getRequest().setAttribute(attributeFilterFieldNames[0], entitySearchFilter.getValue());</span>
+<span class="nc bnc" id="L997" title="All 4 branches missed.">                    } else if (null != attributeFilterFieldNames &amp;&amp; attributeFilterFieldNames.length == 2) {</span>
+<span class="nc" id="L998">                        Date start = (Date) entitySearchFilter.getStart();</span>
+<span class="nc bnc" id="L999" title="All 2 branches missed.">                        if (null != start) {</span>
+<span class="nc" id="L1000">                            this.getRequest().setAttribute(attributeFilterFieldNames[0],</span>
+<span class="nc" id="L1001">                                    DateConverter.getFormattedDate(start, EntitySearchFilter.DATE_PATTERN));</span>
+                        }
+<span class="nc" id="L1003">                        Date end = (Date) entitySearchFilter.getEnd();</span>
+<span class="nc bnc" id="L1004" title="All 2 branches missed.">                        if (null != end) {</span>
+<span class="nc" id="L1005">                            this.getRequest().setAttribute(attributeFilterFieldNames[1],</span>
+<span class="nc" id="L1006">                                    DateConverter.getFormattedDate(end, EntitySearchFilter.DATE_PATTERN));</span>
+                        }
+                    }
+
+                }
+            }
+        }
+<span class="nc" id="L1013">    }</span>
+
+    private void restoreCategorySearchState(ContentFinderSearchInfo searchInfo) {
+<span class="nc" id="L1016">        String catCode = searchInfo.getCategoryCode();</span>
+<span class="nc bnc" id="L1017" title="All 2 branches missed.">        if (StringUtils.isNotBlank(catCode)) {</span>
+<span class="nc" id="L1018">            Category category = this.getCategoryManager().getCategory(catCode);</span>
+<span class="nc bnc" id="L1019" title="All 4 branches missed.">            if (null != category &amp;&amp; !category.isRoot()) {</span>
+<span class="nc" id="L1020">                this.setCategoryCode(catCode);</span>
+            }
+        }
+<span class="nc" id="L1023">    }</span>
+
+    private ContentFinderSearchInfo getContentSearchInfo() {
+<span class="fc" id="L1026">        ContentFinderSearchInfo searchInfo = (ContentFinderSearchInfo) this.getRequest().getSession()</span>
+<span class="fc" id="L1027">                .getAttribute(ContentFinderSearchInfo.SESSION_NAME);</span>
+<span class="fc" id="L1028">        return searchInfo;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

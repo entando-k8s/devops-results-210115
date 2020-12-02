@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentLinkAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content.attribute.action.link</a> &gt; <span class="el_source">ContentLinkAction.java</span></div><h1>ContentLinkAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content.attribute.action.link;
+
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentFinderAction;
+import com.agiletec.plugins.jacms.apsadmin.content.attribute.action.link.helper.ILinkAttributeActionHelper;
+import org.apache.commons.lang3.ArrayUtils;
+
+/**
+ * Classe action delegata alla gestione dei link a contenuto nelle 
+ * operazioni sugli attributi tipo Link.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L43">public class ContentLinkAction extends ContentFinderAction {</span>
+
+<span class="fc" id="L45">	private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentLinkAction.class);</span>
+	
+	private String contentOnSessionMarker;
+	
+	private String _contentId;
+	private boolean contentOnPageType;
+	
+	private String entryContentAnchorDest;
+	
+	private ILinkAttributeActionHelper linkAttributeHelper;
+
+	private String linkAttributeRel;
+
+	private String linkAttributeTarget;
+
+	private String linkAttributeHRefLang;
+
+	@Override
+	public String execute()  {
+<span class="fc" id="L64">		String result= super.execute();</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">		if (result.equals(SUCCESS)) {</span>
+<span class="fc" id="L66">			Map&lt;String, String&gt; properties = (Map&lt;String, String&gt;) this.getRequest().getSession().getAttribute(ILinkAttributeActionHelper.LINK_PROPERTIES_MAP_SESSION_PARAM);</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">			if (null != properties) {</span>
+<span class="nc" id="L68">				this.linkAttributeRel = properties.get(&quot;rel&quot;);</span>
+<span class="nc" id="L69">				this.linkAttributeTarget = properties.get(&quot;target&quot;);</span>
+<span class="nc" id="L70">				this.linkAttributeHRefLang = properties.get(&quot;hreflang&quot;);</span>
+			}
+		}
+<span class="fc" id="L73">		return result;</span>
+	}
+    
+    @Override
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedContentsId(Integer limit) {
+<span class="nc" id="L78">        SearcherDaoPaginatedResult&lt;String&gt; result = null;</span>
+		try {
+<span class="nc" id="L80">			List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="nc" id="L81">            EntitySearchFilter[] filters = this.createFilters();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            if (null != limit) {</span>
+<span class="nc" id="L83">                filters = ArrayUtils.add(filters, this.getPagerFilter(limit));</span>
+            }
+<span class="nc" id="L85">			result = this.getContentManager().getPaginatedPublicContentsId(null, false, filters, allowedGroups);</span>
+<span class="nc" id="L86">		} catch (Exception e) {</span>
+<span class="nc" id="L87">			logger.error(&quot;error loading paginated contents&quot;, e);</span>
+<span class="nc" id="L88">			throw new RuntimeException(&quot;error loading paginated contents&quot;, e);</span>
+<span class="nc" id="L89">		}</span>
+<span class="nc" id="L90">		return result;</span>
+    }
+
+    @Deprecated
+	@Override
+	public List&lt;String&gt; getContents() {
+<span class="fc" id="L96">		List&lt;String&gt; result = null;</span>
+		try {
+<span class="fc" id="L98">			List&lt;String&gt; allowedGroups = this.getContentGroupCodes();</span>
+<span class="fc" id="L99">			result = this.getContentManager().loadPublicContentsId(null, this.createFilters(), allowedGroups);</span>
+<span class="nc" id="L100">		} catch (Throwable t) {</span>
+<span class="nc" id="L101">			logger.error(&quot;error loading contents&quot;, t);</span>
+<span class="nc" id="L102">			throw new RuntimeException(&quot;error loading contents&quot;, t);</span>
+<span class="fc" id="L103">		}</span>
+<span class="fc" id="L104">		return result;</span>
+	}
+	
+	public String joinContentLink() {
+<span class="fc" id="L108">		ContentRecordVO contentVo = this.getContentVo(this.getContentId());</span>
+<span class="fc bfc" id="L109" title="All 4 branches covered.">		if (null == contentVo || !contentVo.isOnLine()) {</span>
+<span class="fc" id="L110">			logger.error(&quot;Content '{}' does not exists or is not public&quot;, this.getContentId());</span>
+<span class="fc" id="L111">			return FAILURE;</span>
+		}
+<span class="fc bfc" id="L113" title="All 2 branches covered.">		if (this.isContentOnPageType()) {</span>
+			//Fa il forward alla scelta pagina di destinazione
+<span class="fc" id="L115">			return &quot;configContentOnPageLink&quot;;</span>
+		} else {
+<span class="fc" id="L117">			String[] destinations = {null, this.getContentId(), null};</span>
+<span class="fc" id="L118">			this.buildEntryContentAnchorDest();</span>
+<span class="fc" id="L119">			this.getLinkAttributeHelper().joinLink(destinations, SymbolicLink.CONTENT_TYPE, createPropertiesMap() ,this.getRequest());</span>
+<span class="fc" id="L120">			return SUCCESS;</span>
+		}
+	}
+	
+	private void buildEntryContentAnchorDest() {
+<span class="fc" id="L125">		HttpSession session = this.getRequest().getSession();</span>
+<span class="fc" id="L126">		String anchorDest = this.getLinkAttributeHelper().buildEntryContentAnchorDest(session);</span>
+<span class="fc" id="L127">		this.setEntryContentAnchorDest(anchorDest);</span>
+<span class="fc" id="L128">	}</span>
+	
+	/**
+	 * Sovrascrittura del metodo della {@link ContentFinderAction}.
+	 * Il metodo fà in modo di ricercare i contenuti che hanno, come gruppo proprietario o gruppo abilitato alla visualizzazione, 
+	 * o il gruppo &quot;free&quot; o il gruppo proprietario del contenuto in redazione.
+	 */
+	@Override
+	protected List&lt;String&gt; getContentGroupCodes() {
+<span class="fc" id="L137">		List&lt;String&gt; allowedGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L138">		allowedGroups.add(Group.FREE_GROUP_NAME);</span>
+<span class="fc" id="L139">		Content currentContent = this.getContent();</span>
+<span class="fc" id="L140">		allowedGroups.add(currentContent.getMainGroup());</span>
+<span class="fc" id="L141">		return allowedGroups;</span>
+	}
+	
+	public SymbolicLink getSymbolicLink() {
+<span class="nc" id="L145">		return (SymbolicLink) this.getRequest().getSession().getAttribute(ILinkAttributeActionHelper.SYMBOLIC_LINK_SESSION_PARAM);</span>
+	}
+	
+	public Content getContent() {
+<span class="fc" id="L149">		return (Content) this.getRequest().getSession()</span>
+<span class="fc" id="L150">				.getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + this.getContentOnSessionMarker());</span>
+	}
+
+	private Map&lt;String,String&gt; createPropertiesMap(){
+<span class="fc" id="L154">		Map&lt;String,String&gt; properties = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">		if (StringUtils.isNotBlank(getLinkAttributeRel())) {</span>
+<span class="nc" id="L156">			properties.put(&quot;rel&quot;, getLinkAttributeRel());</span>
+		}
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">		if (StringUtils.isNotBlank(getLinkAttributeTarget())) {</span>
+<span class="nc" id="L159">			properties.put(&quot;target&quot;, getLinkAttributeTarget());</span>
+		}
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">		if (StringUtils.isNotBlank(getLinkAttributeHRefLang())) {</span>
+<span class="nc" id="L162">			properties.put(&quot;hrefLang&quot;,getLinkAttributeHRefLang());</span>
+		}
+<span class="fc" id="L164">		return properties;</span>
+	}
+
+	public String getLinkAttributeRel() {
+<span class="fc" id="L168">		return linkAttributeRel;</span>
+	}
+	public void setLinkAttributeRel(String linkAttributeRel) {
+<span class="nc" id="L171">		this.linkAttributeRel = linkAttributeRel;</span>
+<span class="nc" id="L172">	}</span>
+
+	public String getLinkAttributeTarget() {
+<span class="fc" id="L175">		return linkAttributeTarget;</span>
+	}
+	public void setLinkAttributeTarget(String linkAttributeTarget) {
+<span class="nc" id="L178">		this.linkAttributeTarget = linkAttributeTarget;</span>
+<span class="nc" id="L179">	}</span>
+
+	public String getLinkAttributeHRefLang() {
+<span class="fc" id="L182">		return linkAttributeHRefLang;</span>
+	}
+	public void setLinkAttributeHRefLang(String linkAttributeHRefLang) {
+<span class="nc" id="L185">		this.linkAttributeHRefLang = linkAttributeHRefLang;</span>
+<span class="nc" id="L186">	}</span>
+    
+	public String getContentOnSessionMarker() {
+<span class="fc" id="L189">		return contentOnSessionMarker;</span>
+	}
+	public void setContentOnSessionMarker(String contentOnSessionMarker) {
+<span class="fc" id="L192">		this.contentOnSessionMarker = contentOnSessionMarker;</span>
+<span class="fc" id="L193">	}</span>
+	
+	public String getContentId() {
+<span class="fc" id="L196">		return _contentId;</span>
+	}
+	public void setContentId(String contentId) {
+<span class="fc" id="L199">		this._contentId = contentId;</span>
+<span class="fc" id="L200">	}</span>
+	
+	public boolean isContentOnPageType() {
+<span class="fc" id="L203">		return contentOnPageType;</span>
+	}
+	public void setContentOnPageType(boolean contentOnPageType) {
+<span class="fc" id="L206">		this.contentOnPageType = contentOnPageType;</span>
+<span class="fc" id="L207">	}</span>
+	
+	public String getEntryContentAnchorDest() {
+<span class="nc bnc" id="L210" title="All 2 branches missed.">		if (null == this.entryContentAnchorDest) {</span>
+<span class="nc" id="L211">			this.buildEntryContentAnchorDest();</span>
+		}
+<span class="nc" id="L213">		return entryContentAnchorDest;</span>
+	}
+	protected void setEntryContentAnchorDest(String entryContentAnchorDest) {
+<span class="fc" id="L216">		this.entryContentAnchorDest = entryContentAnchorDest;</span>
+<span class="fc" id="L217">	}</span>
+	
+	/**
+	 * Restituisce la classe helper della gestione degli attributi di tipo Link.
+	 * @return La classe helper degli attributi di tipo Link.
+	 */
+	protected ILinkAttributeActionHelper getLinkAttributeHelper() {
+<span class="fc" id="L224">		return linkAttributeHelper;</span>
+	}
+	/**
+	 * Setta la classe helper della gestione degli attributi di tipo Link.
+	 * @param linkAttributeHelper La classe helper degli attributi di tipo Link.
+	 */
+	public void setLinkAttributeHelper(ILinkAttributeActionHelper linkAttributeHelper) {
+<span class="fc" id="L231">		this.linkAttributeHelper = linkAttributeHelper;</span>
+<span class="fc" id="L232">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

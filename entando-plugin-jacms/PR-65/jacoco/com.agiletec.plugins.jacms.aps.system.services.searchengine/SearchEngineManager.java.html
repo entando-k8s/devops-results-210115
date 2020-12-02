@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchEngineManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.searchengine</a> &gt; <span class="el_source">SearchEngineManager.java</span></div><h1>SearchEngineManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.searchengine;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.IManager;
+import com.agiletec.aps.system.common.entity.event.EntityTypesChangingEvent;
+import com.agiletec.aps.system.common.entity.event.EntityTypesChangingObserver;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.notify.ApsEvent;
+import com.agiletec.aps.system.common.searchengine.IndexableAttributeInterface;
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.event.PublicContentChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.content.event.PublicContentChangedObserver;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.entando.entando.aps.system.services.searchengine.FacetedContentsResult;
+import org.entando.entando.aps.system.services.searchengine.SearchEngineFilter;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Servizio detentore delle operazioni di indicizzazione di oggetti ricercabili
+ * tramite motore di ricerca.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L52">public class SearchEngineManager extends AbstractService</span>
+        implements ICmsSearchEngineManager, PublicContentChangedObserver, EntityTypesChangingObserver {
+
+<span class="fc" id="L55">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(SearchEngineManager.class);</span>
+
+    private ISearchEngineDAOFactory factory;
+
+    private IIndexerDAO indexerDao;
+    private ISearcherDAO searcherDao;
+
+    private int status;
+    private LastReloadInfo lastReloadInfo;
+<span class="fc" id="L64">    private List&lt;ApsEvent&gt; publicContentChangedEventQueue = new ArrayList&lt;ApsEvent&gt;();</span>
+
+    public static final String RELOAD_THREAD_NAME_PREFIX = &quot;RELOAD_INDEX_&quot;;
+
+    private String newTempSubDirectory;
+
+    private IContentManager contentManager;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L74">        this.setIndexerDao(this.getFactory().getIndexer());</span>
+<span class="fc" id="L75">        this.setSearcherDao(this.getFactory().getSearcher());</span>
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public void refresh() throws Throwable {
+<span class="fc" id="L80">        this.release();</span>
+<span class="fc" id="L81">        this.lastReloadInfo = null;</span>
+<span class="fc" id="L82">        this.getFactory().init();</span>
+<span class="fc" id="L83">        this.init();</span>
+<span class="fc" id="L84">    }</span>
+
+    @Override
+    public void updateFromPublicContentChanged(PublicContentChangedEvent event) {
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (this.getStatus() == STATUS_RELOADING_INDEXES_IN_PROGRESS) {</span>
+<span class="nc" id="L89">            this.publicContentChangedEventQueue.add(0, event);</span>
+        } else {
+<span class="fc" id="L91">            this.manageEvent(event);</span>
+        }
+<span class="fc" id="L93">    }</span>
+
+    private void manageEvent(PublicContentChangedEvent event) {
+<span class="fc" id="L96">        Content content = event.getContent();</span>
+        try {
+<span class="pc bpc" id="L98" title="1 of 4 branches missed.">            switch (event.getOperationCode()) {</span>
+                case PublicContentChangedEvent.INSERT_OPERATION_CODE:
+<span class="fc" id="L100">                    this.addEntityToIndex(content);</span>
+<span class="fc" id="L101">                    break;</span>
+                case PublicContentChangedEvent.REMOVE_OPERATION_CODE:
+<span class="fc" id="L103">                    this.deleteIndexedEntity(content.getId());</span>
+<span class="fc" id="L104">                    break;</span>
+                case PublicContentChangedEvent.UPDATE_OPERATION_CODE:
+<span class="fc" id="L106">                    this.updateIndexedEntity(content);</span>
+                    break;
+            }
+<span class="fc" id="L109">        } catch (Throwable t) {</span>
+<span class="fc" id="L110">            logger.error(&quot;Error on event notification&quot;, t);</span>
+<span class="fc" id="L111">        }</span>
+<span class="fc" id="L112">    }</span>
+
+    protected void sellOfQueueEvents() {
+<span class="fc" id="L115">        int size = this.publicContentChangedEventQueue.size();</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (size &gt; 0) {</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="nc" id="L118">                PublicContentChangedEvent event = (PublicContentChangedEvent) this.publicContentChangedEventQueue.get(0);</span>
+<span class="nc" id="L119">                this.manageEvent(event);</span>
+<span class="nc" id="L120">                this.publicContentChangedEventQueue.remove(0);</span>
+            }
+        }
+<span class="fc" id="L123">    }</span>
+
+    @Override
+    public Thread startReloadContentsReferences() throws EntException {
+<span class="fc" id="L127">        String newTempSubDir = &quot;indexdir&quot; + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="fc" id="L128">        return this.startReloadContentsReferences(newTempSubDir);</span>
+    }
+
+    @Override
+    public Thread startReloadContentsReferences(String subDirectory) throws EntException {
+<span class="fc" id="L133">        IndexLoaderThread loaderThread = null;</span>
+<span class="pc bpc" id="L134" title="1 of 4 branches missed.">        if (this.getStatus() == STATUS_READY || this.getStatus() == STATUS_NEED_TO_RELOAD_INDEXES) {</span>
+            try {
+<span class="fc" id="L136">                this.newTempSubDirectory = subDirectory;</span>
+<span class="fc" id="L137">                IIndexerDAO newIndexer = this.getFactory().getIndexer(newTempSubDirectory);</span>
+<span class="fc" id="L138">                loaderThread = new IndexLoaderThread(this, this.getContentManager(), newIndexer);</span>
+<span class="fc" id="L139">                String threadName = RELOAD_THREAD_NAME_PREFIX + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="fc" id="L140">                loaderThread.setName(threadName);</span>
+<span class="fc" id="L141">                this.setStatus(STATUS_RELOADING_INDEXES_IN_PROGRESS);</span>
+<span class="fc" id="L142">                loaderThread.start();</span>
+<span class="fc" id="L143">                logger.info(&quot;Reload Contents References job started&quot;);</span>
+<span class="nc" id="L144">            } catch (Throwable t) {</span>
+<span class="nc" id="L145">                throw new EntException(&quot;Error reloading Contents References&quot;, t);</span>
+<span class="fc" id="L146">            }</span>
+        } else {
+<span class="nc" id="L148">            logger.info(&quot;Reload Contents References job suspended: current status: {}&quot;, this.getStatus());</span>
+        }
+<span class="fc" id="L150">        return loaderThread;</span>
+    }
+
+    @Override
+    public void updateFromEntityTypesChanging(EntityTypesChangingEvent event) {
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">        if (((IManager) this.getContentManager()).getName().equals(event.getEntityManagerName())) {</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            if (this.getStatus() == STATUS_NEED_TO_RELOAD_INDEXES) {</span>
+<span class="fc" id="L157">                return;</span>
+            }
+<span class="fc" id="L159">            boolean needToReload = false;</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            if (event.getOperationCode() == EntityTypesChangingEvent.INSERT_OPERATION_CODE) {</span>
+<span class="fc" id="L161">                return;</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            } else if (event.getOperationCode() == EntityTypesChangingEvent.REMOVE_OPERATION_CODE) {</span>
+<span class="fc" id="L163">                needToReload = true;</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            } else if (event.getOperationCode() == EntityTypesChangingEvent.UPDATE_OPERATION_CODE) {</span>
+<span class="fc" id="L165">                needToReload = this.verifyReloadingNeeded(event.getOldEntityType(), event.getNewEntityType());</span>
+            }
+<span class="fc bfc" id="L167" title="All 2 branches covered.">            if (needToReload == true) {</span>
+<span class="fc" id="L168">                this.setStatus(STATUS_NEED_TO_RELOAD_INDEXES);</span>
+            }
+        }
+<span class="fc" id="L171">    }</span>
+
+    protected boolean verifyReloadingNeeded(IApsEntity oldEntityType, IApsEntity newEntityType) {
+<span class="fc" id="L174">        List&lt;AttributeInterface&gt; attributes = oldEntityType.getAttributeList();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        for (int i = 0; i &lt; attributes.size(); i++) {</span>
+<span class="fc" id="L176">            AttributeInterface oldAttribute = attributes.get(i);</span>
+<span class="fc" id="L177">            AttributeInterface newAttribute = (AttributeInterface) newEntityType.getAttribute(oldAttribute.getName());</span>
+<span class="pc bpc" id="L178" title="1 of 4 branches missed.">            boolean isOldAttributeIndexeable = (oldAttribute.getIndexingType() != null &amp;&amp; oldAttribute.getIndexingType().equalsIgnoreCase(IndexableAttributeInterface.INDEXING_TYPE_TEXT));</span>
+<span class="pc bpc" id="L179" title="1 of 6 branches missed.">            boolean isNewAttributeIndexeable = (newAttribute != null &amp;&amp; newAttribute.getIndexingType() != null &amp;&amp; newAttribute.getIndexingType().equalsIgnoreCase(IndexableAttributeInterface.INDEXING_TYPE_TEXT));</span>
+<span class="pc bpc" id="L180" title="1 of 8 branches missed.">            if ((isOldAttributeIndexeable &amp;&amp; !isNewAttributeIndexeable) || (!isOldAttributeIndexeable &amp;&amp; isNewAttributeIndexeable)) {</span>
+<span class="fc" id="L181">                return true;</span>
+            }
+        }
+<span class="fc" id="L184">        return false;</span>
+    }
+
+    @Override
+    public void addEntityToIndex(IApsEntity entity) throws EntException {
+        try {
+<span class="fc" id="L190">            this.getIndexerDao().add(entity);</span>
+<span class="fc" id="L191">        } catch (EntException e) {</span>
+<span class="fc" id="L192">            logger.error(&quot;Error saving content to index&quot;, e);</span>
+<span class="fc" id="L193">            throw e;</span>
+<span class="fc" id="L194">        }</span>
+<span class="fc" id="L195">    }</span>
+
+    @Override
+    public void deleteIndexedEntity(String entityId) throws EntException {
+        try {
+<span class="fc" id="L200">            this.getIndexerDao().delete(IIndexerDAO.CONTENT_ID_FIELD_NAME, entityId);</span>
+<span class="fc" id="L201">        } catch (EntException e) {</span>
+<span class="fc" id="L202">            logger.error(&quot;Error deleting content {} from index&quot;, entityId, e);</span>
+<span class="fc" id="L203">            throw e;</span>
+<span class="fc" id="L204">        }</span>
+<span class="fc" id="L205">    }</span>
+
+    protected void notifyEndingIndexLoading(LastReloadInfo info, IIndexerDAO newIndexerDAO) {
+        try {
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">            if (info.getResult() == LastReloadInfo.ID_SUCCESS_RESULT) {</span>
+<span class="fc" id="L210">                ISearcherDAO newSearcherDAO = this.getFactory().getSearcher(this.newTempSubDirectory);</span>
+<span class="fc" id="L211">                this.getFactory().updateSubDir(newTempSubDirectory);</span>
+<span class="fc" id="L212">                this.setIndexerDao(newIndexerDAO);</span>
+<span class="fc" id="L213">                this.setSearcherDao(newSearcherDAO);</span>
+<span class="fc" id="L214">                this.lastReloadInfo = info;</span>
+<span class="pc bnc" id="L215" title="All 2 branches missed.">            } else if (null != this.newTempSubDirectory) {</span>
+<span class="nc" id="L216">                this.getFactory().deleteSubDirectory(this.newTempSubDirectory);</span>
+            }
+<span class="nc" id="L218">        } catch (Throwable t) {</span>
+<span class="nc" id="L219">            logger.error(&quot;error updating LastReloadInfo&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">            if (this.getStatus() != STATUS_NEED_TO_RELOAD_INDEXES) {</span>
+<span class="fc" id="L222">                this.setStatus(STATUS_READY);</span>
+            }
+<span class="fc" id="L224">            this.newTempSubDirectory = null;</span>
+        }
+<span class="fc" id="L226">    }</span>
+
+    @Override
+    public LastReloadInfo getLastReloadInfo() {
+<span class="fc" id="L230">        return this.lastReloadInfo;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchId(String sectionCode, String langCode,
+            String word, Collection&lt;String&gt; allowedGroups) throws EntException {
+<span class="nc" id="L236">        return this.searchEntityId(langCode, word, allowedGroups);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchEntityId(String langCode, String word,
+            Collection&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L242">        SearchEngineFilter[] filters = new SearchEngineFilter[0];</span>
+<span class="pc bpc" id="L243" title="2 of 4 branches missed.">        if (StringUtils.isNotEmpty(langCode) &amp;&amp; StringUtils.isNotEmpty(word)) {</span>
+<span class="fc" id="L244">            SearchEngineFilter filter = new SearchEngineFilter(langCode, word);</span>
+<span class="fc" id="L245">            filter.setFullTextSearch(true);</span>
+<span class="fc" id="L246">            filters = ArrayUtils.add(filters, filter);</span>
+        }
+<span class="fc" id="L248">        return this.searchEntityId(filters, null, allowedGroups);</span>
+    }
+
+    public List&lt;String&gt; searchEntityId(SearchEngineFilter[] filters, Collection&lt;ITreeNode&gt; categories, Collection&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L252">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="fc" id="L254">            contentsId = this.getSearcherDao().searchContentsId(filters, this.extractCategoryFilters(categories), allowedGroups);</span>
+<span class="fc" id="L255">        } catch (Throwable t) {</span>
+<span class="fc" id="L256">            logger.error(&quot;Error searching content id list. &quot;, t);</span>
+<span class="fc" id="L257">            throw new EntException(&quot;Error searching content id list&quot;, t);</span>
+<span class="fc" id="L258">        }</span>
+<span class="fc" id="L259">        return contentsId;</span>
+    }
+    
+    @Override
+    public FacetedContentsResult searchFacetedEntities(SearchEngineFilter[] filters, Collection&lt;ITreeNode&gt; categories, Collection&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L264">        FacetedContentsResult result = null;</span>
+        try {
+<span class="fc" id="L266">            result = this.getSearcherDao().searchFacetedContents(filters, this.extractCategoryFilters(categories), allowedGroups);</span>
+<span class="nc" id="L267">        } catch (Throwable t) {</span>
+<span class="nc" id="L268">            logger.error(&quot;Error searching faceted contents&quot;, t);</span>
+<span class="nc" id="L269">            throw new EntException(&quot;Error searching faceted contents&quot;, t);</span>
+<span class="fc" id="L270">        }</span>
+<span class="fc" id="L271">        return result;</span>
+    }
+    
+    private SearchEngineFilter[] extractCategoryFilters(Collection&lt;ITreeNode&gt; categories) {
+<span class="fc" id="L275">        SearchEngineFilter[] categoryFilterArray = null;</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        if (null != categories) {</span>
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">            List&lt;SearchEngineFilter&gt; categoryFilters = categories.stream().filter(c -&gt; c != null).map(c -&gt; new SearchEngineFilter(&quot;category&quot;, false, c.getCode())).collect(Collectors.toList());</span>
+<span class="fc" id="L278">            categoryFilterArray = categoryFilters.toArray(new SearchEngineFilter[categoryFilters.size()]);</span>
+        }
+<span class="fc" id="L280">        return categoryFilterArray;</span>
+    }
+    
+    @Override
+    public FacetedContentsResult searchFacetedEntities(SearchEngineFilter[] filters, SearchEngineFilter[] categories, Collection&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L285">        FacetedContentsResult result = null;</span>
+        try {
+<span class="fc" id="L287">            result = this.getSearcherDao().searchFacetedContents(filters, categories, allowedGroups);</span>
+<span class="nc" id="L288">        } catch (Throwable t) {</span>
+<span class="nc" id="L289">            logger.error(&quot;Error searching faceted contents&quot;, t);</span>
+<span class="nc" id="L290">            throw new EntException(&quot;Error searching faceted contents&quot;, t);</span>
+<span class="fc" id="L291">        }</span>
+<span class="fc" id="L292">        return result;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadContentsId(SearchEngineFilter[] filters, SearchEngineFilter[] facetNodeCodes, List&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L297">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="fc" id="L299">            contentsId = this.getSearcherDao().searchContentsId(filters, facetNodeCodes, allowedGroups);</span>
+<span class="nc" id="L300">        } catch (Throwable t) {</span>
+<span class="nc" id="L301">            logger.error(&quot;Error searching contents&quot;, t);</span>
+<span class="nc" id="L302">            throw new EntException(&quot;Error searching contents&quot;, t);</span>
+<span class="fc" id="L303">        }</span>
+<span class="fc" id="L304">        return contentsId;</span>
+    }
+
+    @Override
+    public int getStatus() {
+<span class="fc" id="L309">        return this.status;</span>
+    }
+
+    protected void setStatus(int status) {
+<span class="fc" id="L313">        this.status = status;</span>
+<span class="fc" id="L314">    }</span>
+
+    @Override
+    public void updateIndexedEntity(IApsEntity entity) throws EntException {
+        try {
+<span class="fc" id="L319">            this.deleteIndexedEntity(entity.getId());</span>
+<span class="fc" id="L320">            this.addEntityToIndex(entity);</span>
+<span class="fc" id="L321">        } catch (EntException e) {</span>
+<span class="fc" id="L322">            logger.error(&quot;Error updating content&quot;, e);</span>
+<span class="fc" id="L323">            throw e;</span>
+<span class="fc" id="L324">        }</span>
+<span class="fc" id="L325">    }</span>
+
+    private void checkUpgradeDao() {
+        try {
+<span class="fc bfc" id="L329" title="All 2 branches covered.">            if (!this.getFactory().checkCurrentSubfolder()) {</span>
+<span class="fc" id="L330">                logger.warn(&quot;Upgrading Search Engine DAOs&quot;);</span>
+<span class="fc" id="L331">                this.getFactory().init();</span>
+<span class="fc" id="L332">                this.init();</span>
+            }
+<span class="nc" id="L334">        } catch (Exception e) {</span>
+<span class="nc" id="L335">            logger.error(&quot;Error upgrading DAOs&quot;, e);</span>
+<span class="fc" id="L336">        }</span>
+<span class="fc" id="L337">    }</span>
+
+    protected IIndexerDAO getIndexerDao() {
+<span class="fc" id="L340">        this.checkUpgradeDao();</span>
+<span class="fc" id="L341">        return indexerDao;</span>
+    }
+
+    protected void setIndexerDao(IIndexerDAO indexerDao) {
+<span class="fc" id="L345">        this.indexerDao = indexerDao;</span>
+<span class="fc" id="L346">    }</span>
+
+    protected ISearcherDAO getSearcherDao() {
+<span class="fc" id="L349">        this.checkUpgradeDao();</span>
+<span class="fc" id="L350">        return searcherDao;</span>
+    }
+
+    protected void setSearcherDao(ISearcherDAO searcherDao) {
+<span class="fc" id="L354">        this.searcherDao = searcherDao;</span>
+<span class="fc" id="L355">    }</span>
+
+    protected ISearchEngineDAOFactory getFactory() {
+<span class="fc" id="L358">        return factory;</span>
+    }
+
+    public void setFactory(ISearchEngineDAOFactory factory) {
+<span class="fc" id="L362">        this.factory = factory;</span>
+<span class="fc" id="L363">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L366">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L370">        this.contentManager = contentManager;</span>
+<span class="fc" id="L371">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
