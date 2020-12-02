@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.user</a> &gt; <span class="el_source">UserController.java</span></div><h1>UserController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.user;
+
+import static org.entando.entando.web.user.validator.UserValidator.createDeleteAdminError;
+import static org.entando.entando.web.user.validator.UserValidator.createSelfDeleteUserError;
+import static org.entando.entando.web.user.validator.UserValidator.isAdminUser;
+import static org.entando.entando.web.user.validator.UserValidator.isUserDeletingHimself;
+
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.system.services.user.UserGroupPermissions;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import org.entando.entando.aps.system.services.user.IUserService;
+import org.entando.entando.aps.system.services.user.model.UserAuthorityDto;
+import org.entando.entando.aps.system.services.user.model.UserDto;
+import org.entando.entando.aps.util.HttpSessionHelper;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.web.user.model.UserAuthoritiesRequest;
+import org.entando.entando.web.user.model.UserPasswordRequest;
+import org.entando.entando.web.user.model.UserRequest;
+import org.entando.entando.web.user.validator.UserValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.DataBinder;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.SessionAttributes;
+
+/**
+ *
+ * @author paddeo
+ */
+@Validated
+@RestController
+@RequestMapping(value = &quot;/users&quot;)
+@SessionAttributes(&quot;user&quot;)
+<span class="fc" id="L71">public class UserController {</span>
+
+<span class="fc" id="L73">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    private IUserService userService;
+
+    @Autowired
+    private UserValidator userValidator;
+
+    public IUserService getUserService() {
+<span class="fc" id="L82">        return userService;</span>
+    }
+
+    public void setUserService(IUserService userService) {
+<span class="fc" id="L86">        this.userService = userService;</span>
+<span class="fc" id="L87">    }</span>
+
+    public UserValidator getUserValidator() {
+<span class="fc" id="L90">        return userValidator;</span>
+    }
+
+    public void setUserValidator(UserValidator userValidator) {
+<span class="fc" id="L94">        this.userValidator = userValidator;</span>
+<span class="fc" id="L95">    }</span>
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;UserDto&gt;&gt; getUsers(RestListRequest requestList, @RequestParam(value = &quot;withProfile&quot;, required = false) String withProfile) {
+<span class="fc" id="L100">        logger.debug(&quot;getting users details with request {}&quot;, requestList);</span>
+<span class="fc" id="L101">        this.getUserValidator().validateRestListRequest(requestList, UserDto.class);</span>
+<span class="fc" id="L102">        PagedMetadata&lt;UserDto&gt; result = this.getUserService().getUsers(requestList, withProfile);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (withProfile != null) {</span>
+<span class="fc" id="L104">            result.addAdditionalParams(&quot;withProfile&quot;, withProfile);</span>
+        }
+<span class="fc" id="L106">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = {Permission.MANAGE_USERS, Permission.MANAGE_USER_PROFILES, Permission.VIEW_USERS})
+    @RequestMapping(value = &quot;/{username:.+}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;UserDto&gt;&gt; getUser(@PathVariable String username) {
+<span class="fc" id="L112">        logger.debug(&quot;getting user {} details&quot;, username);</span>
+<span class="fc" id="L113">        UserDto user = this.getUserService().getUser(username);</span>
+<span class="fc" id="L114">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(user), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;UserDto&gt;&gt; addUser(
+            @Valid @RequestBody UserRequest userRequest,
+            BindingResult bindingResult) {
+<span class="fc" id="L122">        logger.debug(&quot;adding user with request {}&quot;, userRequest);</span>
+        //field validations
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L125">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L127">        this.getUserValidator().validateUserPost(userRequest, bindingResult);</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L129">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L131">        UserDto dto = this.getUserService().addUser(userRequest);</span>
+<span class="fc" id="L132">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(dto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;UserDto&gt;&gt; updateUser(@ModelAttribute(&quot;user&quot;) UserDetails user, @PathVariable String target, @Valid @RequestBody UserRequest userRequest, BindingResult bindingResult) {
+<span class="fc" id="L138">        logger.debug(&quot;updating user {} with request {}&quot;, target, userRequest);</span>
+        //field validations
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L141">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L143">        this.getUserValidator().validatePutBody(target, userRequest, bindingResult);</span>
+<span class="fc" id="L144">        this.getUserValidator().validateUpdateSelf(target, user.getUsername(), bindingResult);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L146">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L148">        UserDto userDto = this.getUserService().updateUser(userRequest);</span>
+<span class="fc" id="L149">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(userDto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{username:.+}/password&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;UserDto&gt;&gt; updateUserPassword(@PathVariable String username, @Valid @RequestBody UserPasswordRequest passwordRequest, BindingResult bindingResult) {
+<span class="fc" id="L155">        logger.debug(&quot;changing pasword for user {} with request {}&quot;, username, passwordRequest);</span>
+        //field validations
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L158">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L160">        this.getUserValidator().validateChangePasswords(username, passwordRequest, bindingResult);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L162">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L164">        UserDto userDto = this.getUserService().updateUserPassword(passwordRequest);</span>
+<span class="fc" id="L165">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(userDto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; deleteUser(
+            //-
+            @ModelAttribute(&quot;user&quot;) UserDetails user,
+            @PathVariable String target,
+            BindingResult bindingResult) {
+<span class="fc" id="L175">        logger.debug(&quot;deleting {}&quot;, target);</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        if (isAdminUser(target)) {</span>
+<span class="fc" id="L177">            throw new ValidationGenericException(createDeleteAdminError());</span>
+        }
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        if (isUserDeletingHimself(target, user.getUsername())) {</span>
+<span class="fc" id="L180">            throw new ValidationGenericException(createSelfDeleteUserError(bindingResult));</span>
+        }
+<span class="fc" id="L182">        this.getUserService().removeUser(target);</span>
+<span class="fc" id="L183">        Map&lt;String, String&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L184">        result.put(&quot;code&quot;, target);</span>
+<span class="fc" id="L185">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}/authorities&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;UserAuthorityDto&gt;&gt;&gt; updateUserAuthorities(@ModelAttribute(&quot;user&quot;) UserDetails user, @PathVariable String target, @Valid @RequestBody UserAuthoritiesRequest authRequest, BindingResult bindingResult) {
+<span class="fc" id="L191">        logger.debug(&quot;user {} requesting update authorities for username {} with req {}&quot;, user.getUsername(), target, authRequest);</span>
+        //field validations
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L194">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc" id="L197">        this.getUserValidator().validate(authRequest, bindingResult);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L199">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L201">        this.getUserValidator().validateUpdateSelf(target, user.getUsername(), bindingResult);</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L203">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L205">        List&lt;UserAuthorityDto&gt; authorities = this.getUserService().updateUserAuthorities(target, authRequest);</span>
+<span class="fc" id="L206">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(authorities), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}/authorities&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;UserAuthorityDto&gt;&gt;&gt; getUserAuthorities(@ModelAttribute(&quot;user&quot;) UserDetails user, @PathVariable String target) {
+<span class="fc" id="L212">        logger.debug(&quot;requesting authorities for username {}&quot;, target);</span>
+<span class="fc" id="L213">        List&lt;UserAuthorityDto&gt; authorities = this.getUserService().getUserAuthorities(target);</span>
+<span class="fc" id="L214">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(authorities), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}/authorities&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;UserAuthorityDto&gt;&gt;&gt; addUserAuthorities(
+            @ModelAttribute(&quot;user&quot;) UserDetails user,
+            @PathVariable String target,
+            @Valid @RequestBody UserAuthoritiesRequest authRequest,
+            BindingResult bindingResult) {
+<span class="fc" id="L224">        logger.debug(&quot;user {} requesting add authorities for username {} with req {}&quot;,</span>
+<span class="fc" id="L225">                user.getUsername(), target, authRequest);</span>
+        //field validations
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L228">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc" id="L231">        getUserValidator().validate(authRequest, bindingResult);</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L233">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L235">        this.getUserValidator().validateUpdateSelf(target, user.getUsername(), bindingResult);</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L237">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L239">        List&lt;UserAuthorityDto&gt; authorities = this.getUserService().addUserAuthorities(target, authRequest);</span>
+<span class="fc" id="L240">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(authorities), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_USERS)
+    @RequestMapping(value = &quot;/{target:.+}/authorities&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ArrayList&lt;Object&gt;&gt;&gt; deleteUserAuthorities(
+            @ModelAttribute(&quot;user&quot;) UserDetails user,
+            @PathVariable String target) {
+        //-
+<span class="fc" id="L249">        logger.debug(&quot;user {} requesting delete authorities for username {}&quot;, user.getUsername(), target);</span>
+<span class="fc" id="L250">        DataBinder binder = new DataBinder(target);</span>
+<span class="fc" id="L251">        BindingResult bindingResult = binder.getBindingResult();</span>
+        //field validations
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L254">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc" id="L257">        getUserValidator().validateUpdateSelf(target, user.getUsername(), bindingResult);</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L259">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L261">        this.getUserService().deleteUserAuthorities(target);</span>
+<span class="fc" id="L262">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(new ArrayList&lt;&gt;()), HttpStatus.OK);</span>
+    }
+
+
+    @GetMapping(&quot;/userProfiles/myGroupPermissions&quot;)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;UserGroupPermissions&gt;&gt;&gt; getMyGroupPermissions(HttpServletRequest request) {
+
+<span class="nc" id="L269">        UserDetails userDetails = HttpSessionHelper.extractCurrentUser(request);</span>
+
+<span class="nc" id="L271">        List&lt;UserGroupPermissions&gt; currentUserPermissions = this.userService.getMyGroupPermissions(userDetails);</span>
+
+<span class="nc" id="L273">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(currentUserPermissions), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.page.validator</a> &gt; <span class="el_source">PageValidator.java</span></div><h1>PageValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.page.validator;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.jsonpatch.validator.JsonPatchValidator;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.entando.entando.web.page.model.PagePositionRequest;
+import org.entando.entando.web.page.model.PageRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.rest.webmvc.json.patch.PatchException;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.Errors;
+
+/**
+ *
+ * @author paddeo
+ */
+@Component
+<span class="fc" id="L38">public class PageValidator extends AbstractPaginationValidator {</span>
+
+    public static final String ERRCODE_PAGE_ALREADY_EXISTS = &quot;1&quot;;
+    public static final String ERRCODE_URINAME_MISMATCH = &quot;2&quot;;
+    public static final String ERRCODE_ONLINE_PAGE = &quot;1&quot;;
+    public static final String ERRCODE_PAGE_HAS_CHILDREN = &quot;2&quot;;
+    public static final String ERRCODE_GROUP_MISMATCH = &quot;2&quot;;
+    public static final String ERRCODE_INVALID_PARENT = &quot;3&quot;;
+    public static final String ERRCODE_STATUS_PAGE_MISMATCH = &quot;6&quot;;
+    public static final String ERRCODE_CHANGE_POSITION_INVALID_REQUEST = &quot;7&quot;;
+    public static final String ERRCODE_REFERENCED_ONLINE_PAGE = &quot;2&quot;;
+    public static final String ERRCODE_REFERENCED_DRAFT_PAGE = &quot;3&quot;;
+    public static final String ERRCODE_INVALID_PATCH = &quot;1&quot;;
+    public static final String ERRCODE_PAGE_WITH_PUBLIC_CHILD = &quot;8&quot;;
+    public static final String ERRCODE_PAGE_WITH_NO_PUBLIC_PARENT = &quot;9&quot;;
+<span class="fc" id="L53">    private static final String ERRCODE_FRAMEID_INVALID = null;</span>
+
+<span class="fc" id="L55">    private final org.slf4j.Logger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    private IPageManager pageManager;
+
+    @Autowired
+    private JsonPatchValidator jsonPatchValidator;
+
+    public IPageManager getPageManager() {
+<span class="fc" id="L64">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L68">        this.pageManager = pageManager;</span>
+<span class="fc" id="L69">    }</span>
+
+    @Override
+    public boolean supports(Class&lt;?&gt; paramClass) {
+
+<span class="nc" id="L74">        return PageRequest.class.equals(paramClass);</span>
+    }
+
+    @Override
+    public void validate(Object target, Errors errors) {
+<span class="fc" id="L79">        PageRequest request = (PageRequest) target;</span>
+<span class="fc" id="L80">        String pageCode = request.getCode();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (null != this.getPageManager().getDraftPage(pageCode)) {</span>
+<span class="fc" id="L82">            errors.reject(ERRCODE_PAGE_ALREADY_EXISTS, new String[]{pageCode}, &quot;page.exists&quot;);</span>
+        }
+<span class="fc" id="L84">    }</span>
+
+    public void validateBodyCode(String pageCode, PageRequest pageRequest, Errors errors) {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (!StringUtils.equals(pageCode, pageRequest.getCode())) {</span>
+<span class="fc" id="L88">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{pageCode, pageRequest.getCode()}, &quot;page.code.mismatch&quot;);</span>
+        }
+<span class="fc" id="L90">    }</span>
+
+    public void validateOnlinePage(String pageCode, Errors errors) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (null != this.getPageManager().getOnlinePage(pageCode)) {</span>
+<span class="fc" id="L94">            errors.reject(ERRCODE_ONLINE_PAGE, new String[]{pageCode}, &quot;page.delete.online&quot;);</span>
+        }
+<span class="fc" id="L96">    }</span>
+
+    public void validateChildren(String pageCode, Errors errors) {
+<span class="fc" id="L99">        IPage page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L100" title="2 of 6 branches missed.">        if (page != null &amp;&amp; page.getChildrenCodes() != null &amp;&amp; page.getChildrenCodes().length &gt; 0) {</span>
+<span class="fc" id="L101">            errors.reject(ERRCODE_PAGE_HAS_CHILDREN, new String[]{pageCode}, &quot;page.delete.children&quot;);</span>
+        }
+<span class="fc" id="L103">    }</span>
+
+    public void validateChangePositionRequest(String pageCode, PagePositionRequest pageRequest, Errors errors) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (!StringUtils.equals(pageCode, pageRequest.getCode())) {</span>
+<span class="fc" id="L107">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{pageCode, pageRequest.getCode()}, &quot;page.code.mismatch&quot;);</span>
+        }
+<span class="pc bpc" id="L109" title="1 of 4 branches missed.">        if (pageRequest.getParentCode() == null || pageRequest.getPosition() &lt;= 0</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">                || this.getPageManager().getDraftPage(pageRequest.getParentCode()) == null) {</span>
+<span class="fc" id="L111">            errors.reject(ERRCODE_CHANGE_POSITION_INVALID_REQUEST, new String[]{pageCode}, &quot;page.move.position.invalid&quot;);</span>
+        }
+<span class="fc" id="L113">    }</span>
+
+    public void validateGroups(String pageCode, PagePositionRequest pageRequest, Errors errors) {
+<span class="fc" id="L116">        logger.debug(&quot;ValidateGroups for page {}&quot;, pageCode);</span>
+<span class="fc" id="L117">        IPage parent = this.getPageManager().getDraftPage(pageRequest.getParentCode());</span>
+<span class="fc" id="L118">        IPage page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc" id="L119">        logger.debug(&quot;Parent {} getGroup() {}&quot;, parent.getGroup());</span>
+<span class="fc" id="L120">        logger.debug(&quot;Page {} getGroup {}&quot;, page.getGroup());</span>
+
+<span class="fc bfc" id="L122" title="All 4 branches covered.">        if (!parent.getGroup().equals(Group.FREE_GROUP_NAME) &amp;&amp; !page.getGroup().equals(parent.getGroup())) {</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            if (page.getGroup().equals(Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L124">                logger.debug(&quot;Validation error for page with pageCode {} ERRCODE_GROUP_MISMATCH 1 - {}&quot;, pageCode, ERRCODE_GROUP_MISMATCH);</span>
+<span class="fc" id="L125">                errors.reject(ERRCODE_GROUP_MISMATCH, new String[]{}, &quot;page.move.freeUnderReserved.notAllowed&quot;);</span>
+            } else {
+<span class="fc" id="L127">                logger.debug(&quot;Validation error for page with pageCode {} ERRCODE_GROUP_MISMATCH 2 - {}&quot;, pageCode, ERRCODE_GROUP_MISMATCH);</span>
+<span class="fc" id="L128">                errors.reject(ERRCODE_GROUP_MISMATCH, new String[]{}, &quot;page.move.group.mismatch&quot;);</span>
+            }
+        }
+<span class="fc" id="L131">    }</span>
+
+    public void validatePagesStatus(String pageCode, PagePositionRequest pageRequest, Errors errors) {
+<span class="fc" id="L134">        logger.debug(&quot;ValidatePagesStatus for page {}&quot;, pageCode);</span>
+<span class="fc" id="L135">        IPage parent = this.getPageManager().getDraftPage(pageRequest.getParentCode()),</span>
+<span class="fc" id="L136">                page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc" id="L137">        logger.debug(&quot;Page {} isOnline {}&quot;, pageCode, page.isOnline());</span>
+<span class="fc" id="L138">        logger.debug(&quot;Parent {} isOnline {}&quot;, parent.getCode(), parent.isOnline());</span>
+<span class="pc bpc" id="L139" title="1 of 4 branches missed.">        if (page.isOnline() &amp;&amp; !parent.isOnline()) {</span>
+<span class="fc" id="L140">            logger.debug(&quot; Validation error for page with pageCode {} ERRCODE_STATUS_PAGE_MISMATCH {}&quot;, pageCode, ERRCODE_STATUS_PAGE_MISMATCH);</span>
+<span class="fc" id="L141">            errors.reject(ERRCODE_STATUS_PAGE_MISMATCH, new String[]{pageCode}, &quot;page.move.status.mismatch&quot;);</span>
+        }
+<span class="fc" id="L143">    }</span>
+
+    public void validateJsonPatchRequest(JsonNode jsonPatch, Errors errors) {
+        try {
+<span class="fc" id="L147">            jsonPatchValidator.validatePatch(jsonPatch);</span>
+<span class="nc" id="L148">        } catch (PatchException e) {</span>
+<span class="nc" id="L149">            errors.reject(ERRCODE_INVALID_PATCH, &quot;jsonPatch.invalid&quot;);</span>
+<span class="fc" id="L150">        }</span>
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        for (JsonNode node : jsonPatch) {</span>
+<span class="fc" id="L153">            String operationPath = node.get(&quot;path&quot;).asText();</span>
+
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">            if (operationPath.equals(&quot;/code&quot;)) {</span>
+<span class="nc" id="L156">                errors.reject(ERRCODE_INVALID_PATCH, new String[]{&quot;code&quot;}, &quot;jsonPatch.field.protected&quot;);</span>
+            }
+<span class="fc" id="L158">        }</span>
+
+<span class="fc" id="L160">    }</span>
+
+    public void validateMovePage(String pageCode, BindingResult bindingResult,
+            PagePositionRequest pagePositionRequest) {
+<span class="fc" id="L164">        this.validateChangePositionRequest(pageCode, pagePositionRequest, bindingResult);</span>
+
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L167">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L169">        this.validateGroups(pageCode, pagePositionRequest, bindingResult);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L171">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L173">        this.validatePagesStatus(pageCode, pagePositionRequest, bindingResult);</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L175">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L177">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

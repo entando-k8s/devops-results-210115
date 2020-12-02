@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractConfigLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.util</a> &gt; <span class="el_source">AbstractConfigLoader.java</span></div><h1>AbstractConfigLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.util;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.servlet.ServletContext;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * Abstract config Loader Class.
+ * @author E.Santoboni
+ */
+<span class="nc" id="L35">public abstract class AbstractConfigLoader {</span>
+
+<span class="nc" id="L37">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractConfigLoader.class);</span>
+	
+	protected List&lt;String&gt; loadDefinitionPaths() throws Throwable {
+<span class="nc" id="L40">		List&lt;String&gt; filenames = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L42">			StringTokenizer tokenizer = new StringTokenizer(this.getDefinitionConfig(), &quot;,&quot;);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			while (tokenizer.hasMoreTokens()) {</span>
+<span class="nc" id="L44">				String currentFilename = tokenizer.nextToken().trim();</span>
+<span class="nc" id="L45">				int index = currentFilename.indexOf(AXTER);</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">				if (-1 == index) {</span>
+<span class="nc" id="L47">					filenames.add(currentFilename);</span>
+				} else {
+<span class="nc" id="L49">					List&lt;String&gt; confFiles = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L50">					String rootInspectionDir = currentFilename.substring(0, index);</span>
+<span class="nc" id="L51">					this.inspectResources(currentFilename, rootInspectionDir, confFiles);</span>
+<span class="nc" id="L52">					filenames.addAll(confFiles);</span>
+				}
+<span class="nc" id="L54">			}</span>
+<span class="nc" id="L55">		} catch (Throwable t) {</span>
+<span class="nc" id="L56">			_logger.error(&quot;Error loading definition paths&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;loadDefinitionPaths&quot;, &quot;Error loading definition paths&quot;);
+<span class="nc" id="L58">			throw new EntException(&quot;Error loading definition paths&quot;, t);</span>
+<span class="nc" id="L59">		}</span>
+<span class="nc" id="L60">		return filenames;</span>
+	}
+	
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private void inspectResources(String currentFileName, String rootInspectionDir, List&lt;String&gt; confFiles) throws Throwable {
+<span class="nc" id="L65">		Set&lt;String&gt; resourcesPath = this.getServletContext().getResourcePaths(rootInspectionDir);</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">		if (null == resourcesPath) return;</span>
+<span class="nc" id="L67">		Iterator&lt;String&gt; it = resourcesPath.iterator();</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">		while (it.hasNext()) {</span>
+<span class="nc" id="L69">			String current = it.next();</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">			if (!current.endsWith(&quot;/&quot;) &amp;&amp; this.isConfResource(current, currentFileName)){</span>
+<span class="nc" id="L71">				confFiles.add(current);</span>
+			} else {
+<span class="nc" id="L73">				this.inspectResources(currentFileName, current, confFiles);</span>
+			}
+<span class="nc" id="L75">		}		</span>
+<span class="nc" id="L76">	}</span>
+	
+	private boolean isConfResource(String current, String currentFilename) {
+<span class="nc" id="L79">		String regExp = currentFilename.replaceAll(AXTER_REG_EXP, REG_EXP);</span>
+<span class="nc" id="L80">		Pattern p = Pattern.compile(regExp);</span>
+<span class="nc" id="L81">		Matcher m = p.matcher(current);</span>
+<span class="nc" id="L82">		return m.matches();</span>
+	}
+	
+	protected ServletContext getServletContext() {
+<span class="nc" id="L86">		return this._servletContext;</span>
+	}
+	protected void setServletContext(ServletContext servletContext) {
+<span class="nc" id="L89">		this._servletContext = servletContext;</span>
+<span class="nc" id="L90">	}</span>
+	
+	protected String getDefinitionConfig() {
+<span class="nc" id="L93">		return _definitionConfig;</span>
+	}
+	protected void setDefinitionConfig(String definitionConfig) {
+<span class="nc" id="L96">		this._definitionConfig = definitionConfig;</span>
+<span class="nc" id="L97">	}</span>
+	
+	private ServletContext _servletContext;
+	private String _definitionConfig;
+	
+	private final static String REG_EXP = &quot;[\\\\w,\\\\-,_]*&quot;;
+	private final static String AXTER = &quot;**&quot;;
+	private final static String AXTER_REG_EXP = &quot;\\*\\*&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

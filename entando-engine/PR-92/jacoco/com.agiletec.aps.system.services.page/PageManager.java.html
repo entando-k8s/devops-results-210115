@@ -1,0 +1,741 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.page</a> &gt; <span class="el_source">PageManager.java</span></div><h1>PageManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.page;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.lang.events.LangsChangedEvent;
+import com.agiletec.aps.system.services.lang.events.LangsChangedObserver;
+import com.agiletec.aps.system.services.page.cache.IPageManagerCacheWrapper;
+import com.agiletec.aps.system.services.page.events.PageChangedEvent;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.system.services.pagemodel.PageModelUtilizer;
+import com.agiletec.aps.system.services.pagemodel.events.PageModelChangedEvent;
+import com.agiletec.aps.system.services.pagemodel.events.PageModelChangedObserver;
+import java.util.stream.Collectors;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * This is the page manager service class. Pages are held in a tree-like
+ * structure, to allow a hierarchical access, and stored in a map, to allow a
+ * key-value type access. In the tree, the father points the son and vice versa;
+ * the order between the pages in the same level is always kept.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L47">public class PageManager extends AbstractService implements IPageManager, GroupUtilizer, LangsChangedObserver, PageModelUtilizer, PageModelChangedObserver {</span>
+
+<span class="fc" id="L49">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageManager.class);</span>
+    public static final String ERRMSG_ERROR_WHILE_MOVING_A_PAGE = &quot;Error while moving a page&quot;;
+
+    private IPageManagerCacheWrapper _cacheWrapper;
+    private IPageDAO _pageDao;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L57">        this.initCache();</span>
+<span class="fc" id="L58">        _logger.debug(&quot;{} ready. : Initialized&quot;, this.getClass().getName());</span>
+<span class="fc" id="L59">    }</span>
+
+    private void initCache() throws EntException {
+<span class="fc" id="L62">        this.getCacheWrapper().initCache(this.getPageDAO());</span>
+<span class="fc" id="L63">    }</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L67">        this.getCacheWrapper().release();</span>
+<span class="fc" id="L68">        super.release();</span>
+<span class="fc" id="L69">    }</span>
+
+    @Override
+    public void updateFromLangsChanged(LangsChangedEvent event) {
+        try {
+<span class="fc" id="L74">            this.init();</span>
+<span class="nc" id="L75">        } catch (Throwable t) {</span>
+<span class="nc" id="L76">            _logger.error(&quot;Error on init method&quot;, t);</span>
+<span class="fc" id="L77">        }</span>
+<span class="fc" id="L78">    }</span>
+
+    /**
+     * Delete a page and eventually the association with the widgets.
+     *
+     * @param pageCode the code of the page to delete
+     * @throws EntException In case of database access error.
+     */
+    @Override
+    public void deletePage(String pageCode) throws EntException {
+<span class="fc" id="L88">        IPage page = this.getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L89" title="1 of 4 branches missed.">        if (null != page &amp;&amp; page.getChildrenCodes().length &lt;= 0) {</span>
+            try {
+<span class="fc" id="L91">                this.getPageDAO().deletePage(page);</span>
+<span class="fc" id="L92">                this.getCacheWrapper().deleteDraftPage(pageCode);</span>
+<span class="nc" id="L93">            } catch (Throwable t) {</span>
+<span class="nc" id="L94">                _logger.error(&quot;Error detected while deleting page {}&quot;, pageCode, t);</span>
+<span class="nc" id="L95">                throw new EntException(&quot;Error detected while deleting a page&quot;, t);</span>
+<span class="fc" id="L96">            }</span>
+        }
+<span class="fc" id="L98">        this.notifyPageChangedEvent(page, PageChangedEvent.REMOVE_OPERATION_CODE, null);</span>
+<span class="fc" id="L99">    }</span>
+
+    /**
+     * Add a new page to the database.
+     *
+     * @param page The page to add
+     * @throws EntException In case of database access error.
+     */
+    @Override
+    public void addPage(IPage page) throws EntException {
+        try {
+<span class="fc" id="L110">            IPage parent = this.getDraftPage(page.getParentCode());</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">            if (null == parent) {</span>
+<span class="nc" id="L112">                _logger.error(&quot;Add page {} - Invalid parent {}&quot;, page.getCode(), page.getParentCode());</span>
+<span class="nc" id="L113">                return;</span>
+            }
+<span class="fc" id="L115">            String[] childrenCodes = parent.getChildrenCodes();</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">            int lastPosition = (null != childrenCodes) ? childrenCodes.length : 0;</span>
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">            if (null != childrenCodes &amp;&amp; childrenCodes.length &gt; 0) {</span>
+<span class="fc" id="L118">                IPage lastParentChild = this.getDraftPage(childrenCodes[childrenCodes.length-1]);</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">                if (null == lastParentChild) {</span>
+<span class="nc" id="L120">                    _logger.error(&quot;Parent page {} - Invalid last child {}&quot;, page.getParentCode(), childrenCodes[childrenCodes.length-1]);</span>
+                } else {
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">                    lastPosition = (lastParentChild.getPosition() &gt; lastPosition) ? lastParentChild.getPosition() : lastPosition;</span>
+                }
+            }
+<span class="fc" id="L125">            page.setPosition(lastPosition+1);</span>
+<span class="fc" id="L126">            this.getPageDAO().addPage(page);</span>
+<span class="fc" id="L127">            this.getCacheWrapper().addDraftPage(page);</span>
+<span class="nc" id="L128">        } catch (Throwable t) {</span>
+<span class="nc" id="L129">            _logger.error(&quot;Error adding a page&quot;, t);</span>
+<span class="nc" id="L130">            throw new EntException(&quot;Error adding a page&quot;, t);</span>
+<span class="fc" id="L131">        }</span>
+<span class="fc" id="L132">        this.notifyPageChangedEvent(this.getDraftPage(page.getCode()), PageChangedEvent.INSERT_OPERATION_CODE, null);</span>
+<span class="fc" id="L133">    }</span>
+
+    /**
+     * Update a page record in the database.
+     *
+     * @param page The modified page.
+     * @throws EntException In case of database access error.
+     */
+    @Override
+    public void updatePage(IPage page) throws EntException {
+        try {
+<span class="fc" id="L144">            this.getPageDAO().updatePage(page);</span>
+<span class="fc" id="L145">            this.getCacheWrapper().updateDraftPage(page);</span>
+<span class="nc" id="L146">        } catch (Throwable t) {</span>
+<span class="nc" id="L147">            _logger.error(&quot;Error updating a page&quot;, t);</span>
+<span class="nc" id="L148">            throw new EntException(&quot;Error updating a page&quot;, t);</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">        this.notifyPageChangedEvent(page, PageChangedEvent.UPDATE_OPERATION_CODE, null);</span>
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    public void setPageOnline(String pageCode) throws EntException {
+        try {
+<span class="fc" id="L156">            this.getPageDAO().setPageOnline(pageCode);</span>
+<span class="fc" id="L157">            this.getCacheWrapper().setPageOnline(pageCode);</span>
+<span class="nc" id="L158">        } catch (Throwable t) {</span>
+<span class="nc" id="L159">            _logger.error(&quot;Error updating a page as online&quot;, t);</span>
+<span class="nc" id="L160">            throw new EntException(&quot;Error updating a page as online&quot;, t);</span>
+<span class="fc" id="L161">        }</span>
+<span class="fc" id="L162">        this.notifyPageChangedEvent(this.getDraftPage(pageCode), PageChangedEvent.UPDATE_OPERATION_CODE, null, PageChangedEvent.EVENT_TYPE_SET_PAGE_ONLINE);</span>
+<span class="fc" id="L163">    }</span>
+
+    @Override
+    public void setPageOffline(String pageCode) throws EntException {
+        try {
+<span class="fc" id="L168">            this.getPageDAO().setPageOffline(pageCode);</span>
+<span class="fc" id="L169">            this.getCacheWrapper().setPageOffline(pageCode);</span>
+<span class="nc" id="L170">        } catch (Throwable t) {</span>
+<span class="nc" id="L171">            _logger.error(&quot;Error updating a page as offline&quot;, t);</span>
+<span class="nc" id="L172">            throw new EntException(&quot;Error updating a page as offline&quot;, t);</span>
+<span class="fc" id="L173">        }</span>
+<span class="fc" id="L174">        this.notifyPageChangedEvent(this.getDraftPage(pageCode), PageChangedEvent.UPDATE_OPERATION_CODE, null, PageChangedEvent.EVENT_TYPE_SET_PAGE_OFFLINE);</span>
+<span class="fc" id="L175">    }</span>
+
+    private void notifyPageChangedEvent(IPage page, int operationCode, Integer framePos) {
+<span class="fc" id="L178">        PageChangedEvent event = buildEvent(page, operationCode, framePos);</span>
+<span class="fc" id="L179">        this.notifyEvent(event);</span>
+<span class="fc" id="L180">    }</span>
+
+    private void notifyPageChangedEvent(IPage page, int operationCode, Integer framesPos, Integer destFramePos, String eventType) {
+<span class="fc" id="L183">        PageChangedEvent event = buildEvent(page, operationCode, framesPos);</span>
+<span class="fc" id="L184">        event.setDestFrame(destFramePos);</span>
+<span class="fc" id="L185">        event.setEventType(eventType);</span>
+<span class="fc" id="L186">        this.notifyEvent(event);</span>
+<span class="fc" id="L187">    }</span>
+
+    private void notifyPageChangedEvent(IPage page, int operationCode, Integer framePos, String eventType) {
+<span class="fc" id="L190">        PageChangedEvent event = buildEvent(page, operationCode, framePos);</span>
+<span class="fc" id="L191">        event.setEventType(eventType);</span>
+<span class="fc" id="L192">        this.notifyEvent(event);</span>
+<span class="fc" id="L193">    }</span>
+
+    private PageChangedEvent buildEvent(IPage page, int operationCode, Integer framePos) {
+<span class="fc" id="L196">        PageChangedEvent event = new PageChangedEvent();</span>
+<span class="fc" id="L197">        event.setPage(page);</span>
+<span class="fc" id="L198">        event.setOperationCode(operationCode);</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (null != framePos) {</span>
+<span class="fc" id="L200">            event.setFramePosition(framePos);</span>
+        }
+<span class="fc" id="L202">        return event;</span>
+    }
+
+    /**
+     * Move a page.
+     *
+     * @param pageCode The code of the page to move.
+     * @param moveUp When true the page is moved to a higher level of the tree,
+     * otherwise to a lower level.
+     * @return The result of the operation: false if the move request could not
+     * be satisfied, true otherwise.
+     * @throws EntException In case of database access error.
+     */
+    @Override
+    public boolean movePage(String pageCode, boolean moveUp) throws EntException {
+<span class="fc" id="L217">        boolean resultOperation = true;</span>
+        try {
+<span class="fc" id="L219">            IPage currentPage = this.getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">            if (null == currentPage) {</span>
+<span class="nc" id="L221">                throw mkException(pageCode);</span>
+            }
+<span class="fc" id="L223">            IPage parent = this.getDraftPage(currentPage.getParentCode());</span>
+<span class="fc" id="L224">            String[] sisterPageCodes = parent.getChildrenCodes();</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">            for (int i = 0; i &lt; sisterPageCodes.length; i++) {</span>
+<span class="fc" id="L226">                String sisterPageCode = sisterPageCodes[i];</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                if (sisterPageCode.equals(pageCode)) {</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">                    if (!verifyRequiredMovement(i, moveUp, sisterPageCodes.length)) {</span>
+<span class="fc" id="L229">                        return false;</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">                    } else if (moveUp) {</span>
+<span class="fc" id="L231">                        String pageDown = sisterPageCodes[i - 1];</span>
+<span class="fc" id="L232">                        this.moveUpDown(pageDown, currentPage.getCode());</span>
+<span class="fc" id="L233">                    } else {</span>
+<span class="fc" id="L234">                        String pageUp = sisterPageCodes[i + 1];</span>
+<span class="fc" id="L235">                        this.moveUpDown(currentPage.getCode(), pageUp);</span>
+                    }
+                }
+            }
+<span class="nc" id="L239">        } catch (Throwable t) {</span>
+<span class="nc" id="L240">            _logger.error(ERRMSG_ERROR_WHILE_MOVING_A_PAGE + &quot; {}&quot;, pageCode, t);</span>
+<span class="nc" id="L241">            throw new EntException(ERRMSG_ERROR_WHILE_MOVING_A_PAGE, t);</span>
+<span class="fc" id="L242">        }</span>
+<span class="fc" id="L243">        return resultOperation;</span>
+    }
+
+    private EntException mkException(String pageCode) {
+<span class="nc" id="L247">        return new EntException(&quot;The page '&quot; + pageCode + &quot;' does not exist!&quot;);</span>
+    }
+
+    /**
+     * Perform the movement of a page
+     *
+     * @param pageDown
+     * @param pageUp
+     * @throws EntException In case of database access error.
+     */
+    private void moveUpDown(String pageDown, String pageUp) throws EntException {
+        try {
+<span class="fc" id="L259">            IPage draftToMoveDown = this.getDraftPage(pageDown);</span>
+<span class="fc" id="L260">            IPage draftToMoveUp = this.getDraftPage(pageUp);</span>
+<span class="pc bpc" id="L261" title="2 of 4 branches missed.">            if (null != draftToMoveDown &amp;&amp; null != draftToMoveUp </span>
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">                    &amp;&amp; draftToMoveDown.getParentCode().equals(draftToMoveUp.getParentCode())) {</span>
+<span class="fc" id="L263">                this.getCacheWrapper().moveUpDown(pageDown, pageUp);</span>
+<span class="fc" id="L264">                this.getPageDAO().updatePosition(pageDown, pageUp);</span>
+            } else {
+<span class="nc" id="L266">                _logger.error(&quot;Movement impossible - page to move up {} - page to move down {}&quot;, pageUp, pageDown);</span>
+            }
+<span class="nc" id="L268">        } catch (Throwable t) {</span>
+<span class="nc" id="L269">            _logger.error(ERRMSG_ERROR_WHILE_MOVING_A_PAGE, t);</span>
+<span class="nc" id="L270">            throw new EntException(ERRMSG_ERROR_WHILE_MOVING_A_PAGE, t);</span>
+<span class="fc" id="L271">        }</span>
+<span class="fc" id="L272">    }</span>
+
+    @Override
+    public boolean moveWidget(String pageCode, Integer frameToMove, Integer destFrame) throws EntException {
+<span class="fc" id="L276">        boolean resultOperation = true;</span>
+        try {
+<span class="fc" id="L278">            IPage currentPage = this.getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">            if (null == currentPage) {</span>
+<span class="nc" id="L280">                throw new EntException(&quot;The page '&quot; + pageCode + &quot;' does not exist!&quot;);</span>
+            }
+<span class="fc" id="L282">            Widget[] widgets = currentPage.getWidgets();</span>
+<span class="fc" id="L283">            Widget currentWidget = widgets[frameToMove];</span>
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">            if (null == currentWidget) {</span>
+<span class="nc" id="L285">                throw new EntException(&quot;No widget found in frame '&quot; + frameToMove + &quot;' and page '&quot; + pageCode + &quot;'&quot;);</span>
+            }
+<span class="fc" id="L287">            boolean movementEnabled = isMovementEnabled(frameToMove, destFrame, widgets.length);</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">            if (!movementEnabled) {</span>
+<span class="nc" id="L289">                return false;</span>
+            } else {
+<span class="fc" id="L291">                Widget currentDest = widgets[destFrame];</span>
+<span class="fc" id="L292">                widgets[frameToMove] = currentDest;</span>
+<span class="fc" id="L293">                widgets[destFrame] = currentWidget;</span>
+<span class="fc" id="L294">                currentPage.setWidgets(widgets);</span>
+<span class="fc" id="L295">                this.getCacheWrapper().updateDraftPage(currentPage);</span>
+<span class="fc" id="L296">                this.getPageDAO().updateWidgetPosition(pageCode, frameToMove, destFrame);</span>
+            }
+<span class="fc" id="L298">            this.notifyPageChangedEvent(currentPage, PageChangedEvent.EDIT_FRAME_OPERATION_CODE, frameToMove, destFrame, PageChangedEvent.EVENT_TYPE_MOVE_WIDGET);</span>
+<span class="nc" id="L299">        } catch (Throwable t) {</span>
+<span class="nc" id="L300">            _logger.error(&quot;Error while moving widget. page {} from position {} to position {}&quot;, pageCode, frameToMove, destFrame, t);</span>
+<span class="nc" id="L301">            throw new EntException(&quot;Error while moving a widget&quot;, t);</span>
+<span class="fc" id="L302">        }</span>
+<span class="fc" id="L303">        return resultOperation;</span>
+    }
+
+    private boolean isMovementEnabled(Integer frameToMove, Integer destFrame, int dimension) {
+<span class="fc" id="L307">        boolean isEnabled = true;</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        if (frameToMove.intValue() == destFrame.intValue()) {</span>
+<span class="nc" id="L309">            return false;</span>
+        }
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        if (frameToMove &gt; dimension) {</span>
+<span class="nc" id="L312">            return false;</span>
+        }
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">        if (frameToMove &lt; 0) {</span>
+<span class="nc" id="L315">            return false;</span>
+        }
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">        if (destFrame &gt; dimension - 1) {</span>
+<span class="nc" id="L318">            return false;</span>
+        }
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if (destFrame &lt; 0) {</span>
+<span class="nc" id="L321">            return false;</span>
+        }
+<span class="fc" id="L323">        return isEnabled;</span>
+    }
+
+    /**
+     * Verify the possibility of the page to be moved elsewhere.
+     *
+     * @param position The position of the page to move
+     * @param moveUp When true the page is moved to a higher level of the tree,
+     * otherwise to a lower level.
+     * @param dimension The number the number of the pages of the parent of the
+     * page to move.
+     * @return if true then the requested movement is possible (but not
+     * performed) false otherwise.
+     */
+    private boolean verifyRequiredMovement(int position, boolean moveUp, int dimension) {
+<span class="fc" id="L338">        boolean result = true;</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">        if (moveUp) {</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            if (position == 0) {</span>
+<span class="fc" id="L341">                result = false;</span>
+            }
+<span class="fc bfc" id="L343" title="All 2 branches covered.">        } else if (position == (dimension - 1)) {</span>
+<span class="fc" id="L344">            result = false;</span>
+        }
+<span class="fc" id="L346">        return result;</span>
+    }
+
+    /**
+     * Remove a widgets from the given page.
+     *
+     * @param pageCode the code of the page
+     * @param pos The position in the page to free
+     * @throws EntException In case of error
+     * @deprecated Use {@link #removeWidget(String,int)} instead
+     */
+    @Override
+    @Deprecated
+    public void removeShowlet(String pageCode, int pos) throws EntException {
+<span class="nc" id="L360">        this.removeWidget(pageCode, pos);</span>
+<span class="nc" id="L361">    }</span>
+
+    /**
+     * Remove a widget from the given page.
+     *
+     * @param pageCode the code of the page
+     * @param pos The position in the page to free
+     * @throws EntException In case of error
+     */
+    @Override
+    public void removeWidget(String pageCode, int pos) throws EntException {
+<span class="fc" id="L372">        this.checkPagePos(pageCode, pos);</span>
+        try {
+<span class="fc" id="L374">            IPage currentPage = this.getDraftPage(pageCode);</span>
+<span class="fc" id="L375">            this.getPageDAO().removeWidget(currentPage, pos);</span>
+<span class="fc" id="L376">            currentPage.getWidgets()[pos] = null;</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">            if (currentPage.isOnline()) {</span>
+<span class="fc" id="L378">                boolean widgetEquals = Arrays.deepEquals(currentPage.getWidgets(), this.getOnlinePage(pageCode).getWidgets());</span>
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">                ((Page) currentPage).setChanged(!widgetEquals);</span>
+            }
+<span class="fc" id="L381">            this.getCacheWrapper().updateDraftPage(currentPage);</span>
+<span class="fc" id="L382">            this.notifyPageChangedEvent(currentPage, PageChangedEvent.EDIT_FRAME_OPERATION_CODE, pos, PageChangedEvent.EVENT_TYPE_REMOVE_WIDGET);</span>
+<span class="nc" id="L383">        } catch (Throwable t) {</span>
+<span class="nc" id="L384">            String message = &quot;Error removing the widget from the page '&quot; + pageCode + &quot;' in the frame &quot; + pos;</span>
+<span class="nc" id="L385">            _logger.error(&quot;Error removing the widget from the page '{}' in the frame {}&quot;, pageCode, pos, t);</span>
+<span class="nc" id="L386">            throw new EntException(message, t);</span>
+<span class="fc" id="L387">        }</span>
+<span class="fc" id="L388">    }</span>
+
+    /**
+     * @param pageCode
+     * @param widget
+     * @param pos
+     * @throws EntException In case of error.
+     * @deprecated Use {@link #joinWidget(String,Widget,int)} instead
+     */
+    @Override
+    @Deprecated
+    public void joinShowlet(String pageCode, Widget widget, int pos) throws EntException {
+<span class="nc" id="L400">        this.joinWidget(pageCode, widget, pos);</span>
+<span class="nc" id="L401">    }</span>
+
+    /**
+     * Set the widget -including its configuration- in the given page in the
+     * desired position. If the position is already occupied by another widget
+     * this will be substituted with the new one.
+     *
+     * @param pageCode the code of the page where to set the widget
+     * @param widget The widget to set
+     * @param pos The position where to place the widget in
+     * @throws EntException In case of error.
+     */
+    @Override
+    public void joinWidget(String pageCode, Widget widget, int pos) throws EntException {
+<span class="fc" id="L415">        this.checkPagePos(pageCode, pos);</span>
+<span class="pc bpc" id="L416" title="2 of 4 branches missed.">        if (null == widget || null == widget.getType()) {</span>
+<span class="nc" id="L417">            throw new EntException(&quot;Invalid null value found in either the Widget or the widgetType&quot;);</span>
+        }
+        try {
+<span class="fc" id="L420">            IPage currentPage = this.getDraftPage(pageCode);</span>
+<span class="fc" id="L421">            this.getPageDAO().joinWidget(currentPage, widget, pos);</span>
+<span class="fc" id="L422">            currentPage.getWidgets()[pos] = widget;</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">            if (currentPage.isOnline()) {</span>
+<span class="fc" id="L424">                boolean widgetEquals = Arrays.deepEquals(currentPage.getWidgets(), this.getOnlinePage(pageCode).getWidgets());</span>
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">                ((Page) currentPage).setChanged(!widgetEquals);</span>
+            }
+<span class="fc" id="L427">            this.getCacheWrapper().updateDraftPage(currentPage);</span>
+<span class="fc" id="L428">            this.notifyPageChangedEvent(currentPage, PageChangedEvent.EDIT_FRAME_OPERATION_CODE, pos, PageChangedEvent.EVENT_TYPE_JOIN_WIDGET);</span>
+<span class="nc" id="L429">        } catch (Throwable t) {</span>
+<span class="nc" id="L430">            String message = &quot;Error during the assignation of a widget to the frame &quot; + pos + &quot; in the page code &quot; + pageCode;</span>
+<span class="nc" id="L431">            _logger.error(&quot;Error during the assignation of a widget to the frame {} in the page code {}&quot;, pos, pageCode, t);</span>
+<span class="nc" id="L432">            throw new EntException(message, t);</span>
+<span class="fc" id="L433">        }</span>
+<span class="fc" id="L434">    }</span>
+
+    /**
+     * Utility method which perform checks on the parameters submitted when
+     * editing the page.
+     *
+     * @param pageCode The code of the page
+     * @param pos The given position
+     * @throws EntException In case of database access error.
+     */
+    private void checkPagePos(String pageCode, int pos) throws EntException {
+<span class="fc" id="L445">        IPage currentPage = this.getDraftPage(pageCode);</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">        if (null == currentPage) {</span>
+<span class="fc" id="L447">            throw new EntException(&quot;The page '&quot; + pageCode + &quot;' does not exist!&quot;);</span>
+        }
+<span class="fc" id="L449">        PageModel model = currentPage.getMetadata().getModel();</span>
+<span class="pc bpc" id="L450" title="1 of 4 branches missed.">        if (pos &lt; 0 || pos &gt;= model.getFrames().length) {</span>
+<span class="fc" id="L451">            throw new EntException(&quot;The Position '&quot; + pos + &quot;' is not defined in the model '&quot; + model.getDescription() + &quot;' of the page '&quot; + pageCode + &quot;'!&quot;);</span>
+        }
+<span class="fc" id="L453">    }</span>
+
+    /**
+     * Return the root of the pages tree.
+     *
+     * @return the root page
+     */
+    @Deprecated
+    @Override
+    public IPage getRoot() {
+<span class="nc" id="L463">        throw new UnsupportedOperationException(&quot;METODO NON SUPPORTATO: public IPage getRoot()&quot;);</span>
+    }
+
+    @Override
+    public IPage getOnlineRoot() {
+<span class="fc" id="L468">        return this.getCacheWrapper().getOnlineRoot();</span>
+    }
+
+    @Override
+    public IPage getDraftRoot() {
+<span class="fc" id="L473">        return this.getCacheWrapper().getDraftRoot();</span>
+    }
+
+    @Override
+    public IPage getOnlinePage(String pageCode) {
+<span class="fc" id="L478">        return this.getCacheWrapper().getOnlinePage(pageCode);</span>
+    }
+
+    @Override
+    public IPage getDraftPage(String pageCode) {
+<span class="fc" id="L483">        return this.getCacheWrapper().getDraftPage(pageCode);</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; searchOnlinePages(String pageCodeToken, List&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L488">        List&lt;IPage&gt; searchResult = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L490" title="2 of 4 branches missed.">            if (null == allowedGroups || allowedGroups.isEmpty()) {</span>
+<span class="nc" id="L491">                return searchResult;</span>
+            }
+<span class="fc" id="L493">            IPage root = this.getOnlineRoot();</span>
+<span class="fc" id="L494">            this.searchPages(root, pageCodeToken, allowedGroups, searchResult);</span>
+<span class="nc" id="L495">        } catch (Throwable t) {</span>
+<span class="nc" id="L496">            String message = &quot;Error during searching pages online with token &quot; + pageCodeToken;</span>
+<span class="nc" id="L497">            _logger.error(&quot;Error during searching online pages with token {}&quot;, pageCodeToken, t);</span>
+<span class="nc" id="L498">            throw new EntException(message, t);</span>
+<span class="fc" id="L499">        }</span>
+<span class="fc" id="L500">        return searchResult;</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; searchPages(String pageCodeToken, List&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L505">        List&lt;IPage&gt; searchResult = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L507" title="2 of 4 branches missed.">            if (null == allowedGroups || allowedGroups.isEmpty()) {</span>
+<span class="nc" id="L508">                return searchResult;</span>
+            }
+<span class="fc" id="L510">            IPage root = this.getDraftRoot();</span>
+<span class="fc" id="L511">            this.searchPages(root, pageCodeToken, allowedGroups, searchResult);</span>
+<span class="nc" id="L512">        } catch (Throwable t) {</span>
+<span class="nc" id="L513">            String message = &quot;Error during searching pages with token &quot; + pageCodeToken;</span>
+<span class="nc" id="L514">            _logger.error(&quot;Error during searching pages with token {}&quot;, pageCodeToken, t);</span>
+<span class="nc" id="L515">            throw new EntException(message, t);</span>
+<span class="fc" id="L516">        }</span>
+<span class="fc" id="L517">        return searchResult;</span>
+    }
+
+    private void searchPages(IPage currentTarget, String pageCodeToken, List&lt;String&gt; allowedGroups, List&lt;IPage&gt; searchResult) {
+<span class="fc bfc" id="L521" title="All 6 branches covered.">        if ((null == pageCodeToken || currentTarget.getCode().toLowerCase().contains(pageCodeToken.toLowerCase())) &amp;&amp; (allowedGroups.contains(currentTarget.getGroup())</span>
+<span class="fc bfc" id="L522" title="All 2 branches covered.">                || allowedGroups.contains(Group.ADMINS_GROUP_NAME))) {</span>
+<span class="fc" id="L523">            searchResult.add(currentTarget);</span>
+        }
+<span class="fc" id="L525">        String[] childrenCodes = currentTarget.getChildrenCodes();</span>
+<span class="fc bfc" id="L526" title="All 2 branches covered.">        for (int i = 0; i &lt; childrenCodes.length; i++) {</span>
+<span class="fc" id="L527">            IPage child = this.getDraftPage(childrenCodes[i]);</span>
+<span class="fc" id="L528">            this.searchPages(child, pageCodeToken, allowedGroups, searchResult);</span>
+        }
+<span class="fc" id="L530">    }</span>
+
+    @Override
+    public ITreeNode getNode(String code) {
+<span class="nc" id="L534">        return this.getOnlinePage(code);</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; getGroupUtilizers(String groupName) throws EntException {
+<span class="fc" id="L539">        List&lt;IPage&gt; pageUtilizers = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L541">            IPage root = this.getDraftRoot();</span>
+<span class="fc" id="L542">            this.searchUtilizers(groupName, pageUtilizers, root, true);</span>
+<span class="fc" id="L543">            List&lt;IPage&gt; utilizersOnline = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L544">            root = this.getOnlineRoot();</span>
+<span class="fc" id="L545">            this.searchUtilizers(groupName, utilizersOnline, root, false);</span>
+<span class="fc bfc" id="L546" title="All 2 branches covered.">            for (IPage page : utilizersOnline) {</span>
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">                if (!pageUtilizers.contains(page)) {</span>
+<span class="fc" id="L548">                    pageUtilizers.add(page);</span>
+                }
+<span class="fc" id="L550">            }</span>
+<span class="nc" id="L551">        } catch (Throwable t) {</span>
+<span class="nc" id="L552">            String message = &quot;Error during searching page utilizers of group &quot; + groupName;</span>
+<span class="nc" id="L553">            _logger.error(&quot;Error during searching page utilizers of group {}&quot;, groupName, t);</span>
+<span class="nc" id="L554">            throw new EntException(message, t);</span>
+<span class="fc" id="L555">        }</span>
+
+<span class="fc" id="L557">        return pageUtilizers;</span>
+    }
+
+    private void searchUtilizers(String groupName, List&lt;IPage&gt; utilizers, IPage page, boolean draft) {
+<span class="fc bfc" id="L561" title="All 4 branches covered.">        if (page.getGroup().equals(groupName) &amp;&amp; !page.isOnlineInstance()) {</span>
+<span class="fc" id="L562">            utilizers.add(page);</span>
+        } else {
+<span class="fc" id="L564">            Collection&lt;String&gt; extraGroups = page.getMetadata().getExtraGroups();</span>
+<span class="fc bfc" id="L565" title="All 4 branches covered.">            boolean inUse = extraGroups != null &amp;&amp; extraGroups.contains(groupName);</span>
+<span class="fc bfc" id="L566" title="All 2 branches covered.">            if (inUse) {</span>
+<span class="fc" id="L567">                utilizers.add(page);</span>
+            }
+        }
+<span class="fc" id="L570">        String[] childrenCodes = page.getChildrenCodes();</span>
+<span class="fc bfc" id="L571" title="All 2 branches covered.">        for (int i = 0; i &lt; childrenCodes.length; i++) {</span>
+<span class="fc bfc" id="L572" title="All 2 branches covered.">            IPage child = (draft) ? this.getDraftPage(childrenCodes[i]) : this.getOnlinePage(childrenCodes[i]);</span>
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">            if (null != child) {</span>
+<span class="fc" id="L574">                this.searchUtilizers(groupName, utilizers, child, draft);</span>
+            }
+        }
+<span class="fc" id="L577">    }</span>
+
+    @Override
+    public List&lt;String&gt; getOnlineWidgetUtilizerCodes(String widgetTypeCode) throws EntException {
+<span class="fc" id="L581">        return this.getCacheWrapper().getOnlineWidgetUtilizers(widgetTypeCode);</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; getOnlineWidgetUtilizers(String widgetTypeCode) throws EntException {
+<span class="fc" id="L586">        List&lt;String&gt; codes = this.getOnlineWidgetUtilizerCodes(widgetTypeCode);</span>
+<span class="fc" id="L587">        return codes.stream().map(code -&gt; this.getOnlinePage(code)).collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getDraftWidgetUtilizerCodes(String widgetTypeCode) throws EntException {
+<span class="fc" id="L592">        return this.getCacheWrapper().getDraftWidgetUtilizers(widgetTypeCode);</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; getDraftWidgetUtilizers(String widgetTypeCode) throws EntException {
+<span class="fc" id="L597">        List&lt;String&gt; codes = this.getDraftWidgetUtilizerCodes(widgetTypeCode);</span>
+<span class="fc" id="L598">        return codes.stream().map(code -&gt; this.getDraftPage(code)).collect(Collectors.toList());</span>
+    }
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    @Override
+    public List getPageModelUtilizers(String pageModelCode) throws EntException {
+<span class="fc" id="L604">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L606" title="1 of 2 branches missed.">            if (null == pageModelCode) {</span>
+<span class="nc" id="L607">                return pages;</span>
+            }
+<span class="fc" id="L609">            IPage root = this.getDraftRoot();</span>
+<span class="fc" id="L610">            this.getPageModelUtilizers(root, pageModelCode, pages, true);</span>
+<span class="fc" id="L611">            root = this.getOnlineRoot();</span>
+<span class="fc" id="L612">            this.getPageModelUtilizers(root, pageModelCode, pages, false);</span>
+<span class="nc" id="L613">        } catch (Throwable t) {</span>
+<span class="nc" id="L614">            String message = &quot;Error during searching page utilizers of page template with code &quot; + pageModelCode;</span>
+<span class="nc" id="L615">            _logger.error(&quot;Error during searching page utilizers of page template with code {}&quot;, pageModelCode, t);</span>
+<span class="nc" id="L616">            throw new EntException(message, t);</span>
+<span class="fc" id="L617">        }</span>
+<span class="fc" id="L618">        return pages;</span>
+    }
+
+    private void getPageModelUtilizers(IPage page, String pageModelCode, List&lt;IPage&gt; pageModelUtilizers, boolean draft) {
+<span class="fc" id="L622">        PageMetadata pageMetadata = page.getMetadata();</span>
+<span class="pc bpc" id="L623" title="2 of 6 branches missed.">        boolean usingModel = pageMetadata != null &amp;&amp; pageMetadata.getModel() != null &amp;&amp; pageModelCode.equals(pageMetadata.getModel().getCode());</span>
+<span class="fc bfc" id="L624" title="All 2 branches covered.">        if (!usingModel) {</span>
+<span class="fc" id="L625">            pageMetadata = page.getMetadata();</span>
+<span class="pc bpc" id="L626" title="3 of 6 branches missed.">            usingModel = pageMetadata != null &amp;&amp; pageMetadata.getModel() != null &amp;&amp; pageModelCode.equals(pageMetadata.getModel().getCode());</span>
+        }
+<span class="fc bfc" id="L628" title="All 2 branches covered.">        if (usingModel) {</span>
+<span class="fc" id="L629">            pageModelUtilizers.add(page);</span>
+        }
+<span class="fc" id="L631">        String[] childrenCodes = page.getChildrenCodes();</span>
+<span class="fc bfc" id="L632" title="All 2 branches covered.">        for (int i = 0; i &lt; childrenCodes.length; i++) {</span>
+<span class="fc bfc" id="L633" title="All 2 branches covered.">            IPage child = (draft) ? this.getDraftPage(childrenCodes[i]) : this.getOnlinePage(childrenCodes[i]);</span>
+<span class="pc bpc" id="L634" title="1 of 2 branches missed.">            if (null != child) {</span>
+<span class="fc" id="L635">                this.getPageModelUtilizers(child, pageModelCode, pageModelUtilizers, draft);</span>
+            }
+        }
+<span class="fc" id="L638">    }</span>
+
+    @Override
+    public void updateFromPageModelChanged(PageModelChangedEvent event) {
+        try {
+<span class="fc bfc" id="L643" title="All 2 branches covered.">            if (event.getOperationCode() != PageModelChangedEvent.UPDATE_OPERATION_CODE) {</span>
+<span class="fc" id="L644">                return;</span>
+            }
+<span class="fc" id="L646">            PageModel model = event.getPageModel();</span>
+<span class="pc bpc" id="L647" title="1 of 2 branches missed.">            String pageModelCode = (null != model) ? model.getCode() : null;</span>
+<span class="pc bpc" id="L648" title="1 of 2 branches missed.">            if (null != pageModelCode) {</span>
+<span class="fc" id="L649">                List&lt;?&gt; utilizers = this.getPageModelUtilizers(pageModelCode);</span>
+<span class="pc bpc" id="L650" title="2 of 4 branches missed.">                if (null != utilizers &amp;&amp; utilizers.size() &gt; 0) {</span>
+<span class="nc" id="L651">                    this.init();</span>
+                }
+            }
+<span class="nc" id="L654">        } catch (Throwable t) {</span>
+<span class="nc" id="L655">            _logger.error(&quot;Error during refres pages&quot;, t);</span>
+<span class="fc" id="L656">        }</span>
+<span class="fc" id="L657">    }</span>
+    
+    @Override
+	public boolean movePage(IPage currentPage, IPage newParent) throws EntException {
+<span class="fc" id="L661">        return this.movePage(currentPage.getCode(), newParent.getCode());</span>
+    }
+
+	@Override
+	public boolean movePage(String pageCode, String newParentCode) throws EntException {
+<span class="fc" id="L666">        IPage pageToMove = this.getDraftPage(pageCode);</span>
+<span class="fc" id="L667">        IPage newParent = this.getDraftPage(newParentCode);</span>
+<span class="fc" id="L668">		boolean resultOperation = false;</span>
+<span class="pc bpc" id="L669" title="1 of 4 branches missed.">        if (null == pageToMove || null == newParent) {</span>
+<span class="fc" id="L670">            _logger.error(&quot;Page to move '{}' or new parent '{}' is null&quot;, pageCode, newParentCode);</span>
+<span class="fc" id="L671">            return resultOperation;</span>
+        }
+<span class="pc bpc" id="L673" title="1 of 2 branches missed.">        if (pageCode.equals(newParentCode)) {</span>
+<span class="nc" id="L674">            _logger.error(&quot;Page to move '{}' and new parent '{}' are the same&quot;, pageCode, newParentCode);</span>
+<span class="nc" id="L675">            return resultOperation;</span>
+        }
+<span class="fc bfc" id="L677" title="All 2 branches covered.">        if (newParent.isChildOf(pageCode, this)) {</span>
+<span class="fc" id="L678">            _logger.error(&quot;Page to move '{}' is parent of the new parent '{}'&quot;, pageCode, newParentCode);</span>
+<span class="fc" id="L679">            return resultOperation;</span>
+        }
+<span class="fc" id="L681">        _logger.debug(&quot;start move page '{}' under '{}'&quot;, pageToMove, newParent);</span>
+        try {
+<span class="fc" id="L683">            this.getPageDAO().movePage(pageToMove, newParent);</span>
+<span class="fc" id="L684">            this.getCacheWrapper().movePage(pageCode, newParentCode);</span>
+<span class="fc" id="L685">            resultOperation = true;</span>
+<span class="nc" id="L686">        } catch (Throwable t) {</span>
+<span class="nc" id="L687">            ApsSystemUtils.logThrowable(t, this, &quot;movePage&quot;);</span>
+<span class="nc" id="L688">            throw new EntException(&quot;Error while moving a page under a root node&quot;, t);</span>
+<span class="fc" id="L689">        }</span>
+<span class="fc" id="L690">        return resultOperation;</span>
+    }
+
+    @Override
+    public List&lt;IPage&gt; loadLastUpdatedPages(int size) throws EntException {
+<span class="nc" id="L695">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L697">            List&lt;String&gt; paceCodes = this.getPageDAO().loadLastUpdatedPages(size);</span>
+<span class="nc bnc" id="L698" title="All 4 branches missed.">            if (null == paceCodes || paceCodes.isEmpty()) {</span>
+<span class="nc" id="L699">                return pages;</span>
+            }
+<span class="nc bnc" id="L701" title="All 2 branches missed.">            for (String pageCode : paceCodes) {</span>
+<span class="nc" id="L702">                IPage page = this.getDraftPage(pageCode);</span>
+<span class="nc" id="L703">                pages.add(page);</span>
+<span class="nc" id="L704">            }</span>
+
+<span class="nc" id="L706">        } catch (Throwable t) {</span>
+<span class="nc" id="L707">            ApsSystemUtils.logThrowable(t, this, &quot;loadLastUpdatedPages&quot;);</span>
+<span class="nc" id="L708">            throw new EntException(&quot;Error loading loadLastUpdatedPages&quot;, t);</span>
+<span class="nc" id="L709">        }</span>
+<span class="nc" id="L710">        return pages;</span>
+    }
+
+    @Override
+    public PagesStatus getPagesStatus() {
+<span class="fc" id="L715">        PagesStatus status = this.getCacheWrapper().getPagesStatus();</span>
+<span class="fc" id="L716">        PagesStatus clone = new PagesStatus();</span>
+<span class="fc" id="L717">        clone.setLastUpdate(status.getLastUpdate());</span>
+<span class="fc" id="L718">        clone.setOnline(status.getOnline());</span>
+<span class="fc" id="L719">        clone.setOnlineWithChanges(status.getOnlineWithChanges());</span>
+<span class="fc" id="L720">        clone.setUnpublished(status.getUnpublished());</span>
+<span class="fc" id="L721">        return clone;</span>
+    }
+
+    protected IPageManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L725">        return _cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IPageManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L729">        this._cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L730">    }</span>
+
+    protected IPageDAO getPageDAO() {
+<span class="fc" id="L733">        return _pageDao;</span>
+    }
+
+    public void setPageDAO(IPageDAO pageDao) {
+<span class="fc" id="L737">        this._pageDao = pageDao;</span>
+<span class="fc" id="L738">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserFilterOptionBean.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject.widget</a> &gt; <span class="el_source">UserFilterOptionBean.java</span></div><h1>UserFilterOptionBean.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobject.widget;
+
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.BooleanAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.DateAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.NumberAttribute;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.util.CheckFormatUtil;
+import com.agiletec.aps.util.DateConverter;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.aps.system.services.dataobjectsearchengine.IIndexerDAO;
+import org.entando.entando.aps.system.services.searchengine.SearchEngineFilter;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * A user filter option of the list viewer widget
+ *
+ * @author E.Santoboni
+ */
+public class UserFilterOptionBean implements Serializable {
+
+<span class="nc" id="L51">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(UserFilterOptionBean.class);</span>
+
+<span class="nc" id="L53">    public UserFilterOptionBean(Properties properties, IApsEntity prototype) throws Throwable {</span>
+<span class="nc" id="L54">        this.setKey(properties.getProperty(PARAM_KEY));</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (null == this.getKey()) {</span>
+<span class="nc" id="L56">            throw new EntException(&quot;Null option key&quot;);</span>
+        }
+<span class="nc" id="L58">        String isAttributeFilter = properties.getProperty(PARAM_IS_ATTRIBUTE_FILTER);</span>
+<span class="nc bnc" id="L59" title="All 4 branches missed.">        this.setAttributeFilter(null != isAttributeFilter &amp;&amp; isAttributeFilter.equalsIgnoreCase(&quot;true&quot;));</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if (this.isAttributeFilter()) {</span>
+<span class="nc" id="L61">            this.setAttribute((AttributeInterface) prototype.getAttribute(this.getKey()));</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            if (null == this.getAttribute()) {</span>
+<span class="nc" id="L63">                throw new EntException(&quot;Null attribute by key '&quot; + this.getKey() + &quot;'&quot;);</span>
+            }
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        } else if (this.getKey().equals(KEY_CATEGORY)) {</span>
+<span class="nc" id="L66">            String catCode = properties.getProperty(PARAM_CATEGORY_CODE);</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">            if (null != catCode &amp;&amp; catCode.trim().length() &gt; 0) {</span>
+<span class="nc" id="L68">                this.setUserFilterCategoryCode(catCode);</span>
+            }
+<span class="nc bnc" id="L70" title="All 4 branches missed.">        } else if (!this.getKey().equals(KEY_FULLTEXT) &amp;&amp; !this.getKey().equals(KEY_CATEGORY)) {</span>
+<span class="nc" id="L71">            throw new EntException(&quot;Invalid metadata key '&quot; + this.getKey() + &quot;'&quot;);</span>
+        }
+<span class="nc" id="L73">    }</span>
+
+    public UserFilterOptionBean(Properties properties, IApsEntity prototype,
+            Integer currentFrame, Lang currentLang, String dateFormat, HttpServletRequest request) throws Throwable {
+<span class="nc" id="L77">        this(properties, prototype);</span>
+<span class="nc" id="L78">        this.setCurrentLang(currentLang);</span>
+<span class="nc" id="L79">        this.setCurrentFrame(currentFrame);</span>
+<span class="nc" id="L80">        this.setDateFormat(dateFormat);</span>
+<span class="nc" id="L81">        this.extractFormParameters(request);</span>
+<span class="nc" id="L82">    }</span>
+
+    public String getKey() {
+<span class="nc" id="L85">        return _key;</span>
+    }
+
+    public void setKey(String key) {
+<span class="nc" id="L89">        this._key = key;</span>
+<span class="nc" id="L90">    }</span>
+
+    public boolean isAttributeFilter() {
+<span class="nc" id="L93">        return _attributeFilter;</span>
+    }
+
+    public void setAttributeFilter(boolean attributeFilter) {
+<span class="nc" id="L97">        this._attributeFilter = attributeFilter;</span>
+<span class="nc" id="L98">    }</span>
+
+    public void setAttribute(AttributeInterface attribute) {
+<span class="nc" id="L101">        this._attribute = attribute;</span>
+<span class="nc" id="L102">    }</span>
+
+    public AttributeInterface getAttribute() {
+<span class="nc" id="L105">        return _attribute;</span>
+    }
+
+    public Integer getCurrentFrame() {
+<span class="nc" id="L109">        return _currentFrame;</span>
+    }
+
+    protected void setCurrentFrame(Integer currentFrame) {
+<span class="nc" id="L113">        this._currentFrame = currentFrame;</span>
+<span class="nc" id="L114">    }</span>
+
+    protected Lang getCurrentLang() {
+<span class="nc" id="L117">        return _currentLang;</span>
+    }
+
+    protected void setCurrentLang(Lang currentLang) {
+<span class="nc" id="L121">        this._currentLang = currentLang;</span>
+<span class="nc" id="L122">    }</span>
+
+    public String getDateFormat() {
+<span class="nc" id="L125">        return _dateFormat;</span>
+    }
+
+    protected void setDateFormat(String dateFormat) {
+<span class="nc" id="L129">        this._dateFormat = dateFormat;</span>
+<span class="nc" id="L130">    }</span>
+
+    protected void extractFormParameters(HttpServletRequest request) throws Throwable {
+<span class="nc" id="L133">        String[] formFieldNames = null;</span>
+        try {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            String frameIdSuffix = (null != this.getCurrentFrame()) ? &quot;_frame&quot; + this.getCurrentFrame().toString() : &quot;&quot;;</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (!this.isAttributeFilter()) {</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                if (this.getKey().equals(KEY_FULLTEXT)) {</span>
+<span class="nc" id="L138">                    String fieldName = TYPE_METADATA + &quot;_fulltext&quot; + frameIdSuffix;</span>
+<span class="nc" id="L139">                    String[] fieldsSuffix = {&quot;&quot;, &quot;_option&quot;, &quot;_attachSearch&quot;};</span>
+<span class="nc" id="L140">                    formFieldNames = this.extractParams(fieldName, fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                } else if (this.getKey().equals(KEY_CATEGORY)) {</span>
+<span class="nc" id="L142">                    formFieldNames = new String[1];</span>
+<span class="nc" id="L143">                    formFieldNames[0] = TYPE_METADATA + &quot;_category&quot; + frameIdSuffix;</span>
+<span class="nc" id="L144">                    String value = request.getParameter(formFieldNames[0]);</span>
+<span class="nc" id="L145">                    this.addFormValue(formFieldNames[0], value, formFieldNames.length);</span>
+<span class="nc" id="L146">                }</span>
+            } else {
+<span class="nc" id="L148">                AttributeInterface attribute = this.getAttribute();</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">                if (attribute instanceof ITextAttribute) {</span>
+<span class="nc" id="L150">                    String[] fieldsSuffix = {&quot;_textFieldName&quot;};</span>
+<span class="nc" id="L151">                    formFieldNames = this.extractAttributeParams(fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                } else if (attribute instanceof DateAttribute) {</span>
+<span class="nc" id="L153">                    String[] fieldsSuffix = {&quot;_dateStartFieldName&quot;, &quot;_dateEndFieldName&quot;};</span>
+<span class="nc" id="L154">                    formFieldNames = this.extractAttributeParams(fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc" id="L155">                    this.checkRange(formFieldNames);</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                } else if (attribute instanceof BooleanAttribute) {</span>
+<span class="nc" id="L157">                    String[] fieldsSuffix = {&quot;_booleanFieldName&quot;, &quot;_booleanFieldName_ignore&quot;, &quot;_booleanFieldName_control&quot;};</span>
+<span class="nc" id="L158">                    formFieldNames = this.extractAttributeParams(fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">                } else if (attribute instanceof NumberAttribute) {</span>
+<span class="nc" id="L160">                    String[] fieldsSuffix = {&quot;_numberStartFieldName&quot;, &quot;_numberEndFieldName&quot;};</span>
+<span class="nc" id="L161">                    formFieldNames = this.extractAttributeParams(fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc" id="L162">                    this.checkRange(formFieldNames);</span>
+                }
+            }
+<span class="nc" id="L165">        } catch (Throwable t) {</span>
+<span class="nc" id="L166">            _logger.error(&quot;Error extracting form parameters&quot;, t);</span>
+<span class="nc" id="L167">            throw new EntException(&quot;Error extracting form parameters&quot;, t);</span>
+<span class="nc" id="L168">        }</span>
+<span class="nc" id="L169">        this.setFormFieldNames(formFieldNames);</span>
+<span class="nc" id="L170">    }</span>
+
+    private void checkRange(String[] formFieldNames) {
+<span class="nc bnc" id="L173" title="All 4 branches missed.">        if (!this.isAttributeFilter() || null != this.getFormFieldErrors()</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">                || null == this.getFormFieldValues() || this.getFormFieldValues().size() &lt; 2) {</span>
+<span class="nc" id="L175">            return;</span>
+        }
+<span class="nc" id="L177">        boolean check = false;</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (this.getAttribute() instanceof DateAttribute) {</span>
+<span class="nc" id="L179">            Date start = DateConverter.parseDate(this.getFormFieldValues().get(formFieldNames[0]), this.getDateFormat());</span>
+<span class="nc" id="L180">            Date end = DateConverter.parseDate(this.getFormFieldValues().get(formFieldNames[1]), this.getDateFormat());</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">            check = (!start.equals(end) &amp;&amp; start.after(end));</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        } else if (this.getAttribute() instanceof NumberAttribute) {</span>
+<span class="nc" id="L183">            Integer start = Integer.parseInt(this.getFormFieldValues().get(formFieldNames[0]));</span>
+<span class="nc" id="L184">            Integer end = Integer.parseInt(this.getFormFieldValues().get(formFieldNames[1]));</span>
+<span class="nc bnc" id="L185" title="All 4 branches missed.">            check = (!start.equals(end) &amp;&amp; start.intValue() &gt; end.intValue());</span>
+        }
+<span class="nc bnc" id="L187" title="All 2 branches missed.">        if (check) {</span>
+<span class="nc" id="L188">            this.setFormFieldErrors(new HashMap&lt;String, AttributeFormFieldError&gt;(2));</span>
+<span class="nc" id="L189">            AttributeFormFieldError error = new AttributeFormFieldError(this.getAttribute().getName(), formFieldNames[1], AttributeFormFieldError.INVALID_RANGE_KEY, null);</span>
+<span class="nc" id="L190">            this.getFormFieldErrors().put(formFieldNames[1], error);</span>
+        }
+<span class="nc" id="L192">    }</span>
+
+    protected String[] extractAttributeParams(String[] fieldsSuffix, String frameIdSuffix, HttpServletRequest request) {
+<span class="nc" id="L195">        String[] formFieldNames = this.extractParams(this.getAttribute().getName(), fieldsSuffix, frameIdSuffix, request);</span>
+<span class="nc" id="L196">        String attributeType = this.getAttribute().getType();</span>
+<span class="nc bnc" id="L197" title="All 4 branches missed.">        if (attributeType.equals(&quot;Date&quot;) || attributeType.equals(&quot;Number&quot;)) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            for (int i = 0; i &lt; formFieldNames.length; i++) {</span>
+<span class="nc" id="L199">                String formFieldName = formFieldNames[i];</span>
+<span class="nc" id="L200">                boolean isDateAttribute = attributeType.equals(&quot;Date&quot;);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                String rangeField = (i == 0) ? AttributeFormFieldError.FIELD_TYPE_RANGE_START : AttributeFormFieldError.FIELD_TYPE_RANGE_END;</span>
+<span class="nc" id="L202">                String value = request.getParameter(formFieldName);</span>
+<span class="nc" id="L203">                this.checkNoTextAttributeFormValue(isDateAttribute, value, formFieldName, rangeField);</span>
+            }
+        }
+<span class="nc" id="L206">        return formFieldNames;</span>
+    }
+
+    protected String[] extractParams(String paramName, String[] fieldsSuffix, String frameIdSuffix, HttpServletRequest request) {
+<span class="nc" id="L210">        String[] formFieldNames = new String[fieldsSuffix.length];</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">        for (int i = 0; i &lt; fieldsSuffix.length; i++) {</span>
+<span class="nc" id="L212">            String fieldSuffix = fieldsSuffix[i];</span>
+<span class="nc" id="L213">            String fieldName = paramName + fieldSuffix + frameIdSuffix;</span>
+<span class="nc" id="L214">            formFieldNames[i] = fieldName;</span>
+<span class="nc" id="L215">            String value = request.getParameter(fieldName);</span>
+<span class="nc" id="L216">            this.addFormValue(fieldName, value, fieldsSuffix.length);</span>
+        }
+<span class="nc" id="L218">        return formFieldNames;</span>
+    }
+
+    private void checkNoTextAttributeFormValue(boolean isDateAttribute, String value, String fieldName, String rangeField) {
+<span class="nc bnc" id="L222" title="All 4 branches missed.">        if (value == null || value.trim().length() == 0) {</span>
+<span class="nc" id="L223">            return;</span>
+        }
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        boolean check = (isDateAttribute)</span>
+<span class="nc" id="L226">                ? CheckFormatUtil.isValidDate(value.trim(), this.getDateFormat())</span>
+<span class="nc" id="L227">                : CheckFormatUtil.isValidNumber(value.trim());</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        if (!check) {</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (null == this.getFormFieldErrors()) {</span>
+<span class="nc" id="L230">                this.setFormFieldErrors(new HashMap&lt;String, AttributeFormFieldError&gt;(2));</span>
+            }
+<span class="nc" id="L232">            AttributeFormFieldError error = new AttributeFormFieldError(this.getAttribute().getName(), fieldName, AttributeFormFieldError.INVALID_FORMAT_KEY, rangeField);</span>
+<span class="nc" id="L233">            this.getFormFieldErrors().put(fieldName, error);</span>
+        }
+<span class="nc" id="L235">    }</span>
+
+    private void addFormValue(String key, String value, Integer formFields) {
+<span class="nc bnc" id="L238" title="All 4 branches missed.">        if (null != value &amp;&amp; value.trim().length() &gt; 0) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (null == this.getFormFieldValues()) {</span>
+<span class="nc" id="L240">                this.setFormFieldValues(new HashMap&lt;String, String&gt;(formFields));</span>
+            }
+<span class="nc" id="L242">            this.getFormFieldValues().put(key, value.trim());</span>
+        }
+<span class="nc" id="L244">    }</span>
+
+    public EntitySearchFilter getEntityFilter() throws EntException {
+<span class="nc" id="L247">        EntitySearchFilter filter = null;</span>
+        try {
+<span class="nc bnc" id="L249" title="All 4 branches missed.">            if (!this.isAttributeFilter() || null == this.getFormFieldValues()) {</span>
+<span class="nc" id="L250">                return null;</span>
+            }
+<span class="nc" id="L252">            AttributeInterface attribute = this.getAttribute();</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">            if (attribute instanceof ITextAttribute) {</span>
+<span class="nc" id="L254">                String text = this.getFormFieldValues().get(this.getFormFieldNames()[0]);</span>
+<span class="nc" id="L255">                filter = new EntitySearchFilter(attribute.getName(), true, text, true);</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">                if (attribute.isMultilingual()) {</span>
+<span class="nc" id="L257">                    filter.setLangCode(this.getCurrentLang().getCode());</span>
+                }
+<span class="nc bnc" id="L259" title="All 2 branches missed.">            } else if (attribute instanceof DateAttribute) {</span>
+<span class="nc" id="L260">                String start = this.getFormFieldValues().get(this.getFormFieldNames()[0]);</span>
+<span class="nc" id="L261">                String end = this.getFormFieldValues().get(this.getFormFieldNames()[1]);</span>
+<span class="nc" id="L262">                Date startDate = DateConverter.parseDate(start, this.getDateFormat());</span>
+<span class="nc" id="L263">                Date endDate = DateConverter.parseDate(end, this.getDateFormat());</span>
+<span class="nc" id="L264">                filter = new EntitySearchFilter(attribute.getName(), true, startDate, endDate);</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">            } else if (attribute instanceof BooleanAttribute) {</span>
+<span class="nc" id="L266">                String value = this.getFormFieldValues().get(this.getFormFieldNames()[0]);</span>
+<span class="nc" id="L267">                String ignore = this.getFormFieldValues().get(this.getFormFieldNames()[1]);</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">                if (null != ignore) {</span>
+<span class="nc" id="L269">                    return null;</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                } else if (null == value</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                        || value.equals(&quot;both&quot;)) {//special option for three state Attribute</span>
+<span class="nc" id="L272">                    filter = new EntitySearchFilter(attribute.getName(), true);</span>
+<span class="nc" id="L273">                    filter.setNullOption(true);</span>
+                } else {
+<span class="nc" id="L275">                    filter = new EntitySearchFilter(attribute.getName(), true, value, false);</span>
+                }
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            } else if (attribute instanceof NumberAttribute) {</span>
+<span class="nc" id="L278">                String start = this.getFormFieldValues().get(this.getFormFieldNames()[0]);</span>
+<span class="nc" id="L279">                String end = this.getFormFieldValues().get(this.getFormFieldNames()[1]);</span>
+<span class="nc" id="L280">                BigDecimal startNumber = null;</span>
+                try {
+<span class="nc" id="L282">                    Integer startNumberInt = Integer.parseInt(start);</span>
+<span class="nc" id="L283">                    startNumber = new BigDecimal(startNumberInt);</span>
+<span class="nc" id="L284">                } catch (Throwable t) {</span>
+<span class="nc" id="L285">                }</span>
+<span class="nc" id="L286">                BigDecimal endNumber = null;</span>
+                try {
+<span class="nc" id="L288">                    Integer endNumberInt = Integer.parseInt(end);</span>
+<span class="nc" id="L289">                    endNumber = new BigDecimal(endNumberInt);</span>
+<span class="nc" id="L290">                } catch (Throwable t) {</span>
+<span class="nc" id="L291">                }</span>
+<span class="nc" id="L292">                filter = new EntitySearchFilter(attribute.getName(), true, startNumber, endNumber);</span>
+            }
+<span class="nc" id="L294">        } catch (Throwable t) {</span>
+<span class="nc" id="L295">            _logger.error(&quot;Error extracting entity search filters&quot;, t);</span>
+<span class="nc" id="L296">            throw new EntException(&quot;Error extracting entity search filters&quot;, t);</span>
+<span class="nc" id="L297">        }</span>
+<span class="nc" id="L298">        return filter;</span>
+    }
+
+    public String getFormFieldValue(String formName) {
+<span class="nc" id="L302">        String value = null;</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (null != this.getFormFieldValues()) {</span>
+<span class="nc" id="L304">            value = this.getFormFieldValues().get(formName);</span>
+        }
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        if (null != value) {</span>
+<span class="nc" id="L307">            return value;</span>
+        }
+<span class="nc" id="L309">        return &quot;&quot;;</span>
+    }
+
+    public SearchEngineFilter extractFilter() {
+<span class="nc bnc" id="L313" title="All 2 branches missed.">        if (null == this.getFormFieldValues()) {</span>
+<span class="nc" id="L314">            return null;</span>
+        }
+<span class="nc" id="L316">        SearchEngineFilter filter = null;</span>
+<span class="nc" id="L317">        String value0 = this.getFormValue(0);</span>
+<span class="nc" id="L318">        String value1 = this.getFormValue(1);</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">        if (!this.isAttributeFilter()) {</span>
+<span class="nc bnc" id="L320" title="All 4 branches missed.">            if (this.getKey().equals(KEY_FULLTEXT) &amp;&amp; !StringUtils.isEmpty(value0)) {</span>
+                //String[] fieldsSuffix = {&quot;&quot;, &quot;_option&quot;};
+<span class="nc" id="L322">                filter = new SearchEngineFilter(this.getCurrentLang().getCode(), value0, this.getOption(value1));</span>
+<span class="nc bnc" id="L323" title="All 4 branches missed.">            } else if (this.getKey().equals(KEY_CATEGORY) &amp;&amp; !StringUtils.isEmpty(value0)) {</span>
+<span class="nc" id="L324">                filter = new SearchEngineFilter(IIndexerDAO.DATAOBJECT_CATEGORY_FIELD_NAME, value0, SearchEngineFilter.TextSearchOption.EXACT);</span>
+            }
+        } else {
+<span class="nc" id="L327">            AttributeInterface attribute = this.getAttribute();</span>
+<span class="nc bnc" id="L328" title="All 4 branches missed.">            if (attribute instanceof ITextAttribute &amp;&amp; !StringUtils.isEmpty(value0)) {</span>
+<span class="nc" id="L329">                filter = new SearchEngineFilter(this.getIndexFieldName(), value0, SearchEngineFilter.TextSearchOption.EXACT);</span>
+                //String[] fieldsSuffix = {&quot;_textFieldName&quot;};
+<span class="nc bnc" id="L331" title="All 2 branches missed.">            } else if (attribute instanceof DateAttribute</span>
+<span class="nc bnc" id="L332" title="All 4 branches missed.">                    &amp;&amp; (!StringUtils.isEmpty(value0) || !StringUtils.isEmpty(value1))) {</span>
+<span class="nc" id="L333">                Date big0 = null;</span>
+                try {
+<span class="nc" id="L335">                    big0 = DateConverter.parseDate(value0, this.getDateFormat());</span>
+<span class="nc" id="L336">                } catch (Exception e) {</span>
+<span class="nc" id="L337">                }</span>
+<span class="nc" id="L338">                Date big1 = null;</span>
+                try {
+<span class="nc" id="L340">                    big1 = DateConverter.parseDate(value1, this.getDateFormat());</span>
+<span class="nc" id="L341">                } catch (Exception e) {</span>
+<span class="nc" id="L342">                }</span>
+                //String[] fieldsSuffix = {&quot;_dateStartFieldName&quot;, &quot;_dateEndFieldName&quot;};
+<span class="nc" id="L344">                filter = new SearchEngineFilter(this.getIndexFieldName(), big0, big1);</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">            } else if (attribute instanceof BooleanAttribute</span>
+<span class="nc bnc" id="L346" title="All 4 branches missed.">                    &amp;&amp; (!StringUtils.isEmpty(value0) &amp;&amp; !StringUtils.isEmpty(value1))) {</span>
+<span class="nc" id="L347">                filter = new SearchEngineFilter(this.getIndexFieldName(), value0, SearchEngineFilter.TextSearchOption.EXACT);</span>
+                //String[] fieldsSuffix = {&quot;_booleanFieldName&quot;, &quot;_booleanFieldName_ignore&quot;, &quot;_booleanFieldName_control&quot;};
+<span class="nc bnc" id="L349" title="All 2 branches missed.">            } else if (attribute instanceof NumberAttribute</span>
+<span class="nc bnc" id="L350" title="All 4 branches missed.">                    &amp;&amp; (!StringUtils.isEmpty(value0) || !StringUtils.isEmpty(value1))) {</span>
+                //String[] fieldsSuffix = {&quot;_numberStartFieldName&quot;, &quot;_numberEndFieldName&quot;};
+<span class="nc" id="L352">                BigDecimal big0 = null;</span>
+                try {
+<span class="nc" id="L354">                    big0 = new BigDecimal(value0);</span>
+<span class="nc" id="L355">                } catch (Exception e) {</span>
+<span class="nc" id="L356">                }</span>
+<span class="nc" id="L357">                BigDecimal big1 = null;</span>
+                try {
+<span class="nc" id="L359">                    big1 = new BigDecimal(value1);</span>
+<span class="nc" id="L360">                } catch (Exception e) {</span>
+<span class="nc" id="L361">                }</span>
+<span class="nc" id="L362">                filter = new SearchEngineFilter(this.getIndexFieldName(), big0, big1);</span>
+            }
+        }
+<span class="nc" id="L365">        return filter;</span>
+    }
+
+    private String getFormValue(int index) {
+<span class="nc bnc" id="L369" title="All 2 branches missed.">        if (this.getFormFieldNames().length &lt; index + 1) {</span>
+<span class="nc" id="L370">            return null;</span>
+        }
+<span class="nc bnc" id="L372" title="All 2 branches missed.">        if (null == this.getFormFieldValues()) {</span>
+<span class="nc" id="L373">            return null;</span>
+        }
+<span class="nc" id="L375">        String name = this.getFormFieldNames()[index];</span>
+<span class="nc" id="L376">        return this.getFormFieldValues().get(name);</span>
+    }
+
+    private String getIndexFieldName() {
+<span class="nc" id="L380">        AttributeTracer tracer = new AttributeTracer();</span>
+<span class="nc" id="L381">        tracer.setLang(this.getCurrentLang());</span>
+<span class="nc" id="L382">        return tracer.getFormFieldName(this.getAttribute());</span>
+    }
+
+    private SearchEngineFilter.TextSearchOption getOption(String option) {
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if (StringUtils.isEmpty(option)) {</span>
+<span class="nc" id="L387">            return SearchEngineFilter.TextSearchOption.AT_LEAST_ONE_WORD;</span>
+<span class="nc bnc" id="L388" title="All 2 branches missed.">        } else if (option.equals(FULLTEXT_OPTION_ALL_WORDS)) {</span>
+<span class="nc" id="L389">            return SearchEngineFilter.TextSearchOption.ALL_WORDS;</span>
+<span class="nc bnc" id="L390" title="All 2 branches missed.">        } else if (option.equals(FULLTEXT_OPTION_EXACT)) {</span>
+<span class="nc" id="L391">            return SearchEngineFilter.TextSearchOption.EXACT;</span>
+        }
+<span class="nc" id="L393">        return SearchEngineFilter.TextSearchOption.AT_LEAST_ONE_WORD;</span>
+    }
+
+    public String[] getFormFieldNames() {
+<span class="nc" id="L397">        return _formFieldNames;</span>
+    }
+
+    public void setFormFieldNames(String[] formFieldNames) {
+<span class="nc" id="L401">        this._formFieldNames = formFieldNames;</span>
+<span class="nc" id="L402">    }</span>
+
+    public Map&lt;String, String&gt; getFormFieldValues() {
+<span class="nc" id="L405">        return _formFieldValues;</span>
+    }
+
+    public void setFormFieldValues(Map&lt;String, String&gt; formFieldValues) {
+<span class="nc" id="L409">        this._formFieldValues = formFieldValues;</span>
+<span class="nc" id="L410">    }</span>
+
+    public Map&lt;String, AttributeFormFieldError&gt; getFormFieldErrors() {
+<span class="nc" id="L413">        return _formFieldErrors;</span>
+    }
+
+    public void setFormFieldErrors(Map&lt;String, AttributeFormFieldError&gt; formFieldErrors) {
+<span class="nc" id="L417">        this._formFieldErrors = formFieldErrors;</span>
+<span class="nc" id="L418">    }</span>
+
+    public String getUserFilterCategoryCode() {
+<span class="nc" id="L421">        return _userFilterCategoryCode;</span>
+    }
+
+    public void setUserFilterCategoryCode(String userFilterCategoryCode) {
+<span class="nc" id="L425">        this._userFilterCategoryCode = userFilterCategoryCode;</span>
+<span class="nc" id="L426">    }</span>
+
+    private String _key; //'fulltext' || 'category' || a name of attribute
+    private boolean _attributeFilter;
+    private AttributeInterface _attribute;
+
+    private Integer _currentFrame;
+    private Lang _currentLang;
+
+    private String _dateFormat;
+
+    private String[] _formFieldNames;
+    private Map&lt;String, String&gt; _formFieldValues;
+    private Map&lt;String, AttributeFormFieldError&gt; _formFieldErrors;
+
+    public static final String PARAM_KEY = &quot;key&quot;;
+    public static final String PARAM_IS_ATTRIBUTE_FILTER = &quot;attributeFilter&quot;;
+
+    public static final String TYPE_METADATA = &quot;metadata&quot;;
+    public static final String TYPE_ATTRIBUTE = &quot;attribute&quot;;
+
+    public static final String KEY_FULLTEXT = &quot;fulltext&quot;;
+    public static final String KEY_CATEGORY = &quot;category&quot;;
+    public static final String PARAM_CATEGORY_CODE = &quot;categoryCode&quot;;
+
+    public static final String FULLTEXT_OPTION_ALL_WORDS = &quot;allwords&quot;;
+    public static final String FULLTEXT_OPTION_ONE_WORDS = &quot;oneword&quot;;
+    public static final String FULLTEXT_OPTION_EXACT = &quot;exact&quot;;
+
+    private String _userFilterCategoryCode;
+
+    public class AttributeFormFieldError {
+
+<span class="nc" id="L459">        public AttributeFormFieldError(String attributeName, String fieldName, String errorKey, String rangeFieldType) {</span>
+<span class="nc" id="L460">            this._attributeName = attributeName;</span>
+<span class="nc" id="L461">            this._fieldName = fieldName;</span>
+<span class="nc" id="L462">            this._errorKey = errorKey;</span>
+<span class="nc" id="L463">            this._rangeFieldType = rangeFieldType;</span>
+<span class="nc" id="L464">        }</span>
+
+        public String getAttributeName() {
+<span class="nc" id="L467">            return _attributeName;</span>
+        }
+
+        public String getFieldName() {
+<span class="nc" id="L471">            return _fieldName;</span>
+        }
+
+        public String getErrorKey() {
+<span class="nc" id="L475">            return _errorKey;</span>
+        }
+
+        public String getRangeFieldType() {
+<span class="nc" id="L479">            return _rangeFieldType;</span>
+        }
+
+        private String _attributeName;
+        private String _fieldName;
+        private String _errorKey;
+        private String _rangeFieldType;
+
+        public static final String INVALID_FORMAT_KEY = &quot;jacms_LIST_VIEWER_INVALID_FORMAT&quot;;
+        public static final String INVALID_RANGE_KEY = &quot;jacms_LIST_VIEWER_INVALID_RANGE&quot;;
+
+        public static final String FIELD_TYPE_RANGE_START = &quot;START&quot;;
+        public static final String FIELD_TYPE_RANGE_END = &quot;END&quot;;
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
