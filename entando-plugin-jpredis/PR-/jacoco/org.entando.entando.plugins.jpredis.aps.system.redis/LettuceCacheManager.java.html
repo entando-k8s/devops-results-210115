@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LettuceCacheManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Redis Connector</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpredis.aps.system.redis</a> &gt; <span class="el_source">LettuceCacheManager.java</span></div><h1>LettuceCacheManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2020-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jpredis.aps.system.redis;
+
+import io.lettuce.core.support.caching.CacheFrontend;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.cache.transaction.AbstractTransactionSupportingCacheManager;
+import org.springframework.data.redis.cache.RedisCache;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
+
+/**
+ * {@link org.springframework.cache.CacheManager} backed by a {@link RedisCache Redis} cache.
+ * &lt;p /&gt;
+ * Rewriting of default implementation of redis manager {@link org.springframework.data.redis.cache.RedisCacheManager} 
+ * for custom implementation. This custom extension allows the manager to create a custom Cache (LettuceCache) with 
+ * Client-side caching support (provided by CacheFrontend instance).
+ * This cache manager creates caches by default upon first write. Empty caches are not visible on Redis due to how Redis
+ * represents empty data structures.
+ * &lt;p /&gt;
+ * Caches requiring a different {@link RedisCacheConfiguration} than the default configuration can be specified via
+ * {@link RedisCacheManagerBuilder#withInitialCacheConfigurations(Map)}.
+ *
+ * @author Christoph Strobl
+ * @author Mark Paluch
+ * @since 2.0
+ * @see RedisCacheConfiguration
+ * @see RedisCacheWriter
+ */
+public class LettuceCacheManager extends AbstractTransactionSupportingCacheManager {
+
+	private final RedisCacheWriter cacheWriter;
+	private final RedisCacheConfiguration defaultCacheConfig;
+	private final Map&lt;String, RedisCacheConfiguration&gt; initialCacheConfiguration;
+	private final boolean allowInFlightCacheCreation;
+    private CacheFrontend&lt;String, Object&gt; cacheFrontend;
+
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 * @param allowInFlightCacheCreation allow create unconfigured caches.
+     * @param cacheFrontend Allow to add Client-side caching support
+	 * @since 2.0.4
+	 */
+	private LettuceCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration,
+<span class="fc" id="L73">			boolean allowInFlightCacheCreation, CacheFrontend&lt;String, Object&gt; cacheFrontend) {</span>
+<span class="fc" id="L74">		Assert.notNull(cacheWriter, &quot;CacheWriter must not be null!&quot;);</span>
+<span class="fc" id="L75">		Assert.notNull(defaultCacheConfiguration, &quot;DefaultCacheConfiguration must not be null!&quot;);</span>
+<span class="fc" id="L76">		this.cacheWriter = cacheWriter;</span>
+<span class="fc" id="L77">		this.defaultCacheConfig = defaultCacheConfiguration;</span>
+<span class="fc" id="L78">		this.initialCacheConfiguration = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L79">		this.allowInFlightCacheCreation = allowInFlightCacheCreation;</span>
+<span class="fc" id="L80">        this.cacheFrontend = cacheFrontend;</span>
+<span class="fc" id="L81">	}</span>
+
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 */
+	public LettuceCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration) {
+<span class="nc" id="L92">		this(cacheWriter, defaultCacheConfiguration, true, null);</span>
+<span class="nc" id="L93">	}</span>
+
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 * @param initialCacheNames optional set of known cache names that will be created with given
+	 *          {@literal defaultCacheConfiguration}.
+	 */
+	public LettuceCacheManager(RedisCacheWriter cacheWriter, 
+            RedisCacheConfiguration defaultCacheConfiguration, String... initialCacheNames) {
+<span class="nc" id="L107">		this(cacheWriter, defaultCacheConfiguration, true, null, initialCacheNames);</span>
+<span class="nc" id="L108">	}</span>
+
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 * @param allowInFlightCacheCreation if set to {@literal true} no new caches can be acquire at runtime but limited to
+	 *          the given list of initial cache names.
+     * @param cacheFrontend Allow to add Client-side caching support
+	 * @param initialCacheNames optional set of known cache names that will be created with given
+	 *          {@literal defaultCacheConfiguration}.
+	 * @since 2.0.4
+	 */
+	public LettuceCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration,
+			boolean allowInFlightCacheCreation, CacheFrontend&lt;String, Object&gt; cacheFrontend, String... initialCacheNames) {
+<span class="nc" id="L126">		this(cacheWriter, defaultCacheConfiguration, allowInFlightCacheCreation, cacheFrontend);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">		for (String cacheName : initialCacheNames) {</span>
+<span class="nc" id="L128">			this.initialCacheConfiguration.put(cacheName, defaultCacheConfiguration);</span>
+		}
+<span class="nc" id="L130">	}</span>
+    
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 * @param initialCacheConfigurations Map of known cache names along with the configuration to use for those caches.
+	 *          Must not be {@literal null}.
+     * @param cacheFrontend Allow to add Client-side caching support
+	 */
+	public LettuceCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration,
+			Map&lt;String, RedisCacheConfiguration&gt; initialCacheConfigurations, CacheFrontend&lt;String, Object&gt; cacheFrontend) {
+<span class="nc" id="L145">		this(cacheWriter, defaultCacheConfiguration, initialCacheConfigurations, true, cacheFrontend);</span>
+<span class="nc" id="L146">	}</span>
+
+	/**
+	 * Creates new {@link RedisCacheManager} using given {@link RedisCacheWriter} and default
+	 * {@link RedisCacheConfiguration}.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @param defaultCacheConfiguration must not be {@literal null}. Maybe just use
+	 *          {@link RedisCacheConfiguration#defaultCacheConfig()}.
+	 * @param initialCacheConfigurations Map of known cache names along with the configuration to use for those caches.
+	 *          Must not be {@literal null}.
+	 * @param allowInFlightCacheCreation if set to {@literal false} this cache manager is limited to the initial cache
+	 *          configurations and will not create new caches at runtime.
+     * @param cacheFrontend Allow to add Client-side caching support
+	 * @since 2.0.4
+	 */
+	public LettuceCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration,
+			Map&lt;String, RedisCacheConfiguration&gt; initialCacheConfigurations, boolean allowInFlightCacheCreation, CacheFrontend&lt;String, Object&gt; cacheFrontend) {
+<span class="fc" id="L164">		this(cacheWriter, defaultCacheConfiguration, allowInFlightCacheCreation, cacheFrontend);</span>
+<span class="fc" id="L165">		Assert.notNull(initialCacheConfigurations, &quot;InitialCacheConfigurations must not be null!&quot;);</span>
+<span class="fc" id="L166">		this.initialCacheConfiguration.putAll(initialCacheConfigurations);</span>
+<span class="fc" id="L167">	}</span>
+
+	/**
+	 * Create a new {@link RedisCacheManager} with defaults applied.
+	 * &lt;dl&gt;
+	 * &lt;dt&gt;locking&lt;/dt&gt;
+	 * &lt;dd&gt;disabled&lt;/dd&gt;
+	 * &lt;dt&gt;cache configuration&lt;/dt&gt;
+	 * &lt;dd&gt;{@link RedisCacheConfiguration#defaultCacheConfig()}&lt;/dd&gt;
+	 * &lt;dt&gt;initial caches&lt;/dt&gt;
+	 * &lt;dd&gt;none&lt;/dd&gt;
+	 * &lt;dt&gt;transaction aware&lt;/dt&gt;
+	 * &lt;dd&gt;no&lt;/dd&gt;
+	 * &lt;dt&gt;in-flight cache creation&lt;/dt&gt;
+	 * &lt;dd&gt;enabled&lt;/dd&gt;
+	 * &lt;/dl&gt;
+	 *
+	 * @param connectionFactory must not be {@literal null}.
+	 * @return new instance of {@link RedisCacheManager}.
+	 */
+	public static LettuceCacheManager create(RedisConnectionFactory connectionFactory) {
+<span class="nc" id="L188">		Assert.notNull(connectionFactory, &quot;ConnectionFactory must not be null!&quot;);</span>
+<span class="nc" id="L189">        DefaultLettuceCacheWriter writer = new DefaultLettuceCacheWriter(connectionFactory);</span>
+<span class="nc" id="L190">		return new LettuceCacheManager(writer, RedisCacheConfiguration.defaultCacheConfig());</span>
+	}
+
+	/**
+	 * Entry point for builder style {@link RedisCacheManager} configuration.
+	 *
+	 * @param connectionFactory must not be {@literal null}.
+	 * @return new {@link RedisCacheManagerBuilder}.
+	 */
+	public static RedisCacheManagerBuilder builder(RedisConnectionFactory connectionFactory) {
+<span class="fc" id="L200">		Assert.notNull(connectionFactory, &quot;ConnectionFactory must not be null!&quot;);</span>
+<span class="fc" id="L201">		return RedisCacheManagerBuilder.fromConnectionFactory(connectionFactory);</span>
+	}
+
+	/**
+	 * Entry point for builder style {@link RedisCacheManager} configuration.
+	 *
+	 * @param cacheWriter must not be {@literal null}.
+	 * @return new {@link RedisCacheManagerBuilder}.
+	 */
+	public static RedisCacheManagerBuilder builder(RedisCacheWriter cacheWriter) {
+<span class="fc" id="L211">		Assert.notNull(cacheWriter, &quot;CacheWriter must not be null!&quot;);</span>
+<span class="fc" id="L212">		return RedisCacheManagerBuilder.fromCacheWriter(cacheWriter);</span>
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.cache.support.AbstractCacheManager#loadCaches()
+	 */
+	@Override
+	protected Collection&lt;RedisCache&gt; loadCaches() {
+<span class="fc" id="L221">		List&lt;RedisCache&gt; caches = new LinkedList&lt;&gt;();</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		for (Map.Entry&lt;String, RedisCacheConfiguration&gt; entry : initialCacheConfiguration.entrySet()) {</span>
+<span class="fc" id="L223">			caches.add(createRedisCache(entry.getKey(), entry.getValue()));</span>
+<span class="fc" id="L224">		}</span>
+<span class="fc" id="L225">		return caches;</span>
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.cache.support.AbstractCacheManager#getMissingCache(java.lang.String)
+	 */
+	@Override
+	protected RedisCache getMissingCache(String name) {
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">		return allowInFlightCacheCreation ? createRedisCache(name, defaultCacheConfig) : null;</span>
+	}
+
+	/**
+	 * @return unmodifiable {@link Map} containing cache name / configuration pairs. Never {@literal null}.
+	 */
+	public Map&lt;String, RedisCacheConfiguration&gt; getCacheConfigurations() {
+<span class="nc" id="L241">		Map&lt;String, RedisCacheConfiguration&gt; configurationMap = new HashMap&lt;&gt;(getCacheNames().size());</span>
+<span class="nc" id="L242">		getCacheNames().forEach(it -&gt; {</span>
+<span class="nc" id="L243">			RedisCache cache = RedisCache.class.cast(lookupCache(it));</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">			configurationMap.put(it, cache != null ? cache.getCacheConfiguration() : null);</span>
+<span class="nc" id="L245">		});</span>
+<span class="nc" id="L246">		return Collections.unmodifiableMap(configurationMap);</span>
+	}
+
+	/**
+	 * Configuration hook for creating {@link RedisCache} with given name and {@code cacheConfig}.
+	 *
+	 * @param name must not be {@literal null}.
+	 * @param cacheConfig can be {@literal null}.
+	 * @return never {@literal null}.
+	 */
+	protected RedisCache createRedisCache(String name, @Nullable RedisCacheConfiguration cacheConfig) {
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">		return new LettuceCache(name, cacheWriter, cacheConfig != null ? cacheConfig : defaultCacheConfig, this.cacheFrontend);</span>
+	}
+
+	/**
+	 * Configurator for creating {@link RedisCacheManager}.
+	 *
+	 * @author Christoph Strobl
+	 * @author Mark Strobl
+	 * @author Kezhu Wang
+	 * @since 2.0
+	 */
+	public static class RedisCacheManagerBuilder {
+        
+		private final RedisCacheWriter cacheWriter;
+<span class="fc" id="L271">		private RedisCacheConfiguration defaultCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig();</span>
+<span class="fc" id="L272">		private final Map&lt;String, RedisCacheConfiguration&gt; initialCaches = new LinkedHashMap&lt;&gt;();</span>
+		private boolean enableTransactions;
+<span class="fc" id="L274">		boolean allowInFlightCacheCreation = true;</span>
+        private CacheFrontend&lt;String, Object&gt; cacheFrontend;
+        
+<span class="fc" id="L277">		private RedisCacheManagerBuilder(RedisCacheWriter cacheWriter) {</span>
+<span class="fc" id="L278">			this.cacheWriter = cacheWriter;</span>
+<span class="fc" id="L279">		}</span>
+
+		/**
+		 * Entry point for builder style {@link RedisCacheManager} configuration.
+		 *
+		 * @param connectionFactory must not be {@literal null}.
+		 * @return new {@link RedisCacheManagerBuilder}.
+		 */
+		public static RedisCacheManagerBuilder fromConnectionFactory(RedisConnectionFactory connectionFactory) {
+<span class="fc" id="L288">			Assert.notNull(connectionFactory, &quot;ConnectionFactory must not be null!&quot;);</span>
+<span class="fc" id="L289">            return builder(new DefaultLettuceCacheWriter(connectionFactory));</span>
+		}
+
+		/**
+		 * Entry point for builder style {@link RedisCacheManager} configuration.
+		 *
+		 * @param cacheWriter must not be {@literal null}.
+		 * @return new {@link RedisCacheManagerBuilder}.
+		 */
+		public static RedisCacheManagerBuilder fromCacheWriter(RedisCacheWriter cacheWriter) {
+<span class="fc" id="L299">			Assert.notNull(cacheWriter, &quot;CacheWriter must not be null!&quot;);</span>
+<span class="fc" id="L300">			return new RedisCacheManagerBuilder(cacheWriter);</span>
+		}
+
+		/**
+		 * Define a default {@link RedisCacheConfiguration} applied to dynamically created {@link RedisCache}s.
+		 *
+		 * @param defaultCacheConfiguration must not be {@literal null}.
+		 * @return this {@link RedisCacheManagerBuilder}.
+		 */
+		public RedisCacheManagerBuilder cacheDefaults(RedisCacheConfiguration defaultCacheConfiguration) {
+<span class="fc" id="L310">			Assert.notNull(defaultCacheConfiguration, &quot;DefaultCacheConfiguration must not be null!&quot;);</span>
+<span class="fc" id="L311">			this.defaultCacheConfiguration = defaultCacheConfiguration;</span>
+<span class="fc" id="L312">			return this;</span>
+		}
+
+		/**
+		 * Enable {@link RedisCache}s to synchronize cache put/evict operations with ongoing Spring-managed transactions.
+		 *
+		 * @return this {@link RedisCacheManagerBuilder}.
+		 */
+		public RedisCacheManagerBuilder transactionAware() {
+<span class="nc" id="L321">			this.enableTransactions = true;</span>
+<span class="nc" id="L322">			return this;</span>
+		}
+
+		/**
+		 * Append a {@link Set} of cache names to be pre initialized with current {@link RedisCacheConfiguration}.
+		 * &lt;strong&gt;NOTE:&lt;/strong&gt; This calls depends on {@link #cacheDefaults(RedisCacheConfiguration)} using whatever
+		 * default {@link RedisCacheConfiguration} is present at the time of invoking this method.
+		 *
+		 * @param cacheNames must not be {@literal null}.
+		 * @return this {@link RedisCacheManagerBuilder}.
+		 */
+		public RedisCacheManagerBuilder initialCacheNames(Set&lt;String&gt; cacheNames) {
+<span class="nc" id="L334">			Assert.notNull(cacheNames, &quot;CacheNames must not be null!&quot;);</span>
+<span class="nc" id="L335">			Map&lt;String, RedisCacheConfiguration&gt; cacheConfigMap = new LinkedHashMap&lt;&gt;(cacheNames.size());</span>
+<span class="nc" id="L336">			cacheNames.forEach(it -&gt; cacheConfigMap.put(it, defaultCacheConfiguration));</span>
+<span class="nc" id="L337">			return withInitialCacheConfigurations(cacheConfigMap);</span>
+		}
+
+		/**
+		 * Append a {@link Map} of cache name/{@link RedisCacheConfiguration} pairs to be pre initialized.
+		 *
+		 * @param cacheConfigurations must not be {@literal null}.
+		 * @return this {@link RedisCacheManagerBuilder}.
+		 */
+		public RedisCacheManagerBuilder withInitialCacheConfigurations(Map&lt;String, RedisCacheConfiguration&gt; cacheConfigurations) {
+<span class="fc" id="L347">			Assert.notNull(cacheConfigurations, &quot;CacheConfigurations must not be null!&quot;);</span>
+<span class="fc" id="L348">			cacheConfigurations.forEach((cacheName, configuration) -&gt; Assert.notNull(configuration,</span>
+<span class="fc" id="L349">					String.format(&quot;RedisCacheConfiguration for cache %s must not be null!&quot;, cacheName)));</span>
+<span class="fc" id="L350">			this.initialCaches.putAll(cacheConfigurations);</span>
+<span class="fc" id="L351">			return this;</span>
+		}
+
+        public RedisCacheManagerBuilder cacheFrontend(CacheFrontend&lt;String, Object&gt; cacheFrontend) {
+<span class="fc" id="L355">            this.cacheFrontend = cacheFrontend;</span>
+<span class="fc" id="L356">            return this;</span>
+        }
+
+		/**
+		 * Disable in-flight {@link org.springframework.cache.Cache} creation for unconfigured caches.
+		 * &lt;p /&gt;
+		 * {@link RedisCacheManager#getMissingCache(String)} returns {@literal null} for any unconfigured
+		 * {@link org.springframework.cache.Cache} instead of a new {@link RedisCache} instance. This allows eg.
+		 * {@link org.springframework.cache.support.CompositeCacheManager} to chime in.
+		 *
+		 * @return this {@link RedisCacheManagerBuilder}.
+		 * @since 2.0.4
+		 */
+		public RedisCacheManagerBuilder disableCreateOnMissingCache() {
+<span class="nc" id="L370">			this.allowInFlightCacheCreation = false;</span>
+<span class="nc" id="L371">			return this;</span>
+		}
+
+		/**
+		 * Create new instance of {@link RedisCacheManager} with configuration options applied.
+		 *
+		 * @return new instance of {@link RedisCacheManager}.
+		 */
+		public LettuceCacheManager build() {
+<span class="fc" id="L380">			LettuceCacheManager cm = new LettuceCacheManager(cacheWriter, </span>
+                    defaultCacheConfiguration, initialCaches, allowInFlightCacheCreation, cacheFrontend);
+<span class="fc" id="L382">			cm.setTransactionAware(enableTransactions);</span>
+<span class="fc" id="L383">			return cm;</span>
+		}
+        
+	}
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

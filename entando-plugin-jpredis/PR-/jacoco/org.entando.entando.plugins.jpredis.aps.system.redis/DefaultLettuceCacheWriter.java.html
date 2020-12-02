@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultLettuceCacheWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Redis Connector</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpredis.aps.system.redis</a> &gt; <span class="el_source">DefaultLettuceCacheWriter.java</span></div><h1>DefaultLettuceCacheWriter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2020-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jpredis.aps.system.redis;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisStringCommands.SetOption;
+import org.springframework.data.redis.core.types.Expiration;
+import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
+
+/**
+ * {@link RedisCacheWriter} Copy (for custom redis connector) of implementation capable of reading/writing binary data 
+ * from/to Redis in {@literal standalone} and {@literal cluster} environments. 
+ * This copy is necessary to create a custom redis manager {@link LettuceCacheManager} that allows to create 
+ * a custom Cache (LettuceCache) with Client-side caching support (provided by CacheFrontend instance).
+ * Works upon a given {@link RedisConnectionFactory} to obtain the actual {@link RedisConnection}. &lt;br /&gt;
+ * {@link DefaultRedisCacheWriter} can be used in
+ * {@link RedisCacheWriter#lockingRedisCacheWriter(RedisConnectionFactory) locking} or
+ * {@link RedisCacheWriter#nonLockingRedisCacheWriter(RedisConnectionFactory) non-locking} mode. While
+ * {@literal non-locking} aims for maximum performance it may result in overlapping, non atomic, command execution for
+ * operations spanning multiple Redis interactions like {@code putIfAbsent}. The {@literal locking} counterpart prevents
+ * command overlap by setting an explicit lock key and checking against presence of this key which leads to additional
+ * requests and potential command wait times.
+ *
+ * @author Christoph Strobl
+ * @author Mark Paluch
+ * @author André Prata
+ * @since 2.0
+ */
+class DefaultLettuceCacheWriter implements RedisCacheWriter {
+
+	private final RedisConnectionFactory connectionFactory;
+	private final Duration sleepTime;
+
+	/**
+	 * @param connectionFactory must not be {@literal null}.
+	 */
+	DefaultLettuceCacheWriter(RedisConnectionFactory connectionFactory) {
+<span class="fc" id="L61">		this(connectionFactory, Duration.ZERO);</span>
+<span class="fc" id="L62">	}</span>
+
+	/**
+	 * @param connectionFactory must not be {@literal null}.
+	 * @param sleepTime sleep time between lock request attempts. Must not be {@literal null}. Use {@link Duration#ZERO}
+	 *          to disable locking.
+	 */
+<span class="fc" id="L69">	DefaultLettuceCacheWriter(RedisConnectionFactory connectionFactory, Duration sleepTime) {</span>
+<span class="fc" id="L70">		Assert.notNull(connectionFactory, &quot;ConnectionFactory must not be null!&quot;);</span>
+<span class="fc" id="L71">		Assert.notNull(sleepTime, &quot;SleepTime must not be null!&quot;);</span>
+<span class="fc" id="L72">		this.connectionFactory = connectionFactory;</span>
+<span class="fc" id="L73">		this.sleepTime = sleepTime;</span>
+<span class="fc" id="L74">	}</span>
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.cache.RedisCacheWriter#put(java.lang.String, byte[], byte[], java.time.Duration)
+	 */
+	@Override
+	public void put(String name, byte[] key, byte[] value, @Nullable Duration ttl) {
+<span class="fc" id="L82">		Assert.notNull(name, &quot;Name must not be null!&quot;);</span>
+<span class="fc" id="L83">		Assert.notNull(key, &quot;Key must not be null!&quot;);</span>
+<span class="fc" id="L84">		Assert.notNull(value, &quot;Value must not be null!&quot;);</span>
+<span class="fc" id="L85">		execute(name, connection -&gt; {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">			if (shouldExpireWithin(ttl)) {</span>
+<span class="fc" id="L87">				connection.set(key, value, Expiration.from(ttl.toMillis(), TimeUnit.MILLISECONDS), SetOption.upsert());</span>
+			} else {
+<span class="fc" id="L89">				connection.set(key, value);</span>
+			}
+<span class="fc" id="L91">			return &quot;OK&quot;;</span>
+		});
+<span class="fc" id="L93">	}</span>
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.cache.RedisCacheWriter#get(java.lang.String, byte[])
+	 */
+	@Override
+	public byte[] get(String name, byte[] key) {
+<span class="nc" id="L101">		Assert.notNull(name, &quot;Name must not be null!&quot;);</span>
+<span class="nc" id="L102">		Assert.notNull(key, &quot;Key must not be null!&quot;);</span>
+<span class="nc" id="L103">		return execute(name, connection -&gt; connection.get(key));</span>
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.cache.RedisCacheWriter#putIfAbsent(java.lang.String, byte[], byte[], java.time.Duration)
+	 */
+	@Override
+	public byte[] putIfAbsent(String name, byte[] key, byte[] value, @Nullable Duration ttl) {
+<span class="nc" id="L112">		Assert.notNull(name, &quot;Name must not be null!&quot;);</span>
+<span class="nc" id="L113">		Assert.notNull(key, &quot;Key must not be null!&quot;);</span>
+<span class="nc" id="L114">		Assert.notNull(value, &quot;Value must not be null!&quot;);</span>
+<span class="nc" id="L115">		return execute(name, connection -&gt; {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">			if (isLockingCacheWriter()) {</span>
+<span class="nc" id="L117">				doLock(name, connection);</span>
+			}
+			try {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">				if (connection.setNX(key, value)) {</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">					if (shouldExpireWithin(ttl)) {</span>
+<span class="nc" id="L122">						connection.pExpire(key, ttl.toMillis());</span>
+					}
+<span class="nc" id="L124">					return null;</span>
+				}
+<span class="nc" id="L126">				return connection.get(key);</span>
+			} finally {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">				if (isLockingCacheWriter()) {</span>
+<span class="nc" id="L129">					doUnlock(name, connection);</span>
+				}
+			}
+		});
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.cache.RedisCacheWriter#remove(java.lang.String, byte[])
+	 */
+	@Override
+	public void remove(String name, byte[] key) {
+<span class="fc" id="L141">		Assert.notNull(name, &quot;Name must not be null!&quot;);</span>
+<span class="fc" id="L142">		Assert.notNull(key, &quot;Key must not be null!&quot;);</span>
+<span class="fc" id="L143">		execute(name, connection -&gt; connection.del(key));</span>
+<span class="fc" id="L144">	}</span>
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.springframework.data.redis.cache.RedisCacheWriter#clean(java.lang.String, byte[])
+	 */
+	@Override
+	public void clean(String name, byte[] pattern) {
+<span class="fc" id="L152">		Assert.notNull(name, &quot;Name must not be null!&quot;);</span>
+<span class="fc" id="L153">		Assert.notNull(pattern, &quot;Pattern must not be null!&quot;);</span>
+<span class="fc" id="L154">		execute(name, connection -&gt; {</span>
+<span class="fc" id="L155">			boolean wasLocked = false;</span>
+			try {
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">				if (isLockingCacheWriter()) {</span>
+<span class="nc" id="L158">					doLock(name, connection);</span>
+<span class="nc" id="L159">					wasLocked = true;</span>
+				}
+<span class="fc" id="L161">				byte[][] keys = Optional.ofNullable(connection.keys(pattern)).orElse(Collections.emptySet())</span>
+<span class="fc" id="L162">						.toArray(new byte[0][]);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">				if (keys.length &gt; 0) {</span>
+<span class="fc" id="L164">					connection.del(keys);</span>
+				}
+			} finally {
+<span class="pc bpc" id="L167" title="3 of 4 branches missed.">				if (wasLocked &amp;&amp; isLockingCacheWriter()) {</span>
+<span class="nc" id="L168">					doUnlock(name, connection);</span>
+				}
+			}
+<span class="fc" id="L171">			return &quot;OK&quot;;</span>
+		});
+<span class="fc" id="L173">	}</span>
+
+	/**
+	 * Explicitly set a write lock on a cache.
+	 *
+	 * @param name the name of the cache to lock.
+	 */
+	void lock(String name) {
+<span class="nc" id="L181">		execute(name, connection -&gt; doLock(name, connection));</span>
+<span class="nc" id="L182">	}</span>
+
+	/**
+	 * Explicitly remove a write lock from a cache.
+	 *
+	 * @param name the name of the cache to unlock.
+	 */
+	void unlock(String name) {
+<span class="nc" id="L190">		executeLockFree(connection -&gt; doUnlock(name, connection));</span>
+<span class="nc" id="L191">	}</span>
+
+	private Boolean doLock(String name, RedisConnection connection) {
+<span class="nc" id="L194">		return connection.setNX(createCacheLockKey(name), new byte[0]);</span>
+	}
+
+	private Long doUnlock(String name, RedisConnection connection) {
+<span class="nc" id="L198">		return connection.del(createCacheLockKey(name));</span>
+	}
+
+	boolean doCheckLock(String name, RedisConnection connection) {
+<span class="nc" id="L202">		return connection.exists(createCacheLockKey(name));</span>
+	}
+
+	/**
+	 * @return {@literal true} if {@link RedisCacheWriter} uses locks.
+	 */
+	private boolean isLockingCacheWriter() {
+<span class="pc bpc" id="L209" title="3 of 4 branches missed.">		return !sleepTime.isZero() &amp;&amp; !sleepTime.isNegative();</span>
+	}
+
+	private &lt;T&gt; T execute(String name, Function&lt;RedisConnection, T&gt; callback) {
+<span class="fc" id="L213">		RedisConnection connection = connectionFactory.getConnection();</span>
+		try {
+<span class="fc" id="L215">			checkAndPotentiallyWaitUntilUnlocked(name, connection);</span>
+<span class="fc" id="L216">			return callback.apply(connection);</span>
+		} finally {
+<span class="fc" id="L218">			connection.close();</span>
+		}
+	}
+
+	private void executeLockFree(Consumer&lt;RedisConnection&gt; callback) {
+<span class="nc" id="L223">		RedisConnection connection = connectionFactory.getConnection();</span>
+		try {
+<span class="nc" id="L225">			callback.accept(connection);</span>
+		} finally {
+<span class="nc" id="L227">			connection.close();</span>
+		}
+<span class="nc" id="L229">	}</span>
+
+	private void checkAndPotentiallyWaitUntilUnlocked(String name, RedisConnection connection) {
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">		if (!isLockingCacheWriter()) {</span>
+<span class="fc" id="L233">			return;</span>
+		}
+		try {
+<span class="nc bnc" id="L236" title="All 2 branches missed.">			while (doCheckLock(name, connection)) {</span>
+<span class="nc" id="L237">				Thread.sleep(sleepTime.toMillis());</span>
+			}
+<span class="nc" id="L239">		} catch (InterruptedException ex) {</span>
+			// Re-interrupt current thread, to allow other participants to react.
+<span class="nc" id="L241">			Thread.currentThread().interrupt();</span>
+<span class="nc" id="L242">			throw new PessimisticLockingFailureException(String.format(&quot;Interrupted while waiting to unlock cache %s&quot;, name), ex);</span>
+<span class="nc" id="L243">		}</span>
+<span class="nc" id="L244">	}</span>
+
+	private static boolean shouldExpireWithin(@Nullable Duration ttl) {
+<span class="pc bpc" id="L247" title="2 of 6 branches missed.">		return ttl != null &amp;&amp; !ttl.isZero() &amp;&amp; !ttl.isNegative();</span>
+	}
+
+	private static byte[] createCacheLockKey(String name) {
+<span class="nc" id="L251">		return (name + &quot;~lock&quot;).getBytes(StandardCharsets.UTF_8);</span>
+	}
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

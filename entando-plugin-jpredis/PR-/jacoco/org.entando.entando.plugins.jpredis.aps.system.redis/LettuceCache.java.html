@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LettuceCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Redis Connector</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpredis.aps.system.redis</a> &gt; <span class="el_source">LettuceCache.java</span></div><h1>LettuceCache.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2020-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jpredis.aps.system.redis;
+
+import io.lettuce.core.support.caching.CacheFrontend;
+import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.cache.RedisCache;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.lang.Nullable;
+
+/**
+ * Extension of default RedisCache with Client-side caching support
+ * @author E.Santoboni
+ */
+public class LettuceCache extends RedisCache {
+    
+<span class="fc" id="L31">    private static final Logger logger = LoggerFactory.getLogger(LettuceCache.class);</span>
+    
+    private CacheFrontend&lt;String, Object&gt; frontendCache;
+    
+	protected LettuceCache(String name, RedisCacheWriter cacheWriter, RedisCacheConfiguration cacheConfig, CacheFrontend&lt;String, Object&gt; cacheFrontend) {
+<span class="fc" id="L36">		super(name, cacheWriter, cacheConfig);</span>
+<span class="fc" id="L37">        this.frontendCache = cacheFrontend;</span>
+<span class="fc" id="L38">    }</span>
+    
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; T get(Object key, @Nullable Class&lt;T&gt; type) {
+<span class="nc" id="L43">        Object value = super.fromStoreValue(this.getFromLocalCache(key));</span>
+<span class="nc bnc" id="L44" title="All 6 branches missed.">        if (value != null &amp;&amp; type != null &amp;&amp; !type.isInstance(value)) {</span>
+<span class="nc" id="L45">			throw new IllegalStateException(</span>
+<span class="nc" id="L46">					&quot;Cached value is not of required type [&quot; + type.getName() + &quot;]: &quot; + value);</span>
+		}
+<span class="nc" id="L48">		return (T) value;</span>
+    }
+    
+    @Override
+    public ValueWrapper get(Object key) {
+<span class="fc" id="L53">        Object localCacheValue = this.getFromLocalCache(key);</span>
+<span class="fc" id="L54">        return toValueWrapper(localCacheValue);</span>
+    }
+    
+    private Object getFromLocalCache(Object key) {
+<span class="fc" id="L58">        return this.frontendCache.get(super.getName() + &quot;::&quot; + key.toString());</span>
+    }
+    
+    @Override
+    public synchronized &lt;T&gt; T get(Object key, Callable&lt;T&gt; valueLoader) {
+<span class="nc" id="L63">        logger.warn(&quot;Calling remote cache for key {}&quot;, key);</span>
+<span class="nc" id="L64">        return super.get(key, valueLoader);</span>
+    }
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
