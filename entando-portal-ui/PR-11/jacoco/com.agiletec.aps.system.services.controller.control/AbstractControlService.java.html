@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractControlService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.controller.control</a> &gt; <span class="el_source">AbstractControlService.java</span></div><h1>AbstractControlService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.controller.control;
+
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.services.controller.ControllerManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.url.PageURL;
+
+/**
+ * Classe di utilità che implementa un metodo per impostare una redirezione ed
+ * un metodo per recuperare un parametro singolo dall'HttpServletRequest.
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L35">public abstract class AbstractControlService implements ControlServiceInterface {</span>
+
+<span class="fc" id="L37">	private static final Logger _logger = LoggerFactory.getLogger(AbstractControlService.class);</span>
+	
+	/**
+	 * Imposta i parametri di una redirezione.
+	 * @param redirDestPage Il codice della pagina su cui si vuole redirezionare.
+	 * @param reqCtx Il contesto di richiesta.
+	 * @return L'indicativo del tipo di redirezione in uscita del controlService. 
+	 * Può essere una delle costanti definite in ControllerManager.
+	 */
+	protected int redirect(String redirDestPage, RequestContext reqCtx) {
+<span class="fc" id="L47">		return this.redirect(redirDestPage, null, reqCtx);</span>
+	}
+	
+	protected int redirect(String redirDestPage, Map&lt;String, String&gt; params, RequestContext reqCtx) {
+		int retStatus;
+		try {
+<span class="fc" id="L53">			String redirPar = this.getParameter(RequestContext.PAR_REDIRECT_FLAG, reqCtx);</span>
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">			if (redirPar == null || &quot;&quot;.equals(redirPar)) {</span>
+<span class="fc" id="L55">				PageURL url = this.getUrlManager().createURL(reqCtx);</span>
+<span class="fc" id="L56">				url.setPageCode(redirDestPage);</span>
+<span class="pc bpc" id="L57" title="1 of 4 branches missed.">				if (null != params &amp;&amp; !params.isEmpty()) {</span>
+<span class="fc" id="L58">					Iterator&lt;String&gt; iter = params.keySet().iterator();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">					while (iter.hasNext()) {</span>
+<span class="fc" id="L60">						String key = iter.next();</span>
+<span class="fc" id="L61">						url.addParam(key, params.get(key));</span>
+<span class="fc" id="L62">					}</span>
+				}
+<span class="fc" id="L64">				url.addParam(RequestContext.PAR_REDIRECT_FLAG, &quot;1&quot;);</span>
+<span class="fc" id="L65">				url.setEscapeAmp(false);</span>
+<span class="fc" id="L66">				String redirUrl = url.getURL();</span>
+<span class="fc" id="L67">				_logger.debug(&quot;Redirecting to {}&quot;, redirUrl);</span>
+<span class="fc" id="L68">				return this.redirectUrl(redirUrl, reqCtx);</span>
+			} else {
+<span class="fc" id="L70">				reqCtx.setHTTPError(HttpServletResponse.SC_BAD_REQUEST);</span>
+<span class="fc" id="L71">				retStatus = ControllerManager.ERROR;</span>
+			}
+<span class="nc" id="L73">		} catch (Throwable t) {</span>
+<span class="nc" id="L74">			retStatus = ControllerManager.SYS_ERROR;</span>
+<span class="nc" id="L75">			reqCtx.setHTTPError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L76">			_logger.error(&quot;Error on creation redirect to page {}&quot;, redirDestPage, t);</span>
+<span class="fc" id="L77">		}</span>
+<span class="fc" id="L78">		return retStatus;</span>
+	}
+	
+	protected int redirectUrl(String urlDest, RequestContext reqCtx) {
+		int retStatus;
+		try {
+<span class="fc" id="L84">			reqCtx.clearError();</span>
+<span class="fc" id="L85">			reqCtx.addExtraParam(RequestContext.EXTRAPAR_REDIRECT_URL, urlDest);</span>
+<span class="fc" id="L86">			retStatus = ControllerManager.REDIRECT;</span>
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			retStatus = ControllerManager.SYS_ERROR;</span>
+<span class="nc" id="L89">			reqCtx.setHTTPError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L90">			_logger.error(&quot;Error on creation redirect to url {}&quot;, urlDest, t);</span>
+<span class="fc" id="L91">		}</span>
+<span class="fc" id="L92">		return retStatus;</span>
+	}
+	
+	/**
+	 * Recupera un parametro della richiesta.
+	 * @param name Il nome del parametro.
+	 * @param reqCtx Il contesto di richiesta.
+	 * @return Il valore del parametro
+	 */
+	protected String getParameter(String name, RequestContext reqCtx){
+<span class="fc" id="L102">		String param = reqCtx.getRequest().getParameter(name);</span>
+<span class="fc" id="L103">		return param;</span>
+	}
+	
+	protected IURLManager getUrlManager() {
+<span class="fc" id="L107">		return _urlManager;</span>
+	}
+	public void setUrlManager(IURLManager urlManager) {
+<span class="fc" id="L110">		this._urlManager = urlManager;</span>
+<span class="fc" id="L111">	}</span>
+	
+	/**
+	 * Il log di sistema.
+	 */
+<span class="fc" id="L116">	@Deprecated</span>
+<span class="fc" id="L117">	protected Logger _log = ApsSystemUtils.getLogger();</span>
+	
+	/**
+	 * Riferimento all'Url Manager.
+	 */
+	private IURLManager _urlManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreviewRequestValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.controller.preview.control</a> &gt; <span class="el_source">PreviewRequestValidator.java</span></div><h1>PreviewRequestValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.controller.preview.control;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.controller.ControllerManager;
+import com.agiletec.aps.system.services.controller.control.AbstractControlService;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Page;
+import com.agiletec.aps.system.services.page.PageMetadata;
+import com.agiletec.aps.system.services.page.Widget;
+
+/**
+ * Implementazione del un sottoservizio di controllo che verifica la validità
+ * della richiesta del client. Viene verificata la correttezza formale della
+ * richiesta tramite la corrispondenza con una maschera. La richiesta deve
+ * essere nella forma:&lt;br&gt;
+ * &lt;code&gt;/lingua/pagina.wp&lt;/code&gt; oppure &lt;code&gt;/lingua/path_pagina/&lt;/code&gt;&lt;br&gt;
+ * dove lingua è un codice lingua configurato, pagina una pagina del portale e
+ * path_pagina il path (stile breadcrumbs) della pagina. Se la richiesta è
+ * valida, l'oggetto lingua e l'oggetto pagina corrispondenti alla richiesta
+ * sono inseriti nel contesto di richiesta sotto forma di extra parametri, con i
+ * nomi &quot;currentLang&quot; e &quot;currentPage&quot;, ed il metodo service restituisce
+ * Controller.CONTINUE. Se la richiesta non è valida, viene restituito lo stato
+ * di errore.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L52">public class PreviewRequestValidator extends AbstractControlService {</span>
+
+<span class="fc" id="L54">	private static final Logger _logger = LoggerFactory.getLogger(PreviewRequestValidator.class);</span>
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+<span class="fc" id="L58">		_logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L59">	}</span>
+
+	/**
+	 * Esecuzione. Le operazioni sono descritte nella documentazione della
+	 * classe.
+	 *
+	 * @param reqCtx Il contesto di richiesta
+	 * @param status Lo stato di uscita del servizio precedente
+	 * @return Lo stato di uscita
+	 */
+	@Override
+	public int service(RequestContext reqCtx, int status) {
+<span class="nc" id="L71">		_logger.debug(&quot;{} invoked&quot;, this.getClass().getName());</span>
+<span class="nc" id="L72">		int retStatus = ControllerManager.INVALID_STATUS;</span>
+		// Se si è verificato un errore in un altro sottoservizio, termina
+		// subito
+<span class="nc bnc" id="L75" title="All 2 branches missed.">		if (status == ControllerManager.ERROR) {</span>
+<span class="nc" id="L76">			return ControllerManager.SYS_ERROR;</span>
+		}
+		try { // non devono essere rilanciate eccezioni
+<span class="nc" id="L79">			boolean ok = this.isRightPath(reqCtx);</span>
+<span class="nc bnc" id="L80" title="All 6 branches missed.">			if (!ok || null == reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE) || null == reqCtx.getExtraParam(</span>
+					SystemConstants.EXTRAPAR_CURRENT_LANG)) {
+<span class="nc" id="L82">				retStatus = ControllerManager.SYS_ERROR;</span>
+			} else {
+<span class="nc" id="L84">				retStatus = ControllerManager.CONTINUE;</span>
+			}
+<span class="nc" id="L86">		} catch (Throwable t) {</span>
+<span class="nc" id="L87">			retStatus = ControllerManager.SYS_ERROR;</span>
+<span class="nc" id="L88">			reqCtx.setHTTPError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L89">			_logger.error(&quot;Error while validating the client request&quot;, t);</span>
+<span class="nc" id="L90">		}</span>
+<span class="nc" id="L91">		return retStatus;</span>
+	}
+
+	private boolean isRightPath(RequestContext reqCtx) {
+<span class="nc" id="L95">		boolean ok = false;</span>
+		String resourcePath;
+		Matcher matcher;
+<span class="nc" id="L98">		Lang lang = null;</span>
+<span class="nc" id="L99">		IPage page = null;</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">		if (this.getResourcePath(reqCtx).equals(&quot;/preview&quot;)) {</span>
+<span class="nc" id="L101">			resourcePath = getFullResourcePath(reqCtx);</span>
+<span class="nc" id="L102">			matcher = this._pattern.matcher(resourcePath);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			if (matcher.lookingAt()) {</span>
+<span class="nc" id="L104">				ok = true;</span>
+<span class="nc" id="L105">				String sect1 = matcher.group(1);</span>
+<span class="nc" id="L106">				String sect2 = matcher.group(2);</span>
+<span class="nc" id="L107">				lang = getLangManager().getLang(sect1);</span>
+<span class="nc" id="L108">				page = this.getDesiredPage(sect2);</span>
+			}
+		}
+<span class="nc bnc" id="L111" title="All 2 branches missed.">		if (!ok) {</span>
+<span class="nc" id="L112">			return false;</span>
+		}
+<span class="nc" id="L114">		reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG, lang);</span>
+<span class="nc" id="L115">		reqCtx.addExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE, page);</span>
+<span class="nc" id="L116">		return true;</span>
+	}
+
+	private Page getDesiredPage(String pageCode) {
+<span class="nc" id="L120">		Page page = null;</span>
+<span class="nc" id="L121">		IPage currentPage = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">		if (null != currentPage) {</span>
+<span class="nc" id="L123">			page = new Page();</span>
+<span class="nc" id="L124">			page.setCode(currentPage.getCode());</span>
+<span class="nc" id="L125">			page.setParentCode(currentPage.getParentCode());</span>
+<span class="nc" id="L126">			page.setGroup(currentPage.getGroup());</span>
+<span class="nc" id="L127">			PageMetadata metadata = currentPage.getMetadata();</span>
+<span class="nc" id="L128">			page.setMetadata(metadata);</span>
+<span class="nc" id="L129">			String[] children = currentPage.getChildrenCodes();</span>
+<span class="nc" id="L130">			page.setChildrenCodes(children);</span>
+<span class="nc" id="L131">			Widget[] widgets = currentPage.getWidgets();</span>
+<span class="nc" id="L132">			page.setWidgets(widgets);</span>
+		}
+<span class="nc" id="L134">		return page;</span>
+	}
+
+	/**
+	 * Recupera il ServletPath richiesto dal client.
+	 *
+	 * @param reqCtx Il contesto di richiesta
+	 * @return Il ServletPath
+	 */
+	protected String getResourcePath(RequestContext reqCtx) {
+<span class="nc" id="L144">		return reqCtx.getRequest().getServletPath();</span>
+	}
+
+	protected String getFullResourcePath(RequestContext reqCtx) {
+<span class="nc" id="L148">		return this.getResourcePath(reqCtx) + reqCtx.getRequest().getPathInfo();</span>
+	}
+
+	protected ILangManager getLangManager() {
+<span class="nc" id="L152">		return _langManager;</span>
+	}
+
+	public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L156">		this._langManager = langManager;</span>
+<span class="fc" id="L157">	}</span>
+
+	protected IPageManager getPageManager() {
+<span class="nc" id="L160">		return _pageManager;</span>
+	}
+
+	public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L164">		this._pageManager = pageManager;</span>
+<span class="fc" id="L165">	}</span>
+
+	private ILangManager _langManager;
+	private IPageManager _pageManager;
+
+<span class="fc" id="L170">	protected Pattern _pattern = Pattern.compile(&quot;^/preview/(\\w+)/((\\w+)*)&quot;);</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

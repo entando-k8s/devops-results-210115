@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ControllerManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.controller</a> &gt; <span class="el_source">ControllerManager.java</span></div><h1>ControllerManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.controller;
+
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.services.controller.control.ControlServiceInterface;
+
+/**
+ * Il controller è il servizio di controllo dell'esecuzione relativa ad una 
+ * richiesta del client. L'esecuzione è realizzata invocando in sequenza
+ * i sottoservizi di controllo definiti in configurazione (che implementano 
+ * ControlServiceInterface).&lt;br&gt;
+ * Il controller costituisce la logica della servlet di control-dispatching.
+ * Per ulteriori dettagli vedere il metodo service().
+ * @author M.Diana
+ */
+<span class="fc" id="L34">public class ControllerManager extends AbstractService {</span>
+
+<span class="fc" id="L36">	private static final Logger _logger = LoggerFactory.getLogger(ControllerManager.class);</span>
+	
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L40">		_logger.debug(&quot;{}: initialized {} controller services&quot;, this.getClass().getName(), this.getControllerServices().size());</span>
+<span class="fc" id="L41">	}</span>
+	
+	/**
+	 * Esegue le azioni conseguenti alla richiesta del client.
+	 * L'esecuzione è realizzata invocando in sequenza
+	 * i sottoservizi di controllo definiti in configurazione (implementano 
+	 * ControlServiceInterface); ogni sottoservizio termina con un valore di
+	 * ritorno compreso fra le costanti definite in questa classe. Il valore di
+	 * uscita di ogni sottoservizio è inviato in ingresso al sottoservizio
+	 * successivo. Il valore di ritorno dell'ultimo sottoservizio eseguito 
+	 * è restituito al chiamante.&lt;br&gt;
+	 * Le regole sono:
+	 * &lt;ul&gt;
+	 * &lt;li&gt; i sottoservizi non devono lanciare eccezioni;
+	 * &lt;li&gt; se un sottoservizio riceve in ingresso ERROR deve terminare
+	 * immediatamente restituendo ERROR, a meno che non sia un servizio di
+	 * gestione degli errori;
+	 * &lt;li&gt; se un servizio restituisce OUTPUT o REDIRECT o SYS_ERROR la sequenza
+	 * di esecuzione termina;
+	 * &lt;li&gt; se un servizio restituisce CONTINUE la sequenza continua.
+	 * &lt;/ul&gt;
+	 * @param reqCtx Il contesto della richiesta.
+	 * @return Uno dei valori definiti dalle costanti della classe.
+	 */
+	public int service(RequestContext reqCtx) {
+<span class="fc" id="L66">		int status = INVALID_STATUS;</span>
+<span class="fc" id="L67">		int srvIndex = 0;</span>
+		try {
+			do {
+<span class="fc" id="L70">				ControlServiceInterface srv = this.getControllerServices().get(srvIndex);</span>
+<span class="fc" id="L71">				srvIndex++;</span>
+<span class="fc" id="L72">				status = srv.service(reqCtx, status);</span>
+<span class="pc bpc" id="L73" title="2 of 8 branches missed.">			} while (srvIndex &lt; this.getControllerServices().size()</span>
+					&amp;&amp; status != OUTPUT 
+					&amp;&amp; status != REDIRECT 
+					&amp;&amp; status != SYS_ERROR);
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;generic error&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;service&quot;);
+<span class="nc" id="L80">			status = SYS_ERROR;</span>
+<span class="fc" id="L81">		}</span>
+<span class="fc" id="L82">		return status;</span>
+	}
+	
+	/**
+	 * Restituisce una descrizione dello stato passato come argomento.
+	 * @param status Lo stato di cui si vuole la descrizione. 
+	 * Deve essere una delle costanti di questa classe.
+	 * @return La descrizione dello stato, oppure &quot;non definito&quot; 
+	 * se lo stato non ha un valore previsto.
+	 */
+	public static String getStatusDescription(int status) {
+<span class="nc bnc" id="L93" title="All 8 branches missed.">		switch (status) {</span>
+<span class="nc" id="L94">			case INVALID_STATUS: return &quot;INVALID_STATUS&quot;;</span>
+<span class="nc" id="L95">			case OUTPUT: return &quot;OUTPUT&quot;;</span>
+<span class="nc" id="L96">			case REDIRECT: return &quot;REDIRECT&quot;;</span>
+<span class="nc" id="L97">			case ERROR: return &quot;ERROR&quot;;</span>
+<span class="nc" id="L98">			case CONTINUE: return &quot;CONTINUE&quot;;</span>
+<span class="nc" id="L99">			case RESTART: return &quot;RESTART&quot;;</span>
+<span class="nc" id="L100">			case SYS_ERROR: return &quot;SYS_ERROR&quot;;</span>
+<span class="nc" id="L101">			default: return &quot;non definito&quot;;</span>
+		}
+	}
+	
+	protected List&lt;ControlServiceInterface&gt; getControllerServices() {
+<span class="fc" id="L106">		return _controllerServices;</span>
+	}
+	public void setControllerServices(List&lt;ControlServiceInterface&gt; controllerServices) {
+<span class="fc" id="L109">		this._controllerServices = controllerServices;</span>
+<span class="fc" id="L110">	}</span>
+	
+	/**
+	 * La lista interna dei sottoservizi di controllo
+	 */
+	private List&lt;ControlServiceInterface&gt; _controllerServices;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: stato non valido. E'
+	 * il valore iniziale, passato in ingresso al primo sottoservizio.
+	 */
+	public static final int INVALID_STATUS = 0;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: generato output. 
+	 * Lo stato, nella esecuzione della catena di sottoservizi, corrisponde ad una uscita dalla sequenza.
+	 */
+	public static final int OUTPUT = 1;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: richiesta redirezione.
+	 * Lo stato, nella esecuzione della catena di sottoservizi, corrisponde ad una uscita dalla sequenza.
+	 */
+	public static final int REDIRECT = 2;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: errore. 
+	 * Lo stato, nella esecuzione della catena di sottoservizi, NON corrisponde ad una uscita dalla sequenza.
+	 */
+	public static final int ERROR = 3;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: continuare con l'esecuzione.
+	 */
+	public static final int CONTINUE = 4;
+	
+	/**
+	 * Stato di uscita dei sottoservizi di controllo: riprendere la sequenza di
+	 * esecuzione dall'inizio (deprecato). 
+	 * @deprecated
+	 */
+	public static final int RESTART = 5;
+	
+	/**
+	 * Stato di uscita finale: errore di sistema.
+	 * Lo stato, nella esecuzione della catena di sottoservizi, corrisponde ad una uscita dalla sequenza.
+	 */
+	public static final int SYS_ERROR = 6;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
