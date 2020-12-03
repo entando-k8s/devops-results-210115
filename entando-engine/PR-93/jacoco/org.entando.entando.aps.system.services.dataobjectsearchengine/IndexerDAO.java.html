@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexerDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectsearchengine</a> &gt; <span class="el_source">IndexerDAO.java</span></div><h1>IndexerDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectsearchengine;
+
+import com.agiletec.aps.system.common.entity.model.AttributeSearchInfo;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.searchengine.IndexableAttributeInterface;
+import com.agiletec.aps.system.common.util.EntityAttributeIterator;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.*;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.SimpleFSLockFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * Data Access Object dedita alla indicizzazione di documenti.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L50">public class IndexerDAO implements IIndexerDAO {</span>
+
+<span class="fc" id="L52">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(IndexerDAO.class);</span>
+
+    private Directory dir;
+
+    private ILangManager langManager;
+
+    private ICategoryManager categoryManager;
+
+    /**
+     * Inizializzazione dell'indicizzatore.
+     *
+     * @param dir La cartella locale contenitore dei dati persistenti.
+     * @throws EntException In caso di errore
+     */
+    @Override
+    public void init(File dir) throws EntException {
+        try {
+<span class="fc" id="L69">            this.dir = FSDirectory.open(dir.toPath(), SimpleFSLockFactory.INSTANCE);</span>
+<span class="nc" id="L70">        } catch (Throwable t) {</span>
+<span class="nc" id="L71">            logger.error(&quot;Error creating directory&quot;, t);</span>
+<span class="nc" id="L72">            throw new EntException(&quot;Error creating directory&quot;, t);</span>
+<span class="fc" id="L73">        }</span>
+<span class="fc" id="L74">        logger.debug(&quot;Indexer: search engine index ok.&quot;);</span>
+<span class="fc" id="L75">    }</span>
+
+    @Override
+    public synchronized void add(IApsEntity entity) throws EntException {
+<span class="fc" id="L79">        IndexWriter writer = null;</span>
+        try {
+<span class="fc" id="L81">            writer = new IndexWriter(this.dir, this.getIndexWriterConfig());</span>
+<span class="fc" id="L82">            Document document = this.createDocument(entity);</span>
+<span class="fc" id="L83">            writer.addDocument(document);</span>
+<span class="nc" id="L84">        } catch (Throwable t) {</span>
+<span class="nc" id="L85">            logger.error(&quot;Errore saving entity {}&quot;, entity.getId(), t);</span>
+<span class="nc" id="L86">            throw new EntException(&quot;Error saving entity&quot;, t);</span>
+        } finally {
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            if (null != writer) {</span>
+                try {
+<span class="fc" id="L90">                    writer.close();</span>
+<span class="nc" id="L91">                } catch (IOException ex) {</span>
+<span class="nc" id="L92">                    logger.error(&quot;Error closing IndexWriter&quot;, ex);</span>
+<span class="fc" id="L93">                }</span>
+            }
+        }
+<span class="fc" id="L96">    }</span>
+
+    /**
+     * Crea un oggetto Document pronto per l'indicizzazione da un oggetto
+     * Content.
+     *
+     * @param entity Il dataobject dal quale ricavare il Document.
+     * @return L'oggetto Document ricavato dal dataobject.
+     * @throws EntException In caso di errore
+     */
+    protected Document createDocument(IApsEntity entity) throws EntException {
+<span class="fc" id="L107">        Document document = new Document();</span>
+<span class="fc" id="L108">        document.add(new StringField(DATAOBJECT_ID_FIELD_NAME,</span>
+<span class="fc" id="L109">                entity.getId(), Field.Store.YES));</span>
+<span class="fc" id="L110">        document.add(new TextField(DATAOBJECT_TYPE_FIELD_NAME,</span>
+<span class="fc" id="L111">                entity.getTypeCode(), Field.Store.YES));</span>
+<span class="fc" id="L112">        document.add(new StringField(DATAOBJECT_GROUP_FIELD_NAME,</span>
+<span class="fc" id="L113">                entity.getMainGroup(), Field.Store.YES));</span>
+<span class="fc" id="L114">        Iterator&lt;String&gt; iterGroups = entity.getGroups().iterator();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        while (iterGroups.hasNext()) {</span>
+<span class="fc" id="L116">            String groupName = (String) iterGroups.next();</span>
+<span class="fc" id="L117">            document.add(new StringField(DATAOBJECT_GROUP_FIELD_NAME,</span>
+                    groupName, Field.Store.YES));
+<span class="fc" id="L119">        }</span>
+        try {
+<span class="fc" id="L121">            EntityAttributeIterator attributesIter = new EntityAttributeIterator(entity);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">            while (attributesIter.hasNext()) {</span>
+<span class="fc" id="L123">                AttributeInterface currentAttribute = (AttributeInterface) attributesIter.next();</span>
+<span class="fc" id="L124">                List&lt;Lang&gt; langs = this.getLangManager().getLangs();</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">                for (int i = 0; i &lt; langs.size(); i++) {</span>
+<span class="fc" id="L126">                    Lang currentLang = (Lang) langs.get(i);</span>
+<span class="fc" id="L127">                    this.indexAttribute(document, currentAttribute, currentLang);</span>
+                }
+<span class="fc" id="L129">            }</span>
+<span class="fc" id="L130">            List&lt;Category&gt; categories = entity.getCategories();</span>
+<span class="pc bpc" id="L131" title="1 of 4 branches missed.">            if (null != categories &amp;&amp; !categories.isEmpty()) {</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">                for (int i = 0; i &lt; categories.size(); i++) {</span>
+<span class="fc" id="L133">                    Category category = categories.get(i);</span>
+<span class="fc" id="L134">                    this.indexCategory(document, category);</span>
+                }
+            }
+<span class="nc" id="L137">        } catch (Throwable t) {</span>
+<span class="nc" id="L138">            logger.error(&quot;Error creating document&quot;, t);</span>
+<span class="nc" id="L139">            throw new EntException(&quot;Error creating document&quot;, t);</span>
+<span class="fc" id="L140">        }</span>
+<span class="fc" id="L141">        return document;</span>
+    }
+
+    private void indexCategory(Document document, Category categoryToIndex) {
+<span class="pc bpc" id="L145" title="1 of 4 branches missed.">        if (null == categoryToIndex || categoryToIndex.isRoot()) {</span>
+<span class="fc" id="L146">            return;</span>
+        }
+<span class="fc" id="L148">        document.add(new StringField(DATAOBJECT_CATEGORY_FIELD_NAME,</span>
+<span class="fc" id="L149">                categoryToIndex.getPath(DATAOBJECT_CATEGORY_SEPARATOR, false, this.getCategoryManager()), Field.Store.YES));</span>
+<span class="fc" id="L150">        Category parentCategory = this.getCategoryManager().getCategory(categoryToIndex.getParentCode());</span>
+<span class="fc" id="L151">        this.indexCategory(document, parentCategory);</span>
+<span class="fc" id="L152">    }</span>
+
+    private void indexAttribute(Document document, AttributeInterface attribute, Lang lang) {
+<span class="fc" id="L155">        attribute.setRenderingLang(lang.getCode());</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (attribute instanceof IndexableAttributeInterface) {</span>
+<span class="fc" id="L157">            String valueToIndex = ((IndexableAttributeInterface) attribute).getIndexeableFieldValue();</span>
+<span class="fc" id="L158">            String indexingType = attribute.getIndexingType();</span>
+<span class="fc" id="L159">            String fieldName = lang.getCode();</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">            if (null != indexingType</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">                    &amp;&amp; IndexableAttributeInterface.INDEXING_TYPE_UNSTORED.equalsIgnoreCase(indexingType)) {</span>
+<span class="nc" id="L162">                document.add(new TextField(fieldName, valueToIndex, Field.Store.NO));</span>
+            }
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            if (null != indexingType</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">                    &amp;&amp; IndexableAttributeInterface.INDEXING_TYPE_TEXT.equalsIgnoreCase(indexingType)) {</span>
+<span class="fc" id="L166">                document.add(new TextField(fieldName, valueToIndex, Field.Store.YES));</span>
+            }
+        }
+<span class="fc bfc" id="L169" title="All 2 branches covered.">        if (attribute.isSearchable()) {</span>
+<span class="fc" id="L170">            List&lt;Lang&gt; langs = new ArrayList&lt;Lang&gt;();</span>
+<span class="fc" id="L171">            langs.add(lang);</span>
+<span class="fc" id="L172">            AttributeTracer tracer = new AttributeTracer();</span>
+<span class="fc" id="L173">            tracer.setLang(lang);</span>
+<span class="fc" id="L174">            String name = tracer.getFormFieldName(attribute);</span>
+<span class="fc" id="L175">            List&lt;AttributeSearchInfo&gt; searchInfos = attribute.getSearchInfos(langs);</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">            if (null != searchInfos) {</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                for (int i = 0; i &lt; searchInfos.size(); i++) {</span>
+<span class="fc" id="L178">                    AttributeSearchInfo info = searchInfos.get(i);</span>
+<span class="fc" id="L179">                    Field field = null;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">                    if (null != info.getDate()) {</span>
+<span class="fc" id="L181">                        field = new TextField(name,</span>
+<span class="fc" id="L182">                                DateTools.timeToString(info.getDate().getTime(), DateTools.Resolution.MINUTE), Field.Store.YES);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                    } else if (null != info.getBigDecimal()) {</span>
+<span class="fc" id="L184">                        int value = info.getBigDecimal().intValue();</span>
+<span class="fc" id="L185">                        field = new IntPoint(name, value);</span>
+
+                        //For int points a separate stored field must be added for future indexed search
+<span class="fc" id="L188">                        StoredField stored = new StoredField(name, value);</span>
+<span class="fc" id="L189">                        document.add(stored);</span>
+<span class="fc" id="L190">                    } else {</span>
+<span class="fc" id="L191">                        field = new TextField(name, info.getString(), Field.Store.YES);</span>
+                    }
+<span class="fc" id="L193">                    document.add(field);</span>
+                }
+            }
+        }
+<span class="fc" id="L197">    }</span>
+
+    /**
+     * Cancella un documento.
+     *
+     * @param name Il nome del campo Field da utilizzare per recupero del
+     * documento.
+     * @param value La chiave mediante il quale è stato indicizzato il
+     * documento.
+     * @throws EntException In caso di errore
+     */
+    @Override
+    public synchronized void delete(String name, String value) throws EntException {
+        try {
+<span class="fc" id="L211">            IndexWriter writer = new IndexWriter(this.dir, this.getIndexWriterConfig());</span>
+<span class="fc" id="L212">            writer.deleteDocuments(new Term(name, value));</span>
+<span class="fc" id="L213">            writer.close();</span>
+<span class="nc" id="L214">        } catch (IOException e) {</span>
+<span class="nc" id="L215">            logger.error(&quot;Error deleting document&quot;, e);</span>
+<span class="nc" id="L216">            throw new EntException(&quot;Error deleting document&quot;, e);</span>
+<span class="fc" id="L217">        }</span>
+<span class="fc" id="L218">    }</span>
+
+    @Override
+    public void close() {
+        // nothing to do
+<span class="nc" id="L223">    }</span>
+
+    private Analyzer getAnalyzer() {
+<span class="fc" id="L226">        return new StandardAnalyzer();</span>
+    }
+
+    private IndexWriterConfig getIndexWriterConfig() {
+<span class="fc" id="L230">        return new IndexWriterConfig(this.getAnalyzer());</span>
+    }
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L234">        return langManager;</span>
+    }
+
+    @Override
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L239">        this.langManager = langManager;</span>
+<span class="fc" id="L240">    }</span>
+
+    public ICategoryManager getCategoryManager() {
+<span class="fc" id="L243">        return categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L247">        this.categoryManager = categoryManager;</span>
+<span class="fc" id="L248">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

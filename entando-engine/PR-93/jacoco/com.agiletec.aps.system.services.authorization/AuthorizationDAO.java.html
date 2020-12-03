@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.authorization</a> &gt; <span class="el_source">AuthorizationDAO.java</span></div><h1>AuthorizationDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.authorization;
+
+import com.agiletec.aps.system.common.AbstractSearcherDAO;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.role.Role;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L36">public class AuthorizationDAO extends AbstractSearcherDAO implements IAuthorizationDAO {</span>
+	
+<span class="fc" id="L38">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(AuthorizationDAO.class);</span>
+	
+	@Override
+	public void addUserAuthorization(String username, Authorization authorization) {
+<span class="pc bpc" id="L42" title="2 of 4 branches missed.">		if (null == authorization || null == username) return;</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">		String groupName = (null != authorization.getGroup()) ? authorization.getGroup().getName() : null;</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">		String roleName = (null != authorization.getRole()) ? authorization.getRole().getName() : null;</span>
+<span class="fc" id="L45">		super.executeQueryWithoutResultset(ADD_AUTHORIZATION, username, groupName, roleName);</span>
+<span class="fc" id="L46">	}</span>
+	
+	@Override
+	public void addUserAuthorizations(String username, List&lt;Authorization&gt; authorizations) {
+<span class="fc" id="L50">		this.addUpdateUserAuthorizations(username, authorizations, false);</span>
+<span class="fc" id="L51">	}</span>
+	
+	@Override
+	public void updateUserAuthorizations(String username, List&lt;Authorization&gt; authorizations) {
+<span class="nc" id="L55">		this.addUpdateUserAuthorizations(username, authorizations, true);</span>
+<span class="nc" id="L56">	}</span>
+	
+	protected void addUpdateUserAuthorizations(String username, List&lt;Authorization&gt; authorizations, boolean update) {
+<span class="fc" id="L59">		Connection conn = null;</span>
+		try {
+<span class="fc" id="L61">			conn = this.getConnection();</span>
+<span class="fc" id="L62">			conn.setAutoCommit(false);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">			if (update) {</span>
+<span class="nc" id="L64">				super.executeQueryWithoutResultset(conn, DELETE_USER_AUTHORIZATIONS, username);</span>
+			}
+<span class="fc" id="L66">			this.addUserAuthorizations(username, authorizations, conn);</span>
+<span class="fc" id="L67">			conn.commit();</span>
+<span class="nc" id="L68">		} catch (Throwable t) {</span>
+<span class="nc" id="L69">			this.executeRollback(conn);</span>
+<span class="nc" id="L70">			_logger.error(&quot;Error detected while addind user authorizations&quot;,  t);</span>
+<span class="nc" id="L71">			throw new RuntimeException(&quot;Error detected while addind user authorizations&quot;, t);</span>
+		} finally {
+<span class="fc" id="L73">			this.closeConnection(conn);</span>
+		}
+<span class="fc" id="L75">	}</span>
+	
+	protected void addUserAuthorizations(String username, List&lt;Authorization&gt; authorizations, Connection conn) {
+<span class="fc" id="L78">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L80">			stat = conn.prepareStatement(ADD_AUTHORIZATION);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">			for (int i=0; i&lt;authorizations.size(); i++) {</span>
+<span class="fc" id="L82">				Authorization auth = authorizations.get(i);</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">				if (null == auth) continue;</span>
+<span class="fc" id="L84">				stat.setString(1, username);</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">				if (null != auth.getGroup()) {</span>
+<span class="fc" id="L86">					stat.setString(2, auth.getGroup().getName());</span>
+				} else {
+<span class="nc" id="L88">					stat.setNull(2, Types.VARCHAR);</span>
+				}
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">				if (null != auth.getRole()) {</span>
+<span class="fc" id="L91">					stat.setString(3, auth.getRole().getName());</span>
+				} else {
+<span class="nc" id="L93">					stat.setNull(3, Types.VARCHAR);</span>
+				}
+<span class="fc" id="L95">				stat.addBatch();</span>
+<span class="fc" id="L96">				stat.clearParameters();</span>
+			}
+<span class="fc" id="L98">			stat.executeBatch();</span>
+<span class="nc" id="L99">		} catch (Throwable t) {</span>
+<span class="nc" id="L100">			_logger.error(&quot;Error detected while addind user authorizations&quot;,  t);</span>
+<span class="nc" id="L101">			throw new RuntimeException(&quot;Error detected while addind user authorizations&quot;, t);</span>
+		} finally {
+<span class="fc" id="L103">			this.closeDaoResources(null, stat);</span>
+		}
+<span class="fc" id="L105">	}</span>
+	
+	@Override
+	public void deleteUserAuthorization(String username, String groupname, String rolename) {
+<span class="fc" id="L109">		super.executeQueryWithoutResultset(DELETE_AUTHORIZATION, username, groupname, rolename);</span>
+<span class="fc" id="L110">	}</span>
+	
+	@Override
+	public List&lt;Authorization&gt; getUserAuthorizations(String username, Map&lt;String, Group&gt; groups, Map&lt;String, Role&gt; roles) {
+<span class="fc" id="L114">		Connection conn = null;</span>
+<span class="fc" id="L115">		List&lt;Authorization&gt; authorizations = new ArrayList&lt;Authorization&gt;();</span>
+<span class="fc" id="L116">		PreparedStatement stat = null;</span>
+<span class="fc" id="L117">		ResultSet res = null;</span>
+		try {
+<span class="fc" id="L119">			conn = this.getConnection();</span>
+<span class="fc" id="L120">			stat = conn.prepareStatement(GET_USER_AUTHORIZATIONS);</span>
+<span class="fc" id="L121">			stat.setString(1, username);</span>
+<span class="fc" id="L122">			res = stat.executeQuery();</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">			while (res.next()) {</span>
+<span class="fc" id="L124">				String groupname = res.getString(1);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">				Group group = (null != groupname) ? groups.get(groupname) : null;</span>
+<span class="fc" id="L126">				String rolename = res.getString(2);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">				Role role = (null != rolename) ? roles.get(rolename) : null;</span>
+<span class="fc" id="L128">				Authorization authorization = new Authorization(group, role);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">				if (!authorizations.contains(authorization)) {</span>
+<span class="fc" id="L130">					authorizations.add(authorization);</span>
+				}
+<span class="fc" id="L132">			}</span>
+<span class="nc" id="L133">		} catch (Throwable t) {</span>
+<span class="nc" id="L134">			_logger.error(&quot;Error loading user authorization&quot;,  t);</span>
+<span class="nc" id="L135">			throw new RuntimeException(&quot;Error loading user authorization&quot;, t);</span>
+		} finally {
+<span class="fc" id="L137">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L139">		return authorizations;</span>
+	}
+	
+	@Override
+	public void deleteUserAuthorizations(String username) {
+<span class="fc" id="L144">		super.executeQueryWithoutResultset(DELETE_USER_AUTHORIZATIONS, username);</span>
+<span class="fc" id="L145">	}</span>
+	
+	@Override
+	public List&lt;String&gt; getUsersByAuthorities(List&lt;String&gt; groupNames, List&lt;String&gt; roleNames) {
+<span class="fc" id="L149">		FieldSearchFilter[] filters = {};</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (CollectionUtils.isNotEmpty(groupNames)) {</span>
+<span class="fc" id="L151">			FieldSearchFilter filter = new FieldSearchFilter(&quot;groupname&quot;, groupNames, false);</span>
+<span class="fc" id="L152">			filters = super.addFilter(filters, filter);</span>
+		}
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (CollectionUtils.isNotEmpty(roleNames)) {</span>
+<span class="fc" id="L155">			FieldSearchFilter filter = new FieldSearchFilter(&quot;rolename&quot;, roleNames, false);</span>
+<span class="fc" id="L156">			filters = super.addFilter(filters, filter);</span>
+		}
+<span class="fc" id="L158">		return super.searchId(filters);</span>
+	}
+	
+	@Override
+	protected String getTableFieldName(String metadataFieldKey) {
+<span class="fc" id="L163">		return metadataFieldKey;</span>
+	}
+	
+	@Override
+	protected String getMasterTableName() {
+<span class="fc" id="L168">		return &quot;authusergrouprole&quot;;</span>
+	}
+	
+	@Override
+	protected String getMasterTableIdFieldName() {
+<span class="fc" id="L173">		return &quot;username&quot;;</span>
+	}
+	
+<span class="fc" id="L176">	private final String ADD_AUTHORIZATION =</span>
+		&quot;INSERT INTO authusergrouprole(username, groupname, rolename) VALUES ( ? , ? , ? )&quot;;
+	
+<span class="fc" id="L179">	private final String DELETE_USER_AUTHORIZATIONS =</span>
+		&quot;DELETE FROM authusergrouprole WHERE username = ?&quot;;
+	
+<span class="fc" id="L182">	private final String DELETE_AUTHORIZATION =</span>
+		DELETE_USER_AUTHORIZATIONS + &quot; AND groupname = ? AND rolename = ? &quot;;
+	
+<span class="fc" id="L185">	private final String GET_USER_AUTHORIZATIONS = </span>
+		&quot;SELECT groupname, rolename FROM authusergrouprole WHERE username = ? &quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

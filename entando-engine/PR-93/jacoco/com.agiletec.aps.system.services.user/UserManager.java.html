@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.user</a> &gt; <span class="el_source">UserManager.java</span></div><h1>UserManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.user;
+
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * Servizio di gestione degli utenti.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L32">public class UserManager extends AbstractService implements IUserManager {</span>
+
+<span class="fc" id="L34">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(UserManager.class);</span>
+
+    private IUserDAO userDao;
+    private ConfigInterface configManager;
+    
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L41">        logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L42">    }</span>
+
+    @Override
+    public List&lt;String&gt; getUsernames() throws EntException {
+<span class="fc" id="L46">        return this.searchUsernames(null);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchUsernames(String text) throws EntException {
+<span class="fc" id="L51">        List&lt;String&gt; usernames = null;</span>
+        try {
+<span class="fc" id="L53">            usernames = this.getUserDAO().searchUsernames(text);</span>
+<span class="nc" id="L54">        } catch (Throwable t) {</span>
+<span class="nc" id="L55">            logger.error(&quot;Error searching usernames by text '{}'&quot;, text, t);</span>
+<span class="nc" id="L56">            throw new EntException(&quot;Error loading the username list&quot;, t);</span>
+<span class="fc" id="L57">        }</span>
+<span class="fc" id="L58">        return usernames;</span>
+    }
+
+    /**
+     * Restituisce la lista completa degli utenti (in oggetti User).
+     *
+     * @return La lista completa degli utenti (in oggetti User).
+     * @throws EntException In caso di errore in accesso al db.
+     */
+    @Override
+    public List&lt;UserDetails&gt; getUsers() throws EntException {
+<span class="fc" id="L69">        return this.searchUsers(null);</span>
+    }
+
+    @Override
+    public List&lt;UserDetails&gt; searchUsers(String text) throws EntException {
+<span class="fc" id="L74">        List&lt;UserDetails&gt; users = null;</span>
+        try {
+<span class="fc" id="L76">            users = this.getUserDAO().searchUsers(text);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            for (int i = 0; i &lt; users.size(); i++) {</span>
+<span class="fc" id="L78">                this.setUserCredentialCheckParams(users.get(i));</span>
+            }
+<span class="nc" id="L80">        } catch (Throwable t) {</span>
+<span class="nc" id="L81">            logger.error(&quot;Error searching users by text '{}'&quot;, text, t);</span>
+<span class="nc" id="L82">            throw new EntException(&quot;Error loading the user list&quot;, t);</span>
+<span class="fc" id="L83">        }</span>
+<span class="fc" id="L84">        return users;</span>
+    }
+
+    /**
+     * Elimina un'utente dal db.
+     *
+     * @param user L'utente da eliminare dal db.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void removeUser(UserDetails user) throws EntException {
+        try {
+<span class="fc" id="L96">            this.getUserDAO().deleteUser(user);</span>
+<span class="nc" id="L97">        } catch (Throwable t) {</span>
+<span class="nc" id="L98">            logger.error(&quot;Error deleting user '{}'&quot;, user, t);</span>
+<span class="nc" id="L99">            throw new EntException(&quot;Error deleting a user&quot;, t);</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc" id="L101">    }</span>
+
+    @Override
+    public void removeUser(String username) throws EntException {
+        try {
+<span class="fc" id="L106">            this.getUserDAO().deleteUser(username);</span>
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">            logger.error(&quot;Error deleting user '{}'&quot;, username, t);</span>
+<span class="nc" id="L109">            throw new EntException(&quot;Error deleting a user&quot;, t);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">    }</span>
+
+    /**
+     * Aggiorna un utente nel db.
+     *
+     * @param user L'utente da aggiornare nel db.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void updateUser(UserDetails user) throws EntException {
+        try {
+<span class="fc" id="L122">            this.getUserDAO().updateUser(user);</span>
+<span class="nc" id="L123">        } catch (Throwable t) {</span>
+<span class="nc" id="L124">            logger.error(&quot;Error updating user '{}'&quot;, user, t);</span>
+<span class="nc" id="L125">            throw new EntException(&quot;Error updating the User&quot;, t);</span>
+<span class="fc" id="L126">        }</span>
+<span class="fc" id="L127">    }</span>
+
+    @Override
+    public void changePassword(String username, String password) throws EntException {
+        try {
+<span class="fc" id="L132">            this.getUserDAO().changePassword(username, password);</span>
+<span class="nc" id="L133">        } catch (Throwable t) {</span>
+<span class="nc" id="L134">            logger.error(&quot;Error on change password for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L135">            throw new EntException(&quot;Error updating the password of the User&quot; + username, t);</span>
+<span class="fc" id="L136">        }</span>
+<span class="fc" id="L137">    }</span>
+
+    @Override
+    public void updateLastAccess(UserDetails user) throws EntException {
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">        if (!user.isEntandoUser()) {</span>
+<span class="nc" id="L142">            return;</span>
+        }
+        try {
+<span class="fc" id="L145">            this.getUserDAO().updateLastAccess(user.getUsername());</span>
+<span class="nc" id="L146">        } catch (Throwable t) {</span>
+<span class="nc" id="L147">            logger.error(&quot;Error on update last access for user '{}'&quot;, user, t);</span>
+<span class="nc" id="L148">            throw new EntException(&quot;Error while refreshing the last access date of the User &quot; + user.getUsername(), t);</span>
+<span class="fc" id="L149">        }</span>
+<span class="fc" id="L150">    }</span>
+
+    /**
+     * Aggiunge un utente nel db.
+     *
+     * @param user L'utente da aggiungere nel db.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public void addUser(UserDetails user) throws EntException {
+        try {
+<span class="fc" id="L161">            this.getUserDAO().addUser(user);</span>
+<span class="nc" id="L162">        } catch (Throwable t) {</span>
+<span class="nc" id="L163">            logger.error(&quot;Error on add user '{}'&quot;, user, t);</span>
+<span class="nc" id="L164">            throw new EntException(&quot;Error adding a new user &quot;, t);</span>
+<span class="fc" id="L165">        }</span>
+<span class="fc" id="L166">    }</span>
+
+    /**
+     * Recupera un'user caricandolo da db. Se la userName non corrisponde ad un
+     * utente restituisce null.
+     *
+     * @param username Lo username dell'utente da restituire.
+     * @return L'utente cercato, null se non vi è nessun utente corrispondente
+     * alla username immessa.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public UserDetails getUser(String username) throws EntException {
+<span class="fc" id="L179">        UserDetails user = null;</span>
+        try {
+<span class="fc" id="L181">            user = this.getUserDAO().loadUser(username);</span>
+<span class="nc" id="L182">        } catch (Throwable t) {</span>
+<span class="nc" id="L183">            logger.error(&quot;Error loading user by username '{}'&quot;, username, t);</span>
+<span class="nc" id="L184">            throw new EntException(&quot;Error loading user&quot;, t);</span>
+<span class="fc" id="L185">        }</span>
+<span class="fc" id="L186">        this.setUserCredentialCheckParams(user);</span>
+<span class="fc" id="L187">        return user;</span>
+    }
+
+    /**
+     * Recupera un'user caricandolo da db. Se userName e password non
+     * corrispondono ad un utente, restituisce null.
+     *
+     * @param username Lo username dell'utente da restituire.
+     * @param password La password dell'utente da restituire.
+     * @return L'utente cercato, null se non vi è nessun utente corrispondente
+     * alla username e password immessa.
+     * @throws EntException in caso di errore nell'accesso al db.
+     */
+    @Override
+    public UserDetails getUser(String username, String password) throws EntException {
+<span class="fc" id="L202">        UserDetails user = null;</span>
+        try {
+<span class="fc" id="L204">            user = this.getUserDAO().loadUser(username, password);</span>
+<span class="nc" id="L205">        } catch (Throwable t) {</span>
+<span class="nc" id="L206">            logger.error(&quot;Error loading user by username and password. username: '{}'&quot;, username, t);</span>
+<span class="nc" id="L207">            throw new EntException(&quot;Error loading user&quot;, t);</span>
+<span class="fc" id="L208">        }</span>
+<span class="fc" id="L209">        this.setUserCredentialCheckParams(user);</span>
+<span class="fc" id="L210">        return user;</span>
+    }
+
+    /**
+     * Inserisce nell'utenza le informazioni necessarie per la verifica della
+     * validità delle credenziali. In particolare, in base allo stato del Modulo
+     * Privacy (attivo oppure no), inserisce le informazioni riguardo il numero
+     * massimo di mesi consentiti dal ultimo accesso e il numero massimo di mesi
+     * consentiti dal ultimo cambio password (parametri estratti dalla
+     * configurazioni di sistema).
+     *
+     * @param user L'utenza sulla quale inserire le informazioni necessarie per
+     * la verifica della validità delle credenziali.
+     */
+    protected void setUserCredentialCheckParams(UserDetails user) {
+<span class="pc bpc" id="L225" title="1 of 4 branches missed.">        if (null != user &amp;&amp; user.isEntandoUser()) {</span>
+<span class="fc" id="L226">            User japsUser = (User) user;</span>
+<span class="fc" id="L227">            String enabledPrivacyModuleParValue = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_PM_ENABLED);</span>
+<span class="fc" id="L228">            boolean enabledPrivacyModule = Boolean.parseBoolean(enabledPrivacyModuleParValue);</span>
+<span class="fc" id="L229">            japsUser.setCheckCredentials(enabledPrivacyModule);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">            if (enabledPrivacyModule) {</span>
+<span class="fc" id="L231">                int maxMonthsSinceLastAccess = this.extractNumberParamValue(SystemConstants.CONFIG_PARAM_PM_MM_LAST_ACCESS, 6);</span>
+<span class="fc" id="L232">                japsUser.setMaxMonthsSinceLastAccess(maxMonthsSinceLastAccess);</span>
+<span class="fc" id="L233">                int maxMonthsSinceLastPasswordChange = this.extractNumberParamValue(SystemConstants.CONFIG_PARAM_PM_MM_LAST_PASSWORD_CHANGE, 3);</span>
+<span class="fc" id="L234">                japsUser.setMaxMonthsSinceLastPasswordChange(maxMonthsSinceLastPasswordChange);</span>
+            }
+        }
+<span class="fc" id="L237">    }</span>
+
+    private int extractNumberParamValue(String paramName, int defaultValue) {
+<span class="fc" id="L240">        String parValue = this.getConfigManager().getParam(paramName);</span>
+<span class="fc" id="L241">        int value = 0;</span>
+        try {
+<span class="fc" id="L243">            value = Integer.parseInt(parValue);</span>
+<span class="nc" id="L244">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L245">            value = defaultValue;</span>
+<span class="fc" id="L246">        }</span>
+<span class="fc" id="L247">        return value;</span>
+    }
+
+    private boolean isArgon2Encoded(String encoded) {
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        if (StringUtils.isBlank(encoded)) {</span>
+<span class="nc" id="L252">            return false;</span>
+        }
+<span class="nc" id="L254">        return encoded.startsWith(&quot;$argon2&quot;);</span>
+    }
+
+    private boolean isBCryptEncoded(String encoded) {
+<span class="nc bnc" id="L258" title="All 2 branches missed.">        if (StringUtils.isBlank(encoded)) {</span>
+<span class="nc" id="L259">            return false;</span>
+        }
+<span class="nc" id="L261">        return encoded.startsWith(&quot;{bcrypt}&quot;);</span>
+    }
+
+    /**
+     * Restituisce l'utente di default di sistema. L'utente di default
+     * rappresenta un utente &quot;ospite&quot; senza nessuna autorizzazione di accesso ad
+     * elementi non &quot;liberi&quot; e senza nessuna autorizzazione ad eseguire
+     * qualunque azione sugli elementi del sistema.
+     *
+     * @return L'utente di default di sistema.
+     */
+    @Override
+    public UserDetails getGuestUser() {
+<span class="fc" id="L274">        User user = new User();</span>
+<span class="fc" id="L275">        user.setUsername(SystemConstants.GUEST_USER_NAME);</span>
+<span class="fc" id="L276">        return user;</span>
+    }
+
+    protected ConfigInterface getConfigManager() {
+<span class="fc" id="L280">        return configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L284">        this.configManager = configManager;</span>
+<span class="fc" id="L285">    }</span>
+
+    protected IUserDAO getUserDAO() {
+<span class="fc" id="L288">        return userDao;</span>
+    }
+
+    public void setUserDAO(IUserDAO userDao) {
+<span class="fc" id="L292">        this.userDao = userDao;</span>
+<span class="fc" id="L293">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

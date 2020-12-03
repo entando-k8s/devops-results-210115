@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultTextEncryptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.util.crypto</a> &gt; <span class="el_source">DefaultTextEncryptor.java</span></div><h1>DefaultTextEncryptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ * 
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.util.crypto;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Base64;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.security.crypto.codec.Hex;
+import org.springframework.security.crypto.encrypt.BytesEncryptor;
+import org.springframework.security.crypto.encrypt.Encryptors;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
+import org.springframework.security.crypto.keygen.KeyGenerators;
+
+/**
+ * TextEncryptor implementation that wraps the standard Spring encryptor
+ * generating also the required salt.
+ */
+public class DefaultTextEncryptor implements TextEncryptor {
+    
+<span class="fc" id="L35">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(DefaultTextEncryptor.class);</span>
+
+    private final String key;
+
+<span class="fc" id="L39">    public DefaultTextEncryptor(String key) {</span>
+        
+        // hack for JCE Unlimited Strength	
+        try {
+<span class="fc" id="L43">            Field field = Class.forName(&quot;javax.crypto.JceSecurity&quot;).getDeclaredField(&quot;isRestricted&quot;);</span>
+<span class="fc" id="L44">            field.setAccessible(true);</span>
+
+<span class="fc" id="L46">            Field modifiersField = Field.class.getDeclaredField(&quot;modifiers&quot;);</span>
+<span class="fc" id="L47">            modifiersField.setAccessible(true);</span>
+<span class="fc" id="L48">            modifiersField.setInt(field, field.getModifiers() &amp; ~Modifier.FINAL);</span>
+
+<span class="fc" id="L50">            field.set(null, false);</span>
+<span class="nc" id="L51">        } catch (ReflectiveOperationException ex) {</span>
+<span class="nc" id="L52">            logger.warn(&quot;Error while forcing unlimited JceSecurity&quot;, ex);</span>
+<span class="fc" id="L53">        }</span>
+        
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(key)) {</span>
+<span class="nc" id="L56">            throw new IllegalStateException(&quot;Empty key provided to DefaultTextEncryptor&quot;);</span>
+        }
+<span class="fc" id="L58">        this.key = key;</span>
+<span class="fc" id="L59">    }</span>
+
+    /**
+     * Returns a Base64 string composed by the salt followed by the encrypted
+     * data.
+     */
+    @Override
+    public String encrypt(String plainText) {
+
+        // default StringKeyGenerator returns a 8 bytes hex-encoded string
+<span class="fc" id="L69">        String salt = KeyGenerators.string().generateKey();</span>
+
+<span class="fc" id="L71">        BytesEncryptor encryptor = Encryptors.standard(key, salt);</span>
+<span class="fc" id="L72">        byte[] encrypted = encryptor.encrypt(plainText.getBytes());</span>
+
+<span class="fc" id="L74">        byte[] saltAndSecret = ArrayUtils.addAll(Hex.decode(salt), encrypted);</span>
+<span class="fc" id="L75">        return Base64.getEncoder().encodeToString(saltAndSecret);</span>
+    }
+
+    /**
+     * Returns decrypted text from a Base64 string composed by the salt followed
+     * by the encrypted data.
+     */
+    @Override
+    public String decrypt(String base64Data) {
+
+<span class="fc" id="L85">        byte[] bytes = Base64.getDecoder().decode(base64Data);</span>
+<span class="fc" id="L86">        byte[] saltBytes = ArrayUtils.subarray(bytes, 0, 8);</span>
+<span class="fc" id="L87">        byte[] encryptedBytes = ArrayUtils.subarray(bytes, 8, bytes.length);</span>
+
+<span class="fc" id="L89">        String salt = new String(Hex.encode(saltBytes));</span>
+<span class="fc" id="L90">        BytesEncryptor encryptor = Encryptors.standard(key, salt);</span>
+
+<span class="fc" id="L92">        return new String(encryptor.decrypt(encryptedBytes));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

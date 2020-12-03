@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseDataObjectDispenser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectdispenser</a> &gt; <span class="el_source">BaseDataObjectDispenser.java</span></div><h1>BaseDataObjectDispenser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectdispenser;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.user.UserDetails;
+import org.entando.entando.aps.system.services.dataobject.helper.IDataAuthorizationHelper;
+import org.entando.entando.aps.system.services.dataobject.helper.PublicDataTypeAuthorizationInfo;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+import org.entando.entando.aps.system.services.dataobjectrenderer.IDataObjectRenderer;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+
+/**
+ * Fornisce i DataObject formattati. Il compito del servizio, in fase di
+ * richiesta di un DataObject formattato, è quello di controllare
+ * preliminarmente le autorizzazzioni dell'utente corrente all'accesso al
+ * DataObject; successivamente (in caso di autorizzazioni valide) restituisce il
+ * DataObject formattato.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L44">public class BaseDataObjectDispenser extends AbstractService implements IDataObjectDispenser {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BaseDataObjectDispenser.class);</span>
+
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L50">		_logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L51">	}</span>
+
+	@Override
+	//@Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+	//		key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheKey(#contentId, #modelId, #langCode, #reqCtx)&quot;)
+	//@CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheGroupsCsv(#contentId, #modelId)&quot;)
+	public DataObjectRenderizationInfo getRenderizationInfo(String dataObjectId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc" id="L58">		PublicDataTypeAuthorizationInfo authInfo = this.getDataAuthorizationHelper().getAuthorizationInfo(dataObjectId, true);</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">		if (null == authInfo) {</span>
+<span class="nc" id="L60">			return null;</span>
+		}
+<span class="fc" id="L62">		return this.getRenderizationInfo(authInfo, dataObjectId, modelId, langCode, reqCtx);</span>
+	}
+
+	@Override
+	//@Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, condition = &quot;#cacheable&quot;,
+	//		key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheKey(#contentId, #modelId, #langCode, #reqCtx)&quot;)
+	//@CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser).getRenderizationInfoCacheGroupsCsv(#contentId, #modelId)&quot;)
+	public DataObjectRenderizationInfo getRenderizationInfo(String dataObjectId,
+			long modelId, String langCode, RequestContext reqCtx, boolean cacheable) {
+<span class="fc" id="L71">		PublicDataTypeAuthorizationInfo authInfo = this.getDataAuthorizationHelper().getAuthorizationInfo(dataObjectId, cacheable);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">		if (null == authInfo) {</span>
+<span class="fc" id="L73">			return null;</span>
+		}
+<span class="fc" id="L75">		return this.getRenderizationInfo(authInfo, dataObjectId, modelId, langCode, reqCtx, cacheable);</span>
+	}
+
+	protected DataObjectRenderizationInfo getRenderizationInfo(PublicDataTypeAuthorizationInfo authInfo,
+			String dataObjectId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc" id="L80">		return this.getRenderizationInfo(authInfo, dataObjectId, modelId, langCode, reqCtx, true);</span>
+	}
+
+	protected DataObjectRenderizationInfo getRenderizationInfo(PublicDataTypeAuthorizationInfo authInfo,
+			String dataObjectId, long modelId, String langCode, RequestContext reqCtx, boolean cacheable) {
+<span class="fc" id="L85">		DataObjectRenderizationInfo renderInfo = null;</span>
+		try {
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">			UserDetails currentUser = (null != reqCtx) ? (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER) : null;</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">			List&lt;Group&gt; userGroups = (null != currentUser) ? this.getAuthorizationManager().getUserGroups(currentUser) : new ArrayList&lt;Group&gt;();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">			if (authInfo.isUserAllowed(userGroups)) {</span>
+<span class="fc" id="L90">				renderInfo = this.getBaseRenderizationInfo(authInfo, dataObjectId, modelId, langCode, currentUser, reqCtx, cacheable);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">				if (null == renderInfo) {</span>
+<span class="nc" id="L92">					return null;</span>
+				}
+			} else {
+<span class="fc" id="L95">				String renderedDataObject = &quot;Current user '&quot; + currentUser.getUsername() + &quot;' can't view this DataObject&quot;;</span>
+<span class="fc" id="L96">				DataObject dataObjectToRender = this.getDataObjectManager().loadDataObject(dataObjectId, true, cacheable);</span>
+<span class="fc" id="L97">				renderInfo = new DataObjectRenderizationInfo(dataObjectToRender, renderedDataObject, modelId, langCode, null);</span>
+<span class="fc" id="L98">				renderInfo.setRenderedDataobject(renderedDataObject);</span>
+<span class="fc" id="L99">				return renderInfo;</span>
+			}
+<span class="nc" id="L101">		} catch (Throwable t) {</span>
+<span class="nc" id="L102">			_logger.error(&quot;Error while rendering dataObject {}&quot;, dataObjectId, t);</span>
+<span class="nc" id="L103">			return null;</span>
+<span class="fc" id="L104">		}</span>
+<span class="fc" id="L105">		return renderInfo;</span>
+	}
+
+	public DataObjectRenderizationInfo getBaseRenderizationInfo(PublicDataTypeAuthorizationInfo authInfo,
+			String dataObjectId, long modelId, String langCode, UserDetails currentUser, RequestContext reqCtx) {
+<span class="nc" id="L110">		return this.getBaseRenderizationInfo(authInfo, dataObjectId, modelId, langCode, currentUser, reqCtx, true);</span>
+	}
+
+	public DataObjectRenderizationInfo getBaseRenderizationInfo(PublicDataTypeAuthorizationInfo authInfo,
+			String dataObjectId, long modelId, String langCode, UserDetails currentUser, RequestContext reqCtx, boolean cacheable) {
+<span class="fc" id="L115">		DataObjectRenderizationInfo renderInfo = null;</span>
+		try {
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">			List&lt;Group&gt; userGroups = (null != currentUser) ? this.getAuthorizationManager().getUserGroups(currentUser) : new ArrayList&lt;Group&gt;();</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">			if (authInfo.isUserAllowed(userGroups)) {</span>
+<span class="fc" id="L119">				DataObject dataObjectToRender = this.getDataObjectManager().loadDataObject(dataObjectId, true, cacheable);</span>
+<span class="fc" id="L120">				renderInfo = this.getBaseRenderizationInfo(dataObjectToRender, modelId, langCode, reqCtx);</span>
+			}
+<span class="nc" id="L122">		} catch (Throwable t) {</span>
+<span class="nc" id="L123">			_logger.error(&quot;Error while rendering DataObject {}&quot;, dataObjectId, t);</span>
+<span class="nc" id="L124">			return null;</span>
+<span class="fc" id="L125">		}</span>
+<span class="fc" id="L126">		return renderInfo;</span>
+	}
+
+	@Override
+	public DataObjectRenderizationInfo getBaseRenderizationInfo(DataObject contentToRender,
+			long modelId, String langCode, RequestContext reqCtx) {
+<span class="fc" id="L132">		DataObjectRenderizationInfo renderInfo = null;</span>
+		try {
+<span class="fc" id="L134">			String renderedDataObject = this.buildRenderedDataObject(contentToRender, modelId, langCode, reqCtx);</span>
+<span class="pc bpc" id="L135" title="2 of 4 branches missed.">			if (null != renderedDataObject &amp;&amp; renderedDataObject.trim().length() &gt; 0) {</span>
+<span class="fc" id="L136">				List&lt;AttributeRole&gt; roles = this.getDataObjectManager().getAttributeRoles();</span>
+<span class="fc" id="L137">				renderInfo = new DataObjectRenderizationInfo(contentToRender, renderedDataObject, modelId, langCode, roles);</span>
+			}
+<span class="nc" id="L139">		} catch (Throwable t) {</span>
+<span class="nc" id="L140">			_logger.error(&quot;Error while rendering DataObject&quot;, t);</span>
+<span class="nc" id="L141">			return null;</span>
+<span class="fc" id="L142">		}</span>
+<span class="fc" id="L143">		return renderInfo;</span>
+	}
+
+	protected synchronized String buildRenderedDataObject(DataObject dataObject, long modelId, String langCode, RequestContext reqCtx) {
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">		if (null == dataObject) {</span>
+<span class="nc" id="L148">			_logger.warn(&quot;Null The dataObject can't be rendered&quot;);</span>
+<span class="nc" id="L149">			return null;</span>
+		}
+<span class="fc" id="L151">		String renderedDataObject = null;</span>
+<span class="fc" id="L152">		boolean ok = false;</span>
+		try {
+<span class="fc" id="L154">			renderedDataObject = this.getDataObjectRenderer().render(dataObject, modelId, langCode, reqCtx);</span>
+<span class="fc" id="L155">			ok = true;</span>
+<span class="nc" id="L156">		} catch (Throwable t) {</span>
+<span class="nc" id="L157">			_logger.error(&quot;error in buildRenderedDataObject&quot;, t);</span>
+<span class="fc" id="L158">		}</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">		if (!ok) {</span>
+<span class="nc" id="L160">			_logger.warn(&quot;The DataObject {} can't be rendered&quot;, dataObject.getId());</span>
+		}
+<span class="fc" id="L162">		return renderedDataObject;</span>
+	}
+
+	/*
+	public static String getRenderizationInfoCacheKey(String dataObjectId, long modelId, String langCode, RequestContext reqCtx) {
+		UserDetails currentUser = (null != reqCtx) ? (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER) : null;
+		StringBuffer key = new StringBuffer();
+		key.append(dataObjectId).append(&quot;_&quot;).append(modelId).append(&quot;_&quot;).append(langCode).append(&quot;_RENDER_INFO_CacheKey&quot;);
+		if (null != currentUser &amp;&amp; !currentUser.getUsername().equals(SystemConstants.GUEST_USER_NAME)) {
+			List&lt;String&gt; codes = new ArrayList&lt;String&gt;();
+			if (null != currentUser.getAuthorizations()) {
+				for (int i = 0; i &lt; currentUser.getAuthorizations().size(); i++) {
+					Authorization auth = currentUser.getAuthorizations().get(i);
+					if (null != auth &amp;&amp; null != auth.getGroup()) {
+						String code = auth.getGroup().getAuthority() + &quot;_&quot;;
+						if (null != auth.getRole()) {
+							code += auth.getRole().getAuthority();
+						} else {
+							code += &quot;null&quot;;
+						}
+						codes.add(code);
+					}
+				}
+			}
+			if (!codes.isEmpty()) {
+				key.append(&quot;_AUTHS:&quot;);
+				appendAuthCodes(codes, key);
+			}
+		}
+		return key.toString();
+	}
+	 */
+ /*
+	private static void appendAuthCodes(List&lt;String&gt; codes, StringBuffer key) {
+		Collections.sort(codes);
+		for (int i = 0; i &lt; codes.size(); i++) {
+			if (i &gt; 0) {
+				key.append(&quot;-&quot;);
+			}
+			key.append(codes.get(i));
+		}
+	}
+	 */
+ /*
+	public static String getRenderizationInfoCacheGroupsCsv(String contentId, long modelId) {
+		StringBuilder builder = new StringBuilder();
+		String typeCode = contentId.substring(0, 3);
+		String contentCacheGroupId = JacmsSystemConstants.CONTENT_CACHE_GROUP_PREFIX + contentId;
+		String modelCacheGroupId = JacmsSystemConstants.CONTENT_MODEL_CACHE_GROUP_PREFIX + modelId;
+		String typeCacheGroupId = JacmsSystemConstants.CONTENT_TYPE_CACHE_GROUP_PREFIX + typeCode;
+		builder.append(contentCacheGroupId).append(&quot;,&quot;).append(modelCacheGroupId).append(&quot;,&quot;).append(typeCacheGroupId);
+		return builder.toString();
+	}
+	 */
+	public IDataAuthorizationHelper getDataAuthorizationHelper() {
+<span class="fc" id="L217">		return _dataAuthorizationHelper;</span>
+	}
+
+	public void setDataAuthorizationHelper(IDataAuthorizationHelper dataAuthorizationHelper) {
+<span class="fc" id="L221">		this._dataAuthorizationHelper = dataAuthorizationHelper;</span>
+<span class="fc" id="L222">	}</span>
+
+	public IDataObjectManager getDataObjectManager() {
+<span class="fc" id="L225">		return _dataObjectManager;</span>
+	}
+
+	public void setDataObjectManager(IDataObjectManager dataObjectManager) {
+<span class="fc" id="L229">		this._dataObjectManager = dataObjectManager;</span>
+<span class="fc" id="L230">	}</span>
+
+	protected IDataObjectRenderer getDataObjectRenderer() {
+<span class="fc" id="L233">		return _dataObjectRenderer;</span>
+	}
+
+	public void setDataObjectRenderer(IDataObjectRenderer renderer) {
+<span class="fc" id="L237">		this._dataObjectRenderer = renderer;</span>
+<span class="fc" id="L238">	}</span>
+
+	protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L241">		return _authorizationManager;</span>
+	}
+
+	public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L245">		this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L246">	}</span>
+
+	private IDataAuthorizationHelper _dataAuthorizationHelper;
+
+	private IDataObjectRenderer _dataObjectRenderer;
+	private IDataObjectManager _dataObjectManager;
+	private IAuthorizationManager _authorizationManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

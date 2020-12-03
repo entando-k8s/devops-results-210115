@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiUserProfileTypeInterface.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.userprofile.api</a> &gt; <span class="el_source">ApiUserProfileTypeInterface.java</span></div><h1>ApiUserProfileTypeInterface.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.userprofile.api;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.entando.entando.aps.system.services.api.IApiErrorCodes;
+import org.entando.entando.aps.system.services.api.model.ApiException;
+import org.entando.entando.aps.system.services.api.model.StringApiResponse;
+import org.entando.entando.aps.system.services.api.server.IResponseBuilder;
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.api.model.JAXBUserProfileType;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.IEntityTypesConfigurer;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class ApiUserProfileTypeInterface {</span>
+	
+<span class="fc" id="L41">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ApiUserProfileTypeInterface.class);</span>
+    
+    public JAXBUserProfileType getUserProfileType(Properties properties) throws ApiException, Throwable {
+<span class="nc" id="L44">        JAXBUserProfileType jaxbProfileType = null;</span>
+        try {
+<span class="nc" id="L46">            String typeCode = properties.getProperty(&quot;typeCode&quot;);</span>
+<span class="nc" id="L47">            IApsEntity masterProfileType = this.getUserProfileManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">            if (null == masterProfileType) {</span>
+<span class="nc" id="L49">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;User Profile type with code '&quot; + typeCode + &quot;' does not exist&quot;);</span>
+            }
+<span class="nc" id="L51">            jaxbProfileType = new JAXBUserProfileType(masterProfileType);</span>
+<span class="nc" id="L52">        } catch (ApiException ae) {</span>
+<span class="nc" id="L53">            throw ae;</span>
+<span class="nc" id="L54">        } catch (Throwable t) {</span>
+<span class="nc" id="L55">        	_logger.error(&quot;Error extracting user profile type&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;getProfileType&quot;);
+<span class="nc" id="L57">            throw new EntException(&quot;Error extracting user profile type&quot;, t);</span>
+<span class="nc" id="L58">        }</span>
+<span class="nc" id="L59">        return jaxbProfileType;</span>
+    }
+    
+    public StringApiResponse addUserProfileType(JAXBUserProfileType jaxbProfileType) throws Throwable {
+<span class="nc" id="L63">        StringApiResponse response = new StringApiResponse();</span>
+        try {
+<span class="nc" id="L65">            String typeCode = jaxbProfileType.getTypeCode();</span>
+<span class="nc" id="L66">            IApsEntity masterProfileType = this.getUserProfileManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (null != masterProfileType) {</span>
+<span class="nc" id="L68">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;User Profile type with code '&quot; + typeCode + &quot;' already exists&quot;);</span>
+            }
+<span class="nc bnc" id="L70" title="All 4 branches missed.">            if (typeCode == null || typeCode.length() != 3) {</span>
+<span class="nc" id="L71">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Invalid type code - '&quot; + typeCode + &quot;'&quot;);</span>
+            }
+<span class="nc" id="L73">            Map&lt;String, AttributeInterface&gt; attributes = this.getUserProfileManager().getEntityAttributePrototypes();</span>
+<span class="nc" id="L74">            IApsEntity profileType = jaxbProfileType.buildEntityType(this.getUserProfileManager().getEntityClass(), attributes);</span>
+<span class="nc" id="L75">            ((IEntityTypesConfigurer) this.getUserProfileManager()).addEntityPrototype(profileType);</span>
+<span class="nc" id="L76">            response.setResult(IResponseBuilder.SUCCESS, null);</span>
+<span class="nc" id="L77">        } catch (ApiException ae) {</span>
+<span class="nc" id="L78">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L79">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L80">        } catch (Throwable t) {</span>
+<span class="nc" id="L81">        	_logger.error(&quot;Error adding user profile type&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;addProfileType&quot;);
+<span class="nc" id="L83">            throw new EntException(&quot;Error adding user profile type&quot;, t);</span>
+<span class="nc" id="L84">        }</span>
+<span class="nc" id="L85">        return response;</span>
+    }
+    
+    public StringApiResponse updateUserProfileType(JAXBUserProfileType jaxbProfileType) throws Throwable {
+<span class="nc" id="L89">        StringApiResponse response = new StringApiResponse();</span>
+        try {
+<span class="nc" id="L91">            String typeCode = jaxbProfileType.getTypeCode();</span>
+<span class="nc" id="L92">            IApsEntity masterProfileType = this.getUserProfileManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if (null == masterProfileType) {</span>
+<span class="nc" id="L94">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;User Profile type with code '&quot; + typeCode + &quot;' doesn't exist&quot;);</span>
+            }
+<span class="nc" id="L96">            Map&lt;String, AttributeInterface&gt; attributes = this.getUserProfileManager().getEntityAttributePrototypes();</span>
+<span class="nc" id="L97">            IApsEntity profileType = jaxbProfileType.buildEntityType(this.getUserProfileManager().getEntityClass(), attributes);</span>
+<span class="nc" id="L98">            ((IEntityTypesConfigurer) this.getUserProfileManager()).updateEntityPrototype(profileType);</span>
+<span class="nc" id="L99">            response.setResult(IResponseBuilder.SUCCESS, null);</span>
+<span class="nc" id="L100">        } catch (ApiException ae) {</span>
+<span class="nc" id="L101">            response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L102">            response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L103">        } catch (Throwable t) {</span>
+<span class="nc" id="L104">        	_logger.error(&quot;Error updating user profile type&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;updateProfileType&quot;);
+<span class="nc" id="L106">            throw new EntException(&quot;Error updating user profile type&quot;, t);</span>
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">        return response;</span>
+    }
+    
+    public void deleteUserProfileType(Properties properties) throws ApiException, Throwable {
+        try {
+<span class="nc" id="L113">            String typeCode = properties.getProperty(&quot;typeCode&quot;);</span>
+<span class="nc" id="L114">            IApsEntity masterProfileType = this.getUserProfileManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            if (null == masterProfileType) {</span>
+<span class="nc" id="L116">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;User Profile type with code '&quot; + typeCode + &quot;' doesn't exist&quot;);</span>
+            }
+<span class="nc" id="L118">            EntitySearchFilter filter = new EntitySearchFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY, false, typeCode, false);</span>
+<span class="nc" id="L119">            List&lt;String&gt; profileIds = this.getUserProfileManager().searchId(new EntitySearchFilter[]{filter});</span>
+<span class="nc bnc" id="L120" title="All 4 branches missed.">            if (null != profileIds &amp;&amp; !profileIds.isEmpty()) {</span>
+<span class="nc" id="L121">                throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;User profile type '&quot; + typeCode + &quot;' are used into &quot; + profileIds.size() + &quot; profiles&quot;);</span>
+            }
+<span class="nc" id="L123">            ((IEntityTypesConfigurer) this.getUserProfileManager()).removeEntityPrototype(typeCode);</span>
+<span class="nc" id="L124">        } catch (ApiException ae) {</span>
+<span class="nc" id="L125">            throw ae;</span>
+<span class="nc" id="L126">        } catch (Throwable t) {</span>
+<span class="nc" id="L127">        	_logger.error(&quot;Error deleting user Profile type&quot;, t);</span>
+            //ApsSystemUtils.logThrowable(t, this, &quot;deleteProfileType&quot;);
+<span class="nc" id="L129">            throw new EntException(&quot;Error deleting user Profile type&quot;, t);</span>
+<span class="nc" id="L130">        }</span>
+<span class="nc" id="L131">    }</span>
+    
+    protected IUserProfileManager getUserProfileManager() {
+<span class="nc" id="L134">        return _userProfileManager;</span>
+    }
+    public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="fc" id="L137">        this._userProfileManager = userProfileManager;</span>
+<span class="fc" id="L138">    }</span>
+    
+    private IUserProfileManager _userProfileManager;
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

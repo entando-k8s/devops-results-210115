@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApsSystemUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system</a> &gt; <span class="el_source">ApsSystemUtils.java</span></div><h1>ApsSystemUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system;
+
+import java.io.File;
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AsyncAppender;
+import org.apache.logging.log4j.core.appender.RollingFileAppender;
+import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
+import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.action.Action;
+import org.apache.logging.log4j.core.appender.rolling.action.DeleteAction;
+import org.apache.logging.log4j.core.appender.rolling.action.IfAccumulatedFileCount;
+import org.apache.logging.log4j.core.appender.rolling.action.PathCondition;
+import org.apache.logging.log4j.core.config.AppenderRef;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Utility class for system logger
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L43">public class ApsSystemUtils {</span>
+
+<span class="fc" id="L45">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ApsSystemUtils.class);</span>
+
+    public static final String INIT_PROP_LOG_ACTIVE_FILE_OUTPUT = &quot;logActiveFileOutput&quot;;
+
+    public static final String INIT_PROP_LOG_NAME = &quot;logName&quot;;
+
+    public static final String INIT_PROP_LOG_FILE_PATTERN = &quot;logFileRotatePattern&quot;;
+
+    public static final String INIT_PROP_LOG_LEVEL = &quot;logLevel&quot;;
+
+    public static final String INIT_PROP_LOG_FILE_SIZE = &quot;logFileSize&quot;;
+
+    public static final String INIT_PROP_LOG_FILES_COUNT = &quot;logFilesCount&quot;;
+
+    private static final long KILOBYTE = 1024L;
+
+<span class="fc" id="L61">    private static final boolean ENABLE_DIRECT_STDOUT_TRACE =</span>
+<span class="fc" id="L62">            (&quot;&quot; + System.getProperty(&quot;org.entando.enableDirectStdoutTrace&quot;)).equals(&quot;true&quot;);</span>
+
+    private Map&lt;String, Object&gt; systemParams;
+
+    public void init() throws Exception {
+<span class="fc" id="L67">        String active = (String) this.systemParams.get(INIT_PROP_LOG_ACTIVE_FILE_OUTPUT);</span>
+<span class="pc bpc" id="L68" title="2 of 4 branches missed.">        if (StringUtils.isEmpty(active) || !active.equalsIgnoreCase(&quot;true&quot;)) {</span>
+<span class="fc" id="L69">            return;</span>
+        }
+<span class="nc" id="L71">        String appenderName = &quot;ENTANDO&quot;;</span>
+<span class="nc" id="L72">        String conversionPattern = (String) this.systemParams.get(&quot;log4jConversionPattern&quot;);</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if (StringUtils.isBlank(conversionPattern)) {</span>
+<span class="nc" id="L74">            conversionPattern = &quot;%d{yyyy-MM-dd HH:mm:ss.SSS} - %-5p -  %c - %m%n&quot;;</span>
+        }
+<span class="nc" id="L76">        String maxFileSize = (String) this.systemParams.get(INIT_PROP_LOG_FILE_SIZE);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (StringUtils.isBlank(maxFileSize)) {</span>
+<span class="nc" id="L78">            maxFileSize = &quot;1MB&quot;; //default size</span>
+        } else {
+<span class="nc" id="L80">            long mega = new Long(maxFileSize) / KILOBYTE;</span>
+<span class="nc" id="L81">            maxFileSize = mega + &quot;KB&quot;;</span>
+        }
+<span class="nc" id="L83">        String filePattern = (String) this.systemParams.get(INIT_PROP_LOG_FILE_PATTERN);</span>
+<span class="nc" id="L84">        String filename = (String) this.systemParams.get(INIT_PROP_LOG_NAME);</span>
+<span class="nc" id="L85">        int maxBackupIndex = Integer.parseInt((String) this.systemParams.get(INIT_PROP_LOG_FILES_COUNT));</span>
+<span class="nc" id="L86">        String log4jLevelString = (String) this.systemParams.get(INIT_PROP_LOG_LEVEL);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (StringUtils.isBlank(log4jLevelString)) {</span>
+<span class="nc" id="L88">            log4jLevelString = &quot;INFO&quot;; //default level</span>
+        }
+<span class="nc" id="L90">        Configurator.setRootLevel(Level.getLevel(log4jLevelString));</span>
+<span class="nc" id="L91">        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);</span>
+<span class="nc" id="L92">        loggerContext.getRootLogger().setLevel(Level.getLevel(log4jLevelString));</span>
+<span class="nc" id="L93">        Configurator.setAllLevels(loggerContext.getRootLogger().getName(), Level.getLevel(log4jLevelString));</span>
+<span class="nc" id="L94">        Configuration configuration = loggerContext.getConfiguration();</span>
+<span class="nc" id="L95">        RollingFileAppender fileAppender = (RollingFileAppender) configuration.getAppender(appenderName);</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (null == fileAppender) {</span>
+<span class="nc" id="L97">            PathCondition[] pathConditions = new PathCondition[]{IfAccumulatedFileCount.createFileCountCondition(maxBackupIndex)};</span>
+<span class="nc" id="L98">            String basePath = filePattern.substring(0, filePattern.lastIndexOf(File.separator));</span>
+<span class="nc" id="L99">            DeleteAction deleteAction = DeleteAction.createDeleteAction(basePath, true, 1, false, null, pathConditions, null, configuration);</span>
+<span class="nc" id="L100">            SizeBasedTriggeringPolicy policy = SizeBasedTriggeringPolicy.createPolicy(maxFileSize);</span>
+<span class="nc" id="L101">            PatternLayout layout = PatternLayout.newBuilder().withPattern(conversionPattern).build();</span>
+<span class="nc" id="L102">            DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()</span>
+<span class="nc" id="L103">                    .withConfig(configuration).withMax(String.valueOf(maxBackupIndex))</span>
+<span class="nc" id="L104">                    .withCustomActions(new Action[]{deleteAction}).build();</span>
+<span class="nc" id="L105">            fileAppender = RollingFileAppender.newBuilder()</span>
+<span class="nc" id="L106">                    .withName(appenderName)</span>
+<span class="nc" id="L107">                    .setConfiguration(configuration)</span>
+<span class="nc" id="L108">                    .withLayout(layout)</span>
+<span class="nc" id="L109">                    .withFileName(filename)</span>
+<span class="nc" id="L110">                    .withFilePattern(filePattern)</span>
+<span class="nc" id="L111">                    .withPolicy(policy)</span>
+<span class="nc" id="L112">                    .withStrategy(strategy)</span>
+<span class="nc" id="L113">                    .build();</span>
+<span class="nc" id="L114">            configuration.addAppender(fileAppender);</span>
+<span class="nc" id="L115">            Configurator.setLevel(appenderName, Level.getLevel(log4jLevelString));</span>
+<span class="nc" id="L116">            fileAppender.start();</span>
+        }
+<span class="nc" id="L118">        AsyncAppender async = (AsyncAppender) loggerContext.getRootLogger().getAppenders().get(&quot;async&quot;);</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (null == async) {</span>
+<span class="nc" id="L120">            AppenderRef ref = AppenderRef.createAppenderRef(appenderName, Level.getLevel(log4jLevelString), null);</span>
+<span class="nc" id="L121">            async = AsyncAppender.newBuilder().setName(&quot;async&quot;)</span>
+<span class="nc" id="L122">                    .setConfiguration(configuration)</span>
+<span class="nc" id="L123">                    .setAppenderRefs(new AppenderRef[]{ref}).build();</span>
+<span class="nc" id="L124">            configuration.addAppender(async);</span>
+<span class="nc" id="L125">            loggerContext.getRootLogger().addAppender(async);</span>
+<span class="nc" id="L126">            async.start();</span>
+        }
+<span class="nc" id="L128">        loggerContext.updateLoggers();</span>
+<span class="nc" id="L129">    }</span>
+
+    public static org.slf4j.Logger getLogger() {
+<span class="nc" id="L132">        return logger;</span>
+    }
+
+    /**
+     * Draw an exception on the context logger.
+     *
+     * @param t The exception to trace
+     * @param caller The caller class
+     * @param methodName The method in which the error occurred.
+     * @param message The message to include
+     */
+    public static void logThrowable(Throwable t, Object caller,
+            String methodName, String message) {
+<span class="fc" id="L145">        String className = null;</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        if (caller != null) {</span>
+<span class="fc" id="L147">            className = caller.getClass().getName();</span>
+        }
+<span class="fc" id="L149">        logger.error(&quot;{} in {}.{}&quot;, message, className, methodName, t);</span>
+<span class="fc" id="L150">    }</span>
+
+    /**
+     * Draw an exception on the context logger.
+     *
+     * @param t The exception to trace
+     * @param caller The caller class
+     * @param methodName The method in which the error occurred.
+     */
+    public static void logThrowable(Throwable t, Object caller, String methodName) {
+<span class="fc" id="L160">        logThrowable(t, caller, methodName, &quot;Exception&quot;);</span>
+<span class="fc" id="L161">    }</span>
+
+    public void setSystemParams(Map&lt;String, Object&gt; systemParams) {
+<span class="fc" id="L164">        this.systemParams = systemParams;</span>
+<span class="fc" id="L165">    }</span>
+
+    public static boolean directStdoutTrace(String str) {
+<span class="fc" id="L168">        return directStdoutTrace(str, false);</span>
+    }
+
+    public static boolean directStdoutTrace(String str, boolean force) {
+<span class="pc bpc" id="L172" title="2 of 4 branches missed.">        if (ENABLE_DIRECT_STDOUT_TRACE || force) {</span>
+<span class="nc" id="L173">            System.out.println(str);    //NOSONAR</span>
+<span class="nc" id="L174">            return true;</span>
+        } else {
+<span class="fc" id="L176">            return false;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

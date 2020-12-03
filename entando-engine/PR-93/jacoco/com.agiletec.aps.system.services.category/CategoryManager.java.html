@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.category</a> &gt; <span class="el_source">CategoryManager.java</span></div><h1>CategoryManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.category;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.BeanFactoryUtils;
+import org.springframework.beans.factory.ListableBeanFactory;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.tree.ITreeNode;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.cache.ICategoryManagerCacheWrapper;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.util.DateConverter;
+
+/**
+ * Manager delle Categorie.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L40">public class CategoryManager extends AbstractService implements ICategoryManager {</span>
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CategoryManager.class);</span>
+
+	private ILangManager _langManager;
+
+	private ICategoryManagerCacheWrapper _cacheWrapper;
+
+	private ICategoryDAO _categoryDao;
+
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L52">		this.initCache();</span>
+<span class="fc" id="L53">		_logger.debug(&quot;{} initialized&quot;, this.getClass().getName());</span>
+<span class="fc" id="L54">	}</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L58">        this.getCacheWrapper().release();</span>
+<span class="fc" id="L59">        super.release();</span>
+<span class="fc" id="L60">    }</span>
+
+	private void initCache() throws EntException {
+<span class="fc" id="L63">		this.getCacheWrapper().initCache(this.getCategoryDAO(), this.getLangManager());</span>
+<span class="fc" id="L64">	}</span>
+
+	/**
+	 * Aggiunge una categoria al db.
+	 *
+	 * @param category La categoria da aggiungere.
+	 * @throws EntException In caso di errore nell'accesso al db.
+	 */
+	@Override
+	public void addCategory(Category category) throws EntException {
+		try {
+<span class="fc" id="L75">			this.getCategoryDAO().addCategory(category);</span>
+<span class="fc" id="L76">            this.getCacheWrapper().addCategory(category);</span>
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error detected while adding a category&quot;, t);</span>
+<span class="nc" id="L79">			throw new EntException(&quot;Error detected while adding a category&quot;, t);</span>
+<span class="fc" id="L80">		}</span>
+<span class="fc" id="L81">	}</span>
+
+	/**
+	 * Cancella una categoria.
+	 *
+	 * @param code Il codice della categoria da eliminare.
+	 * @throws EntException in caso di errore nell'accesso al db.
+	 */
+	@Override
+	public void deleteCategory(String code) throws EntException {
+<span class="fc" id="L91">		Category cat = this.getCategory(code);</span>
+<span class="pc bpc" id="L92" title="2 of 4 branches missed.">		if (cat == null || cat.getChildrenCodes().length &gt; 0) {</span>
+<span class="nc" id="L93">			throw new EntException(&quot;Error detected while removing a category&quot;);</span>
+		}
+
+		try {
+<span class="fc" id="L97">			this.getCategoryDAO().deleteCategory(code);</span>
+<span class="fc" id="L98">			this.getCacheWrapper().deleteCategory(code);</span>
+<span class="nc" id="L99">		} catch (Throwable t) {</span>
+<span class="nc" id="L100">			_logger.error(&quot;Error detected while removing the category {}&quot;, code, t);</span>
+<span class="nc" id="L101">			throw new EntException(&quot;Error detected while removing a category&quot;, t);</span>
+<span class="fc" id="L102">		}</span>
+<span class="fc" id="L103">	}</span>
+
+	/**
+	 * Aggiorna una categoria nel db.
+	 *
+	 * @param category La categoria da modificare.
+	 * @throws EntException In caso di errore nell'accesso al db.
+	 */
+	@Override
+	public void updateCategory(Category category) throws EntException {
+		try {
+<span class="fc" id="L114">			this.getCategoryDAO().updateCategory(category);</span>
+<span class="fc" id="L115">            this.getCacheWrapper().updateCategory(category);</span>
+<span class="nc" id="L116">		} catch (Throwable t) {</span>
+<span class="nc" id="L117">			_logger.error(&quot;Error detected while updating a category&quot;, t);</span>
+<span class="nc" id="L118">			throw new EntException(&quot;Error detected while updating a category&quot;, t);</span>
+<span class="fc" id="L119">		}</span>
+<span class="fc" id="L120">	}</span>
+
+	/**
+	 * Restituisce la radice dell'albero delle categorie
+	 *
+	 * @return la categoria radice
+	 */
+	@Override
+	public Category getRoot() {
+<span class="fc" id="L129">		return this.getCacheWrapper().getRoot();</span>
+	}
+
+	/**
+	 * Restituisce una lista piatta delle categorie disponibili, ordinate
+	 * secondo la gerarchia dell'albero delle categorie. La categoria root non
+	 * viene inclusa nella lista.
+	 *
+	 * @return La lista piatta delle categorie disponibili.
+	 */
+	@Override
+	public List&lt;Category&gt; getCategoriesList() {
+<span class="fc" id="L141">		List&lt;Category&gt; categories = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">		if (null != this.getRoot()) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			for (int i = 0; i &lt; this.getRoot().getChildrenCodes().length; i++) {</span>
+<span class="fc" id="L144">				this.addCategories(categories, this.getRoot().getChildrenCodes()[i]);</span>
+			}
+		}
+<span class="fc" id="L147">		return categories;</span>
+	}
+
+	private void addCategories(List&lt;Category&gt; categories, String categoryCode) {
+<span class="fc" id="L151">		Category category = this.getCategory(categoryCode);</span>
+<span class="fc" id="L152">		categories.add(category);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		for (int i = 0; i &lt; category.getChildrenCodes().length; i++) {</span>
+<span class="fc" id="L154">			this.addCategories(categories, category.getChildrenCodes()[i]);</span>
+		}
+<span class="fc" id="L156">	}</span>
+
+	/**
+	 * Restituisce la categoria corrispondente al codice immesso.
+	 *
+	 * @param categoryCode Il codice della categoria da restituire.
+	 * @return La categoria richiesta.
+	 */
+	@Override
+	public Category getCategory(String categoryCode) {
+<span class="fc" id="L166">		return this.getCacheWrapper().getCategory(categoryCode);</span>
+	}
+
+	@Override
+	public ITreeNode getNode(String code) {
+<span class="fc" id="L171">		return this.getCategory(code);</span>
+	}
+
+	@Override
+	public List&lt;Category&gt; searchCategories(String categoryCodeToken) throws EntException {
+<span class="nc" id="L176">		List&lt;Category&gt; searchResult = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="nc" id="L178">			Category root = this.getRoot();</span>
+<span class="nc" id="L179">			this.searchCategories(root, categoryCodeToken, searchResult);</span>
+<span class="nc" id="L180">		} catch (Throwable t) {</span>
+<span class="nc" id="L181">			String message = &quot;Error during searching categories with token &quot; + categoryCodeToken;</span>
+<span class="nc" id="L182">			_logger.error(&quot;Error during searching categories with token {}&quot;, categoryCodeToken, t);</span>
+<span class="nc" id="L183">			throw new EntException(message, t);</span>
+<span class="nc" id="L184">		}</span>
+<span class="nc" id="L185">		return searchResult;</span>
+	}
+    
+    @Override
+	public boolean moveCategory(Category currentCategory, Category newParent) throws EntException {
+<span class="nc" id="L190">        return this.moveCategory(currentCategory.getCode(), newParent.getCode());</span>
+    }
+
+	@Override
+	public boolean moveCategory(String categoryCode, String newParentCode) throws EntException {
+<span class="fc" id="L195">        Category currentCategory = this.getCategory(categoryCode);</span>
+<span class="fc" id="L196">        Category newParent = this.getCategory(newParentCode);</span>
+<span class="fc" id="L197">		boolean resultOperation = false;</span>
+<span class="pc bpc" id="L198" title="2 of 4 branches missed.">        if (null == currentCategory || null == newParent) {</span>
+<span class="nc" id="L199">            _logger.error(&quot;Category to move '{}' or new parent '{}' is null&quot;, categoryCode, newParentCode);</span>
+<span class="nc" id="L200">            return resultOperation;</span>
+        }
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (categoryCode.equals(newParentCode)) {</span>
+<span class="nc" id="L203">            _logger.error(&quot;Category to move '{}' and new parent '{}' are the same&quot;, categoryCode, newParentCode);</span>
+<span class="nc" id="L204">            return resultOperation;</span>
+        }
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">        if (newParent.isChildOf(categoryCode, this)) {</span>
+<span class="nc" id="L207">            _logger.error(&quot;Category to move '{}' is parent of the new parent '{}'&quot;, categoryCode, newParentCode);</span>
+<span class="nc" id="L208">            return resultOperation;</span>
+        }
+<span class="fc" id="L210">		_logger.debug(&quot;start move category {} under {}&quot;, currentCategory, newParent);</span>
+		try {
+<span class="fc" id="L212">			this.getCategoryDAO().moveCategory(currentCategory, newParent);</span>
+<span class="fc" id="L213">            this.getCacheWrapper().moveCategory(categoryCode, newParentCode);</span>
+<span class="fc" id="L214">			resultOperation = true;</span>
+<span class="nc" id="L215">		} catch (Throwable t) {</span>
+<span class="nc" id="L216">			_logger.error(&quot;Error while moving  page {} under the node {}&quot;, currentCategory, newParent, t);</span>
+<span class="nc" id="L217">			throw new EntException(&quot;Error while moving a category under a different node&quot;, t);</span>
+<span class="fc" id="L218">		}</span>
+<span class="fc" id="L219">		this.startReloadCategoryReferences(currentCategory.getCode());</span>
+<span class="fc" id="L220">		return resultOperation;</span>
+	}
+
+	private void searchCategories(Category currentTarget, String categoryCodeToken, List&lt;Category&gt; searchResult) {
+<span class="nc bnc" id="L224" title="All 4 branches missed.">		if ((null == categoryCodeToken || currentTarget.getCode().toLowerCase().contains(categoryCodeToken.toLowerCase()))) {</span>
+<span class="nc" id="L225">			searchResult.add(currentTarget);</span>
+		}
+<span class="nc" id="L227">		String[] children = currentTarget.getChildrenCodes();</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">		for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="nc" id="L229">			Category category = this.getCategory(children[i]);</span>
+<span class="nc" id="L230">			this.searchCategories(category, categoryCodeToken, searchResult);</span>
+		}
+<span class="nc" id="L232">	}</span>
+
+	@Override
+	public int getMoveTreeStatus() {
+<span class="fc" id="L236">		String[] utilizers = this.loadCategoryUtilizers();</span>
+<span class="pc bpc" id="L237" title="2 of 4 branches missed.">		if (null == utilizers || utilizers.length == 0) {</span>
+<span class="nc" id="L238">			return STATUS_READY;</span>
+		}
+<span class="fc" id="L240">		Map&lt;String, Integer&gt; moveNodeStatus = this.getCacheWrapper().getMoveNodeStatus();</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">		for (int i = 0; i &lt; utilizers.length; i++) {</span>
+<span class="fc" id="L242">			String beanName = utilizers[i];</span>
+<span class="pc bpc" id="L243" title="2 of 6 branches missed.">			if (null != moveNodeStatus &amp;&amp; moveNodeStatus.containsKey(beanName) &amp;&amp; moveNodeStatus.get(beanName) == STATUS_RELOADING_REFERENCES_IN_PROGRESS) {</span>
+<span class="nc" id="L244">				return STATUS_RELOADING_REFERENCES_IN_PROGRESS;</span>
+			}
+		}
+<span class="fc" id="L247">		return STATUS_READY;</span>
+	}
+
+	public int getMoveTreeStatus(String currentBeanName) {
+<span class="fc" id="L251">		String[] utilizers = this.loadCategoryUtilizers();</span>
+<span class="pc bpc" id="L252" title="2 of 4 branches missed.">		if (null == utilizers || utilizers.length == 0) {</span>
+<span class="nc" id="L253">			return STATUS_READY;</span>
+		}
+<span class="fc" id="L255">		Map&lt;String, Integer&gt; moveNodeStatus = this.getCacheWrapper().getMoveNodeStatus();</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">		if (null == moveNodeStatus) {</span>
+<span class="fc" id="L257">			return STATUS_READY;</span>
+		}
+<span class="fc" id="L259">		Integer status = moveNodeStatus.get(currentBeanName);</span>
+<span class="pc bpc" id="L260" title="2 of 4 branches missed.">		if (null != status &amp;&amp; status == STATUS_RELOADING_REFERENCES_IN_PROGRESS) {</span>
+<span class="nc" id="L261">			return STATUS_RELOADING_REFERENCES_IN_PROGRESS;</span>
+		}
+<span class="fc" id="L263">		return STATUS_READY;</span>
+	}
+
+	@Override
+	public Map&lt;String, Integer&gt; getReloadStatus() {
+<span class="nc" id="L268">		Map&lt;String, Integer&gt; status = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L269">		String[] utilizers = this.loadCategoryUtilizers();</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">		for (int i = 0; i &lt; utilizers.length; i++) {</span>
+<span class="nc" id="L271">			String beanName = utilizers[i];</span>
+<span class="nc" id="L272">			status.put(beanName, this.getMoveTreeStatus(beanName));</span>
+		}
+<span class="nc" id="L274">		return status;</span>
+	}
+
+	private String[] loadCategoryUtilizers() {
+<span class="fc" id="L278">		String[] beans = null;</span>
+		try {
+<span class="fc" id="L280">			beans = BeanFactoryUtils.beanNamesForTypeIncludingAncestors((ListableBeanFactory) this.getBeanFactory(), CategoryUtilizer.class);</span>
+<span class="nc" id="L281">		} catch (Throwable t) {</span>
+<span class="nc" id="L282">			_logger.error(&quot;error loading CategoryUtilizer bean names&quot;);</span>
+<span class="nc" id="L283">			throw new RuntimeException(t);</span>
+<span class="fc" id="L284">		}</span>
+<span class="fc" id="L285">		return beans;</span>
+	}
+
+	/**
+	 * Entrypoint after category moved
+	 *
+	 * @param categoryCode
+	 */
+	public void startReloadCategoryReferences(String categoryCode) {
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">		if (this.getMoveTreeStatus() == STATUS_READY) {</span>
+<span class="fc" id="L295">			String[] utilizers = this.loadCategoryUtilizers();</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">			for (int i = 0; i &lt; utilizers.length; i++) {</span>
+<span class="fc" id="L297">				this.createAndRunReloadCategoryReferencesThread(utilizers[i], categoryCode);</span>
+			}
+<span class="fc" id="L299">		} else {</span>
+<span class="nc" id="L300">			_logger.warn(&quot;Attention: Reload Thread not stated. Expexted status {} but now it's {}&quot;, STATUS_READY, STATUS_RELOADING_REFERENCES_IN_PROGRESS);</span>
+		}
+<span class="fc" id="L302">	}</span>
+
+	private Thread createAndRunReloadCategoryReferencesThread(String beanName, String categoryCode) {
+<span class="fc" id="L305">		ReloadingCategoryReferencesThread reloadThread = null;</span>
+<span class="fc" id="L306">		int status = this.getMoveTreeStatus(beanName);</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">		if (status == STATUS_READY) {</span>
+			try {
+<span class="fc" id="L309">				reloadThread = new ReloadingCategoryReferencesThread(this, beanName, categoryCode);</span>
+<span class="fc" id="L310">				String threadName = RELOAD_CATEGORY_REFERENCES_THREAD_NAME_PREFIX + this.getName() + &quot;_&quot; + beanName + &quot;_&quot; + DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;);</span>
+<span class="fc" id="L311">				reloadThread.setName(threadName);</span>
+<span class="fc" id="L312">				reloadThread.start();</span>
+<span class="fc" id="L313">				_logger.info(&quot;Reloading category references for {} started&quot;, beanName);</span>
+<span class="nc" id="L314">			} catch (Throwable t) {</span>
+<span class="nc" id="L315">				throw new RuntimeException(&quot;Error while starting up the category reference reload procedure &quot;, t);</span>
+<span class="fc" id="L316">			}</span>
+		} else {
+<span class="nc" id="L318">			_logger.warn(&quot;Reloading category references for {} NOT STARTED: current status {}&quot;, beanName, status);</span>
+		}
+<span class="fc" id="L320">		return reloadThread;</span>
+	}
+
+	protected synchronized void reloadCategoryReferencesByBeanName(String beanName, String categoryCode) throws EntException {
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">		if (StringUtils.isBlank(beanName)) {</span>
+<span class="nc" id="L325">			throw new EntException(&quot;Error: null beanName&quot;);</span>
+		}
+<span class="fc" id="L327">		this.getCacheWrapper().updateMoveNodeStatus(beanName, STATUS_RELOADING_REFERENCES_IN_PROGRESS);</span>
+		try {
+<span class="fc" id="L329">			Object service = this.getBeanFactory().getBean(beanName);</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">			if (service != null) {</span>
+<span class="fc" id="L331">				CategoryUtilizer categoryUtilizer = (CategoryUtilizer) service;</span>
+<span class="fc" id="L332">				_logger.info(&quot;reload category references for {} started at {}&quot;, beanName, DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;));</span>
+<span class="fc" id="L333">				categoryUtilizer.reloadCategoryReferences(categoryCode);</span>
+<span class="fc" id="L334">				this.getCacheWrapper().updateMoveNodeStatus(beanName, STATUS_READY);</span>
+<span class="fc" id="L335">				_logger.info(&quot;reload category references for {} end at {}&quot;, beanName, DateConverter.getFormattedDate(new Date(), &quot;yyyyMMddHHmmss&quot;));</span>
+			}
+<span class="nc" id="L337">		} catch (Throwable t) {</span>
+<span class="nc" id="L338">			_logger.error(&quot;Reload category references for: {} caused an error&quot;, beanName, t);</span>
+<span class="nc" id="L339">			throw new EntException(&quot;Error reloading entity references by bean: &quot; + beanName, t);</span>
+<span class="fc" id="L340">		}</span>
+<span class="fc" id="L341">	}</span>
+
+	protected ILangManager getLangManager() {
+<span class="fc" id="L344">		return _langManager;</span>
+	}
+
+	public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L348">		this._langManager = langManager;</span>
+<span class="fc" id="L349">	}</span>
+
+	/**
+	 * Restituisce la classe DAO specifica per la gestione delle operazioni
+	 * sulle categorie definite sul db.
+	 *
+	 * @return La classe DAO specifica.
+	 */
+	protected ICategoryDAO getCategoryDAO() {
+<span class="fc" id="L358">		return this._categoryDao;</span>
+	}
+
+	/**
+	 * Setta la classe DAO specifica per la gestione delle operazioni sulle
+	 * categorie definite sul db.
+	 *
+	 * @param categoryDao La classe DAO specifica.
+	 */
+	public void setCategoryDAO(ICategoryDAO categoryDao) {
+<span class="fc" id="L368">		this._categoryDao = categoryDao;</span>
+<span class="fc" id="L369">	}</span>
+
+	protected ICategoryManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L372">		return _cacheWrapper;</span>
+	}
+
+	public void setCacheWrapper(ICategoryManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L376">		this._cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L377">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
