@@ -1,0 +1,600 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.resource</a> &gt; <span class="el_source">ResourceAction.java</span></div><h1>ResourceAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.resource;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceDataBean;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+
+/**
+ * Class used to handle resource objects.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L47">public class ResourceAction extends AbstractResourceAction implements ResourceDataBean {</span>
+
+<span class="fc" id="L49">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ResourceAction.class);</span>
+
+    private String _resourceId;
+    private String _descr;
+    private String _mainGroup;
+<span class="fc" id="L54">    private List&lt;String&gt; _categoryCodes = new ArrayList&lt;&gt;();</span>
+
+    private File _file;
+    private String _contentType;
+    private String _filename;
+    private Map&lt;String, String&gt; metadata;
+    private int _strutsAction;
+    private Map&lt;String, List&gt; _references;
+    private String _categoryCode;
+    private IGroupManager _groupManager;
+<span class="fc" id="L64">    private int fieldCount = 0;</span>
+<span class="fc" id="L65">    private boolean onEditContent = false;</span>
+
+    @Override
+    public void validate() {
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (this.isOnEditContent()) {</span>
+<span class="nc" id="L70">            super.validate();</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            if (this.getDescr() == null) {</span>
+<span class="nc" id="L72">                this.addFieldError(&quot;descr&quot;, this.getText(&quot;error.resource.file.requiredstring&quot;));</span>
+            }
+
+<span class="nc bnc" id="L75" title="All 4 branches missed.">            if ((this.getDescr() != null) &amp;&amp; (this.getDescr().length() &gt; 250)) {</span>
+<span class="nc" id="L76">                this.addFieldError(&quot;descr&quot;, this.getText(&quot;wrongMaxLength&quot;));</span>
+            }
+<span class="nc bnc" id="L78" title="All 4 branches missed.">            if ((ApsAdminSystemConstants.ADD == this.getStrutsAction()) &amp;&amp; (null == this.getUpload())) {</span>
+<span class="nc" id="L79">                this.addFieldError(&quot;upload&quot;, this.getText(&quot;error.resource.file.required&quot;));</span>
+            }
+            try {
+<span class="nc bnc" id="L82" title="All 4 branches missed.">                if ((ApsAdminSystemConstants.ADD == this.getStrutsAction()) &amp;&amp; (null == this.getInputStream())) {</span>
+<span class="nc" id="L83">                    this.addFieldError(&quot;upload&quot;, this.getText(&quot;error.resource.file.void&quot;));</span>
+                }
+<span class="nc" id="L85">            } catch (Throwable ex) {</span>
+<span class="nc" id="L86">                this.addFieldError(&quot;upload&quot;, this.getText(&quot;error.resource.file.void&quot;));</span>
+<span class="nc" id="L87">            }</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if (null != this.getFile()) {</span>
+<span class="nc" id="L89">                ResourceInterface resourcePrototype = this.getResourceManager().createResourceType(this.getResourceType());</span>
+<span class="nc" id="L90">                this.checkRightFileType(resourcePrototype);</span>
+            }
+        }
+<span class="nc" id="L93">    }</span>
+
+    protected void checkRightFileType(ResourceInterface resourcePrototype) {
+<span class="nc" id="L96">        this.checkRightFileType(resourcePrototype, this.getFileName());</span>
+<span class="nc" id="L97">    }</span>
+
+    protected void checkRightFileType(ResourceInterface resourcePrototype, String fileName) {
+<span class="nc" id="L100">        boolean isRight = false;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (fileName.length() &gt; 0) {</span>
+<span class="nc" id="L102">            String docType = fileName.substring(fileName.lastIndexOf('.') + 1).trim();</span>
+<span class="nc" id="L103">            String[] types = resourcePrototype.getAllowedFileTypes();</span>
+<span class="nc" id="L104">            isRight = this.isValidType(docType, types);</span>
+<span class="nc" id="L105">        } else {</span>
+<span class="nc" id="L106">            isRight = true;</span>
+        }
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if (!isRight) {</span>
+<span class="nc" id="L109">            this.addFieldError(&quot;upload&quot;, this.getText(&quot;error.resource.file.wrongFormat&quot;, new String[]{fileName}));</span>
+        }
+<span class="nc" id="L111">    }</span>
+
+    protected boolean isValidType(String docType, String[] rightTypes) {
+<span class="nc" id="L114">        boolean isValid = false;</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (rightTypes.length &gt; 0) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            for (int i = 0; i &lt; rightTypes.length; i++) {</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                if (docType.toLowerCase().equals(rightTypes[i])) {</span>
+<span class="nc" id="L118">                    isValid = true;</span>
+<span class="nc" id="L119">                    break;</span>
+                }
+            }
+        } else {
+<span class="nc" id="L123">            isValid = true;</span>
+        }
+<span class="nc" id="L125">        return isValid;</span>
+    }
+
+    /**
+     * Executes the specific action to create a new content
+     *
+     * @return The result code.
+     */
+    public String newResource() {
+<span class="fc" id="L134">        this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+        try {
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">            if (this.getAuthorizationManager().isAuthOnGroup(this.getCurrentUser(), Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L137">                this.setMainGroup(Group.FREE_GROUP_NAME);</span>
+            }
+<span class="nc" id="L139">        } catch (Throwable t) {</span>
+<span class="nc" id="L140">            logger.error(&quot;error in newResource&quot;, t);</span>
+<span class="nc" id="L141">            return FAILURE;</span>
+<span class="fc" id="L142">        }</span>
+<span class="fc" id="L143">        return SUCCESS;</span>
+    }
+
+    /**
+     * Executes the specific action to modify an existing resource.
+     *
+     * @return The result code.
+     */
+    public String edit() {
+<span class="nc" id="L152">        logger.debug(&quot;Edit in resource action for id {}&quot;, this.getResourceId());</span>
+        try {
+<span class="nc" id="L154">            ResourceInterface resource = this.loadResource(this.getResourceId());</span>
+<span class="nc" id="L155">            this.setResourceTypeCode(resource.getType());</span>
+<span class="nc" id="L156">            this.setDescr(resource.getDescription());</span>
+<span class="nc" id="L157">            this.setMetadata(resource.getMetadata());</span>
+<span class="nc" id="L158">            List&lt;Category&gt; resCategories = resource.getCategories();</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            for (int i = 0; i &lt; resCategories.size(); i++) {</span>
+<span class="nc" id="L160">                Category resCat = resCategories.get(i);</span>
+<span class="nc" id="L161">                this.getCategoryCodes().add(resCat.getCode());</span>
+            }
+<span class="nc" id="L163">            this.setMainGroup(resource.getMainGroup());</span>
+<span class="nc" id="L164">            this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="nc" id="L165">        } catch (Throwable t) {</span>
+<span class="nc" id="L166">            logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L167">            return FAILURE;</span>
+<span class="nc" id="L168">        }</span>
+<span class="nc" id="L169">        return SUCCESS;</span>
+    }
+
+    public String detail() {
+        try {
+<span class="nc" id="L174">            ResourceInterface resource = this.loadResource(this.getResourceId());</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            if (null == resource) {</span>
+<span class="nc" id="L176">                return INPUT;</span>
+            }
+<span class="nc" id="L178">            this.setResourceTypeCode(resource.getType());</span>
+<span class="nc" id="L179">            this.setDescr(resource.getDescription());</span>
+<span class="nc" id="L180">            List&lt;Category&gt; resCategories = resource.getCategories();</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            for (int i = 0; i &lt; resCategories.size(); i++) {</span>
+<span class="nc" id="L182">                Category resCat = resCategories.get(i);</span>
+<span class="nc" id="L183">                this.getCategoryCodes().add(resCat.getCode());</span>
+            }
+<span class="nc" id="L185">            this.setMainGroup(resource.getMainGroup());</span>
+<span class="nc" id="L186">        } catch (Throwable t) {</span>
+<span class="nc" id="L187">            logger.error(&quot;error in detail&quot;, t);</span>
+<span class="nc" id="L188">            return FAILURE;</span>
+<span class="nc" id="L189">        }</span>
+<span class="nc" id="L190">        return SUCCESS;</span>
+    }
+
+    /**
+     * Executes the specific action to modify an existing resource.
+     *
+     * @return The result code.
+     */
+    public String save() {
+<span class="nc" id="L199">        logger.debug(&quot;Save in resource action for id {}&quot;, this.getResourceId());</span>
+        try {
+
+<span class="nc" id="L202">            Map imgMetadata = new HashMap();</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            if (null != getFile()) {</span>
+<span class="nc" id="L204">                logger.debug(&quot;Read Metadata file is not null&quot;);</span>
+<span class="nc" id="L205">                imgMetadata = getImgMetadata(this.getFile());</span>
+            } else {
+<span class="nc" id="L207">                logger.debug(&quot;Read Metadata file is null&quot;);</span>
+            }
+<span class="nc" id="L209">            logger.debug(&quot;Save method, action {}&quot;, this.getStrutsAction());</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">            if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="nc" id="L211">                logger.debug(&quot;Edit resource &gt; metadata size: {}&quot;, imgMetadata.size());</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                if (imgMetadata.size() &gt; 0) {</span>
+<span class="nc" id="L213">                    logger.debug(&quot;Edit resource &gt; metadata size: {}  -&gt; update the metadata list&quot;, imgMetadata.size());</span>
+<span class="nc" id="L214">                    this.setMetadata(imgMetadata);</span>
+                } else {
+<span class="nc" id="L216">                    fetchMetadataEdit();</span>
+<span class="nc" id="L217">                    logger.debug(&quot;Edit resource &gt; metadata size: 0  -&gt; use previous metadata list&quot;, getMetadata());</span>
+<span class="nc" id="L218">                    this.setMetadata(getMetadata());</span>
+                }
+            } else {
+<span class="nc" id="L221">                this.setMetadata(imgMetadata);</span>
+            }
+
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            if (ApsAdminSystemConstants.ADD == this.getStrutsAction()) {</span>
+<span class="nc" id="L225">                this.getResourceManager().addResource(this);</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            } else if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+<span class="nc" id="L227">                this.getResourceManager().updateResource(this);</span>
+            }
+<span class="nc" id="L229">        } catch (Throwable t) {</span>
+<span class="nc" id="L230">            logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L231">            return FAILURE;</span>
+<span class="nc" id="L232">        }</span>
+<span class="nc" id="L233">        return SUCCESS;</span>
+    }
+
+    /**
+     * Executes the specific action to delete a resource. This does NOT perform
+     * any deletion, it just ensures that there are no hindrances to a deletion
+     * process.
+     *
+     * @return The result code.
+     */
+    public String trash() {
+        try {
+<span class="fc" id="L245">            String result = this.checkDeleteResource();</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">            if (null != result) {</span>
+<span class="fc" id="L247">                return result;</span>
+            }
+<span class="nc" id="L249">        } catch (Throwable t) {</span>
+<span class="nc" id="L250">            logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L251">            return FAILURE;</span>
+<span class="nc" id="L252">        }</span>
+<span class="nc" id="L253">        return SUCCESS;</span>
+    }
+
+    /**
+     * This forces the deletion of a resource. NOTE! This method is invoked, in
+     * the administration interface, when deleting a referenced resource.
+     *
+     * @return The result code.
+     */
+    public String delete() {
+<span class="fc" id="L263">        logger.debug(&quot;Delete in resource action for id {}&quot;, this.getResourceId());</span>
+        try {
+<span class="fc" id="L265">            String result = this.checkDeleteResource();</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            if (null != result) {</span>
+<span class="fc" id="L267">                return result;</span>
+            }
+<span class="fc" id="L269">            ResourceInterface resource = this.loadResource(this.getResourceId());</span>
+<span class="fc" id="L270">            this.getResourceManager().deleteResource(resource);</span>
+<span class="nc" id="L271">        } catch (Throwable t) {</span>
+<span class="nc" id="L272">            logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L273">            return FAILURE;</span>
+<span class="fc" id="L274">        }</span>
+<span class="fc" id="L275">        return SUCCESS;</span>
+    }
+
+    protected String checkDeleteResource() throws Throwable {
+<span class="fc" id="L279">        String resourceId = this.getResourceId();</span>
+<span class="fc" id="L280">        ResourceInterface resource = this.loadResource(resourceId);</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">        if (resource == null) {</span>
+<span class="fc" id="L282">            this.addActionError(this.getText(&quot;error.resource.delete.invalid&quot;));</span>
+<span class="fc" id="L283">            return INPUT;</span>
+        }
+<span class="fc" id="L285">        Map&lt;String, List&gt; references = this.getResourceActionHelper().getReferencingObjects(resource, this.getRequest());</span>
+<span class="fc" id="L286">        this.setReferences(references);</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">        if (references.size() &gt; 0) {</span>
+<span class="fc" id="L288">            return &quot;references&quot;;</span>
+        }
+<span class="fc" id="L290">        return null;</span>
+    }
+
+    /**
+     * Executes the specific action in order to associate a category to the
+     * resource on edit.
+     *
+     * @return The result code.
+     */
+    public String joinCategory() {
+<span class="fc" id="L300">        logger.debug(&quot;JoinCategory in resource action for id {}&quot;, this.getResourceId());</span>
+<span class="fc" id="L301">        return this.joinRemoveCategory(true, this.getCategoryCode());</span>
+    }
+
+    /**
+     * Executes the specific action in order to remove the association between a
+     * category and the resource on edit.
+     *
+     * @return The result code.
+     */
+    public String removeCategory() {
+<span class="fc" id="L311">        logger.debug(&quot;RemoveCategory in resource action for id {}&quot;, this.getResourceId());</span>
+<span class="fc" id="L312">        return this.joinRemoveCategory(false, this.getCategoryCode());</span>
+    }
+
+    /**
+     * This method perfoms either the linking of a resource to a category or the
+     * removal of such association. NOTE: in the current implementation
+     * operations carried on invalid or unknown categories do not return error
+     * code on purpose, since the join or unlink process does not take place.
+     *
+     * @param isJoin if 'true' associates a resource to a category, otherwise
+     * remove it
+     * @param categoryCode the string code of the category to work with.
+     * @return FAILURE if error detected, SUCCESS otherwise.
+     */
+    private String joinRemoveCategory(boolean isJoin, String categoryCode) {
+        try {
+<span class="fc" id="L328">            fetchMetadataEdit();</span>
+<span class="fc" id="L329">            Category category = this.getCategory(categoryCode);</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">            if (category == null) {</span>
+<span class="fc" id="L331">                return SUCCESS;</span>
+            }
+<span class="fc" id="L333">            List&lt;String&gt; categories = this.getCategoryCodes();</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            if (isJoin) {</span>
+<span class="pc bpc" id="L335" title="1 of 2 branches missed.">                if (!categories.contains(categoryCode)) {</span>
+<span class="fc" id="L336">                    categories.add(categoryCode);</span>
+                }
+            } else {
+<span class="fc" id="L339">                categories.remove(categoryCode);</span>
+            }
+<span class="nc" id="L341">        } catch (Throwable t) {</span>
+<span class="nc" id="L342">            logger.error(&quot;error in joinRemoveCategory&quot;, t);</span>
+<span class="nc" id="L343">            return FAILURE;</span>
+<span class="fc" id="L344">        }</span>
+<span class="fc" id="L345">        return SUCCESS;</span>
+    }
+
+    public Category getCategory(String categoryCode) {
+<span class="fc" id="L349">        return this.getCategoryManager().getCategory(categoryCode);</span>
+    }
+
+    @Override
+    public String getResourceId() {
+<span class="fc" id="L354">        return _resourceId;</span>
+    }
+
+    public void setResourceId(String resourceId) {
+<span class="fc" id="L358">        this._resourceId = resourceId;</span>
+<span class="fc" id="L359">    }</span>
+
+    public int getStrutsAction() {
+<span class="fc" id="L362">        return _strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L366">        this._strutsAction = strutsAction;</span>
+<span class="fc" id="L367">    }</span>
+
+    public Map&lt;String, List&gt; getReferences() {
+        try {
+<span class="pc bpc" id="L371" title="1 of 2 branches missed.">            if (null == this._references) {</span>
+<span class="nc" id="L372">                this._references = this.getResourceActionHelper().getReferencingObjects(this.getResourceId(), this.getRequest());</span>
+            }
+<span class="nc" id="L374">        } catch (Throwable t) {</span>
+<span class="nc" id="L375">            logger.error(&quot;Error extracting references&quot;, t);</span>
+<span class="fc" id="L376">        }</span>
+<span class="fc" id="L377">        return _references;</span>
+    }
+
+    public void setReferences(Map&lt;String, List&gt; references) {
+<span class="fc" id="L381">        this._references = references;</span>
+<span class="fc" id="L382">    }</span>
+
+    public void setUpload(File file) {
+<span class="nc" id="L385">        this._file = file;</span>
+<span class="nc" id="L386">    }</span>
+
+    public File getUpload() {
+<span class="nc" id="L389">        return this._file;</span>
+    }
+
+    public void setUploadContentType(String contentType) {
+<span class="nc" id="L393">        this._contentType = contentType;</span>
+<span class="nc" id="L394">    }</span>
+
+    public void setUploadFileName(String filename) {
+<span class="nc" id="L397">        this._filename = filename;</span>
+<span class="nc" id="L398">    }</span>
+
+    @Override
+    public String getDescr() {
+<span class="nc" id="L402">        return _descr;</span>
+    }
+
+    public void setDescr(String descr) {
+<span class="nc" id="L406">        this._descr = descr;</span>
+<span class="nc" id="L407">    }</span>
+
+    @Override
+    public List&lt;Category&gt; getCategories() {
+<span class="fc" id="L411">        List&lt;Category&gt; categories = new ArrayList&lt;Category&gt;(this.getCategoryCodes().size());</span>
+<span class="fc" id="L412">        Iterator&lt;String&gt; iter = this.getCategoryCodes().iterator();</span>
+<span class="pc bpc" id="L413" title="1 of 2 branches missed.">        while (iter.hasNext()) {</span>
+<span class="nc" id="L414">            String categoryCode = iter.next();</span>
+<span class="nc" id="L415">            Category category = this.getCategoryManager().getCategory(categoryCode);</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">            if (null != category) {</span>
+<span class="nc" id="L417">                categories.add(category);</span>
+            }
+<span class="nc" id="L419">        }</span>
+<span class="fc" id="L420">        return categories;</span>
+    }
+
+    @Override
+    public String getFileName() {
+<span class="fc" id="L425">        return this._filename;</span>
+    }
+
+    @Override
+    public int getFileSize() {
+<span class="nc" id="L430">        return (int) this._file.length() / 1000;</span>
+    }
+
+    @Override
+    public File getFile() {
+<span class="nc" id="L435">        return _file;</span>
+    }
+
+    @Override
+    public InputStream getInputStream() throws Throwable {
+<span class="nc bnc" id="L440" title="All 2 branches missed.">        if (null == this.getFile()) {</span>
+<span class="nc" id="L441">            return null;</span>
+        }
+<span class="nc" id="L443">        return new FileInputStream(this.getFile());</span>
+    }
+
+    @Override
+    public String getMainGroup() {
+<span class="fc" id="L448">        return this._mainGroup;</span>
+    }
+
+    public void setMainGroup(String mainGroup) {
+<span class="fc" id="L452">        this._mainGroup = mainGroup;</span>
+<span class="fc" id="L453">    }</span>
+
+    public List&lt;String&gt; getCategoryCodes() {
+<span class="fc" id="L456">        return _categoryCodes;</span>
+    }
+
+    public void setCategoryCodes(List&lt;String&gt; categoryCodes) {
+<span class="fc" id="L460">        this._categoryCodes = categoryCodes;</span>
+<span class="fc" id="L461">    }</span>
+
+    @Override
+    public String getMimeType() {
+<span class="nc" id="L465">        return this._contentType;</span>
+    }
+
+    @Override
+    public String getResourceType() {
+<span class="fc" id="L470">        return this.getResourceTypeCode();</span>
+    }
+
+    @Override
+    public Map&lt;String, String&gt; getMetadata() {
+<span class="fc" id="L475">        return metadata;</span>
+    }
+
+    public void setMetadata(Map&lt;String, String&gt; metadata) {
+<span class="fc" id="L479">        this.metadata = metadata;</span>
+<span class="fc" id="L480">    }</span>
+
+    public String getCategoryCode() {
+<span class="fc" id="L483">        return _categoryCode;</span>
+    }
+
+    public void setCategoryCode(String categoryCode) {
+<span class="fc" id="L487">        this._categoryCode = categoryCode;</span>
+<span class="fc" id="L488">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="fc" id="L491">        return _groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L495">        this._groupManager = groupManager;</span>
+<span class="fc" id="L496">    }</span>
+
+    public int getFieldCount() {
+<span class="nc" id="L499">        return fieldCount;</span>
+    }
+
+    public void setFieldCount(int fieldCount) {
+<span class="nc" id="L503">        this.fieldCount = fieldCount;</span>
+<span class="nc" id="L504">    }</span>
+
+    public boolean isOnEditContent() {
+<span class="nc" id="L507">        return onEditContent;</span>
+    }
+
+    public void setOnEditContent(boolean onEditContent) {
+<span class="nc" id="L511">        this.onEditContent = onEditContent;</span>
+<span class="nc" id="L512">    }</span>
+
+    public boolean isContentListAttribute() {
+<span class="nc" id="L515">        return false;</span>
+    }
+
+    protected Map getImgMetadata(File file) {
+<span class="nc" id="L519">        logger.debug(&quot;Get image Metadata in Resource Action&quot;);</span>
+<span class="nc" id="L520">        Map&lt;String, String&gt; meta = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L521">        ResourceInterface resourcePrototype = this.getResourceManager().createResourceType(this.getResourceType());</span>
+        try {
+<span class="nc" id="L523">            Metadata metadata = ImageMetadataReader.readMetadata(file);</span>
+<span class="nc" id="L524">            String ignoreKeysConf = resourcePrototype.getMetadataIgnoreKeys();</span>
+<span class="nc" id="L525">            String[] ignoreKeys = null;</span>
+<span class="nc bnc" id="L526" title="All 2 branches missed.">            if (null != ignoreKeysConf) {</span>
+<span class="nc" id="L527">                ignoreKeys = ignoreKeysConf.split(&quot;,&quot;);</span>
+<span class="nc" id="L528">                logger.debug(&quot;Metadata ignoreKeys: {}&quot;, ignoreKeys);</span>
+            } else {
+<span class="nc" id="L530">                logger.debug(&quot;Metadata ignoreKeys not configured&quot;);</span>
+            }
+<span class="nc" id="L532">            List&lt;String&gt; ignoreKeysList = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L533" title="All 2 branches missed.">            if (null != ignoreKeys) {</span>
+<span class="nc" id="L534">                ignoreKeysList = Arrays.asList(ignoreKeys);</span>
+            }
+<span class="nc bnc" id="L536" title="All 2 branches missed.">            for (Directory directory : metadata.getDirectories()) {</span>
+<span class="nc bnc" id="L537" title="All 2 branches missed.">                for (Tag tag : directory.getTags()) {</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">                    if (!ignoreKeysList.contains(tag.getTagName())) {</span>
+<span class="nc" id="L539">                        logger.debug(&quot;Add Metadata with key: {}&quot;, tag.getTagName());</span>
+<span class="nc" id="L540">                        meta.put(tag.getTagName(), tag.getDescription());</span>
+                    } else {
+<span class="nc" id="L542">                        logger.debug(&quot;Skip Metadata key {}&quot;, tag.getTagName());</span>
+                    }
+<span class="nc" id="L544">                }</span>
+<span class="nc" id="L545">            }</span>
+<span class="nc" id="L546">        } catch (ImageProcessingException ex) {</span>
+<span class="nc" id="L547">            logger.error(&quot;Error reading metadata from file &quot; + this.getFileName() + &quot; - message &quot; + ex.getMessage());</span>
+<span class="nc" id="L548">        } catch (IOException ioex) {</span>
+<span class="nc" id="L549">            logger.error(&quot;Error reading file&quot;, ioex);</span>
+<span class="nc" id="L550">        }</span>
+<span class="nc" id="L551">        return meta;</span>
+    }
+
+    protected void fetchMetadataEdit() {
+<span class="fc bfc" id="L555" title="All 2 branches covered.">        if (ApsAdminSystemConstants.EDIT == this.getStrutsAction()) {</span>
+            try {
+<span class="fc" id="L557">                this.setMetadata(this.loadResource(this.getResourceId()).getMetadata());</span>
+<span class="nc" id="L558">            } catch (Throwable ex) {</span>
+<span class="nc" id="L559">                logger.error(&quot;error reading resource {} on fetchMetadataEdit {}&quot;, this.getResourceId(), ex);</span>
+<span class="fc" id="L560">            }</span>
+<span class="fc" id="L561">            logger.debug(&quot;resource {} metadata size: {}&quot;, this.getResourceId(), getMetadata().size());</span>
+        }
+<span class="fc" id="L563">    }</span>
+
+    @Override
+    public String getOwner() {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L568">        return null;</span>
+    }
+
+    @Override
+    public void setOwner(String owner) {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L574">    }</span>
+
+    @Override
+    public String getFolderPath() {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L579">        return null;</span>
+    }
+
+    @Override
+    public void setFolderPath(String path) {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L585">    }</span>
+
+    @Override
+    public String getCorrelationCode() {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L590">        return null;</span>
+    }
+
+    @Override
+    public void setCorrelationCode(String correlationCode) {
+        //Do nothing as these Actions are destined to die
+<span class="nc" id="L596">    }</span>
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

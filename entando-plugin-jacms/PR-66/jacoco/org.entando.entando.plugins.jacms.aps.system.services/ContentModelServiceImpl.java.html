@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentModelServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services</a> &gt; <span class="el_source">ContentModelServiceImpl.java</span></div><h1>ContentModelServiceImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.apache.commons.lang3.math.NumberUtils;
+import org.entando.entando.aps.system.services.security.NonceInjector;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.IContentModelManager;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.dictionary.ContentModelDictionaryProvider;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentModelDto;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentModelReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.DtoBuilder;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.dataobjectmodel.model.IEntityModelDictionary;
+import org.entando.entando.plugins.jacms.aps.system.services.contentmodel.ContentModelReferencesRequestListProcessor;
+import org.entando.entando.plugins.jacms.aps.system.services.contentmodel.ContentModelRequestListProcessor;
+import org.entando.entando.plugins.jacms.web.contentmodel.model.ContentModelReferenceDTO;
+import org.entando.entando.plugins.jacms.web.contentmodel.validator.ContentModelValidator;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.model.Filter;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.component.ComponentUsage;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+@Service
+public class ContentModelServiceImpl implements ContentModelService {
+
+<span class="fc" id="L57">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private final IContentManager contentManager;
+    private final IContentModelManager contentModelManager;
+    private final ContentModelDictionaryProvider dictionaryProvider;
+    private final IDtoBuilder&lt;ContentModel, ContentModelDto&gt; dtoBuilder;
+
+    private static final String ID_FILTER_NAME = &quot;id&quot;;
+
+    @Autowired
+    public ContentModelServiceImpl(IContentManager contentManager, IContentModelManager contentModelManager,
+<span class="fc" id="L68">            ContentModelDictionaryProvider dictionaryProvider) {</span>
+<span class="fc" id="L69">        this.contentManager = contentManager;</span>
+<span class="fc" id="L70">        this.contentModelManager = contentModelManager;</span>
+<span class="fc" id="L71">        this.dictionaryProvider = dictionaryProvider;</span>
+
+<span class="fc" id="L73">        this.dtoBuilder = new DtoBuilder&lt;ContentModel, ContentModelDto&gt;() {</span>
+
+            @Override
+            protected ContentModelDto toDto(ContentModel src) {
+<span class="fc" id="L77">                ContentModelDto dto = new ContentModelDto();</span>
+<span class="fc" id="L78">                dto.setContentShape(src.getContentShape());</span>
+<span class="fc" id="L79">                dto.setContentType(src.getContentType());</span>
+<span class="fc" id="L80">                dto.setDescr(src.getDescription());</span>
+<span class="fc" id="L81">                dto.setId(src.getId());</span>
+<span class="fc" id="L82">                dto.setStylesheet(src.getStylesheet());</span>
+<span class="fc" id="L83">                return dto;</span>
+            }
+        };
+<span class="fc" id="L86">    }</span>
+
+    @Override
+    public PagedMetadata&lt;ContentModelDto&gt; findMany(RestListRequest requestList) {
+<span class="fc" id="L90">        List&lt;ContentModel&gt; contentModels = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L91">        List&lt;ContentModelDto&gt; dtoSlice = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (validateFilters(requestList.getFilters())) {</span>
+<span class="fc" id="L94">            contentModels = new ContentModelRequestListProcessor(</span>
+<span class="fc" id="L95">                    requestList, this.contentModelManager.getContentModels())</span>
+<span class="fc" id="L96">                    .filterAndSort().toList();</span>
+            //page
+<span class="fc" id="L98">            List&lt;ContentModel&gt; subList = requestList.getSublist(contentModels);</span>
+<span class="fc" id="L99">            dtoSlice = this.dtoBuilder.convert(subList);</span>
+        }
+
+<span class="fc" id="L102">        SearcherDaoPaginatedResult&lt;ContentModelDto&gt; paginatedResult = new SearcherDaoPaginatedResult&lt;&gt;(</span>
+<span class="fc" id="L103">                contentModels.size(), dtoSlice);</span>
+<span class="fc" id="L104">        PagedMetadata&lt;ContentModelDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, paginatedResult);</span>
+<span class="fc" id="L105">        pagedMetadata.setBody(dtoSlice);</span>
+<span class="fc" id="L106">        return pagedMetadata;</span>
+    }
+
+    private boolean validateFilters(Filter[] filters) {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        for (Filter filter : filters) {</span>
+<span class="fc bfc" id="L111" title="All 4 branches covered.">            if (ID_FILTER_NAME.equals(filter.getAttribute()) &amp;&amp; !NumberUtils.isParsable(filter.getValue())) {</span>
+<span class="fc" id="L112">                return false;</span>
+            }
+        }
+<span class="fc" id="L115">        return true;</span>
+    }
+
+    @Override
+    public ContentModelDto getContentModel(Long modelId) {
+<span class="fc" id="L120">        ContentModel contentModel = this.contentModelManager.getContentModel(modelId);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (null == contentModel) {</span>
+<span class="fc" id="L122">            logger.warn(&quot;no contentModel found with id {}&quot;, modelId);</span>
+<span class="fc" id="L123">            throw new ResourceNotFoundException(ContentModelValidator.ERRCODE_CONTENTMODEL_NOT_FOUND, &quot;contentModel&quot;,</span>
+<span class="fc" id="L124">                    String.valueOf(modelId));</span>
+        }
+<span class="fc" id="L126">        return this.dtoBuilder.convert(contentModel);</span>
+    }
+
+    @Override
+    public Optional&lt;ContentModelDto&gt; findById(Long modelId) {
+<span class="fc" id="L131">        ContentModelDto dto = null;</span>
+<span class="fc" id="L132">        ContentModel contentModel = this.contentModelManager.getContentModel(modelId);</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (contentModel != null) {</span>
+<span class="fc" id="L134">            dto = this.dtoBuilder.convert(contentModel);</span>
+        }
+<span class="fc" id="L136">        return Optional.ofNullable(dto);</span>
+    }
+
+    public boolean exists(Long modelId) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        return this.contentModelManager.getContentModel(modelId) != null;</span>
+    }
+
+    @Override
+    public ContentModelDto create(ContentModelDto entity) {
+        try {
+<span class="fc" id="L146">            ContentModel contentModel = this.createContentModel(entity);</span>
+<span class="fc" id="L147">            BeanPropertyBindingResult validationResult = this.validateForAdd(contentModel);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L149">                throw new ValidationConflictException(validationResult);</span>
+            }
+<span class="fc" id="L151">            this.contentModelManager.addContentModel(contentModel);</span>
+<span class="fc" id="L152">            return this.dtoBuilder.convert(contentModel);</span>
+<span class="nc" id="L153">        } catch (EntException e) {</span>
+<span class="nc" id="L154">            logger.error(&quot;Error saving a content model&quot;, e);</span>
+<span class="nc" id="L155">            throw new RestServerError(&quot;Error saving a content model&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public ContentModelDto update(ContentModelDto entity) {
+        try {
+<span class="fc" id="L162">            long modelId = entity.getId();</span>
+
+<span class="fc" id="L164">            ContentModel contentModel = this.contentModelManager.getContentModel(entity.getId());</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            if (null == contentModel) {</span>
+<span class="fc" id="L166">                logger.warn(&quot;no contentModel found with id {}&quot;, modelId);</span>
+<span class="fc" id="L167">                throw new ResourceNotFoundException(ContentModelValidator.ERRCODE_CONTENTMODEL_NOT_FOUND,</span>
+<span class="fc" id="L168">                        &quot;contentModel&quot;, String.valueOf(modelId));</span>
+            }
+
+<span class="fc" id="L171">            BeanPropertyBindingResult validationResult = this.validateForUpdate(entity, contentModel);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L173">                throw new ValidationConflictException(validationResult);</span>
+            }
+<span class="fc" id="L175">            this.copyProperties(entity, contentModel);</span>
+
+<span class="fc" id="L177">            this.contentModelManager.updateContentModel(contentModel);</span>
+<span class="fc" id="L178">            return this.dtoBuilder.convert(contentModel);</span>
+<span class="nc" id="L179">        } catch (EntException e) {</span>
+<span class="nc" id="L180">            logger.error(&quot;Error saving a content model&quot;, e);</span>
+<span class="nc" id="L181">            throw new RestServerError(&quot;Error saving a content model&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public void delete(Long modelId) {
+        try {
+<span class="fc" id="L188">            ContentModel contentModel = this.contentModelManager.getContentModel(modelId);</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">            if (null == contentModel) {</span>
+<span class="nc" id="L190">                logger.info(&quot;contentModel {} does not exists&quot;, modelId);</span>
+<span class="nc" id="L191">                return;</span>
+            }
+<span class="fc" id="L193">            BeanPropertyBindingResult validationResult = this.validateForDelete(contentModel);</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L195">                throw new ValidationConflictException(validationResult);</span>
+            }
+<span class="fc" id="L197">            this.contentModelManager.removeContentModel(contentModel);</span>
+<span class="nc" id="L198">        } catch (EntException e) {</span>
+<span class="nc" id="L199">            logger.error(&quot;Error in delete contentModel {}&quot;, modelId, e);</span>
+<span class="nc" id="L200">            throw new RestServerError(&quot;error in delete contentModel&quot;, e);</span>
+<span class="fc" id="L201">        }</span>
+<span class="fc" id="L202">    }</span>
+
+    @Override
+    public ComponentUsage getComponentUsage(Long modelId) {
+<span class="fc" id="L206">        final List&lt;ContentModelReference&gt; contentModelReferences = contentModelManager</span>
+<span class="fc" id="L207">                .getContentModelReferences(modelId, false);</span>
+<span class="fc" id="L208">        final long onlineCount = contentModelReferences.stream()</span>
+<span class="fc" id="L209">                .filter(ContentModelReference::isOnline).count();</span>
+<span class="fc" id="L210">        final long offlineCount = contentModelReferences.stream()</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">                .filter(f -&gt; !f.isOnline()).count();</span>
+<span class="fc" id="L212">        final List&lt;SmallEntityType&gt; defaultContentTemplateUsedList = this.contentManager.getSmallEntityTypes().stream()</span>
+<span class="fc" id="L213">                .filter(</span>
+                        f -&gt; {
+<span class="fc" id="L215">                            final String defaultModel = contentManager.getDefaultModel(f.getCode());</span>
+<span class="fc" id="L216">                            return String.valueOf(modelId)</span>
+<span class="fc" id="L217">                                    .equals(defaultModel);</span>
+                        }
+<span class="fc" id="L219">                ).collect(Collectors.toList());</span>
+<span class="fc" id="L220">        final List&lt;SmallEntityType&gt; defaultContentListTemplateUsedList = this.contentManager.getSmallEntityTypes()</span>
+<span class="fc" id="L221">                .stream()</span>
+<span class="fc" id="L222">                .filter(</span>
+                        f -&gt; {
+<span class="fc" id="L224">                            final String listModel = contentManager.getListModel(f.getCode());</span>
+<span class="fc" id="L225">                            return String.valueOf(modelId)</span>
+<span class="fc" id="L226">                                    .equals(listModel);</span>
+                        }
+<span class="fc" id="L228">                ).collect(Collectors.toList());</span>
+<span class="fc" id="L229">        int countContentDefaultTemplateReferences = defaultContentTemplateUsedList.size();</span>
+<span class="fc" id="L230">        int countContentListDefaultTemplateReferences = defaultContentListTemplateUsedList.size();</span>
+<span class="fc" id="L231">        Integer usage = Math.toIntExact(onlineCount + offlineCount + countContentDefaultTemplateReferences</span>
+                + countContentListDefaultTemplateReferences);
+<span class="fc" id="L233">        ComponentUsage componentUsage = new ComponentUsage();</span>
+<span class="fc" id="L234">        componentUsage.setType(&quot;contentTemplate&quot;);</span>
+<span class="fc" id="L235">        componentUsage.setCode(String.valueOf(modelId));</span>
+<span class="fc" id="L236">        componentUsage.setStatus(&quot;&quot;);</span>
+<span class="fc" id="L237">        componentUsage.setUsage(usage);</span>
+<span class="fc" id="L238">        return componentUsage;</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(Long modelId, RestListRequest restListRequest) {
+
+<span class="fc" id="L244">        final List&lt;ContentModelReference&gt; contentModelReferences = contentModelManager</span>
+<span class="fc" id="L245">                .getContentModelReferences(modelId, false);</span>
+
+<span class="fc" id="L247">        final List&lt;ComponentUsageEntity&gt; componentUsageDetails = contentModelReferences.stream()</span>
+<span class="fc" id="L248">                .map(f -&gt; createToComponentUsageEntity(f.getPageCode(), getStatusString(f.isOnline()),</span>
+<span class="fc" id="L249">                        ComponentUsageEntity.TYPE_PAGE)).collect(Collectors.toList());</span>
+
+<span class="fc" id="L251">        final List&lt;SmallEntityType&gt; defaultContentTemplateUsedList = this.contentManager.getSmallEntityTypes().stream()</span>
+<span class="fc" id="L252">                .filter(</span>
+                        f -&gt; {
+<span class="fc" id="L254">                            final String defaultModel = contentManager.getDefaultModel(f.getCode());</span>
+<span class="fc" id="L255">                            final boolean defaultModelUsed = String.valueOf(modelId)</span>
+<span class="fc" id="L256">                                    .equals(defaultModel);</span>
+<span class="fc" id="L257">                            final String listModel = contentManager.getListModel(f.getCode());</span>
+<span class="fc" id="L258">                            final boolean listModelUsed = String.valueOf(modelId)</span>
+<span class="fc" id="L259">                                    .equals(listModel);</span>
+<span class="pc bpc" id="L260" title="2 of 4 branches missed.">                            return (defaultModelUsed || listModelUsed);</span>
+                        }
+<span class="fc" id="L262">                ).collect(Collectors.toList());</span>
+
+<span class="fc" id="L264">        final List&lt;ComponentUsageEntity&gt; contentTemplateUsageDetails = defaultContentTemplateUsedList.stream()</span>
+<span class="pc" id="L265">                .map(f -&gt; createToComponentUsageEntity(f.getCode(), &quot;&quot;,</span>
+<span class="fc" id="L266">                        &quot;contentType&quot;)).collect(Collectors.toList());</span>
+
+<span class="fc" id="L268">        componentUsageDetails.addAll(contentTemplateUsageDetails);</span>
+
+<span class="fc" id="L270">        final List&lt;ComponentUsageEntity&gt; contentModelUsageDetails = new ContentModelUsageDetailsRequestListProcessor(</span>
+                restListRequest, componentUsageDetails)
+<span class="fc" id="L272">                .filterAndSort().toList();</span>
+
+<span class="fc" id="L274">        final List&lt;ComponentUsageEntity&gt; subList = restListRequest.getSublist(contentModelUsageDetails);</span>
+<span class="fc" id="L275">        SearcherDaoPaginatedResult&lt;ComponentUsageEntity&gt; paginatedResult = new SearcherDaoPaginatedResult&lt;&gt;(</span>
+<span class="fc" id="L276">                contentModelUsageDetails.size(), subList);</span>
+
+<span class="fc" id="L278">        PagedMetadata&lt;ComponentUsageEntity&gt; pagedMetadata = new PagedMetadata&lt;&gt;(restListRequest, paginatedResult);</span>
+<span class="fc" id="L279">        pagedMetadata.setBody(subList);</span>
+<span class="fc" id="L280">        return pagedMetadata;</span>
+    }
+
+    private String getStatusString(boolean online) {
+<span class="fc bfc" id="L284" title="All 2 branches covered.">        if (online) {</span>
+<span class="fc" id="L285">            return &quot;online&quot;;</span>
+        }
+<span class="fc" id="L287">        return &quot;offline&quot;;</span>
+    }
+
+    private ComponentUsageEntity createToComponentUsageEntity(String code, String status, String type) {
+<span class="fc" id="L291">        ComponentUsageEntity componentUsage = new ComponentUsageEntity();</span>
+<span class="fc" id="L292">        componentUsage.setCode(code);</span>
+<span class="fc" id="L293">        componentUsage.setStatus(status);</span>
+<span class="fc" id="L294">        componentUsage.setType(type);</span>
+<span class="fc" id="L295">        return componentUsage;</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;ContentModelReferenceDTO&gt; getContentModelReferences(Long modelId,
+            RestListRequest requestList) {
+<span class="fc" id="L301">        ContentModel contentModel = this.contentModelManager.getContentModel(modelId);</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">        if (null == contentModel) {</span>
+<span class="fc" id="L303">            logger.debug(&quot;contentModel {} does not exists&quot;, modelId);</span>
+<span class="fc" id="L304">            throw new ResourceNotFoundException(ContentModelValidator.ERRCODE_CONTENTMODEL_NOT_FOUND, &quot;contentModel&quot;,</span>
+<span class="fc" id="L305">                    String.valueOf(modelId));</span>
+        }
+
+<span class="fc" id="L308">        final List&lt;ContentModelReference&gt; contentModelReferences = new ContentModelReferencesRequestListProcessor(</span>
+                requestList, this.contentModelManager
+<span class="fc" id="L310">                .getContentModelReferences(modelId, true))</span>
+<span class="fc" id="L311">                .filterAndSort().toList();</span>
+
+<span class="fc" id="L313">        final List&lt;ContentModelReference&gt; subList = requestList.getSublist(contentModelReferences);</span>
+<span class="fc" id="L314">        final List&lt;ContentModelReferenceDTO&gt; contentModelReferenceDTOS = mapContentModelReferencesToDTOs(subList);</span>
+<span class="fc" id="L315">        SearcherDaoPaginatedResult&lt;ContentModelReferenceDTO&gt; paginatedResult = new SearcherDaoPaginatedResult&lt;&gt;(</span>
+<span class="fc" id="L316">                contentModelReferences.size(), contentModelReferenceDTOS);</span>
+<span class="fc" id="L317">        PagedMetadata&lt;ContentModelReferenceDTO&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, paginatedResult);</span>
+<span class="fc" id="L318">        pagedMetadata.setBody(contentModelReferenceDTOS);</span>
+<span class="fc" id="L319">        return pagedMetadata;</span>
+    }
+
+
+    private List&lt;ContentModelReferenceDTO&gt; mapContentModelReferencesToDTOs(
+            List&lt;ContentModelReference&gt; contentModelReferences) {
+<span class="fc" id="L325">        return contentModelReferences.stream().map(this::mapContentModelReferenceToDTO</span>
+<span class="fc" id="L326">        ).collect(Collectors.toList());</span>
+    }
+
+    private ContentModelReferenceDTO mapContentModelReferenceToDTO(ContentModelReference cmr) {
+<span class="fc" id="L330">        ContentModelReferenceDTO contentModelReferenceDTO = new ContentModelReferenceDTO();</span>
+<span class="fc" id="L331">        contentModelReferenceDTO.setPageCode(cmr.getPageCode());</span>
+<span class="fc" id="L332">        contentModelReferenceDTO.setOnline(cmr.isOnline());</span>
+<span class="fc" id="L333">        contentModelReferenceDTO.setWidgetPosition(cmr.getWidgetPosition());</span>
+<span class="fc" id="L334">        return contentModelReferenceDTO;</span>
+    }
+
+    @Override
+    public IEntityModelDictionary getContentModelDictionary(String typeCode) {
+<span class="fc bfc" id="L339" title="All 2 branches covered.">        if (StringUtils.isBlank(typeCode)) {</span>
+<span class="fc" id="L340">            return this.dictionaryProvider.buildDictionary();</span>
+        }
+<span class="fc" id="L342">        IApsEntity prototype = this.contentManager.getEntityPrototype(typeCode);</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">        if (null == prototype) {</span>
+<span class="fc" id="L344">            logger.warn(&quot;no contentModel found with id {}&quot;, typeCode);</span>
+<span class="fc" id="L345">            throw new ResourceNotFoundException(ContentModelValidator.ERRCODE_CONTENTMODEL_TYPECODE_NOT_FOUND,</span>
+                    &quot;contentType&quot;, typeCode);
+        }
+<span class="fc" id="L348">        return this.dictionaryProvider.buildDictionary(prototype);</span>
+    }
+
+    protected ContentModel createContentModel(ContentModelDto src) {
+<span class="fc" id="L352">        ContentModel contentModel = new ContentModel();</span>
+<span class="fc" id="L353">        this.copyProperties(src, contentModel);</span>
+<span class="fc" id="L354">        return contentModel;</span>
+    }
+
+    protected void copyProperties(ContentModelDto src, ContentModel dest) {
+<span class="fc" id="L358">        dest.setContentShape(NonceInjector.process(src.getContentShape()));</span>
+<span class="fc" id="L359">        dest.setContentType(src.getContentType());</span>
+<span class="fc" id="L360">        dest.setDescription(src.getDescr());</span>
+<span class="fc" id="L361">        dest.setId(src.getId());</span>
+<span class="fc" id="L362">        dest.setStylesheet(src.getStylesheet());</span>
+<span class="fc" id="L363">    }</span>
+
+    protected BeanPropertyBindingResult validateForAdd(ContentModel contentModel) {
+<span class="fc" id="L366">        BeanPropertyBindingResult errors = new BeanPropertyBindingResult(contentModel, &quot;contentModel&quot;);</span>
+<span class="fc" id="L367">        validateIdIsUnique(contentModel, errors);</span>
+<span class="fc" id="L368">        validateContentType(contentModel.getContentType(), errors);</span>
+<span class="fc" id="L369">        return errors;</span>
+    }
+
+    protected BeanPropertyBindingResult validateForDelete(ContentModel contentModel) {
+<span class="fc" id="L373">        BeanPropertyBindingResult errors = new BeanPropertyBindingResult(contentModel, &quot;contentModel&quot;);</span>
+<span class="fc" id="L374">        List&lt;ContentModelReference&gt; references = this.contentModelManager</span>
+<span class="fc" id="L375">                .getContentModelReferences(contentModel.getId(), false);</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">        if (!references.isEmpty()) {</span>
+<span class="fc" id="L377">            errors.reject(ContentModelValidator.ERRCODE_CONTENTMODEL_REFERENCES, null, &quot;contentmodel.page.references&quot;);</span>
+        }
+<span class="fc" id="L379">        final List&lt;SmallEntityType&gt; defaultContentTemplateUsedList = this.contentManager.getSmallEntityTypes().stream()</span>
+<span class="fc" id="L380">                .filter(</span>
+                        f -&gt; {
+<span class="fc" id="L382">                            final String defaultModel = contentManager.getDefaultModel(f.getCode());</span>
+<span class="fc" id="L383">                            final boolean defaultModelUsed = String.valueOf(contentModel.getId())</span>
+<span class="fc" id="L384">                                    .equals(defaultModel);</span>
+<span class="fc" id="L385">                            final String listModel = contentManager.getListModel(f.getCode());</span>
+<span class="fc" id="L386">                            final boolean listModelUsed = String.valueOf(contentModel.getId())</span>
+<span class="fc" id="L387">                                    .equals(listModel);</span>
+<span class="fc bfc" id="L388" title="All 4 branches covered.">                            return (defaultModelUsed || listModelUsed);</span>
+                        }
+<span class="fc" id="L390">                ).collect(Collectors.toList());</span>
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">        if (defaultContentTemplateUsedList.size() &gt; 0) {</span>
+<span class="fc" id="L393">            ArrayList&lt;String&gt; defList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L394">            defaultContentTemplateUsedList.forEach(f -&gt; defList.add(f.getCode()));</span>
+<span class="fc" id="L395">            final String defListString = String.join(&quot;, &quot;, defList);</span>
+<span class="fc" id="L396">            ArrayList&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L397">            args.add(defListString);</span>
+<span class="fc" id="L398">            errors.reject(ContentModelValidator.ERRCODE_CONTENTMODEL_METADATA_REFERENCES, args.toArray(),</span>
+                    &quot;contentmodel.defaultMetadata.references&quot;);
+        }
+<span class="fc" id="L401">        return errors;</span>
+    }
+
+    protected BeanPropertyBindingResult validateForUpdate(ContentModelDto request, ContentModel contentModel) {
+<span class="fc" id="L405">        BeanPropertyBindingResult errors = new BeanPropertyBindingResult(contentModel, &quot;contentModel&quot;);</span>
+<span class="fc" id="L406">        this.validateContentType(request.getContentType(), errors);</span>
+<span class="fc" id="L407">        return errors;</span>
+    }
+
+    protected void validateIdIsUnique(ContentModel contentModel, BeanPropertyBindingResult errors) {
+<span class="fc" id="L411">        long modelId = contentModel.getId();</span>
+
+<span class="fc" id="L413">        ContentModel dummyModel = this.contentModelManager.getContentModel(modelId);</span>
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        if (dummyModel != null) {</span>
+<span class="fc" id="L415">            Object[] args = {String.valueOf(modelId)};</span>
+<span class="fc" id="L416">            errors.reject(ContentModelValidator.ERRCODE_CONTENTMODEL_ALREADY_EXISTS, args,</span>
+                    &quot;contentmodel.id.already.present&quot;);
+        }
+<span class="fc" id="L419">        SmallEntityType utilizer = this.contentModelManager.getDefaultUtilizer(modelId);</span>
+<span class="pc bpc" id="L420" title="1 of 4 branches missed.">        if (null != utilizer &amp;&amp; !utilizer.getCode().equals(contentModel.getContentType())) {</span>
+<span class="fc" id="L421">            Object[] args = {String.valueOf(modelId), utilizer.getDescription()};</span>
+<span class="fc" id="L422">            errors.reject(ContentModelValidator.ERRCODE_CONTENTMODEL_WRONG_UTILIZER, args,</span>
+                    &quot;contentmodel.id.wrongUtilizer&quot;);
+        }
+<span class="fc" id="L425">    }</span>
+
+    protected void validateContentType(String contentType, BeanPropertyBindingResult errors) {
+<span class="fc bfc" id="L428" title="All 2 branches covered.">        if (!this.contentManager.getSmallContentTypesMap().containsKey(contentType)) {</span>
+<span class="fc" id="L429">            Object[] args = {contentType};</span>
+<span class="fc" id="L430">            errors.reject(ContentModelValidator.ERRCODE_CONTENTMODEL_TYPECODE_NOT_FOUND, args,</span>
+                    &quot;contentmodel.contentType.notFound&quot;);
+        }
+<span class="fc" id="L433">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
