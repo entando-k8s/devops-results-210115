@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectrenderer</a> &gt; <span class="el_source">DataObjectWrapper.java</span></div><h1>DataObjectWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectrenderer;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.BeanFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.renderer.EntityWrapper;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.DateConverter;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+
+/**
+ * Rappresenta un DataObject nella forma utilizzabile al servizio di
+ * renderizzazione. La classe estende HashMap per un agevole accesso agli
+ * attributi che popolano il dataobject.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+public class DataObjectWrapper extends EntityWrapper {
+
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DataObjectWrapper.class);</span>
+
+	/**
+	 * Inizializzazione del Wrapper.
+	 *
+	 * @param dataobject Il dataobject da utilizzare dal servizio di
+	 * renderizzazione.
+	 */
+	public DataObjectWrapper(DataObject dataobject) {
+<span class="nc" id="L47">		super(dataobject);</span>
+<span class="nc" id="L48">	}</span>
+
+	public DataObjectWrapper(DataObject dataobject, BeanFactory beanFactory) {
+<span class="fc" id="L51">		super(dataobject, beanFactory);</span>
+<span class="fc" id="L52">	}</span>
+
+	public boolean isUserAllowed(String permissionName) {
+		try {
+<span class="nc" id="L56">			IAuthorizationManager authManager</span>
+<span class="nc" id="L57">					= (IAuthorizationManager) this.getBeanFactory().getBean(SystemConstants.AUTHORIZATION_SERVICE);</span>
+<span class="nc" id="L58">			UserDetails currentUser = (UserDetails) this.getReqCtx().getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">			if (null == currentUser) {</span>
+<span class="nc" id="L60">				return false;</span>
+			}
+<span class="nc bnc" id="L62" title="All 2 branches missed.">			if (!authManager.isAuthOnGroup(currentUser, this.getEntity().getMainGroup())) {</span>
+<span class="nc" id="L63">				return false;</span>
+			}
+<span class="nc bnc" id="L65" title="All 6 branches missed.">			if (null != permissionName &amp;&amp; permissionName.trim().length() &gt; 0 &amp;&amp; !authManager.isAuthOnPermission(currentUser, permissionName)) {</span>
+<span class="nc" id="L66">				return false;</span>
+			}
+<span class="nc" id="L68">		} catch (Throwable t) {</span>
+<span class="nc" id="L69">			_logger.error(&quot;Error checking authority - permission {}&quot;, permissionName, t);</span>
+<span class="nc" id="L70">			return false;</span>
+<span class="nc" id="L71">		}</span>
+<span class="nc" id="L72">		return true;</span>
+	}
+
+	/**
+	 * Return the value of a System parameter.
+	 *
+	 * @param paramName The name of parameters
+	 * @return The value to return
+	 * @deprecated this method has to be moved outside dataobject Wrapper
+	 */
+	public String getConfigParameter(String paramName) {
+		try {
+<span class="nc" id="L84">			ConfigInterface configManager = (ConfigInterface) this.getBeanFactory().getBean(SystemConstants.BASE_CONFIG_MANAGER);</span>
+<span class="nc" id="L85">			return configManager.getParam(paramName);</span>
+<span class="nc" id="L86">		} catch (Throwable t) {</span>
+<span class="nc" id="L87">			_logger.error(&quot;Error extracting config parameter - parameter &quot;, paramName, t);</span>
+<span class="nc" id="L88">			return null;</span>
+		}
+	}
+
+	public String getLangCode() {
+<span class="nc" id="L93">		return super.getRenderingLang();</span>
+	}
+
+	public String getCreated(String pattern) {
+<span class="nc" id="L97">		DataObject dataobject = (DataObject) super.getEntity();</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">		if (null != dataobject.getCreated()) {</span>
+<span class="nc" id="L99">			return DateConverter.getFormattedDate(dataobject.getCreated(), pattern, this.getRenderingLang());</span>
+		}
+<span class="nc" id="L101">		return null;</span>
+	}
+
+	public String getLastModified(String pattern) {
+<span class="nc" id="L105">		DataObject dataobject = (DataObject) super.getEntity();</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">		if (null != dataobject.getLastModified()) {</span>
+<span class="nc" id="L107">			return DateConverter.getFormattedDate(dataobject.getLastModified(), pattern, this.getRenderingLang());</span>
+		}
+<span class="nc" id="L109">		return null;</span>
+	}
+
+	public String getVersion() {
+<span class="nc" id="L113">		return ((DataObject) super.getEntity()).getVersion();</span>
+	}
+
+	public String getLastEditor() {
+<span class="nc" id="L117">		return ((DataObject) super.getEntity()).getLastEditor();</span>
+	}
+
+	protected RequestContext getReqCtx() {
+<span class="nc" id="L121">		return _reqCtx;</span>
+	}
+
+	protected void setReqCtx(RequestContext reqCtx) {
+<span class="fc" id="L125">		this._reqCtx = reqCtx;</span>
+<span class="fc" id="L126">	}</span>
+
+	private RequestContext _reqCtx;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

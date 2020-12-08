@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthenticationProviderManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.user</a> &gt; <span class="el_source">AuthenticationProviderManager.java</span></div><h1>AuthenticationProviderManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.user;
+
+import java.util.List;
+
+import org.entando.entando.aps.system.services.oauth2.IApiOAuth2TokenManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.Authorization;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.common.OAuth2AccessToken;
+
+/**
+ * Implementazione concreta dell'oggetto Authentication Provider di default del
+ * sistema. L'Authentication Provider è l'oggetto delegato alla restituzione di
+ * un'utenza (comprensiva delle sue autorizzazioni) in occasione di una
+ * richiesta di autenticazione utente; questo oggetto non ha visibilitÃ  ai
+ * singoli sistemi (concreti) delegati alla gestione delle autorizzazioni.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L43">public class AuthenticationProviderManager extends AbstractService</span>
+        implements IAuthenticationProviderManager {
+
+<span class="fc" id="L46">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(AuthenticationProviderManager.class);</span>
+
+    private IUserManager userManager;
+    private IAuthorizationManager authorizationManager;
+    private IApiOAuth2TokenManager tokenManager;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L54">        logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L55">    }</span>
+
+    @Override
+    public UserDetails getUser(String username) throws EntException {
+<span class="fc" id="L59">        return this.extractUser(username, null);</span>
+    }
+
+    @Override
+    public UserDetails getUser(String username, String password) throws EntException {
+<span class="fc" id="L64">        return this.extractUser(username, password);</span>
+    }
+
+    protected UserDetails extractUser(String username, String password) throws EntException {
+<span class="fc" id="L68">        return this.extractUser(username, password, true);</span>
+    }
+
+    protected UserDetails extractUser(String username, String password, boolean addToken) throws EntException {
+<span class="fc" id="L72">        UserDetails user = null;</span>
+        try {
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (null == password) {</span>
+<span class="fc" id="L75">                user = this.getUserManager().getUser(username);</span>
+            } else {
+<span class="fc" id="L77">                user = this.getUserManager().getUser(username, password);</span>
+            }
+<span class="fc bfc" id="L79" title="All 4 branches covered.">            if (null == user || user.isDisabled()) {</span>
+<span class="fc" id="L80">                return null;</span>
+            }
+<span class="fc bfc" id="L82" title="All 2 branches covered.">            if (!user.getUsername().equals(SystemConstants.ADMIN_USER_NAME)) {</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                if (!user.isAccountNotExpired()) {</span>
+<span class="fc" id="L84">                    logger.info(&quot;USER ACCOUNT '{}' EXPIRED&quot;, user.getUsername());</span>
+<span class="fc" id="L85">                    return user;</span>
+                }
+            }
+<span class="fc" id="L88">            this.getUserManager().updateLastAccess(user);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            if (!user.isCredentialsNotExpired()) {</span>
+<span class="fc" id="L90">                logger.info(&quot;USER '{}' credentials EXPIRED&quot;, user.getUsername());</span>
+<span class="fc" id="L91">                return user;</span>
+            }
+<span class="fc" id="L93">            this.addUserAuthorizations(user);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            if (addToken) {</span>
+<span class="fc" id="L95">                OAuth2AccessToken token = this.getTokenManager().createAccessTokenForLocalUser(username);</span>
+<span class="fc" id="L96">                user.setAccessToken(token.getValue());</span>
+<span class="fc" id="L97">                user.setRefreshToken(token.getRefreshToken().getValue());</span>
+            }
+<span class="fc" id="L99">        } catch (Exception e) {</span>
+<span class="fc" id="L100">            logger.error(&quot;Error detected during the authentication of the user '{}'&quot;, username, e);</span>
+<span class="fc" id="L101">            throw new EntException(&quot;Error detected during the authentication of the user &quot; + username, e);</span>
+<span class="fc" id="L102">        }</span>
+<span class="fc" id="L103">        return user;</span>
+    }
+
+    protected void addUserAuthorizations(UserDetails user) throws EntException {
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L108">            return;</span>
+        }
+<span class="fc" id="L110">        List&lt;Authorization&gt; auths = this.getAuthorizationManager().getUserAuthorizations(user.getUsername());</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (null == auths) {</span>
+<span class="nc" id="L112">            return;</span>
+        }
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="fc" id="L115">            Authorization authorization = auths.get(i);</span>
+<span class="fc" id="L116">            user.addAuthorization(authorization);</span>
+        }
+<span class="fc" id="L118">    }</span>
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        try {
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">            if (null == authentication</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                    || null == authentication.getPrincipal()</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">                    || null == authentication.getCredentials()) {</span>
+<span class="fc" id="L126">                throw new UsernameNotFoundException(&quot;Invalid principal and/or credentials&quot;);</span>
+            }
+<span class="fc" id="L128">            UserDetails user = this.extractUser(authentication.getPrincipal().toString(),</span>
+<span class="fc" id="L129">                    authentication.getCredentials().toString(), false);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if (null != user) {</span>
+<span class="fc" id="L131">                Authentication newAuth</span>
+<span class="fc" id="L132">                        = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(),</span>
+<span class="fc" id="L133">                                authentication.getCredentials(), user.getAuthorizations());</span>
+<span class="fc" id="L134">                return newAuth;</span>
+            } else {
+<span class="fc" id="L136">                throw new UsernameNotFoundException(&quot;Invalid username/password&quot;);</span>
+            }
+<span class="fc" id="L138">        } catch (AuthenticationException e) {</span>
+<span class="fc" id="L139">            throw e;</span>
+<span class="fc" id="L140">        } catch (Exception e) {</span>
+<span class="fc" id="L141">            logger.error(&quot;Error detected during user authentication&quot;, e);</span>
+<span class="fc" id="L142">            throw new AuthenticationServiceException(&quot;Error detected during user authentication&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public org.springframework.security.core.userdetails.UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        try {
+<span class="fc" id="L149">            UserDetails localUser = this.extractUser(username, null, false);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">            if (null == localUser) {</span>
+<span class="fc" id="L151">                throw new UsernameNotFoundException(&quot;User &quot; + username + &quot; not found&quot;);</span>
+            }
+<span class="fc" id="L153">            org.springframework.security.core.userdetails.User user = new org.springframework.security.core.userdetails.User(username,</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                    &quot;&quot;, !localUser.isDisabled(), localUser.isAccountNotExpired(),</span>
+<span class="fc" id="L155">                    localUser.isCredentialsNotExpired(), true, localUser.getAuthorizations());</span>
+<span class="fc" id="L156">            return user;</span>
+<span class="fc" id="L157">        } catch (EntException ex) {</span>
+<span class="fc" id="L158">            logger.error(&quot;Error extracting user {}&quot;, username, ex);</span>
+<span class="fc" id="L159">            throw new UsernameNotFoundException(&quot;Error extracting user &quot; + username, ex);</span>
+        }
+    }
+
+    protected IUserManager getUserManager() {
+<span class="fc" id="L164">        return userManager;</span>
+    }
+
+    public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L168">        this.userManager = userManager;</span>
+<span class="fc" id="L169">    }</span>
+
+    protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L172">        return authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L176">        this.authorizationManager = authorizationManager;</span>
+<span class="fc" id="L177">    }</span>
+
+    protected IApiOAuth2TokenManager getTokenManager() {
+<span class="fc" id="L180">        return tokenManager;</span>
+    }
+
+    public void setTokenManager(IApiOAuth2TokenManager tokenManager) {
+<span class="fc" id="L184">        this.tokenManager = tokenManager;</span>
+<span class="fc" id="L185">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

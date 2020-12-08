@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataTypeController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.dataobject</a> &gt; <span class="el_source">DataTypeController.java</span></div><h1>DataTypeController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.dataobject;
+
+import com.agiletec.aps.system.services.role.Permission;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectService;
+import org.entando.entando.aps.system.services.dataobject.model.DataTypeDto;
+import org.entando.entando.aps.system.services.entity.model.AttributeTypeDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeAttributeFullDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypeShortDto;
+import org.entando.entando.aps.system.services.entity.model.EntityTypesStatusDto;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.common.model.RestResponse;
+import org.entando.entando.web.dataobject.model.DataTypeDtoRequest;
+import org.entando.entando.web.dataobject.model.DataTypeRefreshRequest;
+import org.entando.entando.web.dataobject.validator.DataTypeValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+
+/**
+ * @author E.Santoboni
+ */
+@RestController
+<span class="fc" id="L54">public class DataTypeController {</span>
+
+<span class="fc" id="L56">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    @Autowired
+    private IDataObjectService dataObjectService;
+
+    @Autowired
+    private DataTypeValidator dataTypeValidator;
+
+    protected IDataObjectService getDataObjectService() {
+<span class="fc" id="L65">        return dataObjectService;</span>
+    }
+
+    public void setDataObjectService(IDataObjectService dataObjectService) {
+<span class="fc" id="L69">        this.dataObjectService = dataObjectService;</span>
+<span class="fc" id="L70">    }</span>
+
+    public DataTypeValidator getDataTypeValidator() {
+<span class="fc" id="L73">        return dataTypeValidator;</span>
+    }
+
+    public void setDataTypeValidator(DataTypeValidator dataTypeValidator) {
+<span class="fc" id="L77">        this.dataTypeValidator = dataTypeValidator;</span>
+<span class="fc" id="L78">    }</span>
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;EntityTypeShortDto&gt;&gt; getDataTypes(@Valid RestListRequest requestList) throws JsonProcessingException {
+<span class="fc" id="L83">        this.getDataTypeValidator().validateRestListRequest(requestList, DataTypeDto.class);</span>
+<span class="fc" id="L84">        PagedMetadata&lt;EntityTypeShortDto&gt; result = this.getDataObjectService().getShortDataTypes(requestList);</span>
+<span class="fc" id="L85">        this.getDataTypeValidator().validateRestListResult(requestList, result);</span>
+<span class="fc" id="L86">        logger.debug(&quot;Main Response -&gt; {}&quot;, result);</span>
+<span class="fc" id="L87">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;DataTypeDto&gt;&gt; getDataType(@PathVariable String dataTypeCode) throws JsonProcessingException {
+<span class="fc" id="L93">        logger.debug(&quot;Requested data type -&gt; {}&quot;, dataTypeCode);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (!this.getDataTypeValidator().existType(dataTypeCode)) {</span>
+<span class="fc" id="L95">            throw new ResourceNotFoundException(DataTypeValidator.ERRCODE_ENTITY_TYPE_DOES_NOT_EXIST, &quot;Data Type&quot;, dataTypeCode);</span>
+        }
+<span class="fc" id="L97">        DataTypeDto dto = this.getDataObjectService().getDataType(dataTypeCode);</span>
+<span class="fc" id="L98">        logger.debug(&quot;Main Response -&gt; {}&quot;, dto);</span>
+<span class="fc" id="L99">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(dto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;DataTypeDto&gt;&gt; addDataTypes(@Valid @RequestBody DataTypeDtoRequest bodyRequest,
+            BindingResult bindingResult) throws JsonProcessingException {
+        //field validations
+<span class="fc" id="L107">        this.getDataTypeValidator().validate(bodyRequest, bindingResult);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L109">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (this.getDataTypeValidator().existType(bodyRequest.getCode())) {</span>
+<span class="fc" id="L113">            bindingResult.reject(DataTypeValidator.ERRCODE_ENTITY_TYPE_ALREADY_EXISTS, new String[]{bodyRequest.getCode()}, &quot;entityType.exists&quot;);</span>
+        }
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L116">            throw new ValidationConflictException(bindingResult);</span>
+        }
+<span class="fc" id="L118">        DataTypeDto result = this.getDataObjectService().addDataType(bodyRequest, bindingResult);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L120">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L122">        logger.debug(&quot;Main Response -&gt; {}&quot;, result);</span>
+<span class="fc" id="L123">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;DataTypeDto&gt;&gt; updateDataType(@PathVariable String dataTypeCode,
+            @Valid @RequestBody DataTypeDtoRequest request, BindingResult bindingResult) throws JsonProcessingException {
+<span class="fc" id="L130">        int result = this.getDataTypeValidator().validateBodyName(dataTypeCode, request, bindingResult);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">            if (result == 404) {</span>
+<span class="nc" id="L133">                throw new ResourceNotFoundException(DataTypeValidator.ERRCODE_ENTITY_TYPE_DOES_NOT_EXIST, &quot;data type&quot;, dataTypeCode);</span>
+            } else {
+<span class="fc" id="L135">                throw new ValidationGenericException(bindingResult);</span>
+            }
+        }
+<span class="fc" id="L138">        DataTypeDto dto = this.getDataObjectService().updateDataType(request, bindingResult);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L140">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L142">        logger.debug(&quot;Main Response -&gt; {}&quot;, dto);</span>
+<span class="fc" id="L143">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(dto), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&gt;&gt; deleteDataType(@PathVariable String dataTypeCode) {
+<span class="fc" id="L149">        logger.debug(&quot;Deleting data type -&gt; {}&quot;, dataTypeCode);</span>
+<span class="fc" id="L150">        this.getDataObjectService().deleteDataType(dataTypeCode);</span>
+<span class="fc" id="L151">        Map&lt;String, String&gt; payload = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L152">        payload.put(&quot;code&quot;, dataTypeCode);</span>
+<span class="fc" id="L153">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(payload), HttpStatus.OK);</span>
+    }
+
+    // ********************* ATTRIBUTE TYPES *********************
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypeAttributes&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;String&gt;&gt; getDataTypeAttributeTypes(RestListRequest requestList) throws JsonProcessingException {
+<span class="fc" id="L160">        this.getDataTypeValidator().validateRestListRequest(requestList, AttributeTypeDto.class);</span>
+<span class="fc" id="L161">        PagedMetadata&lt;String&gt; result = this.getDataObjectService().getAttributeTypes(requestList);</span>
+<span class="fc" id="L162">        logger.debug(&quot;Main Response -&gt; {}&quot;, result);</span>
+<span class="fc" id="L163">        this.getDataTypeValidator().validateRestListResult(requestList, result);</span>
+<span class="fc" id="L164">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypeAttributes/{attributeTypeCode}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;AttributeTypeDto&gt;&gt; getDataTypeAttributeType(@PathVariable String attributeTypeCode) throws JsonProcessingException {
+<span class="fc" id="L170">        logger.debug(&quot;Extracting attribute type -&gt; {}&quot;, attributeTypeCode);</span>
+<span class="fc" id="L171">        AttributeTypeDto attribute = this.getDataObjectService().getAttributeType(attributeTypeCode);</span>
+<span class="fc" id="L172">        logger.debug(&quot;Main Response -&gt; {}&quot;, attribute);</span>
+<span class="fc" id="L173">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(attribute), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute/{attributeCode}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;EntityTypeAttributeFullDto, Map&lt;String, String&gt;&gt;&gt; getDataTypeAttribute(@PathVariable String dataTypeCode, @PathVariable String attributeCode) throws JsonProcessingException {
+<span class="fc" id="L179">        logger.debug(&quot;Requested data type {} - attribute {}&quot;, dataTypeCode, attributeCode);</span>
+<span class="fc" id="L180">        EntityTypeAttributeFullDto dto = this.getDataObjectService().getDataTypeAttribute(dataTypeCode, attributeCode);</span>
+<span class="fc" id="L181">        logger.debug(&quot;Main Response -&gt; {}&quot;, dto);</span>
+<span class="fc" id="L182">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L183">        metadata.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L184">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(dto, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;EntityTypeAttributeFullDto, Map&lt;String, String&gt;&gt;&gt; addDataTypeAttribute(@PathVariable String dataTypeCode, @Valid @RequestBody EntityTypeAttributeFullDto bodyRequest,
+            BindingResult bindingResult) throws JsonProcessingException {
+<span class="fc" id="L191">        logger.debug(&quot;Data type {} - Adding attribute {}&quot;, dataTypeCode, bodyRequest);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L193">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L195">        EntityTypeAttributeFullDto result = this.getDataObjectService().addDataTypeAttribute(dataTypeCode, bodyRequest, bindingResult);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L197">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L199">        logger.debug(&quot;Main Response -&gt; {}&quot;, result);</span>
+<span class="fc" id="L200">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L201">        metadata.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L202">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute/{attributeCode}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;EntityTypeAttributeFullDto, Map&lt;String, String&gt;&gt;&gt; updateDataTypeAttribute(@PathVariable String dataTypeCode,
+            @PathVariable String attributeCode, @Valid @RequestBody EntityTypeAttributeFullDto bodyRequest, BindingResult bindingResult) throws JsonProcessingException {
+<span class="fc" id="L209">        logger.debug(&quot;Data type {} - Updating attribute {}&quot;, dataTypeCode, bodyRequest);</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L211">            throw new ValidationGenericException(bindingResult);</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        } else if (!StringUtils.equals(attributeCode, bodyRequest.getCode())) {</span>
+<span class="fc" id="L213">            bindingResult.rejectValue(&quot;code&quot;, DataTypeValidator.ERRCODE_URINAME_MISMATCH, new String[]{attributeCode, bodyRequest.getCode()}, &quot;entityType.attribute.code.mismatch&quot;);</span>
+<span class="fc" id="L214">            throw new ValidationConflictException(bindingResult);</span>
+        }
+<span class="fc" id="L216">        EntityTypeAttributeFullDto result = this.getDataObjectService().updateDataTypeAttribute(dataTypeCode, bodyRequest, bindingResult);</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L218">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L220">        logger.debug(&quot;Main Response -&gt; {}&quot;, result);</span>
+<span class="fc" id="L221">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L222">        metadata.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L223">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute/{attributeCode}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&gt;&gt; deleteDataTypeAttribute(
+            @PathVariable String dataTypeCode,
+            @PathVariable String attributeCode) {
+        //-
+<span class="fc" id="L232">        logger.debug(&quot;Deleting attribute {} from data type {}&quot;, attributeCode, dataTypeCode);</span>
+<span class="fc" id="L233">        this.getDataObjectService().deleteDataTypeAttribute(dataTypeCode, attributeCode);</span>
+<span class="fc" id="L234">        Map&lt;String, String&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L235">        result.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L236">        result.put(&quot;attributeCode&quot;, attributeCode);</span>
+<span class="fc" id="L237">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/refresh/{dataTypeCode}&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; reloadReferences(@PathVariable String dataTypeCode) throws Throwable {
+<span class="fc" id="L243">        logger.debug(&quot;reload references of data type {}&quot;, dataTypeCode);</span>
+<span class="fc" id="L244">        this.getDataObjectService().reloadDataTypeReferences(dataTypeCode);</span>
+<span class="fc" id="L245">        Map&lt;String, String&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L246">        result.put(&quot;status&quot;, &quot;success&quot;);</span>
+<span class="fc" id="L247">        result.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L248">        logger.debug(&quot;started reload references of data type {}&quot;, dataTypeCode);</span>
+<span class="fc" id="L249">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypesStatus&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, Object&gt;&gt;&gt; reloadReferences(@Valid @RequestBody DataTypeRefreshRequest bodyRequest,
+            BindingResult bindingResult) throws Throwable {
+<span class="fc" id="L256">        logger.debug(&quot;reload references of data types {}&quot;, bodyRequest.getDataTypeCodes());</span>
+<span class="fc" id="L257">        Map&lt;String, Integer&gt; status = this.getDataObjectService().reloadDataTypesReferences(bodyRequest.getDataTypeCodes());</span>
+<span class="fc" id="L258">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L259">        result.put(&quot;result&quot;, &quot;success&quot;);</span>
+<span class="fc" id="L260">        result.put(&quot;dataTypeCodes&quot;, status);</span>
+<span class="fc" id="L261">        logger.debug(&quot;started reload references of data types {}&quot;, bodyRequest.getDataTypeCodes());</span>
+<span class="fc" id="L262">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypesStatus&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;EntityTypesStatusDto&gt;&gt; extractStatus() throws Throwable {
+<span class="fc" id="L268">        logger.debug(&quot;Extract data types status&quot;);</span>
+<span class="fc" id="L269">        EntityTypesStatusDto status = this.getDataObjectService().getDataTypesRefreshStatus();</span>
+<span class="fc" id="L270">        logger.debug(&quot;Extracted data types status {}&quot;, status);</span>
+<span class="fc" id="L271">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(status), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute/{attributeCode}/moveUp&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; moveDataTypeAttributeUp(
+            @PathVariable String dataTypeCode, @PathVariable String attributeCode) {
+        //-
+<span class="fc" id="L279">        logger.debug(&quot;Move UP attribute {} from data type {}&quot;, attributeCode, dataTypeCode);</span>
+<span class="fc" id="L280">        return this.moveDataTypeAttribute(dataTypeCode, attributeCode, true);</span>
+    }
+
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @RequestMapping(value = &quot;/dataTypes/{dataTypeCode}/attribute/{attributeCode}/moveDown&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; moveDataTypeAttributeDown(
+            @PathVariable String dataTypeCode, @PathVariable String attributeCode) {
+<span class="fc" id="L287">        logger.debug(&quot;Move DOWN attribute {} from data type {}&quot;, attributeCode, dataTypeCode);</span>
+<span class="fc" id="L288">        return this.moveDataTypeAttribute(dataTypeCode, attributeCode, false);</span>
+    }
+
+    private ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; moveDataTypeAttribute(
+            String dataTypeCode,
+            String attributeCode, boolean moveUp) {
+<span class="fc" id="L294">        this.getDataObjectService().moveDataTypeAttribute(dataTypeCode, attributeCode, moveUp);</span>
+<span class="fc" id="L295">        Map&lt;String, String&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L296">        result.put(&quot;dataTypeCode&quot;, dataTypeCode);</span>
+<span class="fc" id="L297">        result.put(&quot;attributeCode&quot;, attributeCode);</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        String movement = (moveUp) ? &quot;UP&quot; : &quot;DOWN&quot;;</span>
+<span class="fc" id="L299">        result.put(&quot;movement&quot;, movement);</span>
+<span class="fc" id="L300">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

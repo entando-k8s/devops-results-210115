@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiPageModelInterface.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.pagemodel.api</a> &gt; <span class="el_source">ApiPageModelInterface.java</span></div><h1>ApiPageModelInterface.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.pagemodel.api;
+
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.pagemodel.IPageModelManager;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.system.services.pagemodel.PageModelUtilizer;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+
+import org.entando.entando.aps.system.services.api.IApiErrorCodes;
+import org.entando.entando.aps.system.services.api.IApiExportable;
+import org.entando.entando.aps.system.services.api.model.ApiException;
+import org.entando.entando.aps.system.services.api.model.LinkedListItem;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.ListableBeanFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L49">public class ApiPageModelInterface implements BeanFactoryAware, IApiExportable {</span>
+	
+<span class="fc" id="L51">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiPageModelInterface.class);</span>
+	
+	public List&lt;LinkedListItem&gt; getPageModels(Properties properties) throws Throwable {
+<span class="nc" id="L54">		List&lt;LinkedListItem&gt; list = new ArrayList&lt;LinkedListItem&gt;();</span>
+		try {
+<span class="nc" id="L56">			Collection&lt;PageModel&gt; pageModels = this.getPageModelManager().getPageModels();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">			if (null != pageModels) {</span>
+<span class="nc" id="L58">				Iterator&lt;PageModel&gt; iter = pageModels.iterator();</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">				while (iter.hasNext()) {</span>
+<span class="nc" id="L60">					PageModel pageModel = iter.next();</span>
+<span class="nc" id="L61">					String url = this.getApiResourceUrl(pageModel, properties.getProperty(SystemConstants.API_APPLICATION_BASE_URL_PARAMETER), </span>
+<span class="nc" id="L62">							properties.getProperty(SystemConstants.API_LANG_CODE_PARAMETER), (MediaType) properties.get(SystemConstants.API_PRODUCES_MEDIA_TYPE_PARAMETER));</span>
+<span class="nc" id="L63">					LinkedListItem item = new LinkedListItem();</span>
+<span class="nc" id="L64">					item.setCode(pageModel.getCode());</span>
+<span class="nc" id="L65">					item.setUrl(url);</span>
+<span class="nc" id="L66">					list.add(item);</span>
+<span class="nc" id="L67">				}</span>
+			}
+<span class="nc" id="L69">		} catch (Throwable t) {</span>
+<span class="nc" id="L70">			_logger.error(&quot;Error extracting list of models&quot;, t);</span>
+<span class="nc" id="L71">			throw t;</span>
+<span class="nc" id="L72">		}</span>
+<span class="nc" id="L73">		return list;</span>
+	}
+	
+    public PageModel getPageModel(Properties properties) throws ApiException, Throwable {
+<span class="nc" id="L77">        String code = properties.getProperty(&quot;code&quot;);</span>
+<span class="nc" id="L78">		PageModel pageModel = null;</span>
+		try {
+<span class="nc" id="L80">			pageModel = this.getPageModelManager().getPageModel(code);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">			if (null == pageModel) {</span>
+<span class="nc" id="L82">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Page template with code '&quot; + code + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+			}
+<span class="nc" id="L84">		} catch (ApiException ae) {</span>
+<span class="nc" id="L85">			throw ae;</span>
+<span class="nc" id="L86">		} catch (Throwable t) {</span>
+<span class="nc" id="L87">			_logger.error(&quot;Error creating page template - code '{}'&quot;, code, t);</span>
+<span class="nc" id="L88">			throw t;</span>
+<span class="nc" id="L89">		}</span>
+<span class="nc" id="L90">        return pageModel;</span>
+    }
+	
+    public void addPageModel(PageModel pageModel) throws ApiException, Throwable {
+		try {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">			if (null != this.getPageModelManager().getPageModel(pageModel.getCode())) {</span>
+<span class="nc" id="L96">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Page template with code &quot; + pageModel.getCode() + &quot; already exists&quot;, Response.Status.CONFLICT);</span>
+			}
+<span class="nc" id="L98">			this.getPageModelManager().addPageModel(pageModel);</span>
+<span class="nc" id="L99">		} catch (ApiException ae) {</span>
+<span class="nc" id="L100">			throw ae;</span>
+<span class="nc" id="L101">		} catch (Throwable t) {</span>
+<span class="nc" id="L102">			_logger.error(&quot;Error adding new page template&quot;, t);</span>
+<span class="nc" id="L103">			throw t;</span>
+<span class="nc" id="L104">		}</span>
+<span class="nc" id="L105">    }</span>
+	
+    public void updatePageModel(PageModel pageModel) throws ApiException, Throwable {
+		try {
+<span class="nc bnc" id="L109" title="All 2 branches missed.">			if (null != this.getPageModelManager().getPageModel(pageModel.getCode())) {</span>
+<span class="nc" id="L110">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Page template with code '&quot; + pageModel.getCode() + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+			}
+<span class="nc" id="L112">			this.getPageModelManager().updatePageModel(pageModel);</span>
+<span class="nc" id="L113">		} catch (ApiException ae) {</span>
+<span class="nc" id="L114">			throw ae;</span>
+<span class="nc" id="L115">		} catch (Throwable t) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;Error updating page template&quot;, t);</span>
+<span class="nc" id="L117">			throw t;</span>
+<span class="nc" id="L118">		}</span>
+<span class="nc" id="L119">    }</span>
+	
+    public void deletePageModel(Properties properties) throws ApiException, Throwable {
+<span class="nc" id="L122">        String code = properties.getProperty(&quot;code&quot;);</span>
+		try {
+<span class="nc" id="L124">			PageModel pageModel = this.getPageModelManager().getPageModel(code);</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">			if (null == pageModel) {</span>
+<span class="nc" id="L126">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;PageModel with code '&quot; + code + &quot;' does not exist&quot;, Response.Status.CONFLICT);</span>
+			}
+<span class="nc" id="L128">			Map&lt;String, List&lt;Object&gt;&gt; references = new HashMap&lt;String, List&lt;Object&gt;&gt;();</span>
+<span class="nc" id="L129">			ListableBeanFactory factory = (ListableBeanFactory) this.getBeanFactory();</span>
+<span class="nc" id="L130">			String[] defNames = factory.getBeanNamesForType(PageModelUtilizer.class);</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">			for (int i=0; i &lt; defNames.length; i++) {</span>
+<span class="nc" id="L132">				Object service = null;</span>
+				try {
+<span class="nc" id="L134">					service = this.getBeanFactory().getBean(defNames[i]);</span>
+<span class="nc" id="L135">				} catch (Throwable t) {</span>
+<span class="nc" id="L136">					_logger.error(&quot;error extracting bean with name '{}'&quot;, defNames[i], t);</span>
+<span class="nc" id="L137">					throw new EntException(&quot;error extracting bean with name '&quot; + defNames[i] + &quot;'&quot;, t);</span>
+<span class="nc" id="L138">				}</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">				if (service != null) {</span>
+<span class="nc" id="L140">					PageModelUtilizer pageModelUtilizer = (PageModelUtilizer) service;</span>
+<span class="nc" id="L141">					List&lt;Object&gt; utilizers = pageModelUtilizer.getPageModelUtilizers(code);</span>
+<span class="nc bnc" id="L142" title="All 4 branches missed.">					if (utilizers != null &amp;&amp; !utilizers.isEmpty()) {</span>
+<span class="nc" id="L143">						references.put(pageModelUtilizer.getName(), utilizers);</span>
+					}
+				}
+			}
+<span class="nc bnc" id="L147" title="All 2 branches missed.">			if (!references.isEmpty()) {</span>
+<span class="nc" id="L148">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;PageModel with code &quot; + code + &quot; has references with other object&quot;, Response.Status.CONFLICT);</span>
+			}
+<span class="nc" id="L150">			this.getPageModelManager().deletePageModel(code);</span>
+<span class="nc" id="L151">		} catch (ApiException ae) {</span>
+<span class="nc" id="L152">			throw ae;</span>
+<span class="nc" id="L153">		} catch (Throwable t) {</span>
+<span class="nc" id="L154">			_logger.error(&quot;Error deleting page template throw api&quot;, t);</span>
+<span class="nc" id="L155">			throw t;</span>
+<span class="nc" id="L156">		}</span>
+<span class="nc" id="L157">    }</span>
+	
+	@Override
+	public String getApiResourceUrl(Object object, String applicationBaseUrl, String langCode, MediaType mediaType) {
+<span class="nc bnc" id="L161" title="All 6 branches missed.">		if (!(object instanceof PageModel) || null == applicationBaseUrl || null == langCode) {</span>
+<span class="nc" id="L162">			return null;</span>
+		}
+<span class="nc" id="L164">		PageModel pageModel = (PageModel) object;</span>
+<span class="nc" id="L165">		StringBuilder stringBuilder = new StringBuilder(applicationBaseUrl);</span>
+<span class="nc" id="L166">		stringBuilder.append(&quot;api/rs/&quot;).append(langCode).append(&quot;/core/pageModel&quot;);//?code=&quot;).append(pageModel.getCode());</span>
+<span class="nc bnc" id="L167" title="All 4 branches missed.">		if (null == mediaType || mediaType.equals(MediaType.APPLICATION_XML_TYPE)) {</span>
+<span class="nc" id="L168">			stringBuilder.append(&quot;.xml&quot;);</span>
+		} else {
+<span class="nc" id="L170">			stringBuilder.append(&quot;.json&quot;);</span>
+		}
+<span class="nc" id="L172">		stringBuilder.append(&quot;?code=&quot;).append(pageModel.getCode());</span>
+<span class="nc" id="L173">		return stringBuilder.toString();</span>
+	}
+	
+	protected BeanFactory getBeanFactory() {
+<span class="nc" id="L177">		return _beanFactory;</span>
+	}
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+<span class="fc" id="L181">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L182">	}</span>
+	
+	protected IPageModelManager getPageModelManager() {
+<span class="nc" id="L185">		return _pageModelManager;</span>
+	}
+	public void setPageModelManager(IPageModelManager pageModelManager) {
+<span class="fc" id="L188">		this._pageModelManager = pageModelManager;</span>
+<span class="fc" id="L189">	}</span>
+	
+	private BeanFactory _beanFactory;
+	private IPageModelManager _pageModelManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseEntityRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.renderer</a> &gt; <span class="el_source">BaseEntityRenderer.java</span></div><h1>BaseEntityRenderer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.renderer;
+
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.Velocity;
+import org.apache.velocity.context.Context;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.common.util.EntityAttributeIterator;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.i18n.I18nManagerWrapper;
+import com.agiletec.aps.system.services.i18n.II18nManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+
+/**
+ * Entities rendering service.
+ * @author M.Diana - W.Ambu - E.Santoboni
+ */
+<span class="fc" id="L41">public abstract class BaseEntityRenderer extends DefaultVelocityRenderer implements IEntityRenderer {</span>
+
+<span class="fc" id="L43">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BaseEntityRenderer.class);</span>
+	
+	@Override
+	public String render(IApsEntity entity, String velocityTemplate, String langCode, boolean convertSpecialCharacters) {
+<span class="nc" id="L47">		String renderedEntity = null;</span>
+<span class="nc" id="L48">		List&lt;TextAttributeCharReplaceInfo&gt; conversions = null;</span>
+		try {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			if (convertSpecialCharacters) {</span>
+<span class="nc" id="L51">				conversions = this.convertSpecialCharacters(entity, langCode);</span>
+			}
+<span class="nc" id="L53">			Context velocityContext = new VelocityContext();</span>
+<span class="nc" id="L54">			EntityWrapper entityWrapper = this.getEntityWrapper(entity);</span>
+<span class="nc" id="L55">			entityWrapper.setRenderingLang(langCode);</span>
+<span class="nc" id="L56">			velocityContext.put(this.getEntityWrapperContextName(), entityWrapper);</span>
+
+<span class="nc" id="L58">			I18nManagerWrapper i18nWrapper = new I18nManagerWrapper(langCode, this.getI18nManager());</span>
+<span class="nc" id="L59">			velocityContext.put(&quot;i18n&quot;, i18nWrapper);</span>
+<span class="nc" id="L60">			StringWriter stringWriter = new StringWriter();</span>
+<span class="nc" id="L61">			boolean isEvaluated = Velocity.evaluate(velocityContext, stringWriter, &quot;render&quot;, velocityTemplate);</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">			if (!isEvaluated) {</span>
+<span class="nc" id="L63">				throw new EntException(&quot;Rendering error&quot;);</span>
+			}
+<span class="nc" id="L65">			stringWriter.flush();</span>
+<span class="nc" id="L66">			renderedEntity = stringWriter.toString();</span>
+<span class="nc" id="L67">		} catch (Throwable t) {</span>
+<span class="nc" id="L68">			_logger.error(&quot;Rendering error. entity {}&quot;, entity.getTypeCode(), t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;render&quot;, &quot;Rendering error&quot;);
+<span class="nc" id="L70">			renderedEntity = &quot;&quot;;</span>
+		} finally {
+<span class="nc bnc" id="L72" title="All 4 branches missed.">			if (convertSpecialCharacters &amp;&amp; null != conversions) {</span>
+<span class="nc" id="L73">				this.replaceSpecialCharacters(conversions);</span>
+			}
+		}
+<span class="nc" id="L76">		return renderedEntity;</span>
+	}
+
+	protected abstract EntityWrapper getEntityWrapper(IApsEntity entity);
+	
+	protected List&lt;TextAttributeCharReplaceInfo&gt; convertSpecialCharacters(IApsEntity entity, String langCode) {
+<span class="fc" id="L82">		List&lt;TextAttributeCharReplaceInfo&gt; conversions = new ArrayList&lt;TextAttributeCharReplaceInfo&gt;();</span>
+<span class="fc" id="L83">		Lang defaultLang = this.getLangManager().getDefaultLang();</span>
+<span class="fc" id="L84">		EntityAttributeIterator attributeIter = new EntityAttributeIterator(entity);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		while (attributeIter.hasNext()) {</span>
+<span class="fc" id="L86">			AttributeInterface currAttribute = (AttributeInterface) attributeIter.next();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">			if (currAttribute instanceof ITextAttribute) {</span>
+<span class="fc" id="L88">				String attributeLangCode = langCode;</span>
+<span class="fc" id="L89">				ITextAttribute renderizable = (ITextAttribute) currAttribute;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">				if (renderizable.needToConvertSpecialCharacter()) {</span>
+<span class="fc" id="L91">					String textToConvert = renderizable.getTextForLang(attributeLangCode);</span>
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">					if (null == textToConvert || textToConvert.trim().length() == 0) {</span>
+<span class="fc" id="L93">						attributeLangCode = defaultLang.getCode();</span>
+<span class="fc" id="L94">						textToConvert = renderizable.getTextForLang(attributeLangCode);</span>
+					}
+<span class="pc bpc" id="L96" title="2 of 4 branches missed.">					if (null != textToConvert &amp;&amp; textToConvert.trim().length() &gt; 0) {</span>
+<span class="fc" id="L97">						conversions.add(new TextAttributeCharReplaceInfo(renderizable, textToConvert, attributeLangCode));</span>
+<span class="fc" id="L98">						String convertedText = StringEscapeUtils.escapeHtml(textToConvert);</span>
+<span class="fc" id="L99">						renderizable.setText(convertedText, attributeLangCode);</span>
+					}
+				}
+			}
+<span class="fc" id="L103">		}</span>
+<span class="fc" id="L104">		return conversions;</span>
+	}
+	
+	protected void replaceSpecialCharacters(List&lt;TextAttributeCharReplaceInfo&gt; conversions) {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">		if (conversions == null) return;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		for (int i = 0; i &lt; conversions.size(); i++) {</span>
+<span class="fc" id="L110">			TextAttributeCharReplaceInfo conversion = conversions.get(i);</span>
+<span class="fc" id="L111">			conversion.restore();</span>
+		}
+<span class="fc" id="L113">	}</span>
+	
+	protected II18nManager getI18nManager() {
+<span class="fc" id="L116">		return _i18nManager;</span>
+	}
+	public void setI18nManager(II18nManager i18nManager) {
+<span class="fc" id="L119">		this._i18nManager = i18nManager;</span>
+<span class="fc" id="L120">	}</span>
+
+	protected ILangManager getLangManager() {
+<span class="fc" id="L123">		return _langManager;</span>
+	}
+	public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L126">		this._langManager = langManager;</span>
+<span class="fc" id="L127">	}</span>
+	
+	protected String getEntityWrapperContextName() {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">		if (null == this._entityWrapperContextName) {</span>
+<span class="nc" id="L131">			return DEFAULT_ENTITY_WRAPPER_CTX_NAME;</span>
+		}
+<span class="nc" id="L133">		return _entityWrapperContextName;</span>
+	}
+	
+	public void setEntityWrapperContextName(String entityWrapperContextName) {
+<span class="nc" id="L137">		this._entityWrapperContextName = entityWrapperContextName;</span>
+<span class="nc" id="L138">	}</span>
+	
+	private II18nManager _i18nManager;
+	private ILangManager _langManager;
+
+	private String _entityWrapperContextName;
+	
+	protected static final String DEFAULT_ENTITY_WRAPPER_CTX_NAME = &quot;entity&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

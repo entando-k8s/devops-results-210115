@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.category</a> &gt; <span class="el_source">CategoryDAO.java</span></div><h1>CategoryDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.category;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Data Access Object per gli oggetti Categoria.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L35">public class CategoryDAO extends AbstractDAO implements ICategoryDAO {</span>
+	
+<span class="fc" id="L37">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(CategoryDAO.class);</span>
+	
+	/**
+	 * Carica la lista delle categorie inserite nel sistema.
+	 * @param langManager Il manager delle lingue.
+	 * @return La lista delle categorie inserite nel sistema.
+	 */
+	@Override
+    public List&lt;Category&gt; loadCategories(ILangManager langManager) {
+<span class="fc" id="L46">		Connection conn = null;</span>
+<span class="fc" id="L47">		Statement stat = null;</span>
+<span class="fc" id="L48">		ResultSet res = null;</span>
+<span class="fc" id="L49">		List&lt;Category&gt; categories = new ArrayList&lt;Category&gt;();</span>
+		try {
+<span class="fc" id="L51">			conn = this.getConnection();</span>
+<span class="fc" id="L52">			stat = conn.createStatement();</span>
+<span class="fc" id="L53">			res = stat.executeQuery(this.getLoadCategoriesQuery());</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">			while(res.next()) {</span>
+<span class="fc" id="L55">				Category category = this.loadCategory(res, langManager);</span>
+<span class="fc" id="L56">				categories.add(category);</span>
+<span class="fc" id="L57">			}</span>
+<span class="nc" id="L58">		} catch (Throwable t) {</span>
+<span class="nc" id="L59">			_logger.error(&quot;Error loading categories&quot;,  t);</span>
+<span class="nc" id="L60">			throw new RuntimeException(&quot;Error loading categories&quot;, t);</span>
+			//processDaoException(t, &quot;Error loading categories&quot;, &quot;loadCategories&quot;);
+		} finally {
+<span class="fc" id="L63">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L65">		return categories;</span>
+	}
+	
+	/**
+	 * Costruisce e restituisce una categoria leggendo una riga di recordset.
+	 * @param res Il resultset da leggere
+	 * @param langManager Il manager delle lingue.
+	 * @return La categoria generata.
+	 * @throws EntException
+	 */
+	protected Category loadCategory(ResultSet res, ILangManager langManager) 
+			throws EntException {
+<span class="fc" id="L77">		Category category = new Category();</span>
+		try {
+<span class="fc" id="L79">			category.setCode(res.getString(1));</span>
+<span class="fc" id="L80">			category.setParentCode(res.getString(2));</span>
+<span class="fc" id="L81">			ApsProperties prop = new ApsProperties();</span>
+<span class="fc" id="L82">			prop.loadFromXml(res.getString(3));</span>
+<span class="fc" id="L83">			category.setTitles(prop);</span>
+<span class="fc" id="L84">			category.setDefaultLang(langManager.getDefaultLang().getCode());</span>
+<span class="nc" id="L85">		} catch (Throwable t) {</span>
+<span class="nc" id="L86">			throw new EntException(&quot;Error while loading a category&quot;, t);</span>
+<span class="fc" id="L87">		}</span>
+<span class="fc" id="L88">	    return category;</span>
+	}
+	
+	/**
+     * Cancella la categoria corrispondente al codice immesso.
+     * @param code Il codice relativo alla categoria da cancellare.
+     */
+	@Override
+    public void deleteCategory(String code) {
+<span class="fc" id="L97">    	Connection conn = null;</span>
+<span class="fc" id="L98">		PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L100">        	conn = this.getConnection();</span>
+<span class="fc" id="L101">        	conn.setAutoCommit(false);</span>
+<span class="fc" id="L102">			stat = conn.prepareStatement(this.getDeleteCategoryQuery());</span>
+<span class="fc" id="L103">            stat.setString(1, code);</span>
+<span class="fc" id="L104">            stat.executeUpdate();</span>
+<span class="fc" id="L105">            conn.commit();</span>
+<span class="nc" id="L106">        } catch (Throwable t) {</span>
+<span class="nc" id="L107">        	this.executeRollback(conn);</span>
+<span class="nc" id="L108">			_logger.error(&quot;Error detected while deleting category '{}'&quot;, code,  t);</span>
+<span class="nc" id="L109">			throw new RuntimeException(&quot;Error detected while deleting a category&quot;, t);</span>
+			//processDaoException(t, &quot;Error detected while deleting a category&quot;, &quot;deleteCategory&quot;);
+        } finally {
+<span class="fc" id="L112">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L114">    }</span>
+    
+    /**
+     * Inserisce una nuova Categoria.
+     * @param category La nuova Categoria da inserire.
+     */
+	@Override
+    public void addCategory(Category category) {
+<span class="fc" id="L122">    	Connection conn = null;</span>
+<span class="fc" id="L123">		PreparedStatement stat = null;</span>
+    	try {
+<span class="fc" id="L125">    		conn = this.getConnection();</span>
+<span class="fc" id="L126">    		conn.setAutoCommit(false);</span>
+<span class="fc" id="L127">			stat = conn.prepareStatement(this.getAddCategoryQuery());</span>
+<span class="fc" id="L128">    		stat.setString(1, category.getCode());</span>
+<span class="fc" id="L129">    		stat.setString(2, category.getParentCode());</span>
+<span class="fc" id="L130">    		stat.setString(3, category.getTitles().toXml());</span>
+<span class="fc" id="L131">    		stat.executeUpdate();</span>
+<span class="fc" id="L132">    		conn.commit();</span>
+<span class="nc" id="L133">    	} catch (Throwable t) {</span>
+<span class="nc" id="L134">    		this.executeRollback(conn);</span>
+<span class="nc" id="L135">			_logger.error(&quot;Error while inserting a new category&quot;,  t);</span>
+<span class="nc" id="L136">			throw new RuntimeException(&quot;Error while inserting a new category&quot;, t);</span>
+			//processDaoException(t, &quot;Error while inserting a new category&quot;, &quot;addCategory&quot;);
+    	} finally {
+<span class="fc" id="L139">    		closeDaoResources(null, stat, conn);</span>
+    	}
+<span class="fc" id="L141">    }</span>
+    
+    /**
+     * Aggiorna una categoria sul db.
+     * @param category La categoria da aggiornare.
+     */
+	@Override
+    public void updateCategory(Category category) {
+<span class="fc" id="L149">    	Connection conn = null;</span>
+<span class="fc" id="L150">		PreparedStatement stat = null;</span>
+     	try {
+<span class="fc" id="L152">     		conn = this.getConnection();</span>
+<span class="fc" id="L153">     		conn.setAutoCommit(false);</span>
+<span class="fc" id="L154">			stat = conn.prepareStatement(this.getUpdateCategoryQuery());</span>
+<span class="fc" id="L155">    		stat.setString(1, category.getParentCode());</span>
+<span class="fc" id="L156">    		stat.setString(2, category.getTitles().toXml());</span>
+<span class="fc" id="L157">    		stat.setString(3, category.getCode());</span>
+<span class="fc" id="L158">    		stat.executeUpdate();</span>
+<span class="fc" id="L159">    		conn.commit();</span>
+<span class="nc" id="L160">    	} catch (Throwable t) {</span>
+<span class="nc" id="L161">    		this.executeRollback(conn);</span>
+<span class="nc" id="L162">			_logger.error(&quot;Error detected while updating a category&quot;,  t);</span>
+<span class="nc" id="L163">			throw new RuntimeException(&quot;Error detected while updating a category&quot;, t);</span>
+			//processDaoException(t, &quot;Error detected while updating a category&quot;,  &quot;updateCategory&quot;);
+    	} finally {
+<span class="fc" id="L166">    		closeDaoResources(null, stat, conn);</span>
+    	}
+<span class="fc" id="L168">    }</span>
+	
+	protected String getLoadCategoriesQuery() {
+<span class="fc" id="L171">		return ALL_CATEGORIES;</span>
+	}
+	
+	protected String getAddCategoryQuery() {
+<span class="fc" id="L175">		return ADD_CATEGORY;</span>
+	}
+	
+	protected String getDeleteCategoryQuery() {
+<span class="fc" id="L179">		return DELETE_CATEGORY;</span>
+	}
+	
+	/**
+	 * Restituisce la query corretta per aggiornare una categorie.
+	 * @return La query corretta.
+	 */
+	protected String getUpdateCategoryQuery() {
+<span class="fc" id="L187">		return UPDATE_CATEGORY;</span>
+	}
+	
+	private static final String ALL_CATEGORIES = 
+		&quot;SELECT catcode, parentcode, titles FROM categories ORDER BY parentcode, catcode&quot;;
+	
+	private static final String ADD_CATEGORY = 
+		&quot;INSERT INTO categories (catcode, parentcode, titles) VALUES ( ? , ? , ? )&quot;;
+	
+	private static final String DELETE_CATEGORY = 
+		&quot;DELETE FROM categories WHERE catcode = ? &quot;;
+	
+	private static final String UPDATE_CATEGORY = 
+		&quot;UPDATE categories SET parentcode = ? , titles = ? WHERE catcode = ? &quot;;
+	
+	@Override
+	public void moveCategory(Category currentCategory, Category newParent) {
+<span class="fc" id="L204">		Connection conn = null;</span>
+<span class="fc" id="L205">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L207">			conn = this.getConnection();</span>
+<span class="fc" id="L208">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L209">			stat = conn.prepareStatement(UPDATE_CATEGORY);</span>
+<span class="fc" id="L210">			stat.setString(1, newParent.getCode());</span>
+<span class="fc" id="L211">			stat.setString(2, currentCategory.getTitles().toXml());</span>
+<span class="fc" id="L212">			stat.setString(3, currentCategory.getCode());</span>
+<span class="fc" id="L213">			stat.executeUpdate();</span>
+<span class="fc" id="L214">			conn.commit();</span>
+<span class="nc" id="L215">		} catch (Throwable t) {</span>
+<span class="nc" id="L216">			this.executeRollback(conn);</span>
+<span class="nc" id="L217">			this.processDaoException(t, &quot;Error while moving the category &quot; + currentCategory.getCode() + &quot; under parent node &quot; + newParent.getCode(), &quot;moveCategory&quot;);</span>
+		} finally {
+<span class="fc" id="L219">			this.closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L221">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
