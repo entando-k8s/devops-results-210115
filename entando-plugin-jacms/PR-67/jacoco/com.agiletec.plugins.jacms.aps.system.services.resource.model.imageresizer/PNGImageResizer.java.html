@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PNGImageResizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.resource.model.imageresizer</a> &gt; <span class="el_source">PNGImageResizer.java</span></div><h1>PNGImageResizer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.resource.model.imageresizer;
+
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
+import java.awt.Image;
+import java.awt.RenderingHints;
+import java.awt.Transparency;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.PixelGrabber;
+import java.io.File;
+
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ImageResourceDimension;
+
+/**
+ * Classe delegata al redimensionameno e salvataggio di file tipo immagine di tipo PNG.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L44">public class PNGImageResizer extends AbstractImageResizer {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PNGImageResizer.class);</span>
+	
+	@Override
+	@Deprecated
+	public void saveResizedImage(ImageIcon imageIcon, String filePath, ImageResourceDimension dimension) throws EntException {
+<span class="nc" id="L51">		BufferedImage imageResized = this.getResizedImage(imageIcon, dimension.getDimx(), dimension.getDimy());</span>
+		try {
+<span class="nc" id="L53">			File file = new File(filePath);</span>
+<span class="nc" id="L54">	        ImageIO.write(imageResized, this.getFileExtension(filePath), file);</span>
+<span class="nc" id="L55">		} catch (Throwable t) {</span>
+<span class="nc" id="L56">			String msg = this.getClass().getName() + &quot;: saveResizedImage: &quot; + t.toString();</span>
+<span class="nc" id="L57">			_logger.error(&quot; Error in saveResizedImage&quot;,t);</span>
+<span class="nc" id="L58">			throw new EntException(msg, t);</span>
+<span class="nc" id="L59">		}</span>
+<span class="nc" id="L60">	}</span>
+	
+	/**
+	 * Crea e restituisce un'immagine in base all'immagine master ed alle dimensioni massime consentite.
+	 * L'immagine risultante sarà un'immagine rispettante le proporzioni dell'immagine sorgente.
+	 * @param imageIcon L'immagine sorgente.
+	 * @param dimensioneX la dimensione orizzontale massima.
+	 * @param dimensioneY La dimensione verticale massima.
+	 * @return L'immagine risultante.
+	 * @throws EntException In caso di errore.
+	 */
+	@Override
+	protected BufferedImage getResizedImage(ImageIcon imageIcon, int dimensioneX, int dimensioneY) throws EntException {
+<span class="nc" id="L73">    	Image image = imageIcon.getImage();</span>
+<span class="nc" id="L74">    	BufferedImage bi = this.toBufferedImage(imageIcon, dimensioneX, dimensioneY);</span>
+<span class="nc" id="L75">    	double scale = this.computeScale(image.getWidth(null), image.getHeight(null), dimensioneX, dimensioneY);</span>
+<span class="nc" id="L76">		int scaledW = (int) (scale * image.getWidth(null));</span>
+<span class="nc" id="L77">		int scaledH = (int) (scale * image.getHeight(null));</span>
+<span class="nc" id="L78">		BufferedImage biRes = new BufferedImage(bi.getColorModel(), </span>
+<span class="nc" id="L79">        		bi.getColorModel().createCompatibleWritableRaster(scaledW, scaledH), </span>
+<span class="nc" id="L80">        		bi.isAlphaPremultiplied() , null);</span>
+<span class="nc" id="L81">        AffineTransform tx = new AffineTransform();</span>
+<span class="nc" id="L82">		tx.scale(scale, scale);</span>
+<span class="nc" id="L83">        Graphics2D bufImageGraphics = biRes.createGraphics();</span>
+<span class="nc" id="L84">        bufImageGraphics.drawImage(image, tx, null);</span>
+<span class="nc" id="L85">        return biRes;</span>
+	}
+	
+	protected BufferedImage toBufferedImage(ImageIcon imageIcon, int dimensioneX, int dimensioneY) throws EntException {
+<span class="fc" id="L89">		Image image = imageIcon.getImage();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		if (image instanceof BufferedImage) {</span>
+<span class="fc" id="L91">			return (BufferedImage) image;</span>
+		}
+		// This code ensures that all the pixels in the image are loaded
+<span class="fc" id="L94">		image = new ImageIcon(image).getImage();</span>
+		// Determine if the image has transparent pixels.
+<span class="fc" id="L96">		boolean hasAlpha = this.hasAlpha(image);</span>
+		// Create a buffered image with a format that's compatible with the
+		// screen
+		try {
+			// Determine the type of transparency of the new buffered image
+<span class="fc" id="L101">			int transparency = Transparency.OPAQUE;</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">			if (hasAlpha) {</span>
+<span class="fc" id="L103">				transparency = Transparency.BITMASK;</span>
+			}
+			// Create the buffered image
+<span class="nc" id="L106">            BufferedImage bimage = getGraphicsConfiguration().createCompatibleImage(image.getWidth(null),</span>
+<span class="nc" id="L107">                    image.getHeight(null), transparency);</span>
+<span class="nc" id="L108">			Graphics graphics = bimage.createGraphics();</span>
+<span class="nc" id="L109">			graphics.drawImage(image, 0, 0, null);</span>
+<span class="nc" id="L110">			graphics.dispose();</span>
+
+<span class="nc" id="L112">			return bimage;</span>
+<span class="fc" id="L113">		} catch (HeadlessException e) {</span>
+<span class="fc" id="L114">			_logger.warn(&quot;The system does not have a screen. Trying best effort approach.&quot;);</span>
+<span class="fc" id="L115">            return toBufferedImageWhenScreenIsNotPresent(imageIcon, dimensioneX, dimensioneY, image, hasAlpha);</span>
+        }
+	}
+
+    protected BufferedImage toBufferedImageWhenScreenIsNotPresent(ImageIcon imageIcon, float dimensioneX,
+            float dimensioneY, Image image, boolean hasAlpha) {
+
+<span class="fc" id="L122">        int type = BufferedImage.TYPE_INT_RGB;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (hasAlpha) {</span>
+<span class="fc" id="L124">            type = BufferedImage.TYPE_INT_ARGB;</span>
+        }
+
+<span class="fc" id="L127">        BufferedImage source = new BufferedImage(</span>
+<span class="fc" id="L128">                imageIcon.getIconWidth(),</span>
+<span class="fc" id="L129">                imageIcon.getIconHeight(),</span>
+                type);
+
+<span class="fc" id="L132">        Graphics graphics = source.createGraphics();</span>
+<span class="fc" id="L133">        imageIcon.paintIcon(null, graphics, 0, 0);</span>
+<span class="fc" id="L134">        graphics.dispose();</span>
+
+<span class="fc" id="L136">        BufferedImage bufferedImage = new BufferedImage(image.getWidth(null), image.getHeight(null), source.getType());</span>
+<span class="fc" id="L137">        Graphics2D graphics2D = bufferedImage.createGraphics();</span>
+<span class="fc" id="L138">        graphics2D.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);</span>
+<span class="fc" id="L139">        float sx = dimensioneX / source.getWidth();</span>
+<span class="fc" id="L140">        float sy = dimensioneY / source.getHeight();</span>
+<span class="fc" id="L141">        graphics2D.scale(sx, sy);</span>
+<span class="fc" id="L142">        graphics2D.drawImage(source, 0, 0, null);</span>
+<span class="fc" id="L143">        graphics2D.dispose();</span>
+
+<span class="fc" id="L145">        return bufferedImage;</span>
+    }
+
+    private GraphicsConfiguration getGraphicsConfiguration() {
+<span class="fc" id="L149">        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();</span>
+<span class="nc" id="L150">        GraphicsDevice gs = ge.getDefaultScreenDevice();</span>
+<span class="nc" id="L151">        return gs.getDefaultConfiguration();</span>
+    }
+
+    protected boolean hasAlpha(Image image) throws EntException {
+        // If buffered image, the color model is readily available
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (image instanceof BufferedImage) {</span>
+<span class="nc" id="L157">            BufferedImage bimage = (BufferedImage)image;</span>
+<span class="nc" id="L158">            return bimage.getColorModel().hasAlpha();</span>
+        }
+        // Use a pixel grabber to retrieve the image's color model;
+        // grabbing a single pixel is usually sufficient
+<span class="fc" id="L162">        PixelGrabber pg = new PixelGrabber(image, 0, 0, 1, 1, false);</span>
+        try {
+<span class="fc" id="L164">            pg.grabPixels();</span>
+<span class="nc" id="L165">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L166">        	throw new EntException(&quot;Error grabbing a single pixel&quot;, e);</span>
+<span class="fc" id="L167">        }</span>
+        // Get the image's color model
+<span class="fc" id="L169">        ColorModel cm = pg.getColorModel();</span>
+<span class="fc" id="L170">        return cm.hasAlpha();</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

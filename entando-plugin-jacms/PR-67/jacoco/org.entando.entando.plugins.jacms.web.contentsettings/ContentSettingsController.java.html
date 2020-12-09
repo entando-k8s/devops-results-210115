@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentSettingsController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.web.contentsettings</a> &gt; <span class="el_source">ContentSettingsController.java</span></div><h1>ContentSettingsController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.web.contentsettings;
+
+import com.agiletec.aps.system.services.role.Permission;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.validation.Valid;
+import org.entando.entando.plugins.jacms.aps.system.services.contentsettings.ContentSettingsService;
+import org.entando.entando.plugins.jacms.web.contentsettings.model.ContentSettingsCropRatioRequest;
+import org.entando.entando.plugins.jacms.web.contentsettings.model.ContentSettingsDto;
+import org.entando.entando.plugins.jacms.web.contentsettings.model.ContentSettingsEditorRequest;
+import org.entando.entando.plugins.jacms.web.contentsettings.model.CreateContentSettingsMetadataRequest;
+import org.entando.entando.plugins.jacms.web.contentsettings.model.EditContentSettingsMetadataRequest;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class ContentSettingsController {
+    public static final String ERRCODE_INVALID_EDITOR = &quot;1&quot;;
+    public static final String ERRCODE_INVALID_METADATA = &quot;2&quot;;
+    public static final String ERRCODE_CONFLICT_METADATA = &quot;3&quot;;
+    public static final String ERRCODE_INVALID_CROP_RATIO = &quot;4&quot;;
+    public static final String ERRCODE_CONFLICT_CROP_RATIO = &quot;5&quot;;
+    public static final String ERRCODE_NOT_FOUND_CROP_RATIO = &quot;6&quot;;
+    public static final String ERRCODE_NOT_FOUND_METADATA = &quot;7&quot;;
+
+<span class="fc" id="L55">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private final ContentSettingsService service;
+
+    @Autowired
+<span class="fc" id="L60">    public ContentSettingsController(ContentSettingsService service) {</span>
+<span class="fc" id="L61">        this.service = service;</span>
+<span class="fc" id="L62">    }</span>
+
+    @ApiOperation(value = &quot;GET ContentSettings&quot;, nickname = &quot;getContentSettings&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = &quot;OK&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @GetMapping(&quot;/plugins/cms/contentSettings&quot;)
+    @RestAccessControl(permission = {Permission.CONTENT_SUPERVISOR, Permission.MANAGE_RESOURCES, Permission.CONTENT_EDITOR})
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentSettingsDto&gt;&gt; getContentSettings() {
+<span class="nc" id="L71">        logger.debug(&quot;REST request - get content settings&quot;);</span>
+<span class="nc" id="L72">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L73">                service.getContentSettings()</span>
+        ));
+    }
+
+
+    @ApiOperation(value = &quot;CREATE ContentSettingsMetadata&quot;, nickname = &quot;createContentSettingsMetadata&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PostMapping(&quot;/plugins/cms/contentSettings/metadata&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, List&lt;String&gt;&gt;&gt;&gt; createMetadata(
+            @Valid @RequestBody CreateContentSettingsMetadataRequest request) {
+<span class="nc" id="L86">        logger.debug(&quot;REST request - add new content settings metadata&quot;);</span>
+
+<span class="nc" id="L88">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L89">                service.addMetadata(request.getKey().trim(), request.getMapping().trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;EDIT ContentSettingsMetadata&quot;, nickname = &quot;editContentSettingsMetadata&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PutMapping(&quot;/plugins/cms/contentSettings/metadata/{key}&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, List&lt;String&gt;&gt;&gt;&gt; editMetadata(@PathVariable String key,
+            @Valid @RequestBody EditContentSettingsMetadataRequest request) {
+<span class="nc" id="L101">        logger.debug(&quot;REST request - add new content settings metadata&quot;);</span>
+
+<span class="nc" id="L103">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L104">                service.editMetadata(key, request.getMapping().trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;DELETE ContentSettingsMetadata&quot;, nickname = &quot;deleteContentSettingsMetadata&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @DeleteMapping(&quot;/plugins/cms/contentSettings/metadata/{key}&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, List&lt;String&gt;&gt;&gt;&gt; deleteMetadata(@PathVariable String key) {
+<span class="nc" id="L115">        logger.debug(&quot;REST request - delete content settings metadata: {}&quot;, key);</span>
+
+<span class="nc" id="L117">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L118">                service.removeMetadata(key.trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;CREATE ContentSettingsCropRatio&quot;, nickname = &quot;createContentSettingsCropRatio&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PostMapping(&quot;/plugins/cms/contentSettings/cropRatios&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;String&gt;&gt;&gt; createCropRatio(
+            @Valid @RequestBody ContentSettingsCropRatioRequest request) {
+<span class="nc" id="L130">        logger.debug(&quot;REST request - add new content settings crop ratio&quot;);</span>
+
+<span class="nc" id="L132">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L133">                service.addCropRatio(request.getRatio().trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;EDIT ContentSettingsCropRatio&quot;, nickname = &quot;editContentSettingsCropRatio&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Updated&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PutMapping(&quot;/plugins/cms/contentSettings/cropRatios/{ratio}&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;List&lt;String&gt;&gt;&gt; editCropRatio(@PathVariable String ratio,
+            @Valid @RequestBody ContentSettingsCropRatioRequest request) {
+<span class="nc" id="L145">        logger.debug(&quot;REST request - edit content settings crop ratio: {}&quot;, ratio);</span>
+
+<span class="nc" id="L147">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L148">                service.editCropRatio(ratio, request.getRatio().trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;DELETE ContentSettingsCropRatio&quot;, nickname = &quot;deleteContentSettingsCropRatio&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @DeleteMapping(&quot;/plugins/cms/contentSettings/cropRatios/{ratio}&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&gt;&gt; deleteCropRatio(@PathVariable String ratio) {
+<span class="nc" id="L159">        logger.debug(&quot;REST request - delete content settings crop ratio: {}&quot;, ratio);</span>
+
+<span class="nc" id="L161">        service.removeCropRatio(ratio.trim());</span>
+<span class="nc" id="L162">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(new HashMap()));</span>
+    }
+
+    @ApiOperation(value = &quot;PUT ContentSettingsEditor&quot;, nickname = &quot;putContentSettingsEditor&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PutMapping(&quot;/plugins/cms/contentSettings/editor&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentSettingsDto.Editor&gt;&gt; setEditor(
+            @ApiParam(&quot;Available editor codes: none, fckeditor&quot;) @Valid @RequestBody ContentSettingsEditorRequest request) {
+<span class="nc" id="L173">        logger.debug(&quot;REST request - set content settings editor&quot;);</span>
+
+<span class="nc" id="L175">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(</span>
+<span class="nc" id="L176">                service.setEditor(request.getKey().trim())</span>
+        ));
+    }
+
+    @ApiOperation(value = &quot;POST Reload Indexes&quot;, nickname = &quot;postReloadIndexes&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PostMapping(&quot;/plugins/cms/contentSettings/reloadIndexes&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&gt;&gt; reloadIndexes() {
+<span class="nc" id="L187">        logger.debug(&quot;REST request - reload indexes&quot;);</span>
+<span class="nc" id="L188">        service.reloadContentsIndex();</span>
+<span class="nc" id="L189">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(new HashMap()));</span>
+    }
+
+    @ApiOperation(value = &quot;POST Reload References&quot;, nickname = &quot;postReloadReferences&quot;, tags = {&quot;content-settings-controller&quot;})
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = &quot;Created&quot;),
+            @ApiResponse(code = 401, message = &quot;Unauthorized&quot;)})
+    @PostMapping(&quot;/plugins/cms/contentSettings/reloadReferences&quot;)
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&gt;&gt; reloadReferences() {
+<span class="nc" id="L199">        logger.debug(&quot;REST request - reload references&quot;);</span>
+<span class="nc" id="L200">        service.reloadContentsReference();</span>
+<span class="nc" id="L201">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(new HashMap()));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

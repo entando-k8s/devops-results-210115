@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentListTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.tags</a> &gt; <span class="el_source">ContentListTag.java</span></div><h1>ContentListTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.tags;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.tagext.TagSupport;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.IContentListTagBean;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.IContentListWidgetHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.UserFilterOptionBean;
+import org.apache.commons.lang3.ArrayUtils;
+
+/**
+ * Loads a list of contents IDs by applying the filters (if any).
+ * @author E.Santoboni
+ */
+public class ContentListTag extends TagSupport implements IContentListTagBean {
+
+<span class="nc" id="L47">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentListTag.class);</span>
+	
+	private String listName;
+	private String contentType;
+<span class="nc" id="L51">	private String[] categories = new String[0];</span>
+<span class="nc" id="L52">	private EntitySearchFilter[] filters = new EntitySearchFilter[0];</span>
+	
+<span class="nc" id="L54">	private boolean cacheable = true;</span>
+	
+	private List&lt;UserFilterOptionBean&gt; userFilterOptions;
+	
+	@Deprecated
+	private boolean listEvaluated;
+	
+	private String titleVar;
+	private String pageLinkVar;
+	private String pageLinkDescriptionVar;
+	private String userFilterOptionsVar;
+	
+	public ContentListTag() {
+<span class="nc" id="L67">		super();</span>
+<span class="nc" id="L68">		this.release();</span>
+<span class="nc" id="L69">	}</span>
+	
+	@Override
+	public int doStartTag() throws JspException {
+<span class="nc" id="L73">		return EVAL_BODY_INCLUDE;</span>
+	}
+	
+	@Override
+	public int doEndTag() throws JspException {
+<span class="nc" id="L78">		ServletRequest request =  this.pageContext.getRequest();</span>
+<span class="nc" id="L79">		RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+		try {
+<span class="nc" id="L81">			IContentListWidgetHelper helper = (IContentListWidgetHelper) ApsWebApplicationUtils.getBean(JacmsSystemConstants.CONTENT_LIST_HELPER, this.pageContext);</span>
+<span class="nc" id="L82">			List&lt;UserFilterOptionBean&gt; defaultUserFilterOptions = helper.getConfiguredUserFilters(this, reqCtx);</span>
+<span class="nc" id="L83">			this.addUserFilterOptions(defaultUserFilterOptions);</span>
+<span class="nc" id="L84">			this.extractExtraWidgetParameters(reqCtx);</span>
+<span class="nc bnc" id="L85" title="All 4 branches missed.">			if (null != this.getUserFilterOptions() &amp;&amp; null != this.getUserFilterOptionsVar()) {</span>
+<span class="nc" id="L86">				this.pageContext.setAttribute(this.getUserFilterOptionsVar(), this.getUserFilterOptions());</span>
+			}
+<span class="nc" id="L88">			List&lt;String&gt; contents = this.getContentsId(helper, reqCtx);</span>
+<span class="nc" id="L89">			this.pageContext.setAttribute(this.getListName(), contents);</span>
+<span class="nc" id="L90">		} catch (Throwable t) {</span>
+<span class="nc" id="L91">			_logger.error(&quot;error in end tag&quot;, t);</span>
+<span class="nc" id="L92">			throw new JspException(&quot;Error detected while finalising the tag&quot;, t);</span>
+<span class="nc" id="L93">		}</span>
+<span class="nc" id="L94">		this.release();</span>
+<span class="nc" id="L95">		return EVAL_PAGE;</span>
+	}
+	
+	protected List&lt;String&gt; getContentsId(IContentListWidgetHelper helper, RequestContext reqCtx) throws EntException {
+<span class="nc" id="L99">		List&lt;String&gt; contents = null;</span>
+		try {
+<span class="nc" id="L101">			contents = helper.getContentsId(this, reqCtx);</span>
+<span class="nc" id="L102">			Widget currentWidget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L103">			Integer maxElements = null;</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">			if (null != currentWidget &amp;&amp; null != currentWidget.getConfig()) {</span>
+<span class="nc" id="L105">				ApsProperties properties = currentWidget.getConfig();</span>
+<span class="nc" id="L106">				String maxElementsString = properties.getProperty(&quot;maxElements&quot;);</span>
+				try {
+<span class="nc" id="L108">					maxElements = Integer.parseInt(maxElementsString);</span>
+<span class="nc" id="L109">				} catch (Exception e) {</span>
+					//nothing to catch
+<span class="nc" id="L111">				}	</span>
+			}
+<span class="nc bnc" id="L113" title="All 6 branches missed.">			if (null != maxElements &amp;&amp; contents != null &amp;&amp; contents.size() &gt; maxElements) {</span>
+<span class="nc" id="L114">				contents = contents.subList(0, maxElements);</span>
+			}
+<span class="nc" id="L116">		} catch (Throwable t) {</span>
+<span class="nc" id="L117">			_logger.error(&quot;Error extracting content ids&quot;, t);</span>
+<span class="nc" id="L118">			throw new EntException(&quot;Error extracting content ids&quot;, t);</span>
+<span class="nc" id="L119">		}</span>
+<span class="nc" id="L120">		return contents;</span>
+	}
+	
+	protected void extractExtraWidgetParameters(RequestContext reqCtx) {
+		try {
+<span class="nc" id="L125">			Widget currentWidget = (Widget) reqCtx.getExtraParam((SystemConstants.EXTRAPAR_CURRENT_WIDGET));</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">			ApsProperties config = (null != currentWidget) ? currentWidget.getConfig() : null;</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">			if (null != config) {</span>
+<span class="nc" id="L128">				Lang currentLang = (Lang) reqCtx.getExtraParam((SystemConstants.EXTRAPAR_CURRENT_LANG));</span>
+<span class="nc" id="L129">				this.addMultilanguageWidgetParameter(config, IContentListWidgetHelper.WIDGET_PARAM_TITLE, currentLang, this.getTitleVar());</span>
+<span class="nc" id="L130">				this.addMultilanguageWidgetParameter(config, IContentListWidgetHelper.WIDGET_PARAM_PAGE_LINK_DESCR, currentLang, this.getPageLinkDescriptionVar());</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">				if (null != this.getPageLinkVar()) {</span>
+<span class="nc" id="L132">					String pageLink = config.getProperty(IContentListWidgetHelper.WIDGET_PARAM_PAGE_LINK);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">					if (null != pageLink) {</span>
+<span class="nc" id="L134">						this.pageContext.setAttribute(this.getPageLinkVar(), pageLink);</span>
+					}
+				}
+			}
+<span class="nc" id="L138">		} catch (Throwable t) {</span>
+<span class="nc" id="L139">			_logger.error(&quot;Error extracting extra parameters&quot;, t);</span>
+<span class="nc" id="L140">		}</span>
+<span class="nc" id="L141">	}</span>
+	
+	@Deprecated
+	protected void addMultilanguageShowletParameter(ApsProperties config, String widgetParamPrefix, Lang currentLang, String var) {
+<span class="nc" id="L145">		this.addMultilanguageWidgetParameter(config, widgetParamPrefix, currentLang, var);</span>
+<span class="nc" id="L146">	}</span>
+	
+	protected void addMultilanguageWidgetParameter(ApsProperties config, String widgetParamPrefix, Lang currentLang, String var) {
+<span class="nc bnc" id="L149" title="All 4 branches missed.">		if (null == var || null == config) return;</span>
+<span class="nc" id="L150">		String paramValue = config.getProperty(widgetParamPrefix + &quot;_&quot; + currentLang.getCode());</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">		if (null == paramValue) {</span>
+<span class="nc" id="L152">			ILangManager langManager = (ILangManager) ApsWebApplicationUtils.getBean(SystemConstants.LANGUAGE_MANAGER, this.pageContext);</span>
+<span class="nc" id="L153">			Lang defaultLang = langManager.getDefaultLang();</span>
+<span class="nc" id="L154">			paramValue = config.getProperty(widgetParamPrefix + &quot;_&quot; + defaultLang.getCode());</span>
+		}
+<span class="nc bnc" id="L156" title="All 2 branches missed.">		if (null != paramValue) {</span>
+<span class="nc" id="L157">			this.pageContext.setAttribute(var, paramValue);</span>
+		}
+<span class="nc" id="L159">	}</span>
+	
+	@Override
+	public void release() {
+<span class="nc" id="L163">		this.listName = null;</span>
+<span class="nc" id="L164">		this.contentType = null;</span>
+<span class="nc" id="L165">		this.categories = new String[0];</span>
+<span class="nc" id="L166">		this.filters = new EntitySearchFilter[0];</span>
+<span class="nc" id="L167">		this.listEvaluated = false;</span>
+<span class="nc" id="L168">		this.cacheable = true;</span>
+<span class="nc" id="L169">		this.setUserFilterOptions(null);</span>
+<span class="nc" id="L170">		this.setTitleVar(null);</span>
+<span class="nc" id="L171">		this.setPageLinkVar(null);</span>
+<span class="nc" id="L172">		this.setPageLinkDescriptionVar(null);</span>
+<span class="nc" id="L173">		this.setUserFilterOptionsVar(null);</span>
+<span class="nc" id="L174">	}</span>
+	
+	@Override
+	public void addFilter(EntitySearchFilter filter) {
+<span class="nc" id="L178">        this.filters = ArrayUtils.add(this.filters, filter);</span>
+<span class="nc" id="L179">	}</span>
+	
+	protected void addUserFilterOptions(List&lt;UserFilterOptionBean&gt; userFilterOptions) {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">		if (null == userFilterOptions) return;</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">		for (int i = 0; i &lt; userFilterOptions.size(); i++) {</span>
+<span class="nc" id="L184">			this.addUserFilterOption(userFilterOptions.get(i));</span>
+		}
+<span class="nc" id="L186">	}</span>
+	
+	@Override
+	public void addUserFilterOption(UserFilterOptionBean userFilterOption) {
+<span class="nc bnc" id="L190" title="All 2 branches missed.">		if (null == userFilterOption) return;</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">		if (null == this.getUserFilterOptions()) {</span>
+<span class="nc" id="L192">			this.setUserFilterOptions(new ArrayList&lt;&gt;());</span>
+		}
+<span class="nc" id="L194">		this.getUserFilterOptions().add(userFilterOption);</span>
+<span class="nc" id="L195">	}</span>
+	
+	@Override
+	public EntitySearchFilter[] getFilters() {
+<span class="nc" id="L199">		return this.filters;</span>
+	}
+	
+	/**
+	 * Get the name of the variable in the page context that holds the list of the IDs found.
+	 * @return Returns the name of the list.
+	 */
+	@Override
+	public String getListName() {
+<span class="nc" id="L208">		return listName;</span>
+	}
+
+	/**
+	 * Set the name of the variable in the page context that holds the list of the IDs found.
+	 * @param listName The listName to set.
+	 */
+	public void setListName(String listName) {
+<span class="nc" id="L216">		this.listName = listName;</span>
+<span class="nc" id="L217">	}</span>
+
+	/**
+	 * Get the code of the content types to search.
+	 * @return The code of the content type.
+	 */
+	@Override
+	public String getContentType() {
+<span class="nc" id="L225">		return contentType;</span>
+	}
+	
+	/**
+	 * Set the code of the content types to search.
+	 * @param contentType The code of the content type.
+	 */
+	@Override
+	public void setContentType(String contentType) {
+<span class="nc" id="L234">		this.contentType = contentType;</span>
+<span class="nc" id="L235">	}</span>
+	
+	/**
+	 * Return the identifier string of the category of the Content to search.
+	 * @return The category code.
+	 */
+	@Override
+	@Deprecated
+	public String getCategory() {
+<span class="nc" id="L244">		return null;</span>
+	}
+	
+	/**
+	 * Set the identifier string of the category of the Content to search.
+	 * @param category The category code.
+	 */
+	@Override
+	public void setCategory(String category) {
+<span class="nc" id="L253">		this.addCategory(category);</span>
+<span class="nc" id="L254">	}</span>
+	
+	@Override
+	public String[] getCategories() {
+<span class="nc" id="L258">		return this.categories;</span>
+	}
+	
+	@Override
+	public void addCategory(String category) {
+<span class="nc bnc" id="L263" title="All 2 branches missed.">		if (null == category) return;</span>
+<span class="nc" id="L264">        this.categories = ArrayUtils.add(this.categories, category);</span>
+<span class="nc" id="L265">	}</span>
+    
+    @Override
+    public boolean isOrClauseCategoryFilter() {
+<span class="nc" id="L269">        return false;</span>
+    }
+    
+	/**
+	 * Checks if the list if the list has been previously stored in the startTag method.
+	 * @return true if the list wad evalued into start tag
+	 * @deprecated the startTag method isn't extended
+	 */
+	protected boolean isListEvaluated() {
+<span class="nc" id="L278">		return listEvaluated;</span>
+	}
+	
+	/**
+	 * Set if the list if the list has been previously stored in the startTag method.
+	 * @param listEvaluated true if the list wad evalued into start tag
+	 * @deprecated the startTag method isn't extended
+	 */
+	protected void setListEvaluated(boolean listEvaluated) {
+<span class="nc" id="L287">		this.listEvaluated = listEvaluated;</span>
+<span class="nc" id="L288">	}</span>
+	
+	/**
+	 * Return true if the system caching must involved in the search process.
+	 * @return true if the system caching must involved
+	 */
+	@Override
+	public boolean isCacheable() {
+<span class="nc" id="L296">		return cacheable;</span>
+	}
+	
+	/**
+	 * Toggles the system caching usage when retrieving the list.
+	 * Admitted values (true|false), default &quot;true&quot;.
+	 * @param cacheable
+	 */
+	public void setCacheable(boolean cacheable) {
+<span class="nc" id="L305">		this.cacheable = cacheable;</span>
+<span class="nc" id="L306">	}</span>
+	
+	@Override
+	public List&lt;UserFilterOptionBean&gt; getUserFilterOptions() {
+<span class="nc" id="L310">		return userFilterOptions;</span>
+	}
+	protected void setUserFilterOptions(List&lt;UserFilterOptionBean&gt; userFilterOptions) {
+<span class="nc" id="L313">		this.userFilterOptions = userFilterOptions;</span>
+<span class="nc" id="L314">	}</span>
+	
+	public String getTitleVar() {
+<span class="nc" id="L317">		return titleVar;</span>
+	}
+	public void setTitleVar(String titleVar) {
+<span class="nc" id="L320">		this.titleVar = titleVar;</span>
+<span class="nc" id="L321">	}</span>
+	
+	public String getPageLinkVar() {
+<span class="nc" id="L324">		return pageLinkVar;</span>
+	}
+	public void setPageLinkVar(String pageLinkVar) {
+<span class="nc" id="L327">		this.pageLinkVar = pageLinkVar;</span>
+<span class="nc" id="L328">	}</span>
+	
+	public String getPageLinkDescriptionVar() {
+<span class="nc" id="L331">		return pageLinkDescriptionVar;</span>
+	}
+	public void setPageLinkDescriptionVar(String pageLinkDescriptionVar) {
+<span class="nc" id="L334">		this.pageLinkDescriptionVar = pageLinkDescriptionVar;</span>
+<span class="nc" id="L335">	}</span>
+	
+	public String getUserFilterOptionsVar() {
+<span class="nc" id="L338">		return userFilterOptionsVar;</span>
+	}
+	public void setUserFilterOptionsVar(String userFilterOptionsVar) {
+<span class="nc" id="L341">		this.userFilterOptionsVar = userFilterOptionsVar;</span>
+<span class="nc" id="L342">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
