@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentBulkAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.bulk</a> &gt; <span class="el_source">ContentBulkAction.java</span></div><h1>ContentBulkAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.bulk;
+
+import java.util.Set;
+
+import org.entando.entando.aps.system.common.command.BaseBulkCommand;
+import org.entando.entando.aps.system.common.command.report.BulkCommandReport;
+import org.entando.entando.aps.system.common.command.tracer.DefaultBulkCommandTracer;
+import org.entando.entando.aps.system.services.command.IBulkCommandManager;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.DeleteContentBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.InsertOnlineContentBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.RemoveOnlineContentBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.BaseContentBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.ContentBulkCommandContext;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.ContentBulkActionSummary;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.IContentBulkActionHelper;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.SmallBulkCommandReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+
+<span class="fc" id="L38">public class ContentBulkAction extends BaseAction {</span>
+
+<span class="fc" id="L40">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentBulkAction.class);</span>
+
+	public String entry() {
+<span class="nc bnc" id="L43" title="All 2 branches missed.">		return this.checkAllowedContents() ? SUCCESS : &quot;list&quot;;</span>
+	}
+
+	public String applyOnline() {
+<span class="fc" id="L47">		return this.apply(InsertOnlineContentBulkCommand.BEAN_NAME);</span>
+	}
+
+	public String applyOffline() {
+<span class="nc" id="L51">		return this.apply(RemoveOnlineContentBulkCommand.BEAN_NAME);</span>
+	}
+
+	public String applyRemove() {
+<span class="nc" id="L55">		return this.apply(DeleteContentBulkCommand.BEAN_NAME);</span>
+	}
+
+	public String apply(String commandBeanName) {
+		try {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">			if (!this.checkAllowedContents()) {</span>
+<span class="nc" id="L61">				return &quot;list&quot;;</span>
+			} else {
+<span class="fc" id="L63">				BaseContentBulkCommand&lt;ContentBulkCommandContext&gt; command = this.initBulkCommand(commandBeanName);</span>
+<span class="fc" id="L64">				BulkCommandReport&lt;String&gt; report = this.getBulkCommandManager().addCommand(this.getCommandOwner(), command);</span>
+<span class="fc" id="L65">				this.setCommandId(report.getCommandId());</span>
+			}
+<span class="nc" id="L67">		} catch (Throwable t) {</span>
+<span class="nc" id="L68">			_logger.error(&quot;Error occurred applying command {}&quot;, commandBeanName, t);</span>
+<span class="nc" id="L69">			return FAILURE;</span>
+<span class="fc" id="L70">		}</span>
+<span class="fc" id="L71">		return SUCCESS;</span>
+	}
+
+	protected BaseContentBulkCommand&lt;ContentBulkCommandContext&gt; initBulkCommand(String commandBeanName) {
+<span class="fc" id="L75">		WebApplicationContext applicationContext = ApsWebApplicationUtils.getWebApplicationContext(this.getRequest());</span>
+<span class="fc" id="L76">		BaseContentBulkCommand&lt;ContentBulkCommandContext&gt; command = (BaseContentBulkCommand&lt;ContentBulkCommandContext&gt;) applicationContext.getBean(commandBeanName);</span>
+<span class="fc" id="L77">		ContentBulkCommandContext context = new ContentBulkCommandContext(this.getSelectedIds(), this.getCurrentUser(), new DefaultBulkCommandTracer&lt;String&gt;());</span>
+<span class="fc" id="L78">		command.init(context);</span>
+<span class="fc" id="L79">		return command;</span>
+	}
+
+	public String viewResult() {
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">		return this.getReport() == null ? &quot;expired&quot; : SUCCESS;</span>
+	}
+
+	public ContentBulkActionSummary getSummary() {
+<span class="nc" id="L87">		return this.getBulkActionHelper().getSummary(this.getSelectedIds());</span>
+	}
+
+	public BaseBulkCommand&lt;?, ?, ?&gt; getCommand() {
+<span class="nc" id="L91">		return this.getBulkCommandManager().getCommand(this.getCommandOwner(), this.getCommandId());</span>
+	}
+
+	public BulkCommandReport&lt;?&gt; getReport() {
+<span class="fc" id="L95">		return this.getBulkCommandManager().getCommandReport(this.getCommandOwner(), this.getCommandId());</span>
+	}
+
+	public SmallBulkCommandReport getSmallReport() {
+<span class="nc" id="L99">		return this.getBulkActionHelper().getSmallReport(this.getReport());</span>
+	}
+
+	protected boolean checkAllowedContents() {
+<span class="fc" id="L103">		return this.getBulkActionHelper().checkAllowedContents(this.getSelectedIds(), this, this);</span>
+	}
+
+	protected String getCommandOwner() {
+<span class="fc" id="L107">		return IContentBulkActionHelper.BULK_COMMAND_OWNER;</span>
+	}
+
+	public Set&lt;String&gt; getSelectedIds() {
+<span class="fc" id="L111">		return _selectedIds;</span>
+	}
+	public void setSelectedIds(Set&lt;String&gt; selectedIds) {
+<span class="fc" id="L114">		this._selectedIds = selectedIds;</span>
+<span class="fc" id="L115">	}</span>
+
+	public String getCommandId() {
+<span class="fc" id="L118">		return _commandId;</span>
+	}
+	public void setCommandId(String commandId) {
+<span class="fc" id="L121">		this._commandId = commandId;</span>
+<span class="fc" id="L122">	}</span>
+
+	protected IBulkCommandManager getBulkCommandManager() {
+<span class="fc" id="L125">		return _bulkCommandManager;</span>
+	}
+	public void setBulkCommandManager(IBulkCommandManager bulkCommandManager) {
+<span class="fc" id="L128">		this._bulkCommandManager = bulkCommandManager;</span>
+<span class="fc" id="L129">	}</span>
+
+	protected IContentManager getContentManager() {
+<span class="nc" id="L132">		return _contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L135">		this._contentManager = contentManager;</span>
+<span class="fc" id="L136">	}</span>
+
+	protected IContentBulkActionHelper getBulkActionHelper() {
+<span class="fc" id="L139">		return _bulkActionHelper;</span>
+	}
+	public void setBulkActionHelper(IContentBulkActionHelper bulkActionHelper) {
+<span class="fc" id="L142">		this._bulkActionHelper = bulkActionHelper;</span>
+<span class="fc" id="L143">	}</span>
+
+	private Set&lt;String&gt; _selectedIds;
+
+	private String _commandId;
+
+	private IBulkCommandManager _bulkCommandManager;
+	private IContentManager _contentManager;
+	private IContentBulkActionHelper _bulkActionHelper;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

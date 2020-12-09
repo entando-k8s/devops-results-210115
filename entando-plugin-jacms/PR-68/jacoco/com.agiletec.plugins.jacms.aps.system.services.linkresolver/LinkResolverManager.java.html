@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LinkResolverManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.linkresolver</a> &gt; <span class="el_source">LinkResolverManager.java</span></div><h1>LinkResolverManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.linkresolver;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.url.PageURL;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.AbstractResourceAttribute;
+import com.agiletec.plugins.jacms.aps.system.services.contentpagemapper.IContentPageMapperManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+
+/**
+ * Servizio gestore della risoluzione dei link sinbolici.
+ * Scopo di questa classe è l'individuazione in un testo di stringhe rappresentanti
+ * link simbolici, e la loro traduzione e sostituzione nel testo con i 
+ * corrispondenti URL.
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L44">public class LinkResolverManager extends AbstractService implements ILinkResolverManager {</span>
+
+<span class="fc" id="L46">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(LinkResolverManager.class);</span>
+	
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L50">		_logger.debug(&quot;{} ready.&quot;, this.getClass().getName());</span>
+<span class="fc" id="L51">	}</span>
+	
+	@Override
+	public String resolveLinks(String text, RequestContext reqCtx) {
+<span class="nc" id="L55">		return this.resolveLinks(text, null, reqCtx);</span>
+	}
+	
+	/**
+	 * Sotituisce nel testo i link simbolici con URL reali.
+	 * @param text Il testo che può contenere link simbolici.
+	 * @param contentId The id of content that contains the link to resolve
+	 * @param reqCtx Il contesto di richiesta
+	 * @return Il testo in cui i link simbolici sono sostituiti con URL reali.
+	 */
+	@Override
+	public String resolveLinks(String text, String contentId, RequestContext reqCtx) {
+<span class="fc" id="L67">		StringBuilder resolvedText = new StringBuilder();</span>
+<span class="fc" id="L68">		int postfixLen = SymbolicLink.SYMBOLIC_DEST_POSTFIX.length();</span>
+<span class="fc" id="L69">		int end = 0;</span>
+<span class="fc" id="L70">		int parsed = 0;</span>
+<span class="fc" id="L71">		int start = text.indexOf(SymbolicLink.SYMBOLIC_DEST_PREFIX);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">		while(start &gt;= 0){</span>
+<span class="fc" id="L73">			end = text.indexOf(SymbolicLink.SYMBOLIC_DEST_POSTFIX, start);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">			if(end &gt;= 0) {</span>
+<span class="fc" id="L75">				end = end + postfixLen;</span>
+<span class="fc" id="L76">				String symbolicString = text.substring(start, end);</span>
+<span class="fc" id="L77">				String url = this.convertToURL(symbolicString, contentId, reqCtx);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">				if(url != null){</span>
+<span class="fc" id="L79">					String invariantText = text.substring(parsed, start);</span>
+<span class="fc" id="L80">					resolvedText.append(invariantText);</span>
+<span class="fc" id="L81">					resolvedText.append(url);</span>
+<span class="fc" id="L82">					parsed = end;</span>
+<span class="fc" id="L83">				} else {</span>
+<span class="fc" id="L84">					end = start + 1;</span>
+				}
+<span class="fc" id="L86">				start = text.indexOf(SymbolicLink.SYMBOLIC_DEST_PREFIX, end);</span>
+<span class="fc" id="L87">			} else {</span>
+<span class="fc" id="L88">				start = -1; //uscita</span>
+			}
+		}
+<span class="fc" id="L91">		String residualText = text.substring(parsed);</span>
+<span class="fc" id="L92">		resolvedText.append(residualText);</span>
+<span class="fc" id="L93">		return resolvedText.toString();</span>
+	}
+	
+	protected String convertToURL(String symbolicString, String contentId, RequestContext reqCtx) {
+<span class="fc" id="L97">		String url = null;</span>
+<span class="fc" id="L98">		SymbolicLink symbolicLink = new SymbolicLink();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (symbolicLink.setSymbolicDestination(symbolicString)) {</span>
+<span class="fc" id="L100">			url = this.resolveLink(symbolicLink, contentId, reqCtx);</span>
+		}
+<span class="fc" id="L102">		return url;</span>
+	}
+	
+	@Override
+	public String resolveLink(SymbolicLink symbolicLink, RequestContext reqCtx) {
+<span class="nc" id="L107">		return this.resolveLink(symbolicLink, null, reqCtx);</span>
+	}
+	
+	@Override
+	public String resolveLink(SymbolicLink symbolicLink, String contentId, RequestContext reqCtx) {
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">		if (null == symbolicLink) {</span>
+<span class="nc" id="L113">			_logger.error(&quot;Null Symbolic Link&quot;);</span>
+<span class="nc" id="L114">			return &quot;&quot;;</span>
+		}
+<span class="fc" id="L116">		String url = null;</span>
+		try {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">			if (symbolicLink.getDestType() == SymbolicLink.URL_TYPE) {</span>
+<span class="fc" id="L119">				url = symbolicLink.getUrlDest();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">			} else if (symbolicLink.getDestType() == SymbolicLink.PAGE_TYPE) {</span>
+<span class="fc" id="L121">				PageURL pageUrl = this.getUrlManager().createURL(reqCtx);</span>
+<span class="fc" id="L122">				pageUrl.setPageCode(symbolicLink.getPageDest());</span>
+<span class="fc" id="L123">				url = pageUrl.getURL();</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">			} else if (symbolicLink.getDestType() == SymbolicLink.CONTENT_ON_PAGE_TYPE) {</span>
+<span class="fc" id="L125">				PageURL pageUrl = this.getUrlManager().createURL(reqCtx);</span>
+<span class="fc" id="L126">				pageUrl.setPageCode(symbolicLink.getPageDest());</span>
+<span class="fc" id="L127">				pageUrl.addParam(SystemConstants.K_CONTENT_ID_PARAM, symbolicLink.getContentDest());</span>
+<span class="fc" id="L128">				url = pageUrl.getURL();</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">			} else if (symbolicLink.getDestType() == SymbolicLink.CONTENT_TYPE) {</span>
+<span class="fc" id="L130">				PageURL pageUrl = this.getUrlManager().createURL(reqCtx);</span>
+<span class="fc" id="L131">				String contentIdDest = symbolicLink.getContentDest();</span>
+<span class="fc" id="L132">				String pageCode = this.getContentPageMapperManager().getPageCode(contentIdDest);</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">				boolean forwardToDefaultPage = !this.isPageAllowed(reqCtx, pageCode);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">				if (forwardToDefaultPage) {</span>
+<span class="fc" id="L135">					String viewPageCode = this.getContentManager().getViewPage(contentIdDest);</span>
+<span class="fc" id="L136">					pageUrl.setPageCode(viewPageCode);</span>
+<span class="fc" id="L137">					pageUrl.addParam(SystemConstants.K_CONTENT_ID_PARAM, contentIdDest);</span>
+<span class="fc" id="L138">				} else {</span>
+<span class="fc" id="L139">					pageUrl.setPageCode(pageCode);</span>
+				}
+<span class="fc" id="L141">				url = pageUrl.getURL();</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">			} else if (symbolicLink.getDestType() == SymbolicLink.RESOURCE_TYPE) {</span>
+<span class="fc" id="L143">				ResourceInterface resource = this.getResourceManager().loadResource(symbolicLink.getResourceDest());</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">				if (null != resource) {</span>
+<span class="fc" id="L145">					url = resource.getDefaultUrlPath();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">					if (!resource.getMainGroup().equals(Group.FREE_GROUP_NAME)) {</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">						if (!url.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L148">							url += &quot;/&quot;;</span>
+						}
+<span class="fc" id="L150">						url += AbstractResourceAttribute.REFERENCED_RESOURCE_INDICATOR + &quot;/&quot; + contentId + &quot;/&quot;;</span>
+					}
+				}
+			}
+<span class="nc" id="L154">		} catch (Throwable t) {</span>
+<span class="nc" id="L155">			_logger.error(&quot;Error resolve link from SymbolicLink&quot;, t);</span>
+<span class="nc" id="L156">			throw new RuntimeException(&quot;Error resolve link from SymbolicLink&quot;, t);</span>
+<span class="fc" id="L157">		}</span>
+<span class="fc" id="L158">		return url;</span>
+	}
+	
+	/**
+	 * Verifica se l'utente corrente è autorizzato 
+	 * all'accesso alla pagina specificata.
+	 * @param reqCtx Il contesto della richiesta.
+	 * @param pageCode Il codice della pagina.
+	 * @return true se l'utente corrente è abilitato all'accesso 
+	 * alla pagina specificata, false in caso contrario.
+	 * @deprecated Old Wrong method name. Use isPageAllowed
+	 */
+	protected boolean isCurrentUserAllowed(RequestContext reqCtx, String pageCode) {
+<span class="nc" id="L171">		return this.isPageAllowed(reqCtx, pageCode);</span>
+	}
+	
+	protected boolean isPageAllowed(RequestContext reqCtx, String pageCode) {
+<span class="fc" id="L175">		UserDetails user = null;</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">		if (null != reqCtx) {</span>
+<span class="fc" id="L177">			user = (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+		}
+<span class="fc" id="L179">		return this.isPageAllowed(user, pageCode);</span>
+	}
+	
+	protected boolean isPageAllowed(UserDetails user, String pageCode) {
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">		if (null == user) {</span>
+<span class="nc" id="L184">			user = this.getUserManager().getGuestUser();</span>
+		}
+<span class="fc" id="L186">		boolean isPageAllowed = false;</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">		if (pageCode != null) {</span>
+<span class="fc" id="L188">			IPage page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="pc bpc" id="L189" title="1 of 4 branches missed.">			if (page != null &amp;&amp; this.getAuthorizationManager().isAuth(user, page)) {</span>
+<span class="fc" id="L190">				isPageAllowed = true;</span>
+			}
+		}
+<span class="fc" id="L193">		return isPageAllowed;</span>
+	}
+	
+	protected IContentManager getContentManager() {
+<span class="fc" id="L197">		return _contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L200">		this._contentManager = contentManager;</span>
+<span class="fc" id="L201">	}</span>
+	
+	protected IResourceManager getResourceManager() {
+<span class="fc" id="L204">		return _resourceManager;</span>
+	}
+	public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L207">		this._resourceManager = resourceManager;</span>
+<span class="fc" id="L208">	}</span>
+	
+	protected IContentPageMapperManager getContentPageMapperManager() {
+<span class="fc" id="L211">		return _contentPageMapperManager;</span>
+	}
+	public void setContentPageMapperManager(IContentPageMapperManager contentPageMapperManager) {
+<span class="fc" id="L214">		this._contentPageMapperManager = contentPageMapperManager;</span>
+<span class="fc" id="L215">	}</span>
+	
+	protected IPageManager getPageManager() {
+<span class="fc" id="L218">		return _pageManager;</span>
+	}
+	public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L221">		this._pageManager = pageManager;</span>
+<span class="fc" id="L222">	}</span>
+	
+	protected IURLManager getUrlManager() {
+<span class="fc" id="L225">		return _urlManager;</span>
+	}
+	public void setUrlManager(IURLManager urlManager) {
+<span class="fc" id="L228">		this._urlManager = urlManager;</span>
+<span class="fc" id="L229">	}</span>
+	
+	protected IUserManager getUserManager() {
+<span class="nc" id="L232">		return _userManager;</span>
+	}
+	public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L235">		this._userManager = userManager;</span>
+<span class="fc" id="L236">	}</span>
+	
+	protected IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L239">		return _authorizationManager;</span>
+	}
+	public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L242">		this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L243">	}</span>
+	
+	private IPageManager _pageManager;
+	private IContentManager _contentManager;
+	private IResourceManager _resourceManager;
+	private IContentPageMapperManager _contentPageMapperManager;
+	private IURLManager _urlManager;
+	
+	private IUserManager _userManager;
+	private IAuthorizationManager _authorizationManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
