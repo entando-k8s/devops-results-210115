@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentSchedulerManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Scheduler</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content</a> &gt; <span class="el_source">ContentSchedulerManager.java</span></div><h1>ContentSchedulerManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content;
+
+import com.agiletec.aps.system.exception.ApsSystemException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.entando.entando.aps.system.services.cache.CacheInfoEvict;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.aps.system.services.userprofile.model.UserProfile;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.ContentThreadConstants;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentState;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentSuspendMove;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentThreadConfig;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentTypeElem;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.parse.ContentThreadConfigDOM;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.util.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.services.authorization.IApsAuthority;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.baseconfig.SystemParamsUtils;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentSearcherDAO;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jpmail.aps.services.mail.IMailManager;
+
+/**
+ * Classe che implementa i servizi da necessari al thread di
+ * pubblicazione/sospenzione automatica
+ */
+<span class="fc" id="L69">public class ContentSchedulerManager extends AbstractService implements IContentSchedulerManager {</span>
+
+<span class="fc" id="L71">    private static final Logger _logger = LoggerFactory.getLogger(ContentSchedulerManager.class);</span>
+    private static final long serialVersionUID = 6880576602469119814L;
+
+    private IContentSearcherDAO _workContentSearcherDAO;
+
+    private ConfigInterface configManager;
+    private ContentThreadConfig config;
+    private IAuthorizationManager _authorizationManager;
+    private IUserManager _userManager;
+    private IContentSchedulerDAO _contentSchedulerDAO;
+
+    private IMailManager _mailManager;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L86">        this.loadConfigs();</span>
+<span class="fc" id="L87">        _logger.info(this.getClass().getName() + &quot;: inizializzato&quot;);</span>
+<span class="fc" id="L88">    }</span>
+
+    /**
+     * Carico la configurazione impostata nella tabella sysconfig di japsport
+     * (parametro 'cthread_config')
+     */
+    private void loadConfigs() throws EntException {
+        try {
+<span class="fc" id="L96">            String xml = this.getConfigManager().getConfigItem(ContentThreadConstants.CONTENTTHREAD_CONFIG_ITEM);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">            if (xml == null) {</span>
+<span class="nc" id="L98">                throw new EntException(ContentThreadConstants.READ_CONFIG_ERROR + ContentThreadConstants.CONTENTTHREAD_CONFIG_ITEM);</span>
+            }
+<span class="fc" id="L100">            ContentThreadConfigDOM configDOM = new ContentThreadConfigDOM();</span>
+<span class="fc" id="L101">            this.setConfig(configDOM.extractConfig(xml));</span>
+<span class="nc" id="L102">        } catch (Throwable t) {</span>
+<span class="nc" id="L103">            ApsSystemUtils.logThrowable(t, this, &quot;loadConfigs&quot;);</span>
+<span class="nc" id="L104">            throw new EntException(ContentThreadConstants.INIT_ERROR, t);</span>
+<span class="fc" id="L105">        }</span>
+<span class="fc" id="L106">    }</span>
+
+    @Override
+    public void updateConfig(ContentThreadConfig config) throws EntException {
+        try {
+<span class="nc" id="L111">            String xml = new ContentThreadConfigDOM().createConfigXml(config);</span>
+<span class="nc" id="L112">            this.getConfigManager().updateConfigItem(ContentThreadConstants.CONTENTTHREAD_CONFIG_ITEM, xml);</span>
+<span class="nc" id="L113">            this.setConfig(config);</span>
+<span class="nc" id="L114">        } catch (Throwable t) {</span>
+<span class="nc" id="L115">            ApsSystemUtils.logThrowable(t, this, &quot;loadConfigs&quot;);</span>
+<span class="nc" id="L116">            throw new EntException(&quot;error updating configuration&quot;, t);</span>
+<span class="nc" id="L117">        }</span>
+
+<span class="nc" id="L119">    }</span>
+
+    /**
+     * Restituisce tutti i contenuti che hanno un attributo con nome key
+     * Data_inizio e valore la data corrente
+     *
+     * @throws EntException
+     */
+    @Override
+    public List&lt;String&gt; getContentIdToPublish() throws EntException {
+<span class="fc" id="L129">        List&lt;String&gt; ans = new ArrayList&lt;String&gt;();</span>
+        try {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            for (Iterator&lt;ContentTypeElem&gt; i = this.getConfig().getTypesList().iterator(); i.hasNext();) {</span>
+<span class="fc" id="L132">                ContentTypeElem elem = i.next();</span>
+<span class="fc" id="L133">                String filterKey = elem.getStartDateAttr();</span>
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">                if (null != filterKey) {</span>
+<span class="fc" id="L135">                    Calendar cal = Calendar.getInstance();</span>
+                    // cal.setTime(new Date());
+<span class="fc" id="L137">                    cal.set(Calendar.HOUR_OF_DAY, 0);</span>
+<span class="fc" id="L138">                    cal.set(Calendar.MINUTE, 0);</span>
+<span class="fc" id="L139">                    cal.set(Calendar.SECOND, 0);</span>
+<span class="fc" id="L140">                    Date start = cal.getTime();</span>
+<span class="fc" id="L141">                    cal.add(Calendar.DAY_OF_YEAR, 1);</span>
+<span class="fc" id="L142">                    Date end = cal.getTime();</span>
+<span class="fc" id="L143">                    EntitySearchFilter[] filters = new EntitySearchFilter[]{new EntitySearchFilter(filterKey, true, start, end)};</span>
+<span class="fc" id="L144">                    List&lt;String&gt; retrieved = this.getWorkContentSearcherDAO().searchId(elem.getContentType(), filters);</span>
+<span class="fc" id="L145">                    ans.addAll(retrieved);</span>
+                }
+<span class="fc" id="L147">            }</span>
+<span class="nc" id="L148">        } catch (Throwable t) {</span>
+<span class="nc" id="L149">            _logger.error(ContentThreadConstants.GET_CONTENTIDS_ERROR, t);</span>
+<span class="nc" id="L150">            throw new EntException(ContentThreadConstants.GET_CONTENTIDS_ERROR, t);</span>
+<span class="fc" id="L151">        }</span>
+<span class="fc" id="L152">        return ans;</span>
+    }
+
+    /**
+     * Restituisce tutti i contenuti che hanno un attributo con nome key
+     * Data_fine e valore la data corrente
+     *
+     * @throws EntException
+     */
+    @Override
+    public List&lt;ContentSuspendMove&gt; getContentAttrDataFine() throws EntException {
+<span class="fc" id="L163">        List&lt;ContentSuspendMove&gt; ans = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            for (Iterator&lt;ContentTypeElem&gt; i = this.config.getTypesList().iterator(); i.hasNext();) {</span>
+<span class="fc" id="L166">                ContentTypeElem elem = i.next();</span>
+<span class="fc" id="L167">                String filterKey = elem.getEndDateAttro();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">                if (null != filterKey) {</span>
+<span class="fc" id="L169">                    Date actualDate = new Date();</span>
+                    // Data fine compresa nella settimana
+<span class="fc" id="L171">                    Calendar cal = Calendar.getInstance();</span>
+<span class="fc" id="L172">                    cal.setTime(actualDate);</span>
+<span class="fc" id="L173">                    cal.add(Calendar.DATE, -7);</span>
+<span class="fc" id="L174">                    Date beginDate = cal.getTime();</span>
+<span class="fc" id="L175">                    EntitySearchFilter blobFilter = new EntitySearchFilter(IContentManager.CONTENT_ONLINE_FILTER_KEY, false, null, false);</span>
+<span class="fc" id="L176">                    EntitySearchFilter[] filters = new EntitySearchFilter[]{new EntitySearchFilter(filterKey, true, beginDate, new Date()), blobFilter};</span>
+<span class="fc" id="L177">                    List&lt;String&gt; retrieved = this.getWorkContentSearcherDAO().searchId(elem.getContentType(), filters);</span>
+<span class="fc" id="L178">                    ContentSuspendMove contSuspMov = new ContentSuspendMove(elem.getSuspend(),</span>
+                            retrieved,
+<span class="fc" id="L180">                            elem.getContentType(),</span>
+<span class="fc" id="L181">                            this.getConfig().getGlobalCat(),</span>
+<span class="fc" id="L182">                            elem.getIdsCategories(),</span>
+<span class="fc" id="L183">                            elem.getIdContentReplace(),</span>
+<span class="fc" id="L184">                            elem.getModelIdContentReplace());</span>
+<span class="fc" id="L185">                    contSuspMov.setContentIdReplace(this.getConfig().getContentIdRepl());</span>
+<span class="fc" id="L186">                    contSuspMov.setContentModelReplace(this.getConfig().getContentModelRepl());</span>
+<span class="fc" id="L187">                    ans.add(contSuspMov);</span>
+                }
+<span class="fc" id="L189">            }</span>
+<span class="nc" id="L190">        } catch (Throwable t) {</span>
+<span class="nc" id="L191">            _logger.error(ContentThreadConstants.GET_CONTENTIDS_ERROR, t);</span>
+<span class="nc" id="L192">            throw new EntException(ContentThreadConstants.GET_CONTENTIDS_ERROR, t);</span>
+<span class="fc" id="L193">        }</span>
+<span class="fc" id="L194">        return ans;</span>
+    }
+
+    /**
+     * Metodo per spedire le mail come impostato nella configurazione
+     *
+     * @param publishedContents
+     * @param suspendedContents
+     * @throws EntException
+     */
+    @Override
+    public void sendMailWithResults(List&lt;ContentState&gt; publishedContents, List&lt;ContentState&gt; suspendedContents, List&lt;ContentState&gt; movedContents, Date startJobDate,
+            Date endJobDate) throws EntException, ApsSystemException {
+        // TODO send to groups
+        // sendToGroups(publishedContents, suspendedContents);
+<span class="fc" id="L209">        sendToUsers(publishedContents, suspendedContents, movedContents, startJobDate, endJobDate);</span>
+<span class="fc" id="L210">    }</span>
+
+    /**
+     * Spedisco agli utenti specificati nella configurazione
+     *
+     * @param publishedContents
+     * @param suspendedContents
+     * @param startJobDate
+     * @param endJobDate
+     * @throws EntException
+     */
+    private void sendToUsers(List&lt;ContentState&gt; publishedContents, List&lt;ContentState&gt; suspendedContents, List&lt;ContentState&gt; moveContents, Date startJobDate, Date endJobDate)
+            throws EntException, ApsSystemException {
+<span class="fc" id="L223">        Map&lt;String, List&lt;String&gt;&gt; mapUsers = this.getConfig().getUsersContentType();</span>
+<span class="fc" id="L224">        Set&lt;String&gt; keys = mapUsers.keySet();</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        for (Iterator&lt;String&gt; i = keys.iterator(); i.hasNext();) {</span>
+<span class="fc" id="L226">            String key = i.next();</span>
+<span class="fc" id="L227">            List&lt;String&gt; typesList = mapUsers.get(key);</span>
+<span class="fc" id="L228">            List&lt;ContentState&gt; contentPList = contentOfTypes(publishedContents, typesList);</span>
+<span class="fc" id="L229">            List&lt;ContentState&gt; contentSList = contentOfTypes(suspendedContents, typesList);</span>
+<span class="fc" id="L230">            List&lt;ContentState&gt; contentMList = contentOfTypes(moveContents, typesList);</span>
+<span class="pc bpc" id="L231" title="6 of 12 branches missed.">            if ((contentPList != null &amp;&amp; contentPList.size() &gt; 0) || (contentSList != null &amp;&amp; contentSList.size() &gt; 0) || (contentMList != null &amp;&amp; contentMList.size() &gt; 0)) {</span>
+<span class="nc" id="L232">                UserDetails user = this.getUserManager().getUser(key);</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                if (user == null) {</span>
+<span class="nc" id="L234">                    ApsSystemUtils.getLogger().error(ContentThreadConstants.USER_IS_NULL + key);</span>
+<span class="nc" id="L235">                    continue;</span>
+                } else {
+<span class="nc" id="L237">                    UserProfile profile = (UserProfile) user.getProfile();</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                    if (null != profile) {</span>
+<span class="nc" id="L239">                        ITextAttribute mailAttribute = (ITextAttribute) profile.getAttributeByRole(SystemConstants.USER_PROFILE_ATTRIBUTE_ROLE_MAIL);</span>
+<span class="nc" id="L240">                        String[] email = new String[1];</span>
+<span class="nc bnc" id="L241" title="All 4 branches missed.">                        if (null != mailAttribute &amp;&amp; mailAttribute.getText().trim().length() &gt; 0) {</span>
+<span class="nc" id="L242">                            email[0] = mailAttribute.getText();</span>
+<span class="nc" id="L243">                            String simpleText = Utils.prepareMailText(contentPList, contentSList, contentMList, this.getConfig(), startJobDate, endJobDate);</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                            if (this.getConfig().isAlsoHtml()) {</span>
+<span class="nc" id="L245">                                String applBaseUrl = this.getConfigManager().getParam(SystemConstants.PAR_APPL_BASE_URL);</span>
+<span class="nc" id="L246">                                String htmlText = Utils.prepareMailHtml(contentPList, contentSList, contentMList, this.getConfig(), startJobDate, endJobDate, applBaseUrl);</span>
+<span class="nc" id="L247">                                boolean issent = this.getMailManager().sendMixedMail(simpleText, htmlText, config.getSubject(), null, email, null, null, config.getSenderCode());</span>
+                                // System.out.println(&quot;***MAIL html&quot;);
+<span class="nc bnc" id="L249" title="All 2 branches missed.">                                if (issent) {</span>
+<span class="nc" id="L250">                                    ApsSystemUtils.getLogger().info(ContentThreadConstants.MAIL_SENT + key);</span>
+                                } else {
+<span class="nc" id="L252">                                    ApsSystemUtils.getLogger().error(ContentThreadConstants.SEND_ERROR + key);</span>
+                                }
+<span class="nc" id="L254">                            } else {</span>
+                                // System.out.println(&quot;***MAIL simple&quot;);
+<span class="nc" id="L256">                                boolean issent = this.getMailManager().sendMail(simpleText, config.getSubject(), email, null, null, config.getSenderCode());</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                                if (issent) {</span>
+<span class="nc" id="L258">                                    ApsSystemUtils.getLogger().info(ContentThreadConstants.MAIL_SENT + key);</span>
+                                } else {
+<span class="nc" id="L260">                                    ApsSystemUtils.getLogger().error(ContentThreadConstants.SEND_ERROR + key);</span>
+                                }
+                            }
+                        }
+<span class="nc" id="L264">                    } else {</span>
+<span class="nc" id="L265">                        ApsSystemUtils.getLogger().error(ContentThreadConstants.PROFILE_IS_NULL + key);</span>
+                    }
+                }
+            }
+<span class="fc" id="L269">        }</span>
+<span class="fc" id="L270">    }</span>
+
+    /**
+     * Dato un array di contenuti, restituisce tutti quelli di tipo specificato
+     * nell'array types. Serve per sapere quali contenuti un gruppo o un utente
+     * deve sapere la pubblicazione o sospensione
+     *
+     * @param contentList
+     * @param types
+     * @return
+     */
+    private List&lt;ContentState&gt; contentOfTypes(List&lt;ContentState&gt; contentList, List&lt;String&gt; types) {
+<span class="fc" id="L282">        List&lt;ContentState&gt; ans = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">        for (Iterator&lt;ContentState&gt; itContent = contentList.iterator(); itContent.hasNext();) {</span>
+<span class="nc" id="L284">            ContentState currElem = itContent.next();</span>
+<span class="nc" id="L285">            String currType = currElem.getType();</span>
+<span class="nc bnc" id="L286" title="All 6 branches missed.">            if ((types != null &amp;&amp; types.size() == 1 &amp;&amp; types.get(0).equals(ContentThreadConstants.ALL_TYPES))) {</span>
+<span class="nc" id="L287">                ans.add(currElem);</span>
+            } else {
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                for (Iterator&lt;String&gt; itTypes = types.iterator(); itTypes.hasNext();) {</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">                    if (itTypes.next().equals(currType)) {</span>
+<span class="nc" id="L291">                        ans.add(currElem);</span>
+                    }
+                }
+            }
+<span class="nc" id="L295">        }</span>
+<span class="fc" id="L296">        return ans;</span>
+    }
+
+    /**
+     * NON USATO metodo ausiliario a getAuthorizedUsers
+     *
+     * @param groupName
+     * @return
+     */
+    public IApsAuthority getApsAuthority(String groupName) {
+<span class="nc" id="L306">        IApsAuthority authority = null;</span>
+        // this.getAuthorizatorManager().getAuthority(groupName);
+<span class="nc" id="L308">        return authority;</span>
+    }
+
+    /**
+     * Restituisce la lista degli utenti associati ad un determinato gruppo
+     *
+     * @param groupName
+     * @return
+     */
+    public List&lt;UserDetails&gt; getAuthorizedUsers(String groupName) {
+        // IApsAuthority auth = this.getApsAuthority(groupName);
+<span class="nc" id="L319">        List&lt;UserDetails&gt; users = null;</span>
+        try {
+<span class="nc" id="L321">            List&lt;String&gt; usernames = this.getAuthorizationManager().getUsersByGroup(groupName, false);</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">            if (usernames.size() &gt; 0) {</span>
+<span class="nc" id="L323">                users = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                for (int i = 0; i &lt; usernames.size(); i++) {</span>
+<span class="nc" id="L325">                    UserDetails u = this.getUserManager().getUser(usernames.get(i));</span>
+<span class="nc" id="L326">                    users.add(u);</span>
+                }
+            }
+
+<span class="nc" id="L330">            return users; // this.getAuthorizatorManager().getUsersByAuthority(auth);</span>
+<span class="nc" id="L331">        } catch (Throwable t) {</span>
+<span class="nc" id="L332">            ApsSystemUtils.logThrowable(t, this, &quot;getUserAuthorizated&quot;);</span>
+<span class="nc" id="L333">            throw new RuntimeException(&quot;Errore in ricerca utenti autorizzati&quot;, t);</span>
+        }
+    }
+
+    /**
+     * Return the desired system parameter
+     *
+     * @param paramName
+     * @return
+     */
+    @Override
+    public String getSystemParam(String paramName) {
+<span class="nc" id="L345">        String param = &quot;&quot;;</span>
+        try {
+<span class="nc" id="L347">            String xmlParams = this.getConfigManager().getConfigItem(SystemConstants.CONFIG_ITEM_PARAMS);</span>
+<span class="nc" id="L348">            Map&lt;String, String&gt; systemParams = SystemParamsUtils.getParams(xmlParams);</span>
+<span class="nc" id="L349">            param = systemParams.get(paramName);</span>
+<span class="nc" id="L350">        } catch (Throwable t) {</span>
+            // _logger.error(&quot;error getting the system parameter &quot; + paramName,
+            // t);
+<span class="nc" id="L353">            ApsSystemUtils.logThrowable(t, this, &quot;error getting the system parameter &quot; + paramName);</span>
+<span class="nc" id="L354">        }</span>
+<span class="nc" id="L355">        return param;</span>
+    }
+
+    protected IContentSchedulerDAO getContentSchedulerDAO() {
+<span class="nc" id="L359">        return _contentSchedulerDAO;</span>
+    }
+
+    public void setContentSchedulerDAO(IContentSchedulerDAO contentSchedulerDAO) {
+<span class="fc" id="L363">        this._contentSchedulerDAO = contentSchedulerDAO;</span>
+<span class="fc" id="L364">    }</span>
+
+    public IUserManager getUserManager() {
+<span class="nc" id="L367">        return _userManager;</span>
+    }
+
+    public void setUserManager(IUserManager userManager) {
+<span class="fc" id="L371">        this._userManager = userManager;</span>
+<span class="fc" id="L372">    }</span>
+
+    protected IContentSearcherDAO getWorkContentSearcherDAO() {
+<span class="fc" id="L375">        return _workContentSearcherDAO;</span>
+    }
+
+    public void setWorkContentSearcherDAO(IContentSearcherDAO workContentSearcherDAO) {
+<span class="fc" id="L379">        this._workContentSearcherDAO = workContentSearcherDAO;</span>
+<span class="fc" id="L380">    }</span>
+
+    public IMailManager getMailManager() {
+<span class="nc" id="L383">        return _mailManager;</span>
+    }
+
+    public void setMailManager(IMailManager mailManager) {
+<span class="fc" id="L387">        this._mailManager = mailManager;</span>
+<span class="fc" id="L388">    }</span>
+
+    @Override
+    public ContentThreadConfig getConfig() {
+<span class="fc" id="L392">        return config;</span>
+    }
+
+    public void setConfig(ContentThreadConfig config) {
+<span class="fc" id="L396">        this.config = config;</span>
+<span class="fc" id="L397">    }</span>
+
+    public ConfigInterface getConfigManager() {
+<span class="fc" id="L400">        return configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L404">        this.configManager = configManager;</span>
+<span class="fc" id="L405">    }</span>
+
+    public IAuthorizationManager getAuthorizationManager() {
+<span class="nc" id="L408">        return _authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L412">        this._authorizationManager = authorizationManager;</span>
+<span class="fc" id="L413">    }</span>
+
+    /**
+     * Only for ONE SHOT Procedure
+     *
+     * @param content
+     * @param updateDate
+     * @throws EntException
+     */
+    @Override
+    public void moveOnLineContent(Content content, boolean updateDate, boolean updateLastModified) throws EntException {
+        try {
+<span class="nc bnc" id="L425" title="All 2 branches missed.">            if (updateLastModified) {</span>
+<span class="nc" id="L426">                content.setLastModified(new Date());</span>
+            }
+<span class="nc bnc" id="L428" title="All 2 branches missed.">            if (updateDate) {</span>
+<span class="nc" id="L429">                content.incrementVersion(false);</span>
+            }
+<span class="nc bnc" id="L431" title="All 2 branches missed.">            if (null == content.getId()) {</span>
+<span class="nc" id="L432">                IKeyGeneratorManager keyGenerator = (IKeyGeneratorManager) this.getService(SystemConstants.KEY_GENERATOR_MANAGER);</span>
+<span class="nc" id="L433">                int key = keyGenerator.getUniqueKeyCurrentValue();</span>
+<span class="nc" id="L434">                String id = content.getTypeCode() + key;</span>
+<span class="nc" id="L435">                content.setId(id);</span>
+<span class="nc" id="L436">                this.getContentSchedulerDAO().addEntity(content);</span>
+<span class="nc" id="L437">            } else {</span>
+<span class="nc" id="L438">                this.getContentSchedulerDAO().updateContent(content, updateDate);</span>
+<span class="nc" id="L439">                this.getContentSchedulerDAO().publishContent(content);</span>
+            }
+<span class="nc" id="L441">        } catch (Throwable t) {</span>
+<span class="nc" id="L442">            ApsSystemUtils.logThrowable(t, this, &quot;moveOnLineContent&quot;);</span>
+<span class="nc" id="L443">            throw new EntException(&quot;Error while move content on line&quot;, t);</span>
+<span class="nc" id="L444">        }</span>
+<span class="nc" id="L445">    }</span>
+
+    /**
+     * Unpublish a content, preventing it from being displayed in the portal.
+     * Obviously the content itself is not deleted.
+     *
+     * @param content the content to unpublish.
+     * @param updateLastModified .
+     * @throws EntException in case of error
+     */
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENT_CACHE_PREFIX.concat(#content.id)&quot;, condition = &quot;#content.id != null&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentCacheGroupsToEvictCsv(#content.id, #content.typeCode)&quot;)
+    public void removeOnLineContent(Content content, boolean updateLastModified) throws EntException {
+        try {
+<span class="nc bnc" id="L460" title="All 2 branches missed.">            if (updateLastModified) {</span>
+<span class="nc" id="L461">                content.setLastModified(new Date());</span>
+            }
+<span class="nc" id="L463">            content.incrementVersion(false);</span>
+<span class="nc bnc" id="L464" title="All 4 branches missed.">            if (null != content.getStatus() &amp;&amp; content.getStatus().equals(Content.STATUS_PUBLIC)) {</span>
+<span class="nc" id="L465">                content.setStatus(Content.STATUS_READY);</span>
+            }
+<span class="nc" id="L467">            this.getContentSchedulerDAO().unpublishOnLineContent(content);</span>
+            // this.notifyPublicContentChanging(content,
+            // PublicContentChangedEvent.REMOVE_OPERATION_CODE);
+<span class="nc" id="L470">        } catch (Throwable t) {</span>
+<span class="nc" id="L471">            ApsSystemUtils.logThrowable(t, this, &quot;removeOnLineContent&quot;);</span>
+<span class="nc" id="L472">            throw new EntException(&quot;Error while removing onLine content&quot;, t);</span>
+<span class="nc" id="L473">        }</span>
+<span class="nc" id="L474">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
