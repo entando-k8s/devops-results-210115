@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content</a> &gt; <span class="el_source">ContentAction.java</span></div><h1>ContentAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.aps.util.SelectItem;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentUtilizer;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.apsadmin.util.ResourceIconUtil;
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.plugins.jacms.aps.util.CmsPageUtil;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Action principale per la redazione contenuti.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L45">public class ContentAction extends AbstractContentAction {</span>
+
+<span class="fc" id="L47">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentAction.class);</span>
+
+    private IPageManager pageManager;
+    private ConfigInterface configManager;
+    private IResourceManager resourceManager;
+
+    private Map references;
+
+    private String contentId;
+
+<span class="fc" id="L57">    private List&lt;String&gt; extraGroupNames = new ArrayList&lt;&gt;();</span>
+    
+    private String groupToRemove;
+
+    private boolean copyPublicVersion;
+
+    private ResourceIconUtil resourceIconUtil;
+
+    @Override
+    public void validate() {
+<span class="fc" id="L67">        Content content = this.updateContentOnSession(true);</span>
+<span class="fc" id="L68">        super.validate();</span>
+<span class="fc" id="L69">        this.getContentActionHelper().scanEntity(content, this);</span>
+<span class="fc" id="L70">    }</span>
+
+    /**
+     * Esegue l'azione di edit di un contenuto.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String edit() {
+        try {
+<span class="fc" id="L79">            Content content = this.getContentManager().loadContent(this.getContentId(), false);</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (null == content) {</span>
+<span class="nc" id="L81">                throw new EntException(&quot;Contenuto in edit '&quot; + this.getContentId() + &quot;' nullo!&quot;);</span>
+            }
+<span class="fc bfc" id="L83" title="All 2 branches covered.">            if (!this.isUserAllowed(content)) {</span>
+<span class="fc" id="L84">                _logger.info(&quot;Utente non abilitato all'editazione del contenuto {}&quot;, content.getId());</span>
+<span class="fc" id="L85">                return USER_NOT_ALLOWED;</span>
+            }
+<span class="fc" id="L87">            String marker = buildContentOnSessionMarker(content, ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L88">            super.setContentOnSessionMarker(marker);</span>
+<span class="fc" id="L89">            this.getRequest().getSession().setAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + marker, content);</span>
+<span class="nc" id="L90">        } catch (Throwable t) {</span>
+<span class="nc" id="L91">            _logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L92">            return FAILURE;</span>
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'azione di copia/incolla di un contenuto.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String copyPaste() {
+        try {
+<span class="fc" id="L104">            Content content = this.getContentManager().loadContent(this.getContentId(), this.isCopyPublicVersion());</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (null == content) {</span>
+<span class="fc" id="L106">                throw new EntException(&quot;Contenuto in copyPaste '&quot; + this.getContentId() + &quot;' nullo ; copia di contenuto pubblico &quot;</span>
+<span class="fc" id="L107">                        + this.isCopyPublicVersion());</span>
+            }
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">            if (!this.isUserAllowed(content)) {</span>
+<span class="nc" id="L110">                _logger.info(&quot;Utente non abilitato all'accesso del contenuto {}&quot;, content.getId());</span>
+<span class="nc" id="L111">                return USER_NOT_ALLOWED;</span>
+            }
+<span class="fc" id="L113">            String marker = buildContentOnSessionMarker(content, ApsAdminSystemConstants.PASTE);</span>
+<span class="fc" id="L114">            content.setId(null);</span>
+<span class="fc" id="L115">            content.setVersion(Content.INIT_VERSION);</span>
+<span class="fc" id="L116">            content.setDescription(this.getText(&quot;label.copyOf&quot;) + &quot; &quot; + content.getDescription());</span>
+<span class="fc" id="L117">            content.setFirstEditor(this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L118">            super.setContentOnSessionMarker(marker);</span>
+<span class="fc" id="L119">            this.getRequest().getSession().setAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + marker, content);</span>
+<span class="fc" id="L120">        } catch (Throwable t) {</span>
+<span class="fc" id="L121">            _logger.error(&quot;error in copyPaste&quot;, t);</span>
+<span class="fc" id="L122">            return FAILURE;</span>
+<span class="fc" id="L123">        }</span>
+<span class="fc" id="L124">        return SUCCESS;</span>
+    }
+
+    public String forwardToEntryContent() {
+<span class="nc" id="L128">        return SUCCESS;</span>
+    }
+
+    public String configureMainGroup() {
+<span class="nc" id="L132">        Content content = this.updateContentOnSession();</span>
+        try {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            if (null == content) {</span>
+<span class="nc" id="L135">                _logger.warn(&quot;Null content on session&quot;);</span>
+<span class="nc" id="L136">                return FAILURE;</span>
+            }
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            if (/* null == content.getId() &amp;&amp; */null == content.getMainGroup()) {</span>
+<span class="nc" id="L139">                String mainGroup = this.getRequest().getParameter(&quot;mainGroup&quot;);</span>
+<span class="nc bnc" id="L140" title="All 4 branches missed.">                if (mainGroup != null &amp;&amp; null != this.getGroupManager().getGroup(mainGroup)) {</span>
+<span class="nc" id="L141">                    content.setMainGroup(mainGroup);</span>
+                }
+            }
+<span class="nc" id="L144">        } catch (Throwable t) {</span>
+<span class="nc" id="L145">            _logger.error(&quot;error in setMainGroup&quot;, t);</span>
+<span class="nc" id="L146">            return FAILURE;</span>
+<span class="nc" id="L147">        }</span>
+<span class="nc" id="L148">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'azione di associazione di un gruppo al contenuto in fase di
+     * redazione.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String joinGroup() {
+<span class="fc" id="L158">        this.updateContentOnSession();</span>
+        try {
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            for (String extraGroupName : extraGroupNames) {</span>
+<span class="fc" id="L161">                Group group = this.getGroupManager().getGroup(extraGroupName);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">                if (null != group) {</span>
+<span class="fc" id="L163">                    this.getContent().addGroup(extraGroupName);</span>
+                }
+<span class="fc" id="L165">            }</span>
+            // we want to clear the group selection after the join
+<span class="fc" id="L167">            extraGroupNames.clear();</span>
+<span class="nc" id="L168">        } catch (Throwable t) {</span>
+<span class="nc" id="L169">            _logger.error(&quot;error in joinGroup&quot;, t);</span>
+<span class="nc" id="L170">            return FAILURE;</span>
+<span class="fc" id="L171">        }</span>
+<span class="fc" id="L172">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'azione di rimozione di un gruppo dal contenuto in fase di
+     * redazione.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String removeGroup() {
+<span class="fc" id="L182">        this.updateContentOnSession();</span>
+        try {
+            // NOTE: previously the extraGroupNames variable was reused
+            // also for group removal. It is necessary to have a separate
+            // variable for this, in order to avoid conflicting with the
+            // joinGroup() method. See EN-2166.
+<span class="fc" id="L188">            Group group = this.getGroupManager().getGroup(groupToRemove);</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">            if (null != group) {</span>
+<span class="fc" id="L190">                this.getContent().getGroups().remove(group.getName());</span>
+            }
+<span class="nc" id="L192">        } catch (Throwable t) {</span>
+<span class="nc" id="L193">            _logger.error(&quot;error in removeGroup&quot;, t);</span>
+<span class="nc" id="L194">            return FAILURE;</span>
+<span class="fc" id="L195">        }</span>
+<span class="fc" id="L196">        return SUCCESS;</span>
+    }
+
+    public String saveAndContinue() {
+        try {
+<span class="fc" id="L201">            Content currentContent = this.updateContentOnSession();</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            if (null != currentContent) {</span>
+<span class="fc" id="L203">                String descr = currentContent.getDescription();</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">                if (StringUtils.isEmpty(descr)) {</span>
+<span class="nc" id="L205">                    this.addFieldError(&quot;descr&quot;, this.getText(&quot;error.content.descr.required&quot;));</span>
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">                } else if (descr.length() &gt; 250) {</span>
+<span class="fc" id="L207">                    String[] args = {String.valueOf(250)};</span>
+<span class="fc" id="L208">                    this.addFieldError(&quot;descr&quot;, this.getText(&quot;error.content.descr.wrongMaxLength&quot;, args));</span>
+<span class="pc bnc" id="L209" title="All 2 branches missed.">                } else if (StringUtils.isEmpty(currentContent.getMainGroup())) {</span>
+<span class="nc" id="L210">                    this.addFieldError(&quot;mainGroup&quot;, this.getText(&quot;error.content.mainGroup.required&quot;));</span>
+                } else {
+<span class="nc" id="L212">                    currentContent.setLastEditor(this.getCurrentUser().getUsername());</span>
+<span class="nc" id="L213">                    this.getContentManager().saveContent(currentContent);</span>
+                }
+            }
+<span class="nc" id="L216">        } catch (Throwable t) {</span>
+<span class="nc" id="L217">            _logger.error(&quot;error in saveAndContinue&quot;, t);</span>
+<span class="nc" id="L218">            return FAILURE;</span>
+<span class="fc" id="L219">        }</span>
+<span class="fc" id="L220">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'azione di salvataggio del contenuto in fase di redazione.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String saveContent() {
+<span class="fc" id="L229">        return this.saveContent(false);</span>
+    }
+
+    /**
+     * Esegue l'azione di salvataggio e pubblicazione del contenuto in fase di
+     * redazione.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String saveAndApprove() {
+<span class="nc" id="L239">        return this.saveContent(true);</span>
+    }
+
+    protected String saveContent(boolean approve) {
+        try {
+<span class="fc" id="L244">            Content currentContent = this.getContent();</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">            if (null != currentContent) {</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">                int strutsAction = (null == currentContent.getId()) ? ApsAdminSystemConstants.ADD : ApsAdminSystemConstants.EDIT;</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">                if (approve) {</span>
+<span class="nc" id="L248">                    strutsAction += 10;</span>
+                }
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">                if (!this.getContentActionHelper().isUserAllowed(currentContent, this.getCurrentUser())) {</span>
+<span class="nc" id="L251">                    _logger.info(&quot;User not allowed to save content {}&quot;, currentContent.getId());</span>
+<span class="nc" id="L252">                    return USER_NOT_ALLOWED;</span>
+                }
+<span class="fc" id="L254">                currentContent.setLastEditor(this.getCurrentUser().getUsername());</span>
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">                if (approve) {</span>
+<span class="nc" id="L256">                    this.getContentManager().insertOnLineContent(currentContent);</span>
+                } else {
+<span class="fc" id="L258">                    this.getContentManager().saveContent(currentContent);</span>
+                }
+<span class="fc" id="L260">                this.addActivityStreamInfo(currentContent, strutsAction, true);</span>
+<span class="fc" id="L261">                this.getRequest().getSession().removeAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX</span>
+<span class="fc" id="L262">                        + super.getContentOnSessionMarker());</span>
+<span class="fc" id="L263">                this.getRequest().getSession().removeAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_GROUP);</span>
+<span class="fc" id="L264">                _logger.info(&quot;Saving content {} - Description: '{}' - User: {}&quot;, currentContent.getId(), currentContent.getDescription(),</span>
+<span class="fc" id="L265">                        this.getCurrentUser().getUsername());</span>
+<span class="fc" id="L266">            } else {</span>
+<span class="nc" id="L267">                _logger.error(&quot;Save/approve NULL content - User: {}&quot;, this.getCurrentUser().getUsername());</span>
+            }
+<span class="nc" id="L269">        } catch (Throwable t) {</span>
+<span class="nc" id="L270">            _logger.error(&quot;error in saveContent&quot;, t);</span>
+<span class="nc" id="L271">            return FAILURE;</span>
+<span class="fc" id="L272">        }</span>
+<span class="fc" id="L273">        return SUCCESS;</span>
+    }
+
+    /**
+     * Esegue l'azione di rimozione del contenuto pubblico e salvataggio del
+     * contenuto in fase di redazione.
+     *
+     * @return Il codice del risultato dell'azione.
+     */
+    public String suspend() {
+        try {
+<span class="fc" id="L284">            Content currentContent = this.updateContentOnSession();</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">            if (null != currentContent) {</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">                if (!this.getContentActionHelper().isUserAllowed(currentContent, this.getCurrentUser())) {</span>
+<span class="nc" id="L287">                    _logger.info(&quot;User not allowed to unpublish content {}&quot;, currentContent.getId());</span>
+<span class="nc" id="L288">                    return USER_NOT_ALLOWED;</span>
+                }
+<span class="fc" id="L290">                Map extractedReferences = this.getContentActionHelper().getReferencingObjects(currentContent, this.getRequest());</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">                if (extractedReferences.size() &gt; 0) {</span>
+<span class="fc" id="L292">                    this.setReferences(extractedReferences);</span>
+<span class="fc" id="L293">                    return &quot;references&quot;;</span>
+                }
+<span class="nc" id="L295">                this.getContentManager().removeOnLineContent(currentContent);</span>
+<span class="nc" id="L296">                this.addActivityStreamInfo(currentContent, (ApsAdminSystemConstants.DELETE + 10), true);</span>
+<span class="nc" id="L297">                this.getRequest().getSession().removeAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX</span>
+<span class="nc" id="L298">                        + super.getContentOnSessionMarker());</span>
+<span class="nc" id="L299">                _logger.info(&quot;Content {} suspended - Description: '{}' - Utente: {}&quot;, currentContent.getId(), currentContent</span>
+<span class="nc" id="L300">                        .getDescription(), this.getCurrentUser().getUsername());</span>
+            }
+<span class="nc" id="L302">        } catch (Throwable t) {</span>
+<span class="nc" id="L303">            _logger.error(&quot;error in suspend&quot;, t);</span>
+<span class="nc" id="L304">            return FAILURE;</span>
+<span class="nc" id="L305">        }</span>
+<span class="nc" id="L306">        return SUCCESS;</span>
+    }
+
+    public int[] getLinkDestinations() {
+<span class="nc" id="L310">        return SymbolicLink.getDestinationTypes();</span>
+    }
+
+    public IPage getPage(String pageCode) {
+<span class="nc" id="L314">        return this.getPageManager().getOnlinePage(pageCode);</span>
+    }
+
+    public String getHtmlEditorCode() {
+<span class="nc" id="L318">        return this.getConfigManager().getParam(&quot;hypertextEditor&quot;);</span>
+    }
+
+    /**
+     * Return the list of the showing pages of the current content on edit
+     *
+     * @return The list of the showing pages.
+     */
+    public List&lt;SelectItem&gt; getShowingPageSelectItems() {
+<span class="nc" id="L327">        List&lt;SelectItem&gt; pageItems = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L329">            Content content = this.getContent();</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">            if (null != content) {</span>
+<span class="nc" id="L331">                IPage defaultViewerPage = this.getPageManager().getOnlinePage(content.getViewPage());</span>
+<span class="nc bnc" id="L332" title="All 4 branches missed.">                if (null != defaultViewerPage &amp;&amp; CmsPageUtil.isOnlineFreeViewerPage(defaultViewerPage, null)) {</span>
+<span class="nc" id="L333">                    pageItems.add(new SelectItem(&quot;&quot;, this.getText(&quot;label.default&quot;)));</span>
+                }
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                if (null == content.getId()) {</span>
+<span class="nc" id="L336">                    return pageItems;</span>
+                }
+<span class="nc" id="L338">                ContentUtilizer pageManagerWrapper = (ContentUtilizer) ApsWebApplicationUtils.getBean(</span>
+<span class="nc" id="L339">                        JacmsSystemConstants.PAGE_MANAGER_WRAPPER, this.getRequest());</span>
+<span class="nc" id="L340">                List&lt;IPage&gt; pages = pageManagerWrapper.getContentUtilizers(content.getId());</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">                for (int i = 0; i &lt; pages.size(); i++) {</span>
+<span class="nc" id="L342">                    IPage page = pages.get(i);</span>
+<span class="nc" id="L343">                    String pageCode = page.getCode();</span>
+<span class="nc" id="L344">                    pageItems.add(new SelectItem(pageCode, super.getTitle(pageCode, page.getTitles())));</span>
+                }
+            }
+<span class="nc" id="L347">        } catch (Throwable t) {</span>
+<span class="nc" id="L348">            _logger.error(&quot;Error on extracting showing pages&quot;, t);</span>
+<span class="nc" id="L349">            throw new RuntimeException(&quot;Error on extracting showing pages&quot;, t);</span>
+<span class="nc" id="L350">        }</span>
+<span class="nc" id="L351">        return pageItems;</span>
+    }
+
+    public String getIconFile(String fileName) {
+<span class="nc" id="L355">        return this.getResourceIconUtil().getIconByFilename(fileName);</span>
+    }
+
+    public List&lt;String&gt; getResourceMetadataKeys() {
+<span class="nc" id="L359">        List&lt;String&gt; keys = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L360">        Map&lt;String, List&lt;String&gt;&gt; mapping = this.getResourceManager().getMetadataMapping();</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">        if (null != mapping) {</span>
+<span class="nc" id="L362">            keys.addAll(mapping.keySet());</span>
+<span class="nc" id="L363">            Collections.sort(keys);</span>
+        }
+<span class="nc" id="L365">        return keys;</span>
+    }
+
+    public Map getReferences() {
+<span class="fc" id="L369">        return references;</span>
+    }
+
+    protected void setReferences(Map references) {
+<span class="fc" id="L373">        this.references = references;</span>
+<span class="fc" id="L374">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="nc" id="L377">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L381">        this.pageManager = pageManager;</span>
+<span class="fc" id="L382">    }</span>
+
+    protected ConfigInterface getConfigManager() {
+<span class="nc" id="L385">        return configManager;</span>
+    }
+
+    public void setConfigManager(ConfigInterface configManager) {
+<span class="fc" id="L389">        this.configManager = configManager;</span>
+<span class="fc" id="L390">    }</span>
+
+    protected IResourceManager getResourceManager() {
+<span class="nc" id="L393">        return resourceManager;</span>
+    }
+
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L397">        this.resourceManager = resourceManager;</span>
+<span class="fc" id="L398">    }</span>
+
+    public String getContentId() {
+<span class="fc" id="L401">        return contentId;</span>
+    }
+
+    public void setContentId(String contentId) {
+<span class="fc" id="L405">        this.contentId = contentId;</span>
+<span class="fc" id="L406">    }</span>
+
+    public List&lt;String&gt; getExtraGroupNames() {
+<span class="fc" id="L409">        return extraGroupNames;</span>
+    }
+
+    public void setExtraGroupNames(List&lt;String&gt; extraGroupNames) {
+<span class="fc" id="L413">        this.extraGroupNames = extraGroupNames;</span>
+<span class="fc" id="L414">    }</span>
+
+    public String getGroupToRemove() {
+<span class="nc" id="L417">        return groupToRemove;</span>
+    }
+
+    public void setGroupToRemove(String groupToRemove) {
+<span class="fc" id="L421">        this.groupToRemove = groupToRemove;</span>
+<span class="fc" id="L422">    }</span>
+
+    public boolean isCopyPublicVersion() {
+<span class="fc" id="L425">        return copyPublicVersion;</span>
+    }
+
+    public void setCopyPublicVersion(boolean copyPublicVersion) {
+<span class="fc" id="L429">        this.copyPublicVersion = copyPublicVersion;</span>
+<span class="fc" id="L430">    }</span>
+
+    protected ResourceIconUtil getResourceIconUtil() {
+<span class="nc" id="L433">        return resourceIconUtil;</span>
+    }
+
+    public void setResourceIconUtil(ResourceIconUtil resourceIconUtil) {
+<span class="fc" id="L437">        this.resourceIconUtil = resourceIconUtil;</span>
+<span class="fc" id="L438">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

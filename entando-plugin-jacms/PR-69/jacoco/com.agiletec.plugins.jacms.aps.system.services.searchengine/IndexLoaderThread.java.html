@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IndexLoaderThread.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.searchengine</a> &gt; <span class="el_source">IndexLoaderThread.java</span></div><h1>IndexLoaderThread.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.searchengine;
+
+import java.util.Date;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+
+/**
+ * Thread Class delegate to load content index, in use on SearchEngine.
+ * @author E.Santoboni
+ */
+public class IndexLoaderThread extends Thread {
+
+<span class="fc" id="L31">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(IndexLoaderThread.class);</span>
+	
+	public IndexLoaderThread(SearchEngineManager searchEngineManager, 
+<span class="fc" id="L34">			IContentManager contentManager, IIndexerDAO indexerDao) {</span>
+<span class="fc" id="L35">		this._contentManager = contentManager;</span>
+<span class="fc" id="L36">		this._searchEngineManager = searchEngineManager;</span>
+<span class="fc" id="L37">		this._indexerDao = indexerDao;</span>
+<span class="fc" id="L38">	}</span>
+	
+	@Override
+	public void run() {
+<span class="fc" id="L42">		LastReloadInfo reloadInfo = new LastReloadInfo();</span>
+		try {
+<span class="fc" id="L44">			this.loadNewIndex();</span>
+<span class="fc" id="L45">			reloadInfo.setResult(LastReloadInfo.ID_SUCCESS_RESULT);</span>
+<span class="nc" id="L46">		} catch (Throwable t) {</span>
+<span class="nc" id="L47">			reloadInfo.setResult(LastReloadInfo.ID_FAILURE_RESULT);</span>
+<span class="nc" id="L48">			_logger.error(&quot;error in run&quot;, t);</span>
+		} finally {
+<span class="fc" id="L50">			reloadInfo.setDate(new Date());</span>
+<span class="fc" id="L51">			this._searchEngineManager.notifyEndingIndexLoading(reloadInfo, this._indexerDao);</span>
+<span class="fc" id="L52">			this._searchEngineManager.sellOfQueueEvents();</span>
+		}
+<span class="fc" id="L54">	}</span>
+	
+	private void loadNewIndex() throws Throwable {
+		try {
+<span class="fc" id="L58">			List&lt;String&gt; contentsId = this._contentManager.searchId(null);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">			for (int i=0; i&lt;contentsId.size(); i++) {</span>
+<span class="fc" id="L60">				String id = contentsId.get(i);</span>
+<span class="fc" id="L61">				this.reloadContentIndex(id);</span>
+			}
+<span class="fc" id="L63">			_logger.info(&quot;Indicizzazione effettuata&quot;);</span>
+<span class="nc" id="L64">		} catch (Throwable t) {</span>
+<span class="nc" id="L65">			_logger.error(&quot;error in reloadIndex&quot;, t);</span>
+<span class="nc" id="L66">			throw t;</span>
+<span class="fc" id="L67">		}</span>
+<span class="fc" id="L68">	}</span>
+	
+	private void reloadContentIndex(String id) {
+		try {
+<span class="fc" id="L72">			Content content = this._contentManager.loadContent(id, true);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">			if (content != null) {</span>
+<span class="fc" id="L74">				this._indexerDao.add(content);</span>
+<span class="fc" id="L75">				_logger.debug(&quot;Indexed content {}&quot;, content.getId());</span>
+			}
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error reloading index: content id {}&quot;, id, t);</span>
+<span class="fc" id="L79">		}</span>
+<span class="fc" id="L80">	}</span>
+	
+	private SearchEngineManager _searchEngineManager;
+	private IContentManager _contentManager;
+	private IIndexerDAO _indexerDao;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

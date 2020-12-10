@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentModelDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.contentmodel</a> &gt; <span class="el_source">ContentModelDAO.java</span></div><h1>ContentModelDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.contentmodel;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+
+/**
+ * Data Access Object per gli oggetti modello contenuto (ContentModel).
+ * @author M.Diana - C.Siddi - C.Sirigu
+ */
+<span class="fc" id="L33">public class ContentModelDAO extends AbstractDAO implements IContentModelDAO {</span>
+	
+<span class="fc" id="L35">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentModelDAO.class);</span>
+	
+	@Override
+	public Map&lt;Long, ContentModel&gt; loadContentModels(){
+<span class="fc" id="L39">		Connection conn = null;</span>
+<span class="fc" id="L40">		Statement stat = null;</span>
+<span class="fc" id="L41">		ResultSet res = null;</span>
+<span class="fc" id="L42">		Map&lt;Long, ContentModel&gt; models = new HashMap&lt;Long, ContentModel&gt;();</span>
+<span class="fc" id="L43">		String query = ALL_CONTENTMODEL;</span>
+		try {
+<span class="fc" id="L45">			conn = this.getConnection();</span>
+<span class="fc" id="L46">			stat = conn.createStatement();</span>
+<span class="fc" id="L47">			res = stat.executeQuery(query);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">			while(res.next()){</span>
+<span class="fc" id="L49">				ContentModel contentModel = loadContentModel(res);</span>
+				//Hash map che contiene come chiave l'id e come valore l'oggetto stesso
+<span class="fc" id="L51">				Long wrapLongId = new Long(contentModel.getId());</span>
+<span class="fc" id="L52">				models.put(wrapLongId, contentModel);</span>
+<span class="fc" id="L53">			}</span>
+<span class="nc" id="L54">		} catch (Throwable t) {</span>
+<span class="nc" id="L55">			_logger.error(&quot;Error loading content models&quot;,  t);</span>
+<span class="nc" id="L56">			throw new RuntimeException(&quot;Error loading content models&quot;, t);</span>
+			//processDaoException(t, &quot;Errore in caricamento modelli pagina&quot;, &quot;loadContentModels&quot;);
+		} finally{
+<span class="fc" id="L59">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L61">		return models;</span>
+	}
+    
+	@Override
+	public void addContentModel(ContentModel model) {
+<span class="fc" id="L66">		Connection conn = null;</span>
+<span class="fc" id="L67">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L69">			conn = this.getConnection();</span>
+<span class="fc" id="L70">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L71">			stat = conn.prepareStatement(ADD_CONTENT_MODEL);</span>
+<span class="fc" id="L72">			stat.setLong(1, model.getId());</span>
+<span class="fc" id="L73">			stat.setString(2, model.getContentType());</span>
+<span class="fc" id="L74">			stat.setString(3, model.getDescription());</span>
+<span class="fc" id="L75">			stat.setString(4, model.getContentShape());</span>
+<span class="fc" id="L76">			stat.setString(5, model.getStylesheet());</span>
+<span class="fc" id="L77">			stat.executeUpdate();</span>
+<span class="fc" id="L78">			conn.commit();</span>
+<span class="nc" id="L79">		} catch (Throwable t) {</span>
+<span class="nc" id="L80">			this.executeRollback(conn);</span>
+<span class="nc" id="L81">			_logger.error(&quot;Error adding content model {}&quot;, model.getId() ,  t);</span>
+<span class="nc" id="L82">			throw new RuntimeException(&quot;Error adding content model &quot; + model.getId(), t);</span>
+			//processDaoException(t, &quot;Errore in aggiunta modello di contenuto &quot; + model.getId(), &quot;addContentModel&quot;);
+		} finally {
+<span class="fc" id="L85">			closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L87">	}</span>
+	
+	@Override
+	public void deleteContentModel(ContentModel model) {
+<span class="fc" id="L91">		Connection conn = null;</span>
+<span class="fc" id="L92">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L94">			conn = this.getConnection();</span>
+<span class="fc" id="L95">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L96">			stat = conn.prepareStatement(DELETE_CONTENT_MODEL);</span>
+<span class="fc" id="L97">			stat.setLong(1, model.getId());</span>
+<span class="fc" id="L98">			stat.executeUpdate();</span>
+<span class="fc" id="L99">			conn.commit();</span>
+<span class="nc" id="L100">		} catch (Throwable t) {</span>
+<span class="nc" id="L101">			this.executeRollback(conn);</span>
+<span class="nc" id="L102">			_logger.error(&quot;Error deleting content model {} &quot;, model.getId(),  t);</span>
+<span class="nc" id="L103">			throw new RuntimeException(&quot;Error deleting content model &quot; + model.getId(), t);</span>
+			//processDaoException(t, &quot;Errore in cancellazione modello di contenuto &quot; + model.getId(), &quot;deleteContentModel&quot;);
+		} finally {
+<span class="fc" id="L106">			closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L108">	}</span>
+	
+	@Override
+	public void updateContentModel(ContentModel model) {
+<span class="fc" id="L112">		Connection conn = null;</span>
+<span class="fc" id="L113">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L115">			conn = this.getConnection();</span>
+<span class="fc" id="L116">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L117">			stat = conn.prepareStatement(UPDATE_CONTENT_MODEL);</span>
+<span class="fc" id="L118">			stat.setString(1, model.getContentType());</span>
+<span class="fc" id="L119">			stat.setString(2, model.getDescription());</span>
+<span class="fc" id="L120">			stat.setString(3, model.getContentShape());</span>
+<span class="fc" id="L121">			stat.setString(4, model.getStylesheet());</span>
+<span class="fc" id="L122">			stat.setLong(5, model.getId());</span>
+<span class="fc" id="L123">			stat.executeUpdate();</span>
+<span class="fc" id="L124">			conn.commit();</span>
+<span class="nc" id="L125">		} catch (Throwable t) {</span>
+<span class="nc" id="L126">			this.executeRollback(conn);</span>
+<span class="nc" id="L127">			_logger.error(&quot;Error updating content model {} &quot;, model.getId(),  t);</span>
+<span class="nc" id="L128">			throw new RuntimeException(&quot;Error updating content model &quot; + model.getId(), t);</span>
+			//processDaoException(t, &quot;Errore in modifica modello di contenuto &quot; + model.getId(), &quot;updateContentModel&quot;);
+		} finally {
+<span class="fc" id="L131">			closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L133">	}</span>
+	
+	/**
+	 * Costruisce e restituisce un modello di contenuto leggendo una riga
+	 * di recordset.
+	 * @param res Il resultset da leggere
+	 * @return Il modello di contenuto generato
+	 * @throws SQLException
+	 */
+	private ContentModel loadContentModel(ResultSet res) throws SQLException {
+<span class="fc" id="L143">	    ContentModel contentModel = new ContentModel();</span>
+<span class="fc" id="L144">	    contentModel.setId(res.getLong(1));</span>
+<span class="fc" id="L145">	    contentModel.setContentType(res.getString(2));</span>
+<span class="fc" id="L146">	    contentModel.setDescription(res.getString(3));	</span>
+<span class="fc" id="L147">	    contentModel.setContentShape(res.getString(4));</span>
+<span class="fc" id="L148">	    contentModel.setStylesheet(res.getString(5));</span>
+<span class="fc" id="L149">	    return contentModel;</span>
+	}
+	
+<span class="fc" id="L152">	private final String ALL_CONTENTMODEL =</span>
+		&quot;SELECT modelid, contenttype, descr, model, stylesheet FROM contentmodels&quot;;
+	
+<span class="fc" id="L155">	private final String ADD_CONTENT_MODEL =</span>
+		&quot;INSERT INTO contentmodels (modelid, contenttype, descr, model, stylesheet ) VALUES ( ? , ? , ? , ? , ? )&quot;;
+	
+	private static final String DELETE_CONTENT_MODEL = 
+		&quot;DELETE FROM contentmodels WHERE modelid = ? &quot;;
+	
+<span class="fc" id="L161">	private final String UPDATE_CONTENT_MODEL =</span>
+		&quot;UPDATE contentmodels SET contenttype = ? , descr = ? , model = ? , stylesheet = ? WHERE modelid = ? &quot;;	
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

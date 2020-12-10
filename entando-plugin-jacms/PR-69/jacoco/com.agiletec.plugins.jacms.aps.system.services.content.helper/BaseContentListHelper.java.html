@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseContentListHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.helper</a> &gt; <span class="el_source">BaseContentListHelper.java</span></div><h1>BaseContentListHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.helper;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.helper.BaseFilterUtils;
+import com.agiletec.aps.system.common.entity.helper.IEntityFilterBean;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.Authorization;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L44">public class BaseContentListHelper implements IContentListHelper {</span>
+
+<span class="fc" id="L46">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(BaseContentListHelper.class);</span>
+
+    private IContentManager contentManager;
+    private ICacheInfoManager cacheInfoManager;
+
+    @Override
+    public EntitySearchFilter[] getFilters(String contentType, String filtersShowletParam, String langCode) {
+<span class="fc" id="L53">        Content contentPrototype = this.getContentManager().createContentType(contentType);</span>
+<span class="pc bpc" id="L54" title="3 of 6 branches missed.">        if (null == filtersShowletParam || filtersShowletParam.trim().length() == 0 || null == contentPrototype) {</span>
+<span class="nc" id="L55">            return null;</span>
+        }
+<span class="fc" id="L57">        BaseFilterUtils dom = new BaseFilterUtils();</span>
+<span class="fc" id="L58">        return dom.getFilters(contentPrototype, filtersShowletParam, langCode);</span>
+    }
+
+    @Override
+    public EntitySearchFilter getFilter(String contentType, IEntityFilterBean bean, String langCode) {
+<span class="nc" id="L63">        BaseFilterUtils dom = new BaseFilterUtils();</span>
+<span class="nc" id="L64">        Content contentPrototype = this.getContentManager().createContentType(contentType);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if (null == contentPrototype) {</span>
+<span class="nc" id="L66">            return null;</span>
+        }
+<span class="nc" id="L68">        return dom.getFilter(contentPrototype, bean, langCode);</span>
+    }
+
+    @Override
+    public String getFilterParam(EntitySearchFilter[] filters) {
+<span class="nc" id="L73">        BaseFilterUtils dom = new BaseFilterUtils();</span>
+<span class="nc" id="L74">        return dom.getFilterParam(filters);</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.content.helper.BaseContentListHelper).buildCacheKey(#bean, #user)&quot;, condition = &quot;#bean.cacheable&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants).CONTENTS_ID_CACHE_GROUP_PREFIX.concat(#bean.contentType)&quot;, expiresInMinute = 30)
+    public List&lt;String&gt; getContentsId(IContentListBean bean, UserDetails user) throws Throwable {
+<span class="fc" id="L82">        this.releaseCache(bean, user);</span>
+<span class="fc" id="L83">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            if (null == bean.getContentType()) {</span>
+<span class="nc" id="L86">                throw new EntException(&quot;Content type not defined&quot;);</span>
+            }
+<span class="fc" id="L88">            Collection&lt;String&gt; userGroupCodes = getAllowedGroupCodes(user);</span>
+<span class="fc" id="L89">            contentsId = this.getContentManager().loadPublicContentsId(bean.getContentType(), bean.getCategories(), bean.isOrClauseCategoryFilter(), bean.getFilters(), userGroupCodes);</span>
+<span class="nc" id="L90">        } catch (Throwable t) {</span>
+<span class="nc" id="L91">            logger.error(&quot;Error extracting contents id&quot;, t);</span>
+<span class="nc" id="L92">            throw new EntException(&quot;Error extracting contents id&quot;, t);</span>
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">        return contentsId;</span>
+    }
+
+    private void releaseCache(IContentListBean bean, UserDetails user) {
+<span class="fc" id="L98">        String key = BaseContentListHelper.buildCacheKey(bean, user);</span>
+<span class="fc" id="L99">        boolean isExpired = this.getCacheInfoManager().isExpired(ICacheInfoManager.DEFAULT_CACHE_NAME, key);</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if (isExpired) {</span>
+<span class="nc" id="L101">            this.getCacheInfoManager().flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, key);</span>
+        }
+<span class="fc" id="L103">    }</span>
+
+    /**
+     * Return the groups to witch execute the filter to contents. The User
+     * object is non null, extract the groups from the user, else return a
+     * collection with only the &quot;free&quot; group.
+     *
+     * @param user The user. Can be null.
+     * @return The groups to witch execute the filter to contents.
+     * @deprecated
+     */
+    protected Collection&lt;String&gt; getAllowedGroups(UserDetails user) {
+<span class="nc" id="L115">        return getAllowedGroupCodes(user);</span>
+    }
+
+    public static Collection&lt;String&gt; getAllowedGroupCodes(UserDetails user) {
+<span class="fc" id="L119">        Set&lt;String&gt; codes = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L120">        codes.add(Group.FREE_GROUP_NAME);</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        List&lt;Authorization&gt; auths = (null != user) ? user.getAuthorizations() : null;</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (null != auths) {</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            for (Authorization auth : auths) {</span>
+<span class="pc bpc" id="L124" title="2 of 4 branches missed.">                if (null != auth &amp;&amp; null != auth.getGroup()) {</span>
+<span class="fc" id="L125">                    codes.add(auth.getGroup().getName());</span>
+                }
+<span class="fc" id="L127">            }</span>
+        }
+<span class="fc" id="L129">        return codes;</span>
+    }
+
+    public static String buildCacheKey(IContentListBean bean, UserDetails user) {
+<span class="fc" id="L133">        Collection&lt;String&gt; userGroupCodes = getAllowedGroupCodes(user);</span>
+<span class="fc" id="L134">        return buildCacheKey(bean, userGroupCodes);</span>
+    }
+
+    protected static String buildCacheKey(IContentListBean bean, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L138">        return buildStringBuilderCacheKey(bean, userGroupCodes).toString();</span>
+    }
+
+    protected static StringBuilder buildStringBuilderCacheKey(IContentListBean bean, UserDetails user) {
+<span class="fc" id="L142">        Collection&lt;String&gt; userGroupCodes = getAllowedGroupCodes(user);</span>
+<span class="fc" id="L143">        return buildStringBuilderCacheKey(bean, userGroupCodes);</span>
+    }
+
+    protected static StringBuilder buildStringBuilderCacheKey(IContentListBean bean, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L147">        StringBuilder cacheKey = new StringBuilder();</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (null != bean.getListName()) {</span>
+<span class="nc" id="L149">            cacheKey.append(&quot;LISTNAME_&quot;).append(bean.getListName());</span>
+        }
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (null != bean.getContentType()) {</span>
+<span class="fc" id="L152">            cacheKey.append(&quot;TYPE_&quot;).append(bean.getContentType());</span>
+        }
+<span class="fc" id="L154">        List&lt;String&gt; groupCodes = new ArrayList&lt;&gt;(userGroupCodes);</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">        if (!groupCodes.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L156">            groupCodes.add(Group.FREE_GROUP_NAME);</span>
+        }
+<span class="fc" id="L158">        Collections.sort(groupCodes);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        for (int i = 0; i &lt; groupCodes.size(); i++) {</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L161">                cacheKey.append(&quot;-GROUPS&quot;);</span>
+            }
+<span class="fc" id="L163">            String code = groupCodes.get(i);</span>
+<span class="fc" id="L164">            cacheKey.append(&quot;_&quot;).append(code);</span>
+        }
+<span class="pc bpc" id="L166" title="1 of 4 branches missed.">        if (null != bean.getCategories() &amp;&amp; bean.getCategories().length &gt; 0) {</span>
+<span class="fc" id="L167">            List&lt;String&gt; categoryCodes = Arrays.asList(bean.getCategories());</span>
+<span class="fc" id="L168">            Collections.sort(categoryCodes);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            for (int j = 0; j &lt; categoryCodes.size(); j++) {</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">                if (j == 0) {</span>
+<span class="fc" id="L171">                    cacheKey.append(&quot;-CATEGORIES&quot;);</span>
+                }
+<span class="fc" id="L173">                String code = categoryCodes.get(j);</span>
+<span class="fc" id="L174">                cacheKey.append(&quot;_&quot;).append(code);</span>
+            }
+<span class="fc" id="L176">            cacheKey.append(&quot;_ORCLAUSE_&quot;).append(bean.isOrClauseCategoryFilter());</span>
+        }
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        if (null != bean.getFilters()) {</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">            for (int k = 0; k &lt; bean.getFilters().length; k++) {</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                if (k == 0) {</span>
+<span class="fc" id="L181">                    cacheKey.append(&quot;-FILTERS&quot;);</span>
+                }
+<span class="fc" id="L183">                EntitySearchFilter filter = bean.getFilters()[k];</span>
+<span class="fc" id="L184">                cacheKey.append(&quot;_&quot;).append(filter.toString());</span>
+            }
+        }
+<span class="fc" id="L187">        return cacheKey;</span>
+    }
+
+    public static String concatStrings(Collection&lt;String&gt; values, String separator) {
+<span class="nc" id="L191">        StringBuilder concatedValues = new StringBuilder();</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        if (null == values) {</span>
+<span class="nc" id="L193">            return concatedValues.toString();</span>
+        }
+<span class="nc" id="L195">        boolean first = true;</span>
+<span class="nc" id="L196">        Iterator&lt;String&gt; valuesIter = values.iterator();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        while (valuesIter.hasNext()) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (!first) {</span>
+<span class="nc" id="L199">                concatedValues.append(separator);</span>
+            }
+<span class="nc" id="L201">            concatedValues.append(valuesIter.next());</span>
+<span class="nc" id="L202">            first = false;</span>
+        }
+<span class="nc" id="L204">        return concatedValues.toString();</span>
+    }
+
+    public static List&lt;String&gt; splitValues(String concatedValues, String separator) {
+<span class="nc" id="L208">        List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L209" title="All 4 branches missed.">        if (concatedValues != null &amp;&amp; concatedValues.trim().length() &gt; 0) {</span>
+<span class="nc" id="L210">            String[] codes = concatedValues.split(separator);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            for (String code : codes) {</span>
+<span class="nc" id="L212">                values.add(code);</span>
+            }
+        }
+<span class="nc" id="L215">        return values;</span>
+    }
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L219">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L223">        this.contentManager = contentManager;</span>
+<span class="fc" id="L224">    }</span>
+
+    protected ICacheInfoManager getCacheInfoManager() {
+<span class="fc" id="L227">        return cacheInfoManager;</span>
+    }
+
+    public void setCacheInfoManager(ICacheInfoManager cacheInfoManager) {
+<span class="fc" id="L231">        this.cacheInfoManager = cacheInfoManager;</span>
+<span class="fc" id="L232">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

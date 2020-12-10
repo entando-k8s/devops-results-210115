@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmsCacheWrapperManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.cache</a> &gt; <span class="el_source">CmsCacheWrapperManager.java</span></div><h1>CmsCacheWrapperManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.cache;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.event.EntityTypesChangingEvent;
+import com.agiletec.aps.system.common.entity.event.EntityTypesChangingObserver;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.IContentListTagBean;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.event.ContentModelChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.event.ContentModelChangedObserver;
+import com.agiletec.plugins.jacms.aps.system.services.resource.ResourceUtilizer;
+import com.agiletec.plugins.jacms.aps.system.services.resource.event.ResourceChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.resource.event.ResourceChangedObserver;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Cache Wrapper Manager for plugin jacms
+ * @author E.Santoboni
+ */
+<span class="fc" id="L46">public class CmsCacheWrapperManager extends AbstractService </span>
+		implements ICmsCacheWrapperManager, ContentModelChangedObserver, EntityTypesChangingObserver, ResourceChangedObserver {
+
+<span class="fc" id="L49">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(CmsCacheWrapperManager.class);</span>
+	
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L53">		_logger.debug(&quot;{} ready.&quot;, this.getClass().getName());</span>
+<span class="fc" id="L54">	}</span>
+	
+	@Override
+	public void updateFromContentModelChanged(ContentModelChangedEvent event) {
+		try {
+<span class="fc" id="L59">			ContentModel model = event.getContentModel();</span>
+<span class="fc" id="L60">			_logger.info(&quot;Notified content model update : type {}&quot;,model.getId());</span>
+<span class="fc" id="L61">			String cacheGroupKey = JacmsSystemConstants.CONTENT_MODEL_CACHE_GROUP_PREFIX + model.getId();</span>
+<span class="fc" id="L62">			this.getCacheInfoManager().flushGroup(ICacheInfoManager.DEFAULT_CACHE_NAME, cacheGroupKey);</span>
+<span class="nc" id="L63">		} catch (Throwable t) {</span>
+<span class="nc" id="L64">			_logger.error(&quot;Error notifing event {}&quot;,ContentModelChangedEvent.class.getName(), t);</span>
+<span class="fc" id="L65">		}</span>
+<span class="fc" id="L66">	}</span>
+	
+	@Override
+	public void updateFromEntityTypesChanging(EntityTypesChangingEvent event) {
+		try {
+<span class="fc" id="L71">			String entityManagerName = event.getEntityManagerName();</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">			if (!entityManagerName.equals(JacmsSystemConstants.CONTENT_MANAGER)) return;</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">			if (event.getOperationCode() == EntityTypesChangingEvent.INSERT_OPERATION_CODE) return;</span>
+<span class="fc" id="L74">			IApsEntity oldEntityType = event.getOldEntityType();</span>
+<span class="fc" id="L75">			_logger.info(&quot;Notified content type modify : type {}&quot;, oldEntityType.getTypeCode());</span>
+<span class="fc" id="L76">			String typeGroupKey = JacmsSystemConstants.CONTENT_TYPE_CACHE_GROUP_PREFIX + oldEntityType.getTypeCode();</span>
+<span class="fc" id="L77">			this.getCacheInfoManager().flushGroup(ICacheInfoManager.DEFAULT_CACHE_NAME, typeGroupKey);</span>
+<span class="nc" id="L78">		} catch (Throwable t) {</span>
+<span class="nc" id="L79">			_logger.error(&quot;Error notifing event {}&quot;, EntityTypesChangingEvent.class.getName(), t);</span>
+<span class="fc" id="L80">		}</span>
+<span class="fc" id="L81">	}</span>
+	
+	@Override
+	public void updateFromResourceChanged(ResourceChangedEvent event) {
+		try {
+<span class="fc" id="L86">			ResourceInterface resource = event.getResource();</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">			if (null == resource) {</span>
+<span class="nc" id="L88">				return;</span>
+			}
+<span class="fc" id="L90">			List&lt;String&gt; utilizers = ((ResourceUtilizer) this.getContentManager()).getResourceUtilizers(resource.getId());</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			for (int i = 0; i &lt; utilizers.size(); i++) {</span>
+<span class="fc" id="L92">				String contentId = utilizers.get(i);</span>
+<span class="fc" id="L93">				Content content = this.getContentManager().loadContent(contentId, true);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">				if (null != content) {</span>
+<span class="fc" id="L95">					this.releaseRelatedItems(content);</span>
+				}
+			}
+<span class="nc" id="L98">		} catch (Throwable t) {</span>
+<span class="nc" id="L99">			_logger.error(&quot;Error notifing event {}&quot;, ResourceChangedEvent.class.getName(), t);</span>
+<span class="fc" id="L100">		}</span>
+<span class="fc" id="L101">	}</span>
+	
+	protected void releaseRelatedItems(Content content) {
+<span class="fc" id="L104">		this.getCacheInfoManager().flushGroup(ICacheInfoManager.DEFAULT_CACHE_NAME, JacmsSystemConstants.CONTENT_CACHE_GROUP_PREFIX + content.getId());</span>
+<span class="fc" id="L105">		this.getCacheInfoManager().flushGroup(ICacheInfoManager.DEFAULT_CACHE_NAME, JacmsSystemConstants.CONTENTS_ID_CACHE_GROUP_PREFIX + content.getTypeCode());</span>
+<span class="fc" id="L106">		this.getCacheInfoManager().flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, JacmsSystemConstants.CONTENT_CACHE_PREFIX + content.getId());</span>
+<span class="fc" id="L107">	}</span>
+	
+	public static String getContentCacheGroupsCsv(String contentId) {
+<span class="fc" id="L110">		StringBuilder builder = new StringBuilder();</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">		if (StringUtils.isNotEmpty(contentId)) {</span>
+<span class="fc" id="L112">			String typeCode = contentId.substring(0, 3);</span>
+<span class="fc" id="L113">			String contentCacheGroupId = JacmsSystemConstants.CONTENT_CACHE_GROUP_PREFIX + contentId;</span>
+<span class="fc" id="L114">			String typeCacheGroupId = JacmsSystemConstants.CONTENT_TYPE_CACHE_GROUP_PREFIX + typeCode;</span>
+<span class="fc" id="L115">			builder.append(contentCacheGroupId).append(&quot;,&quot;).append(typeCacheGroupId);</span>
+		}
+<span class="fc" id="L117">		return builder.toString();</span>
+	}
+	
+	public static String getContentListCacheGroupsCsv(IContentListTagBean bean, RequestContext reqCtx) {
+<span class="fc" id="L121">		StringBuilder builder = new StringBuilder();</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">		IPage page = (null != reqCtx) ? (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE) : null;</span>
+<span class="fc" id="L123">		String pageCacheGroupName = SystemConstants.PAGES_CACHE_GROUP_PREFIX;</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">		if (null != page) {</span>
+<span class="fc" id="L125">			pageCacheGroupName += page.getCode();</span>
+		} else {
+<span class="nc" id="L127">			pageCacheGroupName += &quot;UNDEFINED&quot;;</span>
+		}
+<span class="fc" id="L129">		String contentTypeCacheGroupName = JacmsSystemConstants.CONTENTS_ID_CACHE_GROUP_PREFIX + bean.getContentType();</span>
+<span class="fc" id="L130">		builder.append(pageCacheGroupName).append(&quot;,&quot;).append(contentTypeCacheGroupName);</span>
+<span class="fc" id="L131">		return builder.toString();</span>
+	}
+	
+    public static String getContentCacheGroupsToEvictCsv(String contentId) {
+<span class="fc" id="L135">        String typeCode = contentId.substring(0, 3);</span>
+<span class="fc" id="L136">        return getContentCacheGroupsToEvictCsv(contentId, typeCode);</span>
+    }
+	
+	public static String getContentCacheGroupsToEvictCsv(String contentId, String typeCode) {
+<span class="fc" id="L140">		StringBuilder builder = new StringBuilder();</span>
+<span class="fc" id="L141">		String contentsIdCacheGroupId = JacmsSystemConstants.CONTENTS_ID_CACHE_GROUP_PREFIX + typeCode;</span>
+<span class="fc" id="L142">		builder.append(contentsIdCacheGroupId);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">		if (null != contentId) {</span>
+<span class="fc" id="L144">			String contentCacheGroupId = JacmsSystemConstants.CONTENT_CACHE_GROUP_PREFIX + contentId;</span>
+<span class="fc" id="L145">			builder.append(&quot;,&quot;).append(contentCacheGroupId);</span>
+		}
+<span class="fc" id="L147">		return builder.toString();</span>
+	}
+	
+	protected IContentManager getContentManager() {
+<span class="fc" id="L151">		return _contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L154">		this._contentManager = contentManager;</span>
+<span class="fc" id="L155">	}</span>
+	
+	protected ICacheInfoManager getCacheInfoManager() {
+<span class="fc" id="L158">		return _cacheInfoManager;</span>
+	}
+	public void setCacheInfoManager(ICacheInfoManager cacheInfoManager) {
+<span class="fc" id="L161">		this._cacheInfoManager = cacheInfoManager;</span>
+<span class="fc" id="L162">	}</span>
+	
+	private IContentManager _contentManager;
+	private ICacheInfoManager _cacheInfoManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

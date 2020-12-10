@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentModelManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.contentmodel</a> &gt; <span class="el_source">ContentModelManager.java</span></div><h1>ContentModelManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.contentmodel;
+
+import com.agiletec.aps.system.common.AbstractCacheWrapper;
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SmallContentType;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.cache.IContentModelManagerCacheWrapper;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.event.ContentModelChangedEvent;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentModelReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import org.entando.entando.plugins.jacms.aps.system.services.content.widget.RowContentListHelper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Manager dei modelli di contenuto.
+ *
+ * @author S.Didaci - C.Siddi - C.Sirigu
+ */
+<span class="fc" id="L43">public class ContentModelManager extends AbstractService implements IContentModelManager {</span>
+
+<span class="fc" id="L45">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private IContentModelManagerCacheWrapper cacheWrapper;
+    private IContentModelDAO contentModelDao;
+    private IPageManager pageManager;
+    private IContentManager contentManager;
+
+    protected IContentModelDAO getContentModelDAO() {
+<span class="fc" id="L53">        return contentModelDao;</span>
+    }
+
+    public void setContentModelDAO(IContentModelDAO contentModelDao) {
+<span class="fc" id="L57">        this.contentModelDao = contentModelDao;</span>
+<span class="fc" id="L58">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L61">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L65">        this.pageManager = pageManager;</span>
+<span class="fc" id="L66">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L69">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L73">        this.contentManager = contentManager;</span>
+<span class="fc" id="L74">    }</span>
+
+    protected IContentModelManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L77">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(IContentModelManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L81">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L82">    }</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L86">        this.cacheWrapper.initCache(this.getContentModelDAO());</span>
+<span class="fc" id="L87">        logger.debug(&quot;{} ready. Initialized {} content models&quot;, this.getClass().getName(), this.getCacheWrapper().getContentModels().size());</span>
+<span class="fc" id="L88">    }</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L92">        ((AbstractCacheWrapper) this.getCacheWrapper()).release();</span>
+<span class="fc" id="L93">        super.release();</span>
+<span class="fc" id="L94">    }</span>
+
+    /**
+     * Aggiunge un modello di contenuto nel sistema.
+     *
+     * @param model Il modello da aggiungere.
+     * @throws EntException In caso di errori in accesso al db.
+     */
+    @Override
+    public void addContentModel(ContentModel model) throws EntException {
+        try {
+<span class="fc" id="L105">            this.getContentModelDAO().addContentModel(model);</span>
+<span class="fc" id="L106">            this.getCacheWrapper().addContentModel(model);</span>
+<span class="fc" id="L107">            this.notifyContentModelChanging(model, ContentModelChangedEvent.INSERT_OPERATION_CODE);</span>
+<span class="nc" id="L108">        } catch (Throwable t) {</span>
+<span class="nc" id="L109">            logger.error(&quot;Error saving a contentModel&quot;, t);</span>
+<span class="nc" id="L110">            throw new EntException(&quot;Error saving a contentModel&quot;, t);</span>
+<span class="fc" id="L111">        }</span>
+<span class="fc" id="L112">    }</span>
+
+    /**
+     * Rimuove un modello di contenuto dal sistema.
+     *
+     * @param model Il modello di contenuto da rimuovere.
+     * @throws EntException In caso di errori in accesso al db.
+     */
+    @Override
+    public void removeContentModel(ContentModel model) throws EntException {
+        try {
+<span class="fc" id="L123">            this.getContentModelDAO().deleteContentModel(model);</span>
+<span class="fc" id="L124">            this.getCacheWrapper().removeContentModel(model);</span>
+<span class="fc" id="L125">            this.notifyContentModelChanging(model, ContentModelChangedEvent.REMOVE_OPERATION_CODE);</span>
+<span class="nc" id="L126">        } catch (Throwable t) {</span>
+<span class="nc" id="L127">            logger.error(&quot;Error deleting a content model&quot;, t);</span>
+<span class="nc" id="L128">            throw new EntException(&quot;Error deleting a content model&quot;, t);</span>
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">    }</span>
+
+    /**
+     * Aggiorna un modello di contenuto.
+     *
+     * @param model Il modello di contenuto da aggiornare.
+     * @throws EntException In caso di errori in accesso al db.
+     */
+    @Override
+    public void updateContentModel(ContentModel model) throws EntException {
+        try {
+<span class="fc" id="L141">            this.getContentModelDAO().updateContentModel(model);</span>
+<span class="fc" id="L142">            this.getCacheWrapper().updateContentModel(model);</span>
+<span class="fc" id="L143">            this.notifyContentModelChanging(model, ContentModelChangedEvent.UPDATE_OPERATION_CODE);</span>
+<span class="nc" id="L144">        } catch (Throwable t) {</span>
+<span class="nc" id="L145">            logger.error(&quot;Error updating a content model&quot;, t);</span>
+<span class="nc" id="L146">            throw new EntException(&quot;Error updating a content model&quot;, t);</span>
+<span class="fc" id="L147">        }</span>
+<span class="fc" id="L148">    }</span>
+
+    private void notifyContentModelChanging(ContentModel contentModel, int operationCode) throws EntException {
+<span class="fc" id="L151">        ContentModelChangedEvent event = new ContentModelChangedEvent();</span>
+<span class="fc" id="L152">        event.setContentModel(contentModel);</span>
+<span class="fc" id="L153">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L154">        this.notifyEvent(event);</span>
+<span class="fc" id="L155">    }</span>
+
+    /**
+     * Restituisce il modello relativo all'identificativo immesso.
+     *
+     * @param contentModelId L'identificativo del modello da estrarre.
+     * @return Il modello cercato.
+     */
+    @Override
+    public ContentModel getContentModel(long contentModelId) {
+<span class="fc" id="L165">        return this.getCacheWrapper().getContentModel(String.valueOf(contentModelId));</span>
+    }
+
+    /**
+     * Restituisce la lista dei modelli di contenuto presenti nel sistema.
+     *
+     * @return La lista dei modelli di contenuto presenti nel sistema.
+     */
+    @Override
+    public List&lt;ContentModel&gt; getContentModels() {
+<span class="fc" id="L175">        List&lt;ContentModel&gt; models = new ArrayList&lt;ContentModel&gt;(this.getCacheWrapper().getContentModels());</span>
+<span class="fc" id="L176">        Collections.sort(models);</span>
+<span class="fc" id="L177">        return models;</span>
+    }
+
+    /**
+     * Restituisce la lista di modelli compatibili con il tipo di contenuto
+     * specificato.
+     *
+     * @param contentType Il codice del tipo di contenuto.
+     * @return La lista di modelli compatibili con il tipo di contenuto
+     * specificato.
+     */
+    @Override
+    public List&lt;ContentModel&gt; getModelsForContentType(String contentType) {
+<span class="fc" id="L190">        List&lt;ContentModel&gt; models = new ArrayList&lt;ContentModel&gt;();</span>
+<span class="fc" id="L191">        Object[] allModels = this.getCacheWrapper().getContentModels().toArray();</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        for (int i = 0; i &lt; allModels.length; i++) {</span>
+<span class="fc" id="L193">            ContentModel contentModel = (ContentModel) allModels[i];</span>
+<span class="pc bpc" id="L194" title="1 of 4 branches missed.">            if (null == contentType || contentModel.getContentType().equals(contentType)) {</span>
+<span class="fc" id="L195">                models.add(contentModel);</span>
+            }
+        }
+<span class="fc" id="L198">        return models;</span>
+    }
+
+    /**
+     * Returns a list of references of a given ContentModel from CMS widgets,
+     * both for draft and online pages.
+     *
+     * @param modelId identifier of the ContentModel
+     * @return the list of all references
+     */
+    @Override
+    public List&lt;ContentModelReference&gt; getContentModelReferences(long modelId, boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L210">        List&lt;ContentModelReference&gt; references = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L211">        IPage root = this.getPageManager().getDraftRoot();</span>
+<span class="fc" id="L212">        this.searchContentModelReferences(modelId, root, false, references, includeDefaultTemplateReferences);</span>
+<span class="fc" id="L213">        root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc" id="L214">        this.searchContentModelReferences(modelId, root, true, references, includeDefaultTemplateReferences);</span>
+<span class="fc" id="L215">        return references;</span>
+    }
+
+    /**
+     * Recursively adds ContentModel references visiting the page tree.
+     */
+    private void searchContentModelReferences(Long modelId, IPage page, boolean online,
+            List&lt;ContentModelReference&gt; references, boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L223">        addPageReferences(modelId, page, online, references, includeDefaultTemplateReferences);</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        for (String childCode : page.getChildrenCodes()) {</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">            IPage child = online</span>
+<span class="fc" id="L226">                    ? this.getPageManager().getOnlinePage(childCode)</span>
+<span class="fc" id="L227">                    : this.getPageManager().getDraftPage(childCode);</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">            if (null != child) {</span>
+<span class="fc" id="L229">                this.searchContentModelReferences(modelId, child, online, references, includeDefaultTemplateReferences);</span>
+            }
+        }
+<span class="fc" id="L232">    }</span>
+
+    /**
+     * Searches for ContentModel references inside all page widgets.
+     */
+    private void addPageReferences(Long modelId, IPage page, boolean online, List&lt;ContentModelReference&gt; references, boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L238">        Widget[] widgets = page.getWidgets();</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        for (int i = 0; i &lt; widgets.length; i++) {</span>
+<span class="fc" id="L240">            Widget widget = widgets[i];</span>
+<span class="fc bfc" id="L241" title="All 4 branches covered.">            if (null != widget &amp;&amp; null != widget.getConfig()) {</span>
+
+<span class="fc" id="L243">                ContentModelReference reference = null;</span>
+
+<span class="fc bfc" id="L245" title="All 4 branches covered.">                switch (widget.getType().getCode()) {</span>
+                    case &quot;content_viewer&quot;:
+                    case &quot;jpseo_content_viewer&quot;:
+<span class="fc" id="L248">                        reference = getSingleContentWidgetReference(modelId, widget, includeDefaultTemplateReferences);</span>
+<span class="fc" id="L249">                        break;</span>
+                    case &quot;content_viewer_list&quot;:
+<span class="fc" id="L251">                        reference = getContentListWidgetReference(modelId, widget, includeDefaultTemplateReferences);</span>
+<span class="fc" id="L252">                        break;</span>
+                    case &quot;row_content_viewer_list&quot;:
+<span class="fc" id="L254">                        reference = getMultipleContentsWidgetReference(modelId, widget, includeDefaultTemplateReferences);</span>
+                        break;
+                }
+
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                if (null != reference) {</span>
+<span class="fc" id="L259">                    reference.setPageCode(page.getCode());</span>
+<span class="fc" id="L260">                    reference.setOnline(online);</span>
+<span class="fc" id="L261">                    reference.setWidgetPosition(i);</span>
+<span class="fc" id="L262">                    references.add(reference);</span>
+                }
+            }
+        }
+<span class="fc" id="L266">    }</span>
+
+    /**
+     * Returns the ContentModelReference from a widget having type code
+     * &quot;content_viewer&quot; (Publish a Content), if the reference exists, null
+     * otherwise.
+     */
+    private ContentModelReference getSingleContentWidgetReference(Long modelId, Widget widget ,boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L274">        String id = widget.getConfig().getProperty(&quot;modelId&quot;);</span>
+        String contentId;
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (includeDefaultTemplateReferences) {</span>
+<span class="pc bpc" id="L278" title="1 of 4 branches missed.">            if ((null == id) || (id.equals(&quot;default&quot;))) {</span>
+<span class="fc" id="L279">                contentId = widget.getConfig().getProperty(&quot;contentId&quot;);</span>
+<span class="fc" id="L280">                id = contentManager.getDefaultModel(contentId);</span>
+            }
+        }
+<span class="fc bfc" id="L283" title="All 2 branches covered.">        if (String.valueOf(modelId).equals(id)) {</span>
+<span class="fc" id="L284">            ContentModelReference reference = new ContentModelReference();</span>
+<span class="fc" id="L285">            contentId = widget.getConfig().getProperty(&quot;contentId&quot;);</span>
+<span class="fc" id="L286">            reference.setContentsId(Collections.singletonList(contentId));</span>
+<span class="fc" id="L287">            return reference;</span>
+        }
+<span class="fc" id="L289">        return null;</span>
+    }
+
+    /**
+     * Returns the ContentModelReference from a widget having type code
+     * &quot;content_viewer_list&quot; (Publish a List of Contents), if the reference
+     * exists, null otherwise.
+     */
+    private ContentModelReference getContentListWidgetReference(Long modelId, Widget widget, boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L298">        String id = widget.getConfig().getProperty(&quot;modelId&quot;);</span>
+<span class="fc" id="L299">        String contentType = widget.getConfig().getProperty(&quot;contentType&quot;);</span>
+<span class="fc bfc" id="L300" title="All 2 branches covered.">        if (includeDefaultTemplateReferences) {</span>
+<span class="fc" id="L301">            final Content entityPrototype = (Content) contentManager.getEntityPrototype(contentType);</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">            if (null!=entityPrototype) {</span>
+<span class="pc bpc" id="L303" title="3 of 4 branches missed.">                if ((null == id) || (id.equals(&quot;default&quot;))) {</span>
+<span class="fc" id="L304">                    id = entityPrototype.getListModel();</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L309" title="All 2 branches covered.">        if (String.valueOf(modelId).equals(id)) {</span>
+<span class="fc" id="L310">            ContentModelReference reference = new ContentModelReference();</span>
+            try {
+<span class="fc" id="L312">                List&lt;String&gt; ids = contentManager.searchId(contentType, null);</span>
+<span class="fc" id="L313">                reference.setContentsId(ids);</span>
+<span class="nc" id="L314">            } catch (EntException e) {</span>
+<span class="nc" id="L315">                throw new RuntimeException(e);</span>
+<span class="fc" id="L316">            }</span>
+<span class="fc" id="L317">            return reference;</span>
+        }
+<span class="fc" id="L319">        return null;</span>
+    }
+
+    /**
+     * Returns the ContentModelReference from a widget having type code
+     * &quot;row_content_viewer_list&quot; (Publish Contents), if the reference exists,
+     * null otherwise.
+     */
+    private ContentModelReference getMultipleContentsWidgetReference(Long modelId, Widget widget, boolean includeDefaultTemplateReferences) {
+<span class="fc" id="L328">        String contents = widget.getConfig().getProperty(&quot;contents&quot;);</span>
+<span class="fc" id="L329">        List&lt;Properties&gt; contentsProperties = RowContentListHelper.fromParameterToContents(contents);</span>
+
+<span class="fc" id="L331">        List&lt;String&gt; contentsId = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">        for (Properties properties : contentsProperties) {</span>
+<span class="fc" id="L333">            String contentId = properties.getProperty(&quot;contentId&quot;);</span>
+<span class="fc" id="L334">            String id = properties.getProperty(&quot;modelId&quot;);</span>
+
+<span class="fc bfc" id="L336" title="All 2 branches covered.">            if (includeDefaultTemplateReferences) {</span>
+<span class="pc bpc" id="L337" title="3 of 4 branches missed.">                if ((null == id) || (id.equals(&quot;default&quot;))) {</span>
+<span class="fc" id="L338">                    id = contentManager.getListModel(contentId);</span>
+                }
+            }
+<span class="fc bfc" id="L341" title="All 2 branches covered.">            if (String.valueOf(modelId).equals(id)) {</span>
+<span class="fc" id="L342">                contentsId.add(contentId);</span>
+            }
+<span class="fc" id="L344">        }</span>
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">        if (!contentsId.isEmpty()) {</span>
+<span class="fc" id="L347">            ContentModelReference reference = new ContentModelReference();</span>
+<span class="fc" id="L348">            reference.setContentsId(contentsId);</span>
+<span class="fc" id="L349">            return reference;</span>
+        }
+<span class="fc" id="L351">        return null;</span>
+    }
+
+    /**
+     * Restituisce la mappa delle pagine referenziate dal modello di contenuto
+     * specificato. La mappa è indicizzata in base ai codici dei contenuti
+     * pubblicati tramite il modello specificato, ed il valore è rappresentato
+     * dalla lista di pagine nel quale è pubblicato esplicitamente il contenuto
+     * (traite il modello specificato).
+     *
+     * @param modelId Identificativo del modello di contenuto
+     * @return La Mappa delle pagine referenziate.
+     */
+    @Deprecated
+    @Override
+    public Map&lt;String, List&lt;IPage&gt;&gt; getReferencingPages(long modelId) {
+<span class="fc" id="L367">        Map&lt;String, List&lt;IPage&gt;&gt; utilizers = new HashMap&lt;String, List&lt;IPage&gt;&gt;();</span>
+<span class="fc" id="L368">        IPage root = this.getPageManager().getDraftRoot();</span>
+<span class="fc" id="L369">        this.searchReferencingPages(modelId, root, utilizers);</span>
+<span class="fc" id="L370">        root = this.getPageManager().getOnlineRoot();</span>
+<span class="fc" id="L371">        this.searchReferencingPages(modelId, root, utilizers);</span>
+<span class="fc" id="L372">        return utilizers;</span>
+    }
+
+    /**
+     * Verifica se il modello di contenuto è utilizzato nella pagina specificata
+     * e in caso affermativo aggiunge la pagina alla lista delle pagine che
+     * utilizzano quel modello di contenuto. La ricerca viene estesa anche alle
+     * pagine figlie di quella specificata.
+     *
+     * @param modelId Identificativo del modello di contenuto
+     * @param page La pagina nel qual cercare il modello di contenuto
+     * @param utilizers La lista delle pagine in cui è utilizzato il modello di
+     * contenuto
+     */
+    @Deprecated
+    private void searchReferencingPages(long modelId, IPage page, Map&lt;String, List&lt;IPage&gt;&gt; utilizers) {
+<span class="fc" id="L388">        this.addReferencingPage(modelId, page, utilizers);</span>
+<span class="fc" id="L389">        String[] children = page.getChildrenCodes();</span>
+<span class="fc" id="L390">        boolean isOnline = page.isOnline();</span>
+<span class="fc bfc" id="L391" title="All 2 branches covered.">        for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="pc bpc" id="L392" title="1 of 2 branches missed.">            IPage child = (isOnline)</span>
+<span class="fc" id="L393">                    ? this.getPageManager().getOnlinePage(children[i])</span>
+<span class="pc" id="L394">                    : this.getPageManager().getDraftPage(children[i]);</span>
+<span class="fc bfc" id="L395" title="All 2 branches covered.">            if (null != child) {</span>
+<span class="fc" id="L396">                this.searchReferencingPages(modelId, child, utilizers);</span>
+            }
+        }
+<span class="fc" id="L399">    }</span>
+
+    @Deprecated
+    private void addReferencingPage(long modelId, IPage page, Map&lt;String, List&lt;IPage&gt;&gt; utilizers) {
+<span class="pc bpc" id="L403" title="2 of 4 branches missed.">        if (null != page &amp;&amp; null != page.getWidgets()) {</span>
+<span class="fc" id="L404">            Widget[] widgets = page.getWidgets();</span>
+<span class="fc bfc" id="L405" title="All 2 branches covered.">            for (int i = 0; i &lt; widgets.length; i++) {</span>
+<span class="fc" id="L406">                Widget widget = widgets[i];</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">                if (null != widget) {</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">                    if (null != widget.getConfig()) {</span>
+<span class="fc" id="L409">                        String id = widget.getConfig().getProperty(&quot;modelId&quot;);</span>
+<span class="fc" id="L410">                        String contentId = widget.getConfig().getProperty(&quot;contentId&quot;);</span>
+<span class="fc bfc" id="L411" title="All 4 branches covered.">                        if (null != id &amp;&amp; null != contentId) {</span>
+<span class="fc" id="L412">                            long longId = new Long(id).longValue();</span>
+<span class="pc bpc" id="L413" title="1 of 2 branches missed.">                            if (modelId == longId) {</span>
+<span class="fc" id="L414">                                List&lt;IPage&gt; pages = (List&lt;IPage&gt;) utilizers.get(contentId);</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">                                if (null == pages) {</span>
+<span class="fc" id="L416">                                    pages = new ArrayList&lt;IPage&gt;();</span>
+                                }
+<span class="fc" id="L418">                                pages.add(page);</span>
+<span class="fc" id="L419">                                utilizers.put(contentId, pages);</span>
+                            }
+                        }
+                    }
+                }
+            }
+        }
+<span class="fc" id="L426">    }</span>
+
+    @Override
+    public SmallContentType getDefaultUtilizer(long modelId) {
+<span class="fc" id="L430">        String modelIdString = String.valueOf(modelId);</span>
+<span class="fc" id="L431">        List&lt;SmallContentType&gt; smallContentTypes = this.getContentManager().getSmallContentTypes();</span>
+<span class="fc bfc" id="L432" title="All 2 branches covered.">        for (int i = 0; i &lt; smallContentTypes.size(); i++) {</span>
+<span class="fc" id="L433">            SmallContentType smallContentType = (SmallContentType) smallContentTypes.get(i);</span>
+<span class="fc" id="L434">            Content prototype = this.getContentManager().createContentType(smallContentType.getCode());</span>
+<span class="fc bfc" id="L435" title="All 8 branches covered.">            if ((null != prototype.getListModel() &amp;&amp; prototype.getListModel().equals(modelIdString)) || (null != prototype.getDefaultModel() &amp;&amp; prototype.getDefaultModel().equals(modelIdString))) {</span>
+<span class="fc" id="L436">                return smallContentType;</span>
+            }
+        }
+<span class="fc" id="L439">        return null;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

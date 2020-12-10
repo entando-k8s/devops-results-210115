@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SymbolicLinkErrorMessenger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.content.attribute.manager.util</a> &gt; <span class="el_source">SymbolicLinkErrorMessenger.java</span></div><h1>SymbolicLinkErrorMessenger.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.content.attribute.manager.util;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.SymbolicLink;
+
+/**
+ * Classe di utilità per i manager degli attributi in cui negli elementi
+ * compositivi vi può essere in link rappresentato dal proprio link simbolico.
+ *
+ * @author E.Santoboni
+ * @deprecated Moved validation into general validation of link and hypertext
+ * attribute
+ */
+<span class="nc" id="L35">public class SymbolicLinkErrorMessenger implements ISymbolicLinkErrorMessenger {</span>
+
+	@Override
+	public int scan(SymbolicLink symbLink, Content content) {
+<span class="nc" id="L39">		int errorCode = MESSAGE_CODE_NO_ERROR;</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">		if (symbLink != null) {</span>
+<span class="nc bnc" id="L41" title="All 5 branches missed.">			switch (symbLink.getDestType()) {</span>
+				case SymbolicLink.URL_TYPE:
+<span class="nc" id="L43">					break;</span>
+				case SymbolicLink.PAGE_TYPE:
+<span class="nc" id="L45">					errorCode = this.checkPageDest(symbLink, content);</span>
+<span class="nc" id="L46">					break;</span>
+				case SymbolicLink.CONTENT_TYPE:
+<span class="nc" id="L48">					errorCode = this.checkContentDest(symbLink, content);</span>
+<span class="nc" id="L49">					break;</span>
+				case SymbolicLink.CONTENT_ON_PAGE_TYPE:
+<span class="nc" id="L51">					errorCode = this.checkContentOnPageDest(symbLink, content);</span>
+					break;
+			}
+		}
+<span class="nc" id="L55">		return errorCode;</span>
+	}
+
+	protected int checkPageDest(SymbolicLink symbLink, Content content) {
+<span class="nc" id="L59">		String pageCode = symbLink.getPageDest();</span>
+<span class="nc" id="L60">		IPage page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">		if (null == page) {</span>
+<span class="nc" id="L62">			return MESSAGE_CODE_INVALID_PAGE;</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">		} else if (this.isVoidPage(page)) {</span>
+<span class="nc" id="L64">			return MESSAGE_CODE_VOID_PAGE;</span>
+		} else {
+<span class="nc" id="L66">			String pageGroup = page.getGroup();</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">			if (!Group.FREE_GROUP_NAME.equals(pageGroup)</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">					&amp;&amp; (page.getExtraGroups() == null || !page.getExtraGroups().contains(Group.FREE_GROUP_NAME))) {</span>
+				//Bisogna controllare che tutti i gruppi abilitati possano accedere alla pagina lincata.
+<span class="nc" id="L70">				List&lt;String&gt; linkingContentGroups = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L71">				linkingContentGroups.add(content.getMainGroup());</span>
+<span class="nc" id="L72">				linkingContentGroups.addAll(content.getGroups());</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">				for (int i = 0; i &lt; linkingContentGroups.size(); i++) {</span>
+<span class="nc" id="L74">					String groupName = linkingContentGroups.get(i);</span>
+<span class="nc bnc" id="L75" title="All 4 branches missed.">					if (!groupName.equals(pageGroup) &amp;&amp; !groupName.equals(Group.ADMINS_GROUP_NAME)) {</span>
+						//TODO NON DICE QUALE è IL GRUPPO INVALIDO
+<span class="nc" id="L77">						return MESSAGE_CODE_INVALID_PAGE_GROUPS;</span>
+					}
+				}
+			}
+		}
+<span class="nc" id="L82">		return MESSAGE_CODE_NO_ERROR;</span>
+	}
+
+	protected int checkContentDest(SymbolicLink symbLink, Content content) {
+<span class="nc" id="L86">		Content linkedContent = null;</span>
+		try {
+<span class="nc" id="L88">			linkedContent = this.getContentManager().loadContent(symbLink.getContentDest(), true);</span>
+<span class="nc" id="L89">		} catch (Throwable e) {</span>
+<span class="nc" id="L90">			throw new RuntimeException(&quot;Errore in caricamento contenuto &quot; + symbLink.getContentDest(), e);</span>
+<span class="nc" id="L91">		}</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">		if (null == linkedContent) {</span>
+<span class="nc" id="L93">			return MESSAGE_CODE_INVALID_CONTENT;</span>
+		}
+<span class="nc bnc" id="L95" title="All 4 branches missed.">		if (!Group.FREE_GROUP_NAME.equals(linkedContent.getMainGroup()) &amp;&amp; !linkedContent.getGroups().contains(Group.FREE_GROUP_NAME)) {</span>
+			//Bisogna controllare che tutti i gruppi abilitati possano accedere al contenuto lincata.
+<span class="nc" id="L97">			List&lt;String&gt; linkingContentGroups = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L98">			linkingContentGroups.add(content.getMainGroup());</span>
+<span class="nc" id="L99">			linkingContentGroups.addAll(content.getGroups());</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">			for (int i = 0; i &lt; linkingContentGroups.size(); i++) {</span>
+<span class="nc" id="L101">				String groupName = linkingContentGroups.get(i);</span>
+<span class="nc bnc" id="L102" title="All 4 branches missed.">				if (!groupName.equals(linkedContent.getMainGroup()) &amp;&amp; !linkedContent.getGroups().contains(groupName)) {</span>
+					//TODO NON DICE QUALE è IL GRUPPO INVALIDO
+<span class="nc" id="L104">					return MESSAGE_CODE_INVALID_CONTENT_GROUPS;</span>
+				}
+			}
+		}
+<span class="nc" id="L108">		return MESSAGE_CODE_NO_ERROR;</span>
+	}
+
+	protected int checkContentOnPageDest(SymbolicLink symbLink, Content content) {
+<span class="nc" id="L112">		int errorCode = this.checkContentDest(symbLink, content);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">		if (errorCode == MESSAGE_CODE_NO_ERROR) {</span>
+<span class="nc" id="L114">			errorCode = this.checkPageDest(symbLink, content);</span>
+		}
+<span class="nc" id="L116">		return errorCode;</span>
+	}
+
+	/**
+	 * Metodo di servizio: verifica che la pagina abbia dei widget configurate.
+	 * Restituisce true nel caso tutti i frame siano vuoti, false in caso che
+	 * anche un frame sia occupato da una showlet.
+	 *
+	 * @param page La pagina da controllare.
+	 * @return true nel caso tutti i frame siano vuoti, false in caso che anche
+	 * un frame sia occupato da una showlet.
+	 */
+	protected boolean isVoidPage(IPage page) {
+<span class="nc" id="L129">		Widget[] widgets = page.getWidgets();</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">		for (int i = 0; i &lt; widgets.length; i++) {</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">			if (null != widgets[i]) {</span>
+<span class="nc" id="L132">				return false;</span>
+			}
+		}
+<span class="nc" id="L135">		return true;</span>
+	}
+
+	protected IContentManager getContentManager() {
+<span class="nc" id="L139">		return _contentManager;</span>
+	}
+
+	public void setContentManager(IContentManager contentManager) {
+<span class="nc" id="L143">		this._contentManager = contentManager;</span>
+<span class="nc" id="L144">	}</span>
+
+	protected IPageManager getPageManager() {
+<span class="nc" id="L147">		return _pageManager;</span>
+	}
+
+	public void setPageManager(IPageManager pageManager) {
+<span class="nc" id="L151">		this._pageManager = pageManager;</span>
+<span class="nc" id="L152">	}</span>
+
+	private IContentManager _contentManager;
+	private IPageManager _pageManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

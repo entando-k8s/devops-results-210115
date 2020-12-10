@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentListHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.widget</a> &gt; <span class="el_source">ContentListHelper.java</span></div><h1>ContentListHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.widget;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.commons.collections.ListUtils;
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.aps.system.services.searchengine.IEntitySearchEngineManager;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.helper.IEntityFilterBean;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.BaseContentListHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.widget.util.FilterUtils;
+import java.util.Arrays;
+import java.util.Collections;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * Classe helper per la widget di erogazione contenuti in lista.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L54">public class ContentListHelper extends BaseContentListHelper implements IContentListWidgetHelper {</span>
+
+<span class="fc" id="L56">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentListHelper.class);</span>
+
+    private String userFilterDateFormat;
+
+    private IEntitySearchEngineManager searchEngineManager;
+
+    @Override
+    public EntitySearchFilter[] getFilters(String contentType, String filtersShowletParam, RequestContext reqCtx) {
+<span class="fc" id="L64">        Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="fc" id="L65">        return super.getFilters(contentType, filtersShowletParam, currentLang.getCode());</span>
+    }
+
+    @Override
+    public EntitySearchFilter getFilter(String contentType, IEntityFilterBean bean, RequestContext reqCtx) {
+<span class="nc" id="L70">        Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="nc" id="L71">        return super.getFilter(contentType, bean, currentLang.getCode());</span>
+    }
+
+    @Override
+    public UserFilterOptionBean getUserFilterOption(String contentType, IEntityFilterBean bean, RequestContext reqCtx) {
+<span class="nc" id="L76">        FilterUtils filterUtils = new FilterUtils();</span>
+<span class="nc" id="L77">        return filterUtils.getUserFilter(contentType, bean, this.getContentManager(), this.getUserFilterDateFormat(), reqCtx);</span>
+    }
+
+    @Override
+    @Deprecated
+    public String getShowletParam(EntitySearchFilter[] filters) {
+<span class="nc" id="L83">        return super.getFilterParam(filters);</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME,
+            key = &quot;T(com.agiletec.plugins.jacms.aps.system.services.content.widget.ContentListHelper).buildCacheKey(#bean, #reqCtx)&quot;,
+            condition = &quot;#bean.cacheable &amp;&amp; !T(com.agiletec.plugins.jacms.aps.system.services.content.widget.ContentListHelper).isUserFilterExecuted(#bean)&quot;)
+    @CacheableInfo(groups = &quot;T(com.agiletec.plugins.jacms.aps.system.services.cache.CmsCacheWrapperManager).getContentListCacheGroupsCsv(#bean, #reqCtx)&quot;, expiresInMinute = 30)
+    public List&lt;String&gt; getContentsId(IContentListTagBean bean, RequestContext reqCtx) throws Throwable {
+<span class="fc" id="L92">        this.releaseCache(bean, reqCtx);</span>
+<span class="fc" id="L93">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="fc" id="L95">            contentsId = this.extractContentsId(bean, reqCtx);</span>
+<span class="fc" id="L96">            contentsId = this.executeFullTextSearch(bean, contentsId, reqCtx);</span>
+<span class="nc" id="L97">        } catch (Throwable t) {</span>
+<span class="nc" id="L98">            _logger.error(&quot;Error extracting contents id&quot;, t);</span>
+<span class="nc" id="L99">            throw new EntException(&quot;Error extracting contents id&quot;, t);</span>
+<span class="fc" id="L100">        }</span>
+<span class="fc" id="L101">        return contentsId;</span>
+    }
+
+    private void releaseCache(IContentListTagBean bean, RequestContext reqCtx) {
+<span class="fc" id="L105">        String key = ContentListHelper.buildCacheKey(bean, reqCtx);</span>
+<span class="fc" id="L106">        boolean isExpired = this.getCacheInfoManager().isExpired(ICacheInfoManager.DEFAULT_CACHE_NAME, key);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (isExpired) {</span>
+<span class="nc" id="L108">            this.getCacheInfoManager().flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, key);</span>
+        }
+<span class="fc" id="L110">    }</span>
+
+    public static boolean isUserFilterExecuted(IContentListTagBean bean) {
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if (null == bean) {</span>
+<span class="nc" id="L114">            return false;</span>
+        }
+<span class="fc" id="L116">        List&lt;UserFilterOptionBean&gt; filterOptions = bean.getUserFilterOptions();</span>
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">        if (null == filterOptions || filterOptions.isEmpty()) {</span>
+<span class="fc" id="L118">            return false;</span>
+        }
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        for (UserFilterOptionBean userFilter : filterOptions) {</span>
+<span class="nc bnc" id="L121" title="All 4 branches missed.">            if (null != userFilter.getFormFieldValues() &amp;&amp; userFilter.getFormFieldValues().size() &gt; 0) {</span>
+<span class="nc" id="L122">                return true;</span>
+            }
+<span class="nc" id="L124">        }</span>
+<span class="nc" id="L125">        return false;</span>
+    }
+
+    protected List&lt;String&gt; extractContentsId(IContentListTagBean bean, RequestContext reqCtx) throws EntException {
+<span class="fc" id="L129">        List&lt;String&gt; contentsId = null;</span>
+        try {
+<span class="fc" id="L131">            List&lt;UserFilterOptionBean&gt; userFilters = bean.getUserFilterOptions();</span>
+<span class="fc" id="L132">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            ApsProperties config = (null != widget) ? widget.getConfig() : null;</span>
+<span class="pc bpc" id="L134" title="1 of 4 branches missed.">            if (null == bean.getContentType() &amp;&amp; null != config) {</span>
+<span class="fc" id="L135">                bean.setContentType(config.getProperty(WIDGET_PARAM_CONTENT_TYPE));</span>
+            }
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            if (null == bean.getContentType()) {</span>
+<span class="nc" id="L138">                throw new EntException(&quot;Tipo contenuto non definito&quot;);</span>
+            }
+<span class="pc bpc" id="L140" title="2 of 6 branches missed.">            if (null == bean.getCategory() &amp;&amp; null != config &amp;&amp; null != config.getProperty(SHOWLET_PARAM_CATEGORY)) {</span>
+<span class="nc" id="L141">                bean.setCategory(config.getProperty(SHOWLET_PARAM_CATEGORY));</span>
+            }
+<span class="fc" id="L143">            EntitySearchFilter[] filtersToUse = this.createWidgetFilters(bean, config, WIDGET_PARAM_FILTERS, reqCtx);</span>
+<span class="pc bpc" id="L144" title="2 of 4 branches missed.">            if (null != userFilters &amp;&amp; userFilters.size() &gt; 0) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                for (UserFilterOptionBean userFilter : userFilters) {</span>
+<span class="nc" id="L146">                    EntitySearchFilter filter = userFilter.getEntityFilter();</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                    if (null != filter) {</span>
+<span class="nc" id="L148">                        filtersToUse = ArrayUtils.add(filtersToUse, filter);</span>
+                    }
+<span class="nc" id="L150">                }</span>
+            }
+<span class="fc" id="L152">            String[] categories = this.getCategories(bean.getCategories(), config, userFilters);</span>
+<span class="fc" id="L153">            Collection&lt;String&gt; userGroupCodes = this.getAllowedGroups(reqCtx);</span>
+<span class="fc" id="L154">            boolean orCategoryFilterClause = this.extractOrCategoryFilterClause(config);</span>
+<span class="fc" id="L155">            contentsId = this.getContentManager().loadPublicContentsId(bean.getContentType(),</span>
+                    categories, orCategoryFilterClause, filtersToUse, userGroupCodes);
+<span class="nc" id="L157">        } catch (Throwable t) {</span>
+<span class="nc" id="L158">            _logger.error(&quot;Error extracting contents id&quot;, t);</span>
+<span class="nc" id="L159">            throw new EntException(&quot;Error extracting contents id&quot;, t);</span>
+<span class="fc" id="L160">        }</span>
+<span class="fc" id="L161">        return contentsId;</span>
+    }
+
+    protected boolean extractOrCategoryFilterClause(ApsProperties config) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (null == config) {</span>
+<span class="fc" id="L166">            return false;</span>
+        }
+<span class="fc" id="L168">        String param = config.getProperty(WIDGET_PARAM_OR_CLAUSE_CATEGORY_FILTER);</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (null == param) {</span>
+<span class="fc" id="L170">            return false;</span>
+        }
+<span class="nc" id="L172">        return Boolean.parseBoolean(param);</span>
+    }
+
+    protected List&lt;String&gt; executeFullTextSearch(IContentListTagBean bean,
+            List&lt;String&gt; masterContentsId, RequestContext reqCtx) throws EntException {
+<span class="fc" id="L177">        UserFilterOptionBean fullTextUserFilter = null;</span>
+<span class="fc" id="L178">        List&lt;UserFilterOptionBean&gt; userFilterOptions = bean.getUserFilterOptions();</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if (null != userFilterOptions) {</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            for (UserFilterOptionBean userFilter : userFilterOptions) {</span>
+<span class="nc bnc" id="L181" title="All 4 branches missed.">                if (null != userFilter.getFormFieldValues() &amp;&amp; userFilter.getFormFieldValues().size() &gt; 0) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                    if (!userFilter.isAttributeFilter()</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                            &amp;&amp; userFilter.getKey().equals(UserFilterOptionBean.KEY_FULLTEXT)) {</span>
+<span class="nc" id="L184">                        fullTextUserFilter = userFilter;</span>
+                    }
+                }
+<span class="nc" id="L187">            }</span>
+        }
+<span class="pc bpc" id="L189" title="3 of 4 branches missed.">        if (fullTextUserFilter != null &amp;&amp; null != fullTextUserFilter.getFormFieldValues()) {</span>
+<span class="nc" id="L190">            String word = fullTextUserFilter.getFormFieldValues().get(fullTextUserFilter.getFormFieldNames()[0]);</span>
+<span class="nc" id="L191">            Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="nc" id="L192">            List&lt;String&gt; fullTextResult = this.getSearchEngineManager().searchEntityId(currentLang.getCode(), word, this.getAllowedGroups(reqCtx));</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if (null != fullTextResult) {</span>
+<span class="nc" id="L194">                return ListUtils.intersection(fullTextResult, masterContentsId);</span>
+            } else {
+<span class="nc" id="L196">                return new ArrayList&lt;&gt;();</span>
+            }
+        } else {
+<span class="fc" id="L199">            return masterContentsId;</span>
+        }
+    }
+
+    protected String[] getCategories(String[] categories, ApsProperties config, List&lt;UserFilterOptionBean&gt; userFilters) {
+<span class="fc" id="L204">        Set&lt;String&gt; codes = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (null != categories) {</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">            for (String category : categories) {</span>
+<span class="fc" id="L207">                codes.add(category);</span>
+            }
+        }
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        String categoriesParam = (null != config) ? config.getProperty(WIDGET_PARAM_CATEGORIES) : null;</span>
+<span class="pc bpc" id="L211" title="3 of 4 branches missed.">        if (null != categoriesParam &amp;&amp; categoriesParam.trim().length() &gt; 0) {</span>
+<span class="nc" id="L212">            List&lt;String&gt; categoryCodes = splitValues(categoriesParam, CATEGORIES_SEPARATOR);</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            for (String categoryCode : categoryCodes) {</span>
+<span class="nc" id="L214">                codes.add(categoryCode);</span>
+<span class="nc" id="L215">            }</span>
+        }
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (null != userFilters) {</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">            for (UserFilterOptionBean userFilterBean : userFilters) {</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                if (!userFilterBean.isAttributeFilter()</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                        &amp;&amp; userFilterBean.getKey().equals(UserFilterOptionBean.KEY_CATEGORY)</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                        &amp;&amp; null != userFilterBean.getFormFieldValues()) {</span>
+<span class="nc" id="L222">                    codes.add(userFilterBean.getFormFieldValues().get(userFilterBean.getFormFieldNames()[0]));</span>
+                }
+<span class="nc" id="L224">            }</span>
+        }
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        if (codes.isEmpty()) {</span>
+<span class="fc" id="L227">            return null;</span>
+        }
+<span class="fc" id="L229">        String[] categoryCodes = new String[codes.size()];</span>
+<span class="fc" id="L230">        Iterator&lt;String&gt; iter = codes.iterator();</span>
+<span class="fc" id="L231">        int i = 0;</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L233">            categoryCodes[i++] = iter.next();</span>
+        }
+<span class="fc" id="L235">        return categoryCodes;</span>
+    }
+
+    protected EntitySearchFilter[] createWidgetFilters(IContentListTagBean bean, ApsProperties widgetParams, String widgetParamName, RequestContext reqCtx) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if (null == widgetParams) {</span>
+<span class="fc" id="L240">            return bean.getFilters();</span>
+        }
+<span class="fc" id="L242">        String widgetFilters = widgetParams.getProperty(widgetParamName);</span>
+<span class="fc" id="L243">        EntitySearchFilter[] filters = this.getFilters(bean.getContentType(), widgetFilters, reqCtx);</span>
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (null == filters) {</span>
+<span class="nc" id="L245">            return bean.getFilters();</span>
+        }
+<span class="fc" id="L247">        EntitySearchFilter[] filtersToReturn = null;</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        if (null != bean.getFilters()) {</span>
+<span class="fc" id="L249">            filtersToReturn = Arrays.copyOf(bean.getFilters(), bean.getFilters().length);</span>
+        } else {
+<span class="nc" id="L251">            filtersToReturn = new EntitySearchFilter[0];</span>
+        }
+<span class="fc" id="L253">        filtersToReturn = ArrayUtils.addAll(filtersToReturn, filters);</span>
+<span class="fc" id="L254">        return filtersToReturn;</span>
+    }
+
+    @Deprecated
+    protected List&lt;String&gt; getContentsId(IContentListTagBean bean, String[] categories, RequestContext reqCtx) throws Throwable {
+<span class="nc" id="L259">        return this.getContentsId(bean, reqCtx);</span>
+    }
+
+    protected Collection&lt;String&gt; getAllowedGroups(RequestContext reqCtx) {
+<span class="fc" id="L263">        UserDetails currentUser = (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="fc" id="L264">        return getAllowedGroupCodes(currentUser);</span>
+    }
+
+    public static String buildCacheKey(IContentListTagBean bean, RequestContext reqCtx) {
+<span class="fc" id="L268">        UserDetails currentUser = (UserDetails) reqCtx.getRequest().getSession().getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="fc" id="L269">        StringBuilder baseCacheKey = ContentListHelper.buildStringBuilderCacheKey(bean, currentUser);</span>
+<span class="fc" id="L270">        Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">        if (null != currentLang) {</span>
+<span class="fc" id="L272">            baseCacheKey.append(&quot;_LANG_&quot;).append(currentLang.getCode());</span>
+        }
+<span class="fc" id="L274">        IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L276">            baseCacheKey.append(&quot;_PAGENOTFOUND&quot;);</span>
+        } else {
+<span class="fc" id="L278">            baseCacheKey.append(&quot;_PAGE_&quot;).append(page.getCode());</span>
+        }
+<span class="fc" id="L280">        Widget currentWidget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="pc bpc" id="L281" title="1 of 4 branches missed.">        if (null != currentWidget &amp;&amp; null != currentWidget.getConfig()) {</span>
+<span class="fc" id="L282">            List&lt;String&gt; paramKeys = new ArrayList(currentWidget.getConfig().keySet());</span>
+<span class="fc" id="L283">            Collections.sort(paramKeys);</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">            for (int i = 0; i &lt; paramKeys.size(); i++) {</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">                if (i == 0) {</span>
+<span class="fc" id="L286">                    baseCacheKey.append(&quot;_WIDGETPARAM&quot;);</span>
+                } else {
+<span class="fc" id="L288">                    baseCacheKey.append(&quot;,&quot;);</span>
+                }
+<span class="fc" id="L290">                String paramkey = (String) paramKeys.get(i);</span>
+<span class="fc" id="L291">                baseCacheKey.append(paramkey).append(&quot;=&quot;).append(currentWidget.getConfig().getProperty(paramkey));</span>
+            }
+        }
+<span class="fc" id="L294">        return DigestUtils.sha256Hex(baseCacheKey.toString());</span>
+    }
+
+    @Override
+    public List&lt;UserFilterOptionBean&gt; getConfiguredUserFilters(IContentListTagBean bean, RequestContext reqCtx) throws EntException {
+<span class="nc" id="L299">        List&lt;UserFilterOptionBean&gt; userEntityFilters = null;</span>
+        try {
+<span class="nc" id="L301">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">            ApsProperties config = (null != widget) ? widget.getConfig() : null;</span>
+<span class="nc bnc" id="L303" title="All 4 branches missed.">            if (null == config || null == config.getProperty(WIDGET_PARAM_CONTENT_TYPE)) {</span>
+<span class="nc" id="L304">                return null;</span>
+            }
+<span class="nc" id="L306">            String contentTypeCode = config.getProperty(WIDGET_PARAM_CONTENT_TYPE);</span>
+<span class="nc" id="L307">            IApsEntity prototype = this.getContentManager().getEntityPrototype(contentTypeCode);</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (null == prototype) {</span>
+<span class="nc" id="L309">                _logger.error(&quot;Null content type by code '{}'&quot;, contentTypeCode);</span>
+<span class="nc" id="L310">                return null;</span>
+            }
+<span class="nc" id="L312">            Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc" id="L313">            Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="nc" id="L314">            String userFilters = config.getProperty(WIDGET_PARAM_USER_FILTERS);</span>
+<span class="nc bnc" id="L315" title="All 4 branches missed.">            if (null != userFilters &amp;&amp; userFilters.length() &gt; 0) {</span>
+<span class="nc" id="L316">                userEntityFilters = FilterUtils.getUserFilters(userFilters, currentFrame, currentLang, prototype, this.getUserFilterDateFormat(), reqCtx.getRequest());</span>
+            }
+<span class="nc" id="L318">        } catch (Throwable t) {</span>
+<span class="nc" id="L319">            _logger.error(&quot;Error extracting user filters&quot;, t);</span>
+<span class="nc" id="L320">            throw new EntException(&quot;Error extracting user filters&quot;, t);</span>
+<span class="nc" id="L321">        }</span>
+<span class="nc" id="L322">        return userEntityFilters;</span>
+    }
+
+    protected String getUserFilterDateFormat() {
+<span class="nc" id="L326">        return userFilterDateFormat;</span>
+    }
+
+    public void setUserFilterDateFormat(String userFilterDateFormat) {
+<span class="fc" id="L330">        this.userFilterDateFormat = userFilterDateFormat;</span>
+<span class="fc" id="L331">    }</span>
+
+    protected IEntitySearchEngineManager getSearchEngineManager() {
+<span class="nc" id="L334">        return searchEngineManager;</span>
+    }
+
+    public void setSearchEngineManager(IEntitySearchEngineManager searchEngineManager) {
+<span class="fc" id="L338">        this.searchEngineManager = searchEngineManager;</span>
+<span class="fc" id="L339">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
