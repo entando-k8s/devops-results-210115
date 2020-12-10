@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentGroupBulkAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.bulk</a> &gt; <span class="el_source">ContentGroupBulkAction.java</span></div><h1>ContentGroupBulkAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.bulk;
+
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.entando.entando.aps.system.common.command.report.BulkCommandReport;
+import org.entando.entando.aps.system.common.command.tracer.DefaultBulkCommandTracer;
+import org.entando.entando.aps.system.services.command.IBulkCommandManager;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.BaseContentPropertyBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.ContentPropertyBulkCommandContext;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.group.JoinGroupBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.group.RemoveGroupBulkCommand;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.ContentBulkActionSummary;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.IContentBulkActionHelper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+
+<span class="fc" id="L40">public class ContentGroupBulkAction extends BaseAction {</span>
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentGroupBulkAction.class);</span>
+
+	public String entry() {
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">		return this.checkAllowedContents() ? SUCCESS : &quot;list&quot;;</span>
+	}
+
+	public String join() {
+		try {
+<span class="fc" id="L50">			String groupName = this.getGroupName();</span>
+<span class="fc" id="L51">			Group group = this.getGroupManager().getGroup(groupName);</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">			if (null != group) {</span>
+<span class="fc" id="L53">				this.getExtraGroupNames().add(groupName);</span>
+			}
+<span class="nc" id="L55">		} catch (Throwable t) {</span>
+<span class="nc" id="L56">			_logger.error(&quot;Error joining group for bulk action&quot;, t);</span>
+<span class="nc" id="L57">			return FAILURE;</span>
+<span class="fc" id="L58">		}</span>
+<span class="fc" id="L59">		return SUCCESS;</span>
+	}
+
+	public String disjoin() {
+		try {
+<span class="fc" id="L64">			this.getExtraGroupNames().remove(this.getGroupName());</span>
+<span class="nc" id="L65">		} catch (Throwable t) {</span>
+<span class="nc" id="L66">			_logger.error(&quot;Error removing group from bulk action&quot;, t);</span>
+<span class="nc" id="L67">			return FAILURE;</span>
+<span class="fc" id="L68">		}</span>
+<span class="fc" id="L69">		return SUCCESS;</span>
+	}
+
+	public String checkApply() {
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		return this.checkGroups() ? SUCCESS : INPUT;</span>
+	}
+
+	public String apply() {
+		try {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">			if (!this.checkAllowedContents()) {</span>
+<span class="nc" id="L79">				return &quot;list&quot;;</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">			} else if (!this.checkGroups()) {</span>
+<span class="nc" id="L81">				return INPUT;</span>
+			} else {
+<span class="fc" id="L83">				BaseContentPropertyBulkCommand&lt;String&gt; command = this.initBulkCommand();</span>
+<span class="fc" id="L84">				BulkCommandReport&lt;String&gt; report = this.getBulkCommandManager().addCommand(IContentBulkActionHelper.BULK_COMMAND_OWNER, command);</span>
+<span class="fc" id="L85">				this.setCommandId(report.getCommandId());</span>
+			}
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			_logger.error(&quot;Error occurred applying groups (add/remove)&quot;, t);</span>
+<span class="nc" id="L89">			return FAILURE;</span>
+<span class="fc" id="L90">		}</span>
+<span class="fc" id="L91">		return SUCCESS;</span>
+	}
+
+	private BaseContentPropertyBulkCommand&lt;String&gt; initBulkCommand() {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		String commandBeanName = ApsAdminSystemConstants.DELETE == this.getStrutsAction() ? </span>
+<span class="fc" id="L96">				RemoveGroupBulkCommand.BEAN_NAME : JoinGroupBulkCommand.BEAN_NAME;</span>
+<span class="fc" id="L97">		WebApplicationContext applicationContext = ApsWebApplicationUtils.getWebApplicationContext(this.getRequest());</span>
+<span class="fc" id="L98">		BaseContentPropertyBulkCommand&lt;String&gt; command = (BaseContentPropertyBulkCommand&lt;String&gt;) applicationContext.getBean(commandBeanName);</span>
+<span class="fc" id="L99">		ContentPropertyBulkCommandContext&lt;String&gt; context = new ContentPropertyBulkCommandContext&lt;String&gt;(this.getSelectedIds(), </span>
+<span class="fc" id="L100">				this.getExtraGroupNames(), this.getCurrentUser(), new DefaultBulkCommandTracer&lt;String&gt;());</span>
+<span class="fc" id="L101">		command.init(context);</span>
+<span class="fc" id="L102">		return command;</span>
+	}
+
+	public ContentBulkActionSummary getSummary() {
+<span class="nc" id="L106">		return this.getBulkActionHelper().getSummary(this.getSelectedIds());</span>
+	}
+
+	protected boolean checkAllowedContents() {
+<span class="fc" id="L110">		return this.getBulkActionHelper().checkAllowedContents(this.getSelectedIds(), this, this);</span>
+	}
+
+	protected boolean checkGroups() {
+<span class="fc" id="L114">		return this.getBulkActionHelper().checkGroups(this.getAllowedGroups(), this.getExtraGroupNames(), this, this);</span>
+	}
+
+	public Group getGroup(String groupName) {
+<span class="nc" id="L118">		return this.getGroupManager().getGroup(groupName);</span>
+	}
+
+	public List&lt;Group&gt; getAllowedGroups() {
+<span class="fc" id="L122">		return this.getActualAllowedGroups();</span>
+	}
+
+	public Set&lt;String&gt; getSelectedIds() {
+<span class="fc" id="L126">		return _selectedIds;</span>
+	}
+	public void setSelectedIds(Set&lt;String&gt; selectedIds) {
+<span class="fc" id="L129">		this._selectedIds = selectedIds;</span>
+<span class="fc" id="L130">	}</span>
+
+	public int getStrutsAction() {
+<span class="fc" id="L133">		return _strutsAction;</span>
+	}
+	public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L136">		this._strutsAction = strutsAction;</span>
+<span class="fc" id="L137">	}</span>
+
+	public String getCommandId() {
+<span class="fc" id="L140">		return _commandId;</span>
+	}
+	public void setCommandId(String commandId) {
+<span class="fc" id="L143">		this._commandId = commandId;</span>
+<span class="fc" id="L144">	}</span>
+
+	public Set&lt;String&gt; getExtraGroupNames() {
+<span class="fc" id="L147">		return _extraGroupNames;</span>
+	}
+	public void setExtraGroupNames(Set&lt;String&gt; extraGroupNames) {
+<span class="fc" id="L150">		this._extraGroupNames = extraGroupNames;</span>
+<span class="fc" id="L151">	}</span>
+
+	public String getGroupName() {
+<span class="fc" id="L154">		return _groupName;</span>
+	}
+	public void setGroupName(String groupName) {
+<span class="fc" id="L157">		this._groupName = groupName;</span>
+<span class="fc" id="L158">	}</span>
+
+	protected IGroupManager getGroupManager() {
+<span class="fc" id="L161">		return _groupManager;</span>
+	}
+	public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L164">		this._groupManager = groupManager;</span>
+<span class="fc" id="L165">	}</span>
+
+	protected IBulkCommandManager getBulkCommandManager() {
+<span class="fc" id="L168">		return _bulkCommandManager;</span>
+	}
+	public void setBulkCommandManager(IBulkCommandManager bulkCommandManager) {
+<span class="fc" id="L171">		this._bulkCommandManager = bulkCommandManager;</span>
+<span class="fc" id="L172">	}</span>
+
+	protected IContentManager getContentManager() {
+<span class="nc" id="L175">		return _contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L178">		this._contentManager = contentManager;</span>
+<span class="fc" id="L179">	}</span>
+
+	protected IContentBulkActionHelper getBulkActionHelper() {
+<span class="fc" id="L182">		return _bulkActionHelper;</span>
+	}
+	public void setBulkActionHelper(IContentBulkActionHelper bulkActionHelper) {
+<span class="fc" id="L185">		this._bulkActionHelper = bulkActionHelper;</span>
+<span class="fc" id="L186">	}</span>
+
+	private Set&lt;String&gt; _selectedIds;
+
+	private int _strutsAction;
+	private String _commandId;
+
+<span class="fc" id="L193">	private Set&lt;String&gt; _extraGroupNames = new TreeSet&lt;String&gt;();</span>
+	private String _groupName;
+	private IGroupManager _groupManager;
+
+	private IBulkCommandManager _bulkCommandManager;
+	private IContentManager _contentManager;
+	private IContentBulkActionHelper _bulkActionHelper;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

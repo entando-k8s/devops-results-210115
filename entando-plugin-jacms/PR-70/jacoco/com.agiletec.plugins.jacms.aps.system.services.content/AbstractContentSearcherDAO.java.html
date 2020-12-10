@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractContentSearcherDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content</a> &gt; <span class="el_source">AbstractContentSearcherDAO.java</span></div><h1>AbstractContentSearcherDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.AbstractEntitySearcherDAO;
+import com.agiletec.aps.system.common.entity.model.ApsEntityRecord;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.util.DateConverter;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+
+/**
+ * Abstract Data access object used to search contents.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public abstract class AbstractContentSearcherDAO extends AbstractEntitySearcherDAO implements IContentSearcherDAO {</span>
+
+<span class="fc" id="L41">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractContentSearcherDAO.class);</span>
+    
+    @Override
+    public int countContents(String[] categories, boolean orClauseCategoryFilter, 
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L46">        Connection conn = null;</span>
+<span class="fc" id="L47">        int count = 0;</span>
+<span class="fc" id="L48">        PreparedStatement stat = null;</span>
+<span class="fc" id="L49">        ResultSet result = null;</span>
+        try {
+<span class="fc" id="L51">            conn = this.getConnection();</span>
+<span class="fc" id="L52">            stat = this.buildStatement(filters, categories, </span>
+                    orClauseCategoryFilter, userGroupCodes, true, false, conn);
+<span class="fc" id="L54">            result = stat.executeQuery();</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            if (result.next()) {</span>
+<span class="fc" id="L56">                count = result.getInt(1);</span>
+            }
+<span class="nc" id="L58">        } catch (Throwable t) {</span>
+<span class="nc" id="L59">            _logger.error(&quot;Error while loading the count of IDs&quot;, t);</span>
+<span class="nc" id="L60">            throw new RuntimeException(&quot;Error while loading the count of IDs&quot;, t);</span>
+        } finally {
+<span class="fc" id="L62">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="fc" id="L64">        return count;</span>
+    }
+    
+    @Override
+	public List&lt;String&gt; loadContentsId(String contentType, String[] categories, boolean orClauseCategoryFilter, 
+			EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">		if (!StringUtils.isBlank(contentType)) {</span>
+<span class="fc" id="L71">			EntitySearchFilter typeFilter = new EntitySearchFilter(IContentManager.ENTITY_TYPE_CODE_FILTER_KEY, false, contentType, false);</span>
+<span class="fc" id="L72">			filters = this.addFilter(filters, typeFilter);</span>
+		}
+<span class="fc" id="L74">		return this.loadContentsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+	}
+    
+    @Override
+    public List&lt;String&gt; loadContentsId(String[] categories, 
+			boolean orClauseCategoryFilter, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L80">		List&lt;String&gt; contentsId = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L81">		Connection conn = null;</span>
+<span class="fc" id="L82">		PreparedStatement stat = null;</span>
+<span class="fc" id="L83">		ResultSet result = null;</span>
+		try {
+<span class="fc" id="L85">			conn = this.getConnection();</span>
+<span class="fc" id="L86">			stat = this.buildStatement(filters, categories, orClauseCategoryFilter, userGroupCodes, false, false, conn);</span>
+<span class="fc" id="L87">			result = stat.executeQuery();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">            while (result.next()) {</span>
+<span class="fc" id="L89">                String id = result.getString(this.getMasterTableIdFieldName());</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if (!contentsId.contains(id)) {</span>
+<span class="fc" id="L91">                    contentsId.add(id);</span>
+                }
+<span class="fc" id="L93">            }</span>
+<span class="nc" id="L94">		} catch (Throwable t) {</span>
+<span class="nc" id="L95">			_logger.error(&quot;Error loading contents id list&quot;,  t);</span>
+<span class="nc" id="L96">			throw new RuntimeException(&quot;Error loading contents id list&quot;, t);</span>
+		} finally {
+<span class="fc" id="L98">			closeDaoResources(result, stat, conn);</span>
+		}
+<span class="fc" id="L100">		return contentsId;</span>
+	}
+	
+	@Override
+	protected String getTableFieldName(String metadataFieldKey) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">		if (metadataFieldKey.equals(IContentManager.ENTITY_ID_FILTER_KEY)) {</span>
+<span class="fc" id="L106">			return this.getEntityMasterTableIdFieldName();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.ENTITY_TYPE_CODE_FILTER_KEY)) {</span>
+<span class="fc" id="L108">			return this.getEntityMasterTableIdTypeFieldName();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_DESCR_FILTER_KEY)) {</span>
+<span class="fc" id="L110">			return &quot;descr&quot;;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_STATUS_FILTER_KEY)) {</span>
+<span class="fc" id="L112">			return &quot;status&quot;;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_CREATION_DATE_FILTER_KEY)) {</span>
+<span class="fc" id="L114">			return &quot;created&quot;;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_MODIFY_DATE_FILTER_KEY)) {</span>
+<span class="fc" id="L116">			return &quot;lastmodified&quot;;</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_PUBLISH_DATE_FILTER_KEY)) {</span>
+<span class="nc" id="L118">			return &quot;published&quot;;</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_ONLINE_FILTER_KEY)) {</span>
+<span class="fc" id="L120">			return &quot;onlinexml&quot;;</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_MAIN_GROUP_FILTER_KEY)) {</span>
+<span class="fc" id="L122">			return &quot;maingroup&quot;;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_CURRENT_VERSION_FILTER_KEY)) {</span>
+<span class="fc" id="L124">			return &quot;currentversion&quot;;</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_FIRST_EDITOR_FILTER_KEY)) {</span>
+<span class="fc" id="L126">			return &quot;firsteditor&quot;;</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_LAST_EDITOR_FILTER_KEY)) {</span>
+<span class="fc" id="L128">			return &quot;lasteditor&quot;;</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">		} else if (metadataFieldKey.equals(IContentManager.CONTENT_RESTRICTION_FILTER_KEY)) {</span>
+<span class="fc" id="L130">			return &quot;restriction&quot;;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">		}else if (metadataFieldKey.equals(IContentManager.CONTENT_GROUP_FILTER_KEY)) {</span>
+<span class="nc" id="L132">			return &quot;group&quot;;</span>
+<span class="nc" id="L133">		} else throw new RuntimeException(&quot;Chiave di ricerca '&quot; + metadataFieldKey + &quot;' non riconosciuta&quot;);</span>
+	}
+	
+	protected PreparedStatement buildStatement(EntitySearchFilter[] filters,
+			Collection&lt;String&gt; userGroupCodes, boolean selectAll, Connection conn) {
+<span class="nc" id="L138">		return this.buildStatement(filters, null, false, userGroupCodes, false, selectAll, conn);</span>
+	}
+	
+	protected PreparedStatement buildStatement(EntitySearchFilter[] filters,
+			String[] categories, Collection&lt;String&gt; userGroupCodes, boolean selectAll, Connection conn) {
+<span class="nc" id="L143">		return this.buildStatement(filters, categories, false, userGroupCodes, false, selectAll, conn);</span>
+	}
+	
+	protected PreparedStatement buildStatement(EntitySearchFilter[] filters,
+			String[] categories, boolean orClauseCategoryFilter, 
+			Collection&lt;String&gt; userGroupCodes, boolean isCount, boolean selectAll, Connection conn) {
+<span class="fc" id="L149">		Collection&lt;String&gt; groupsForSelect = this.getGroupsForSelect(userGroupCodes);</span>
+
+<span class="fc" id="L151">		String query = this.createQueryString(filters, null, categories, orClauseCategoryFilter, groupsForSelect, isCount, selectAll);</span>
+		//System.out.println(&quot;QUERY : &quot; + query);
+<span class="fc" id="L153">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L155">			stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L156">			int index = 0;</span>
+<span class="fc" id="L157">			index = super.addAttributeFilterStatementBlock(filters, index, stat);</span>
+<span class="fc" id="L158">			index = this.addMetadataFieldFilterStatementBlock(filters, index, stat);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">			if (groupsForSelect != null) {</span>
+<span class="fc" id="L160">				index = this.addGroupStatementBlock(groupsForSelect, index, stat);</span>
+			}
+<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (categories != null) {</span>
+<span class="fc" id="L163">				index = this.addCategoryStatementBlock(categories, index, stat);</span>
+			}
+<span class="nc" id="L165">		} catch (Throwable t) {</span>
+<span class="nc" id="L166">			_logger.error(&quot;Errore in fase di creazione statement&quot;,  t);</span>
+<span class="nc" id="L167">			throw new RuntimeException(&quot;Errore in fase di creazione statement&quot;, t);</span>
+			//processDaoException(t, &quot;Errore in fase di creazione statement&quot;, &quot;buildStatement&quot;);
+<span class="fc" id="L169">		}</span>
+<span class="fc" id="L170">		return stat;</span>
+	}
+	
+	protected int addGroupStatementBlock(Collection&lt;String&gt; groupCodes, int index, PreparedStatement stat) throws Throwable {
+<span class="fc" id="L174">		Iterator&lt;String&gt; groupIter = groupCodes.iterator();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		while (groupIter.hasNext()) {</span>
+<span class="fc" id="L176">			String groupName = groupIter.next();</span>
+<span class="fc" id="L177">			stat.setString(++index, groupName);</span>
+<span class="fc" id="L178">		}</span>
+<span class="fc" id="L179">		return index;</span>
+	}
+	
+	protected int addCategoryStatementBlock(String[] categories, int index, PreparedStatement stat) throws Throwable {
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">		if (null == categories) return index;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		for (int i = 0; i &lt; categories.length; i++) {</span>
+<span class="fc" id="L185">			stat.setString(++index, categories[i]);</span>
+		}
+<span class="fc" id="L187">		return index;</span>
+	}
+	
+	protected String createQueryString(EntitySearchFilter[] filters, Collection&lt;String&gt; groupsForSelect, boolean selectAll) {
+<span class="nc" id="L191">		return this.createQueryString(filters, null, null, false, groupsForSelect, false, selectAll);</span>
+	}
+	
+	protected String createQueryString(EntitySearchFilter[] filters, 
+			String[] categories, Collection&lt;String&gt; groupsForSelect, boolean selectAll) {
+<span class="nc" id="L196">		return this.createQueryString(filters, null, categories, false, groupsForSelect, false, selectAll);</span>
+	}
+	
+	protected String createQueryString(EntitySearchFilter[] filters, String[] groups,
+			String[] categories, boolean orClauseCategoryFilter, Collection&lt;String&gt; groupsForSelect, boolean isCount, boolean selectAll) {
+<span class="fc" id="L201">		StringBuffer query = this.createBaseQueryBlock(filters, isCount, selectAll);</span>
+<span class="fc" id="L202">		boolean hasAppendWhereClause = this.appendFullAttributeFilterQueryBlocks(filters, query, false);</span>
+<span class="fc" id="L203">		hasAppendWhereClause = this.appendMetadataFieldFilterQueryBlocks(filters, query, hasAppendWhereClause);</span>
+<span class="pc bpc" id="L204" title="1 of 4 branches missed.">		if (null != groupsForSelect &amp;&amp; !groupsForSelect.isEmpty()) {</span>
+<span class="fc" id="L205">			hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L206">			this.addGroupsQueryBlock(query, groupsForSelect);</span>
+		}
+<span class="fc bfc" id="L208" title="All 4 branches covered.">		if (null != categories &amp;&amp; categories.length &gt; 0) {</span>
+<span class="fc" id="L209">			hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">			this.addCategoriesQueryBlock(query, categories, !orClauseCategoryFilter);</span>
+		}
+<span class="fc bfc" id="L212" title="All 4 branches covered.">		if (null != groups &amp;&amp; groups.length &gt; 0) {</span>
+<span class="fc" id="L213">			hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="fc" id="L214">			this.addGroupsQueryBlock(query, groups);</span>
+		}
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        if (!isCount) {</span>
+<span class="fc" id="L217">            boolean ordered = this.appendOrderQueryBlocks(filters, query, false);</span>
+<span class="fc" id="L218">            this.appendLimitQueryBlock(filters, query);</span>
+        }
+		//System.out.println(&quot;********** &quot; + query.toString());
+<span class="fc" id="L221">		return query.toString();</span>
+	}
+	
+	protected void addGroupsQueryBlock(StringBuffer query, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L225">		query.append(&quot; ( &quot;);</span>
+<span class="fc" id="L226">		int size = userGroupCodes.size();</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">		for (int i=0; i&lt;size; i++) {</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">			if (i!=0) query.append(&quot;OR &quot;);</span>
+<span class="fc" id="L229">			query.append(&quot;contents.maingroup = ? &quot;);</span>
+		}
+<span class="fc" id="L231">		query.append(&quot;) &quot;);</span>
+<span class="fc" id="L232">	}</span>
+	
+	protected void addCategoriesQueryBlock(StringBuffer query, String[] categories, boolean andClause) {
+<span class="pc bpc" id="L235" title="2 of 4 branches missed.">		if (categories != null &amp;&amp; categories.length &gt; 0) {</span>
+<span class="fc" id="L236">			query.append(&quot; ( &quot;);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">			for (int i=0; i&lt;categories.length; i++) {</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">				if (i&gt;0) {</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">					if (andClause) {</span>
+<span class="fc" id="L240">						query.append(&quot; AND &quot;);</span>
+					} else {
+<span class="fc" id="L242">						query.append(&quot; OR &quot;);</span>
+					}
+				}
+<span class="fc" id="L245">				query.append(&quot; contents.contentid IN (SELECT contentid FROM &quot;)</span>
+<span class="fc" id="L246">					.append(this.getContentRelationsTableName()).append(&quot; WHERE &quot;)</span>
+<span class="fc" id="L247">					.append(this.getContentRelationsTableName()).append(&quot;.refcategory = ? ) &quot;);</span>
+			}
+<span class="fc" id="L249">			query.append(&quot; ) &quot;);</span>
+		}
+<span class="fc" id="L251">	}</span>
+
+    protected void addGroupsQueryBlock(StringBuffer query, String[] groups) {
+<span class="pc bpc" id="L254" title="2 of 4 branches missed.">        if (groups != null &amp;&amp; groups.length &gt; 0) {</span>
+<span class="fc" id="L255">            query.append(&quot; ( &quot;);</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">            for (int i = 0; i &lt; groups.length; i++) {</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">                if (i &gt; 0) {</span>
+<span class="fc" id="L258">                    query.append(&quot; AND &quot;);</span>
+                }
+<span class="fc" id="L260">                query.append(&quot; contents.contentid IN (SELECT contentid FROM &quot;)</span>
+<span class="fc" id="L261">                        .append(this.getContentRelationsTableName()).append(&quot; WHERE &quot;)</span>
+<span class="fc" id="L262">                        .append(this.getContentRelationsTableName()).append(&quot;.refgroup = ? ) &quot;);</span>
+            }
+<span class="fc" id="L264">            query.append(&quot; ) &quot;);</span>
+        }
+<span class="fc" id="L266">    }</span>
+
+	protected Collection&lt;String&gt; getGroupsForSelect(Collection&lt;String&gt; userGroupCodes) {
+<span class="pc bpc" id="L269" title="1 of 4 branches missed.">		if (userGroupCodes != null &amp;&amp; userGroupCodes.contains(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L270">			return null;</span>
+		} else {
+<span class="fc" id="L272">			Collection&lt;String&gt; groupsForSelect = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L273" title="1 of 2 branches missed.">			if (userGroupCodes != null) groupsForSelect.addAll(userGroupCodes);</span>
+<span class="fc" id="L274">			return groupsForSelect;</span>
+		}
+	}
+	
+	@Override
+	protected ApsEntityRecord createRecord(ResultSet result) throws Throwable {
+<span class="fc" id="L280">		ContentRecordVO contentVo = new ContentRecordVO();</span>
+<span class="fc" id="L281">		contentVo.setId(result.getString(&quot;contentid&quot;));</span>
+<span class="fc" id="L282">		contentVo.setTypeCode(result.getString(&quot;contenttype&quot;));</span>
+<span class="fc" id="L283">		contentVo.setDescription(result.getString(&quot;descr&quot;));</span>
+<span class="fc" id="L284">		contentVo.setStatus(result.getString(&quot;status&quot;));</span>
+<span class="fc" id="L285">		String xmlWork = result.getString(&quot;workxml&quot;);</span>
+<span class="fc" id="L286">        contentVo.setCreate(DateConverter.parseDate(result.getString(&quot;created&quot;), SystemConstants.DATA_TYPE_METADATA_DATE_FORMAT));</span>
+<span class="fc" id="L287">		contentVo.setModify(DateConverter.parseDate(result.getString(&quot;lastmodified&quot;), SystemConstants.DATA_TYPE_METADATA_DATE_FORMAT));</span>
+<span class="fc" id="L288">		contentVo.setPublish(DateConverter.parseDate(result.getString(&quot;published&quot;), SystemConstants.DATA_TYPE_METADATA_DATE_FORMAT));</span>
+<span class="fc" id="L289">		String xmlOnLine = result.getString(&quot;onlinexml&quot;);</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">        contentVo.setOnLine(!StringUtils.isBlank(xmlOnLine));</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">		contentVo.setSync(result.getInt(&quot;sync&quot;) == 1);</span>
+<span class="fc" id="L292">		String mainGroupCode = result.getString(&quot;maingroup&quot;);</span>
+<span class="fc" id="L293">		contentVo.setMainGroupCode(mainGroupCode);</span>
+<span class="fc" id="L294">		contentVo.setXmlWork(xmlWork);</span>
+<span class="fc" id="L295">		contentVo.setXmlOnLine(xmlOnLine);</span>
+<span class="fc" id="L296">		contentVo.setVersion(result.getString(&quot;currentversion&quot;));</span>
+<span class="fc" id="L297">		contentVo.setLastEditor(result.getString(&quot;lasteditor&quot;));</span>
+<span class="fc" id="L298">		contentVo.setRestriction(result.getString(&quot;restriction&quot;));</span>
+<span class="fc" id="L299">		return contentVo;</span>
+	}
+	
+	@Override
+	protected String getEntityMasterTableName() {
+<span class="fc" id="L304">		return &quot;contents&quot;;</span>
+	}
+	@Override
+	protected String getEntityMasterTableIdFieldName() {
+<span class="fc" id="L308">		return &quot;contentid&quot;;</span>
+	}
+	@Override
+	protected String getEntityMasterTableIdTypeFieldName() {
+<span class="fc" id="L312">		return &quot;contenttype&quot;;</span>
+	}
+	
+	protected abstract String getContentRelationsTableName();
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

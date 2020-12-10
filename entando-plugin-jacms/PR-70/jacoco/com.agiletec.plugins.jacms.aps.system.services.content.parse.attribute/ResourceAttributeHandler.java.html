@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceAttributeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.parse.attribute</a> &gt; <span class="el_source">ResourceAttributeHandler.java</span></div><h1>ResourceAttributeHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.parse.attribute;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+
+import com.agiletec.aps.system.common.entity.parse.attribute.TextAttributeHandler;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.attribute.ResourceAttributeInterface;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Classe handler per l'interpretazione della porzione di xml relativo
+ * all'attributo di tipo risorsa (Image o Attach).
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L33">public class ResourceAttributeHandler extends TextAttributeHandler {</span>
+
+<span class="fc" id="L35">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ResourceAttributeHandler.class);</span>
+
+    private transient IResourceManager resourceManager;
+    private boolean intoMetadatas;
+    private String metadataKey;
+
+    @Override
+    public Object getAttributeHandlerPrototype() {
+<span class="fc" id="L43">        ResourceAttributeHandler handler = (ResourceAttributeHandler) super.getAttributeHandlerPrototype();</span>
+<span class="fc" id="L44">        handler.setResourceManager(this.getResourceManager());</span>
+<span class="fc" id="L45">        return handler;</span>
+    }
+
+    @Override
+    public void startAttribute(Attributes attributes, String qName) throws SAXException {
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (this.isIntoMetadatas()) {</span>
+<span class="fc" id="L51">            this.startMetadata(attributes, qName);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        } else if (qName.equals(&quot;resource&quot;)) {</span>
+<span class="fc" id="L53">            this.startResource(attributes, qName);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        } else if (qName.equals(&quot;metadatas&quot;)) {</span>
+<span class="fc" id="L55">            this.setIntoMetadatas(true);</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        } else if (qName.equals(IResourceManager.ALT_METADATA_KEY)</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                || qName.equals(IResourceManager.DESCRIPTION_METADATA_KEY)</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                || qName.equals(IResourceManager.LEGEND_METADATA_KEY)</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">                || qName.equals(IResourceManager.TITLE_METADATA_KEY)) {</span>
+<span class="fc" id="L60">            this.startResourceMetadata(qName, attributes, qName);</span>
+        } else {
+<span class="fc" id="L62">            super.startAttribute(attributes, qName);</span>
+        }
+<span class="fc" id="L64">    }</span>
+
+    private void startMetadata(Attributes attributes, String qName) throws SAXException {
+<span class="fc" id="L67">        String idLang = this.extractAttribute(attributes, &quot;lang&quot;, qName, true);</span>
+<span class="fc" id="L68">        String key = this.extractAttribute(attributes, &quot;key&quot;, qName, true);</span>
+<span class="fc" id="L69">        this.setCurrentLangId(idLang);</span>
+<span class="fc" id="L70">        this.setMetadataKey(key);</span>
+<span class="fc" id="L71">    }</span>
+
+    private void startResource(Attributes attributes, String qName) throws SAXException {
+<span class="fc" id="L74">        String id = extractAttribute(attributes, &quot;id&quot;, qName, true);</span>
+<span class="fc" id="L75">        String langCode = extractAttribute(attributes, &quot;lang&quot;, qName, false);</span>
+        try {
+<span class="fc" id="L77">            ResourceInterface resource = this.getResourceManager().loadResource(id);</span>
+<span class="pc bpc" id="L78" title="1 of 4 branches missed.">            if (null != this.getCurrentAttr() &amp;&amp; null != resource) {</span>
+<span class="fc" id="L79">                ((ResourceAttributeInterface) this.getCurrentAttr()).setResource(resource, langCode);</span>
+            }
+<span class="nc" id="L81">        } catch (Exception e) {</span>
+<span class="nc" id="L82">            _logger.error(&quot;Error loading resource {}&quot;, id, e);</span>
+<span class="fc" id="L83">        }</span>
+<span class="fc" id="L84">    }</span>
+
+    @Override
+    public void endAttribute(String qName, StringBuffer textBuffer) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (this.isIntoMetadatas()) {</span>
+<span class="fc" id="L89">            this.endMetadata(textBuffer);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        } else if (qName.equals(&quot;resource&quot;)) {</span>
+<span class="fc" id="L91">            this.endResource();</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        } else if (qName.equals(&quot;metadatas&quot;)) {</span>
+<span class="nc" id="L93">            this.setIntoMetadatas(false);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        } else if (qName.equals(IResourceManager.ALT_METADATA_KEY)</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">                || qName.equals(IResourceManager.DESCRIPTION_METADATA_KEY)</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">                || qName.equals(IResourceManager.LEGEND_METADATA_KEY)</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                || qName.equals(IResourceManager.TITLE_METADATA_KEY)) {</span>
+<span class="fc" id="L98">            this.endMetadata(qName, textBuffer);</span>
+        } else {
+<span class="fc" id="L100">            super.endAttribute(qName, textBuffer);</span>
+        }
+<span class="fc" id="L102">    }</span>
+
+    private void endMetadata(StringBuffer textBuffer) {
+<span class="fc" id="L105">        this.endMetadata(this.getMetadataKey(), textBuffer);</span>
+<span class="fc" id="L106">    }</span>
+
+    private void endMetadata(String metadataKey, StringBuffer textBuffer) {
+<span class="pc bpc" id="L109" title="2 of 4 branches missed.">        if (null != textBuffer &amp;&amp; null != this.getCurrentAttr()) {</span>
+<span class="fc" id="L110">            ResourceAttributeInterface resourceAttribute = (ResourceAttributeInterface) this.getCurrentAttr();</span>
+<span class="fc" id="L111">            resourceAttribute.setMetadata(metadataKey, this.getCurrentLangId(), textBuffer.toString());</span>
+        }
+<span class="fc" id="L113">        this.setCurrentLangId(null);</span>
+<span class="fc" id="L114">        this.setMetadataKey(null);</span>
+<span class="fc" id="L115">    }</span>
+
+    private void endResource() {
+<span class="fc" id="L118">        return; // nulla da fare</span>
+    }
+
+    /**
+     * Restituisce il manager delle risorse.
+     *
+     * @return Il Manager delle risorse.
+     */
+    protected IResourceManager getResourceManager() {
+<span class="fc" id="L127">        return this.resourceManager;</span>
+    }
+
+    /**
+     * Setta il Manager delle risorse.
+     *
+     * @param resourceManager Il manager delle risorse.
+     */
+    public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L136">        this.resourceManager = resourceManager;</span>
+<span class="fc" id="L137">    }</span>
+
+    protected void startResourceMetadata(String key, Attributes attributes, String qName) throws SAXException {
+<span class="fc" id="L140">        this.setMetadataKey(key);</span>
+<span class="fc" id="L141">        String idLang = this.extractAttribute(attributes, &quot;lang&quot;, qName, true);</span>
+<span class="fc" id="L142">        this.setCurrentLangId(idLang);</span>
+<span class="fc" id="L143">    }</span>
+
+    protected boolean isIntoMetadatas() {
+<span class="fc" id="L146">        return intoMetadatas;</span>
+    }
+
+    protected void setIntoMetadatas(boolean intoMetadatas) {
+<span class="fc" id="L150">        this.intoMetadatas = intoMetadatas;</span>
+<span class="fc" id="L151">    }</span>
+
+    protected String getMetadataKey() {
+<span class="fc" id="L154">        return metadataKey;</span>
+    }
+
+    protected void setMetadataKey(String metadataKey) {
+<span class="fc" id="L158">        this.metadataKey = metadataKey;</span>
+<span class="fc" id="L159">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

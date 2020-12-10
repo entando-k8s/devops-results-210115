@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImageResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.resource.model</a> &gt; <span class="el_source">ImageResource.java</span></div><h1>ImageResource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.resource.model;
+
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.imageresizer.IImageResizer;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.util.IImageDimensionReader;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.swing.ImageIcon;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.im4java.core.ConvertCmd;
+import org.im4java.core.IMOperation;
+
+<span class="fc" id="L39">public class ImageResource extends AbstractMultiInstanceResource {</span>
+
+    private static final String FAILED_TO_DELETE_TEMP_FILE = &quot;Failed to delete temp file {}&quot;;
+    private IImageDimensionReader imageDimensionReader;
+    private Map&lt;String, String&gt; imageResizerClasses;
+    private boolean  imageMagickEnabled;
+    private boolean  imageMagickWindows;
+    private String  imageMagickPath;
+
+<span class="fc" id="L48">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ImageResource.class);</span>
+
+    /**
+     * Restituisce il path dell'immagine (relativa al size immesso). La stringa
+     * restituita è comprensiva del folder della risorsa e del nome del file
+     * dell'istanza richiesta.
+     *
+     * @param size Il size dell'istanza.
+     * @return Il path dell'immagine.
+     */
+    public String getImagePath(String size) {
+<span class="fc" id="L59">        ResourceInstance instance = getInstances().get(size);</span>
+<span class="fc" id="L60">        return this.getUrlPath(instance);</span>
+    }
+
+    @Override
+    public InputStream getResourceStream() {
+<span class="nc" id="L65">        return this.getResourceStream(0, null);</span>
+    }
+
+    @Override
+    public InputStream getResourceStream(int size, String langCode) {
+<span class="nc" id="L70">        ResourceInstance instance = getInstances().get(String.valueOf(size));</span>
+<span class="nc" id="L71">        String subPath = super.getDiskSubFolder() + instance.getFileName();</span>
+        try {
+<span class="nc" id="L73">            return this.getStorageManager().getStream(subPath, this.isProtectedResource());</span>
+<span class="nc" id="L74">        } catch (Throwable t) {</span>
+<span class="nc" id="L75">            logger.error(&quot;Error on extracting file&quot;, t);</span>
+<span class="nc" id="L76">            throw new RuntimeException(&quot;Error on extracting file&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public ResourceInterface getResourcePrototype() {
+<span class="fc" id="L82">        ImageResource resource = (ImageResource) super.getResourcePrototype();</span>
+<span class="fc" id="L83">        resource.setImageDimensionReader(imageDimensionReader);</span>
+<span class="fc" id="L84">        resource.setImageResizerClasses(imageResizerClasses);</span>
+<span class="fc" id="L85">        resource.setImageMagickEnabled(imageMagickEnabled);</span>
+<span class="fc" id="L86">        resource.setImageMagickWindows(imageMagickWindows);</span>
+<span class="fc" id="L87">        resource.setImageMagickPath(imageMagickPath);</span>
+<span class="fc" id="L88">        return resource;</span>
+    }
+
+    /**
+     * Aggiunge un'istanza alla risorsa, indicizzandola in base al size
+     * dell'istanza sulla mappa delle istanze.
+     *
+     * @param instance L'istanza da aggiungere alla risorsa.
+     */
+    @Override
+    public void addInstance(ResourceInstance instance) {
+<span class="fc" id="L99">        String key = String.valueOf(instance.getSize());</span>
+<span class="fc" id="L100">        this.getInstances().put(key, instance);</span>
+<span class="fc" id="L101">    }</span>
+
+    @Override
+    @Deprecated
+    public String getInstanceFileName(String masterFileName, int size, String langCode) {
+<span class="nc" id="L106">        return getNewInstanceFileName(masterFileName, size, langCode);</span>
+    }
+
+    @Override
+    public ResourceInstance getInstance(int size, String langCode) {
+<span class="fc" id="L111">        return getInstances().get(String.valueOf(size));</span>
+    }
+
+    @Override
+    public ResourceInstance getDefaultInstance() {
+<span class="fc" id="L116">        return this.getInstance(0, null);</span>
+    }
+
+    @Override
+    public void saveResourceInstances(ResourceDataBean bean, List&lt;String&gt; ignoreMetadataKeys,
+            boolean instancesAlreadySaved) throws EntException {
+        try {
+<span class="fc" id="L123">            String masterImageFileName = getNewInstanceFileName(bean.getFileName(), 0, null, instancesAlreadySaved);</span>
+<span class="fc" id="L124">            String subPath = this.getDiskSubFolder() + masterImageFileName;</span>
+<span class="fc" id="L125">            this.getStorageManager().deleteFile(subPath, this.isProtectedResource());</span>
+<span class="fc" id="L126">            File tempMasterFile = this.saveTempFile(masterImageFileName, bean.getInputStream());</span>
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            if(bean instanceof BaseResourceDataBean) {</span>
+<span class="fc" id="L129">                ((BaseResourceDataBean)bean).setFile(tempMasterFile);</span>
+            }
+
+<span class="fc" id="L132">            setMetadata(getImgMetadata(tempMasterFile, ignoreMetadataKeys));</span>
+<span class="fc" id="L133">            ResourceInstance instance = new ResourceInstance();</span>
+<span class="fc" id="L134">            instance.setSize(0);</span>
+<span class="fc" id="L135">            instance.setFileName(masterImageFileName);</span>
+
+<span class="fc" id="L137">            String mimeType = bean.getMimeType();</span>
+<span class="fc" id="L138">            instance.setMimeType(mimeType);</span>
+<span class="fc" id="L139">            instance.setFileLength(bean.getFileSize() + &quot; Kb&quot;);</span>
+<span class="fc" id="L140">            this.addInstance(instance);</span>
+<span class="fc" id="L141">            this.saveResizedInstances(bean, tempMasterFile.getAbsolutePath(), instancesAlreadySaved);</span>
+<span class="fc" id="L142">            this.getStorageManager().saveFile(subPath,</span>
+<span class="fc" id="L143">                    this.isProtectedResource(), new FileInputStream(tempMasterFile));</span>
+<span class="fc" id="L144">            boolean deleted = tempMasterFile.delete();</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (!deleted) {</span>
+<span class="nc" id="L146">                logger.warn(FAILED_TO_DELETE_TEMP_FILE, tempMasterFile);</span>
+            }
+<span class="nc" id="L148">        } catch (Throwable t) {</span>
+<span class="nc" id="L149">            logger.error(&quot;Error saving image resource instances&quot;, t);</span>
+<span class="nc" id="L150">            throw new EntException(&quot;Error saving image resource instances&quot;, t);</span>
+<span class="fc" id="L151">        }</span>
+<span class="fc" id="L152">    }</span>
+
+    protected Map&lt;String, String&gt; getImgMetadata(File file, List&lt;String&gt; ignoreKeysList) {
+<span class="fc" id="L155">        logger.debug(&quot;Get image Metadata in Resource Action&quot;);</span>
+<span class="fc" id="L156">        Map&lt;String, String&gt; meta = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L158">            Metadata metadata = ImageMetadataReader.readMetadata(file);</span>
+
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            for (Directory directory : metadata.getDirectories()) {</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">                for (Tag tag : directory.getTags()) {</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">                    if (!ignoreKeysList.contains(tag.getTagName())) {</span>
+<span class="fc" id="L163">                        logger.debug(&quot;Add Metadata with key: {}&quot;, tag.getTagName());</span>
+<span class="fc" id="L164">                        meta.put(tag.getTagName(), tag.getDescription());</span>
+                    } else {
+<span class="nc" id="L166">                        logger.debug(&quot;Skip Metadata key {}&quot;, tag.getTagName());</span>
+                    }
+<span class="fc" id="L168">                }</span>
+<span class="fc" id="L169">            }</span>
+<span class="fc" id="L170">        } catch (ImageProcessingException|IOException ex) {</span>
+<span class="fc" id="L171">            logger.error(&quot;Error reading image metadata for file {}&quot;, file.getName(), ex);</span>
+<span class="fc" id="L172">        }</span>
+<span class="fc" id="L173">        return meta;</span>
+    }
+
+    @Override
+    public void reloadResourceInstances() throws EntException {
+        try {
+<span class="nc" id="L179">            ResourceInstance masterInstance = this.getInstance(0, null);</span>
+<span class="nc" id="L180">            String masterImageFileName = masterInstance.getFileName();</span>
+<span class="nc" id="L181">            String subPath = this.getDiskSubFolder() + masterImageFileName;</span>
+<span class="nc" id="L182">            InputStream masterImageIs = this.getStorageManager().getStream(subPath, this.isProtectedResource());</span>
+<span class="nc" id="L183">            File tempMasterFile = this.saveTempFile(&quot;temp_&quot; + masterImageFileName, masterImageIs);</span>
+<span class="nc" id="L184">            BaseResourceDataBean bean = new BaseResourceDataBean(tempMasterFile);</span>
+<span class="nc" id="L185">            int index = masterImageFileName.lastIndexOf(&quot;_d0.&quot;);</span>
+<span class="nc" id="L186">            String masterFileName = masterImageFileName.substring(0, index) + masterImageFileName.substring(index + 3);</span>
+<span class="nc" id="L187">            bean.setFileName(masterFileName);</span>
+<span class="nc" id="L188">            bean.setMimeType(masterInstance.getMimeType());</span>
+<span class="nc" id="L189">            this.saveResizedInstances(bean, tempMasterFile.getAbsolutePath(), false);</span>
+<span class="nc" id="L190">            boolean deleted = tempMasterFile.delete();</span>
+
+<span class="nc bnc" id="L192" title="All 2 branches missed.">            if (!deleted) {</span>
+<span class="nc" id="L193">                logger.warn(FAILED_TO_DELETE_TEMP_FILE, tempMasterFile);</span>
+            }
+
+<span class="nc" id="L196">        } catch (Throwable t) {</span>
+<span class="nc" id="L197">            logger.error(&quot;Error reloading image resource instances&quot;, t);</span>
+<span class="nc" id="L198">            throw new EntException(&quot;Error reloading image resource instances&quot;, t);</span>
+<span class="nc" id="L199">        }</span>
+<span class="nc" id="L200">    }</span>
+
+    private void saveResizedInstances(ResourceDataBean bean, String masterFilePath, boolean instancesAlreadySaved) throws EntException {
+        try {
+<span class="fc" id="L204">            Map&lt;Integer, ImageResourceDimension&gt; dimensions = this.getImageDimensionReader().getImageDimensions();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">            for (ImageResourceDimension dimension : dimensions.values()) {</span>
+                //Is the system use ImageMagick?
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">                if (!this.isImageMagickEnabled()) {</span>
+<span class="fc" id="L208">                    ImageIcon imageIcon = new ImageIcon(masterFilePath);</span>
+<span class="fc" id="L209">                    this.saveResizedImage(bean, imageIcon, dimension, instancesAlreadySaved);</span>
+<span class="fc" id="L210">                } else {</span>
+<span class="nc" id="L211">                    this.saveResizedImage(bean, dimension);</span>
+                }
+<span class="fc" id="L213">            }</span>
+<span class="nc" id="L214">        } catch (Throwable t) {</span>
+<span class="nc" id="L215">            logger.error(&quot;Error saving resized image resource instances&quot;, t);</span>
+<span class="nc" id="L216">            throw new EntException(&quot;Error saving resized image resource instances&quot;, t);</span>
+<span class="fc" id="L217">        }</span>
+<span class="fc" id="L218">    }</span>
+
+    /**
+     * Resize images using im4Java
+     */
+    private void saveResizedImage(ResourceDataBean bean, ImageResourceDimension dimension) throws EntException {
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (dimension.getIdDim() == 0) {</span>
+            // skips element with id zero that shouldn't be resized
+<span class="nc" id="L226">            return;</span>
+        }
+<span class="nc" id="L228">        String imageName = this.getNewInstanceFileName(bean.getFileName(), dimension.getIdDim(), null);</span>
+<span class="nc" id="L229">        String subPath = super.getDiskSubFolder() + imageName;</span>
+        try {
+<span class="nc" id="L231">            this.getStorageManager().deleteFile(subPath, this.isProtectedResource());</span>
+<span class="nc" id="L232">            ResourceInstance resizedInstance = new ResourceInstance();</span>
+<span class="nc" id="L233">            resizedInstance.setSize(dimension.getIdDim());</span>
+<span class="nc" id="L234">            resizedInstance.setFileName(imageName);</span>
+<span class="nc" id="L235">            resizedInstance.setMimeType(bean.getMimeType());</span>
+<span class="nc" id="L236">            String tempFilePath = System.getProperty(&quot;java.io.tmpdir&quot;) + File.separator + &quot;temp_&quot; + imageName;</span>
+<span class="nc" id="L237">            File tempFile = new File(tempFilePath);</span>
+<span class="nc" id="L238">            long realLength = tempFile.length() / 1000;</span>
+<span class="nc" id="L239">            resizedInstance.setFileLength(realLength + &quot; Kb&quot;);</span>
+<span class="nc" id="L240">            this.addInstance(resizedInstance);</span>
+            // create command
+<span class="nc" id="L242">            ConvertCmd convertCmd = new ConvertCmd();</span>
+            //Is it a windows system?
+<span class="nc bnc" id="L244" title="All 2 branches missed.">            if (this.isImageMagickWindows()) {</span>
+                //yes so configure the path where ImagicMagick is installed
+<span class="nc" id="L246">                convertCmd.setSearchPath(this.getImageMagickPath());</span>
+            }
+
+            //svg files won't resize correctly via the image processor so save them directly
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if(bean.getMimeType().contains(&quot;svg&quot;)) {</span>
+<span class="nc" id="L251">                FileUtils.copyFile(bean.getFile(), tempFile);</span>
+<span class="nc" id="L252">                this.getStorageManager().saveFile(subPath, this.isProtectedResource(), new FileInputStream(tempFile));</span>
+            }else {
+                // create the operation, add images and operators/options
+<span class="nc" id="L255">                IMOperation imOper = new IMOperation();</span>
+<span class="nc" id="L256">                imOper.addImage();</span>
+<span class="nc" id="L257">                imOper.resize(dimension.getDimx(), dimension.getDimy());</span>
+<span class="nc" id="L258">                imOper.addImage();</span>
+<span class="nc" id="L259">                convertCmd.run(imOper, bean.getFile().getAbsolutePath(), tempFile.getAbsolutePath());</span>
+<span class="nc" id="L260">                this.getStorageManager().saveFile(subPath, this.isProtectedResource(), new FileInputStream(tempFile));</span>
+            }
+
+<span class="nc" id="L263">            boolean deleted = tempFile.delete();</span>
+
+<span class="nc bnc" id="L265" title="All 2 branches missed.">            if (!deleted) {</span>
+<span class="nc" id="L266">                logger.warn(FAILED_TO_DELETE_TEMP_FILE, tempFile);</span>
+            }
+<span class="nc" id="L268">        } catch (Throwable t) {</span>
+<span class="nc" id="L269">            logger.error(&quot;Error creating resource file instance '{}'&quot;, subPath, t);</span>
+<span class="nc" id="L270">            throw new EntException(&quot;Error creating resource file instance '&quot; + subPath + &quot;'&quot;, t);</span>
+<span class="nc" id="L271">        }</span>
+<span class="nc" id="L272">    }</span>
+
+    private void saveResizedImage(ResourceDataBean bean,
+            ImageIcon imageIcon, ImageResourceDimension dimension, boolean instancesAlreadySaved) throws EntException {
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">        if (dimension.getIdDim() == 0) {</span>
+            // skips element with id zero that shouldn't be resized
+<span class="nc" id="L278">            return;</span>
+        }
+
+
+<span class="fc" id="L282">        String imageName = getNewInstanceFileName(bean.getFileName(), dimension.getIdDim(), null, instancesAlreadySaved);</span>
+<span class="fc" id="L283">        String subPath = super.getDiskSubFolder() + imageName;</span>
+
+        try {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">            if(bean.getMimeType().contains(&quot;svg&quot;)) {</span>
+<span class="fc" id="L287">                long realLength = bean.getFile().length() / 1000;</span>
+<span class="fc" id="L288">                ResourceInstance resizedInstance = new ResourceInstance();</span>
+<span class="fc" id="L289">                resizedInstance.setSize(dimension.getIdDim());</span>
+<span class="fc" id="L290">                resizedInstance.setFileLength(String.valueOf(realLength) + &quot; Kb&quot;);</span>
+<span class="fc" id="L291">                resizedInstance.setMimeType(bean.getMimeType());</span>
+<span class="fc" id="L292">                resizedInstance.setFileName(subPath.substring(subPath.lastIndexOf(&quot;/&quot;) + 1));</span>
+<span class="fc" id="L293">                this.getStorageManager().saveFile(subPath, this.isProtectedResource(), new FileInputStream(bean.getFile()));</span>
+<span class="fc" id="L294">                this.addInstance(resizedInstance);</span>
+<span class="fc" id="L295">            }else {</span>
+<span class="fc" id="L296">                this.getStorageManager().deleteFile(subPath, this.isProtectedResource());</span>
+<span class="fc" id="L297">                IImageResizer resizer = this.getImageResizer(subPath);</span>
+<span class="fc" id="L298">                ResourceInstance resizedInstance</span>
+<span class="fc" id="L299">                        = resizer.saveResizedImage(subPath, this.isProtectedResource(), imageIcon, dimension);</span>
+<span class="fc" id="L300">                this.addInstance(resizedInstance);</span>
+            }
+<span class="nc" id="L302">        } catch (Throwable t) {</span>
+<span class="nc" id="L303">            logger.error(&quot;Error creating resource file instance '{}'&quot;, subPath, t);</span>
+<span class="nc" id="L304">            throw new EntException(&quot;Error creating resource file instance '&quot; + subPath + &quot;'&quot;, t);</span>
+<span class="fc" id="L305">        }</span>
+<span class="fc" id="L306">    }</span>
+
+    private IImageResizer getImageResizer(String filePath) {
+<span class="fc" id="L309">        String extension = FilenameUtils.getExtension(filePath);</span>
+<span class="fc" id="L310">        String resizerClassName = imageResizerClasses.get(extension);</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        if (resizerClassName == null) {</span>
+<span class="fc" id="L312">            resizerClassName = imageResizerClasses.get(&quot;DEFAULT_RESIZER&quot;);</span>
+        }
+        try {
+<span class="fc" id="L315">            Class resizerClass = Class.forName(resizerClassName);</span>
+<span class="fc" id="L316">            IImageResizer resizer = (IImageResizer) resizerClass.newInstance();</span>
+<span class="fc" id="L317">            resizer.setStorageManager(this.getStorageManager());</span>
+<span class="fc" id="L318">            return resizer;</span>
+<span class="nc" id="L319">        } catch (Throwable t) {</span>
+<span class="nc" id="L320">            throw new RuntimeException(&quot;Errore in creazione resizer da classe '&quot;</span>
+                    + resizerClassName + &quot;' per immagine tipo '&quot; + extension + &quot;'&quot;, t);
+        }
+    }
+
+    protected IImageDimensionReader getImageDimensionReader() {
+<span class="fc" id="L326">        return imageDimensionReader;</span>
+    }
+
+    public void setImageDimensionReader(IImageDimensionReader imageDimensionReader) {
+<span class="fc" id="L330">        this.imageDimensionReader = imageDimensionReader;</span>
+<span class="fc" id="L331">    }</span>
+
+    protected Map&lt;String, String&gt; getImageResizerClasses() {
+<span class="nc" id="L334">        return imageResizerClasses;</span>
+    }
+
+    public void setImageResizerClasses(Map&lt;String, String&gt; imageResizerClasses) {
+<span class="fc" id="L338">        this.imageResizerClasses = imageResizerClasses;</span>
+<span class="fc" id="L339">    }</span>
+
+    public void setImageMagickEnabled(boolean imageMagickEnabled) {
+<span class="fc" id="L342">        this.imageMagickEnabled = imageMagickEnabled;</span>
+<span class="fc" id="L343">    }</span>
+
+    protected boolean isImageMagickEnabled() {
+<span class="fc" id="L346">        return imageMagickEnabled;</span>
+    }
+
+    public void setImageMagickWindows(boolean imageMagickWindows) {
+<span class="fc" id="L350">        this.imageMagickWindows = imageMagickWindows;</span>
+<span class="fc" id="L351">    }</span>
+
+    protected boolean isImageMagickWindows() {
+<span class="nc" id="L354">        return imageMagickWindows;</span>
+    }
+
+    public void setImageMagickPath(String imageMagickPath) {
+<span class="fc" id="L358">        this.imageMagickPath = imageMagickPath;</span>
+<span class="fc" id="L359">    }</span>
+
+    protected String getImageMagickPath() {
+<span class="nc" id="L362">        return imageMagickPath;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

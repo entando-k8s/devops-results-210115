@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentPageValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.portal.helper</a> &gt; <span class="el_source">ContentPageValidator.java</span></div><h1>ContentPageValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.portal.helper;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.PageUtilizer;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.apsadmin.portal.helper.IExternalPageValidator;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.opensymphony.xwork2.ActionSupport;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.plugins.jacms.aps.util.CmsPageUtil;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+/**
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L45">public class ContentPageValidator implements IExternalPageValidator, ApplicationContextAware {</span>
+
+<span class="fc" id="L47">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentPageValidator.class);</span>
+
+    private IContentManager contentManager;
+    private ApplicationContext applicationContext;
+
+    @Override
+    public void checkPageGroup(IPage page, boolean draftPageHepler, BaseAction action) {
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L55">            return;</span>
+        }
+<span class="fc" id="L57">        Set&lt;String&gt; pageGroups = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L58">        pageGroups.add(page.getGroup());</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (null != page.getExtraGroups()) {</span>
+<span class="fc" id="L60">            pageGroups.addAll(page.getExtraGroups());</span>
+        }
+        try {
+<span class="fc" id="L63">            this.checkReferencingContents(page, pageGroups, action);</span>
+<span class="fc" id="L64">            this.checkPublishedContents(page, pageGroups, action);</span>
+<span class="nc" id="L65">        } catch (Exception e) {</span>
+<span class="nc" id="L66">            logger.error(&quot;Error checking page {}&quot;, page.getCode(), e);</span>
+<span class="nc" id="L67">            throw new RuntimeException(&quot;Error checking page &quot; + page.getCode(), e);</span>
+<span class="fc" id="L68">        }</span>
+<span class="fc" id="L69">    }</span>
+
+    private void checkReferencingContents(IPage page, Set&lt;String&gt; pageGroups, BaseAction action) throws EntException {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (pageGroups.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="fc" id="L73">            return;</span>
+        }
+<span class="fc" id="L75">        List&lt;String&gt; referencingContent = ((PageUtilizer) this.getContentManager()).getPageUtilizers(page.getCode());</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if (null != referencingContent) {</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">            for (String contentId : referencingContent) {</span>
+<span class="nc" id="L78">                Content content = this.getContentManager().loadContent(contentId, true);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                if (null == content) {</span>
+<span class="nc" id="L80">                    continue;</span>
+                }
+<span class="nc" id="L82">                Set&lt;String&gt; contentGroups = this.getContentGroups(content);</span>
+                /*
+                containsAll(Collection&lt;?&gt; coll1, Collection&lt;?&gt; coll2)
+                Returns true iff all elements of coll2 are also contained in coll1.
+                 */
+<span class="nc" id="L87">                boolean check = CollectionUtils.containsAll(pageGroups, contentGroups);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">                if (!check) {</span>
+<span class="nc" id="L89">                    action.addFieldError(&quot;extraGroups&quot;, action.getText(&quot;error.page.contentRef.incompatibleGroups&quot;, new String[]{contentId, content.getDescription(), contentGroups.toString()}));</span>
+                }
+<span class="nc" id="L91">            }</span>
+        }
+<span class="fc" id="L93">    }</span>
+
+    private void checkPublishedContents(IPage page, Set&lt;String&gt; pageGroups, BaseAction action) throws EntException {
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (pageGroups.contains(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L97">            return;</span>
+        }
+<span class="fc" id="L99">        Collection&lt;Content&gt; contents = CmsPageUtil.getPublishedContents(page.getCode(), true, this.getApplicationContext());</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if (null == contents) {</span>
+<span class="nc" id="L101">            return;</span>
+        }
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        for (Content content : contents) {</span>
+<span class="fc" id="L104">            this.checkPublishedContent(content, pageGroups, action);</span>
+<span class="fc" id="L105">        }</span>
+<span class="fc" id="L106">    }</span>
+
+    private void checkPublishedContent(Content content, Set&lt;String&gt; pageGroups, BaseAction action) throws EntException {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (null == content) {</span>
+<span class="nc" id="L110">            return;</span>
+        }
+<span class="fc" id="L112">        Set&lt;String&gt; contentGroups = this.getContentGroups(content);</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if (contentGroups.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L114">            return;</span>
+        }
+        /*
+        containsAll(Collection&lt;?&gt; coll1, Collection&lt;?&gt; coll2)
+        Returns true iff all elements of coll2 are also contained in coll1.
+         */
+<span class="fc" id="L120">        boolean check = CollectionUtils.containsAll(contentGroups, pageGroups);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (!check) {</span>
+<span class="fc" id="L122">            action.addFieldError(&quot;extraGroups&quot;, action.getText(&quot;error.page.publishedContents.incompatibleGroups&quot;, new String[]{content.getId(), content.getDescription(), contentGroups.toString()}));</span>
+        }
+<span class="fc" id="L124">    }</span>
+
+    private Set&lt;String&gt; getContentGroups(Content content) {
+<span class="fc" id="L127">        Set&lt;String&gt; contentGroups = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L128">        contentGroups.add(content.getMainGroup());</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        if (null != content.getGroups()) {</span>
+<span class="fc" id="L130">            contentGroups.addAll(content.getGroups());</span>
+        }
+<span class="fc" id="L132">        return contentGroups;</span>
+    }
+
+    @Override
+    public boolean checkForSetOnline(IPage page, BaseAction action) {
+        try {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            for (Widget widget : page.getWidgets()) {</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">                if (null != widget) {</span>
+<span class="fc" id="L140">                    ApsProperties config = widget.getConfig();</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">                    String contentId = (null != config) ? config.getProperty(&quot;contentId&quot;) : null;</span>
+<span class="fc" id="L142">                    this.checkContent(action, contentId);</span>
+                }
+            }
+<span class="nc" id="L145">        } catch (EntException e) {</span>
+<span class="nc" id="L146">            logger.error(&quot;error checking draft page - content references&quot;, e);</span>
+<span class="nc" id="L147">            return false;</span>
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">        return true;</span>
+    }
+
+    protected void checkContent(ActionSupport action, String contentId) throws EntException {
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(contentId)) {</span>
+<span class="fc" id="L154">            Content content = this.getContentManager().loadContent(contentId, true);</span>
+<span class="pc bpc" id="L155" title="3 of 4 branches missed.">            if (null == content || !content.isOnLine()) {</span>
+<span class="fc" id="L156">                List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">                args.add(null == content ? contentId : content.getDescription());</span>
+<span class="fc" id="L158">                action.addFieldError(&quot;extraGroups&quot;, action.getText(&quot;error.page.setOnlineContent.ref.offline&quot;, args));</span>
+            }
+        }
+<span class="fc" id="L161">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L164">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L168">        this.contentManager = contentManager;</span>
+<span class="fc" id="L169">    }</span>
+
+    protected ApplicationContext getApplicationContext() {
+<span class="fc" id="L172">        return applicationContext;</span>
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+<span class="fc" id="L177">        this.applicationContext = applicationContext;</span>
+<span class="fc" id="L178">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
