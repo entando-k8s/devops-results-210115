@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeycloakFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">entando-keycloak-auth</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.keycloak.filter</a> &gt; <span class="el_source">KeycloakFilter.java</span></div><h1>KeycloakFilter.java</h1><pre class="source lang-java linenums">package org.entando.entando.keycloak.filter;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.user.IAuthenticationProviderManager;
+import com.agiletec.aps.system.services.user.IUserManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.KeycloakWiki;
+import org.entando.entando.aps.servlet.security.GuestAuthentication;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.keycloak.services.KeycloakAuthorizationManager;
+import org.entando.entando.keycloak.services.KeycloakConfiguration;
+import org.entando.entando.keycloak.services.KeycloakJson;
+import org.entando.entando.keycloak.services.oidc.OpenIDConnectService;
+import org.entando.entando.keycloak.services.oidc.model.AccessToken;
+import org.entando.entando.keycloak.services.oidc.model.AuthResponse;
+import org.entando.entando.web.common.exceptions.EntandoTokenException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.client.HttpClientErrorException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.util.UUID;
+
+import static org.entando.entando.KeycloakWiki.wiki;
+
+import org.entando.entando.ent.exception.EntException;
+
+public class KeycloakFilter implements Filter {
+
+    private final KeycloakConfiguration configuration;
+    private final OpenIDConnectService oidcService;
+    private final IAuthenticationProviderManager providerManager;
+    private final KeycloakAuthorizationManager keycloakGroupManager;
+    private final IUserManager userManager;
+    private final ObjectMapper objectMapper;
+    private final KeycloakJson keycloakJson;
+
+    public static final String SESSION_PARAM_STATE = &quot;keycloak-plugin-state&quot;;
+    public static final String SESSION_PARAM_REDIRECT = &quot;keycloak-plugin-redirectTo&quot;;
+    public static final String SESSION_PARAM_ACCESS_TOKEN = &quot;keycloak-plugin-access-token&quot;;
+    public static final String SESSION_PARAM_REFRESH_TOKEN = &quot;keycloak-plugin-refresh-token&quot;;
+
+<span class="nc" id="L57">    private static final Logger log = LoggerFactory.getLogger(KeycloakFilter.class);</span>
+
+    public KeycloakFilter(final KeycloakConfiguration configuration,
+                          final OpenIDConnectService oidcService,
+                          final IAuthenticationProviderManager providerManager,
+                          final KeycloakAuthorizationManager keycloakGroupManager,
+<span class="nc" id="L63">                          final IUserManager userManager) {</span>
+<span class="nc" id="L64">        this.configuration = configuration;</span>
+<span class="nc" id="L65">        this.oidcService = oidcService;</span>
+<span class="nc" id="L66">        this.providerManager = providerManager;</span>
+<span class="nc" id="L67">        this.keycloakGroupManager = keycloakGroupManager;</span>
+<span class="nc" id="L68">        this.userManager = userManager;</span>
+<span class="nc" id="L69">        this.objectMapper = new ObjectMapper();</span>
+<span class="nc" id="L70">        this.keycloakJson = new KeycloakJson(configuration);</span>
+<span class="nc" id="L71">    }</span>
+
+    @Override
+    public void doFilter(final ServletRequest servletRequest,
+                         final ServletResponse servletResponse,
+                         final FilterChain chain) throws IOException, ServletException {
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if (!configuration.isEnabled()) {</span>
+<span class="nc" id="L78">            chain.doFilter(servletRequest, servletResponse);</span>
+<span class="nc" id="L79">            return;</span>
+        }
+
+<span class="nc" id="L82">        final HttpServletRequest request = (HttpServletRequest) servletRequest;</span>
+<span class="nc" id="L83">        final HttpServletResponse response = (HttpServletResponse) servletResponse;</span>
+<span class="nc" id="L84">        final HttpSession session = request.getSession();</span>
+<span class="nc" id="L85">        final String accessToken = (String) session.getAttribute(SESSION_PARAM_ACCESS_TOKEN);</span>
+
+<span class="nc bnc" id="L87" title="All 6 branches missed.">        if (accessToken != null &amp;&amp; !isAccessTokenValid(accessToken) &amp;&amp; !refreshToken(request)) {</span>
+<span class="nc" id="L88">            invalidateSession(request);</span>
+        }
+
+<span class="nc bnc" id="L91" title="All 4 branches missed.">        switch (request.getServletPath()) {</span>
+            case &quot;/do/login&quot;:
+            case &quot;/do/login.action&quot;:
+<span class="nc" id="L94">                doLogin(request, response, chain);</span>
+<span class="nc" id="L95">                break;</span>
+            case &quot;/do/logout&quot;:
+            case &quot;/do/logout.action&quot;:
+<span class="nc" id="L98">                doLogout(request, response);</span>
+<span class="nc" id="L99">                break;</span>
+            case &quot;/keycloak.json&quot;:
+<span class="nc" id="L101">                returnKeycloakJson(response);</span>
+<span class="nc" id="L102">                break;</span>
+            default:
+<span class="nc" id="L104">                chain.doFilter(request, response);</span>
+        }
+<span class="nc" id="L106">    }</span>
+
+    private void returnKeycloakJson(final HttpServletResponse response) throws IOException {
+<span class="nc" id="L109">        response.setHeader(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="nc" id="L110">        objectMapper.writeValue(response.getOutputStream(), keycloakJson);</span>
+<span class="nc" id="L111">    }</span>
+
+    private boolean isAccessTokenValid(final String accessToken) {
+<span class="nc" id="L114">        final ResponseEntity&lt;AccessToken&gt; tokenResponse = oidcService.validateToken(accessToken);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        return HttpStatus.OK.equals(tokenResponse.getStatusCode())</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                &amp;&amp; tokenResponse.getBody() != null</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                &amp;&amp; tokenResponse.getBody().isActive();</span>
+    }
+
+    private boolean refreshToken(final HttpServletRequest request) {
+<span class="nc" id="L121">        final HttpSession session = request.getSession();</span>
+<span class="nc" id="L122">        final String refreshToken = (String) session.getAttribute(SESSION_PARAM_REFRESH_TOKEN);</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        if (refreshToken != null) {</span>
+            try {
+<span class="nc" id="L126">                final ResponseEntity&lt;AuthResponse&gt; refreshResponse = oidcService.refreshToken(refreshToken);</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">                if (HttpStatus.OK.equals(refreshResponse.getStatusCode()) &amp;&amp; refreshResponse.getBody() != null) {</span>
+<span class="nc" id="L128">                    session.setAttribute(SESSION_PARAM_ACCESS_TOKEN, refreshResponse.getBody().getAccessToken());</span>
+<span class="nc" id="L129">                    session.setAttribute(SESSION_PARAM_REFRESH_TOKEN, refreshResponse.getBody().getRefreshToken());</span>
+<span class="nc" id="L130">                    return true;</span>
+                }
+<span class="nc" id="L132">            } catch (HttpClientErrorException e) {</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                if (!HttpStatus.BAD_REQUEST.equals(e.getStatusCode())</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">                        || e.getResponseBodyAsString() == null</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                        || !e.getResponseBodyAsString().contains(&quot;invalid_grant&quot;)) {</span>
+<span class="nc" id="L136">                    log.error(&quot;Something unexpected returned while trying to refresh token, the response was [{}] {}&quot;,</span>
+<span class="nc" id="L137">                            e.getStatusCode().toString(),</span>
+<span class="nc" id="L138">                            e.getResponseBodyAsString());</span>
+                }
+<span class="nc" id="L140">            }</span>
+        }
+
+<span class="nc" id="L143">        return false;</span>
+    }
+
+    private void invalidateSession(final HttpServletRequest request) {
+<span class="nc" id="L147">        final UserDetails guestUser = userManager.getGuestUser();</span>
+<span class="nc" id="L148">        final GuestAuthentication guestAuthentication = new GuestAuthentication(guestUser);</span>
+<span class="nc" id="L149">        SecurityContextHolder.getContext().setAuthentication(guestAuthentication);</span>
+<span class="nc" id="L150">        saveUserOnSession(request, guestUser);</span>
+<span class="nc" id="L151">        request.getSession().setAttribute(SESSION_PARAM_ACCESS_TOKEN, null);</span>
+<span class="nc" id="L152">    }</span>
+
+    private void doLogout(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+<span class="nc" id="L155">        final HttpSession session = request.getSession();</span>
+<span class="nc" id="L156">        final String redirectUri = request.getRequestURL().toString().replace(&quot;/do/logout.action&quot;, &quot;&quot;);</span>
+<span class="nc" id="L157">        session.invalidate();</span>
+<span class="nc" id="L158">        response.sendRedirect(oidcService.getLogoutUrl(redirectUri));</span>
+<span class="nc" id="L159">    }</span>
+
+    private void doLogin(final HttpServletRequest request, final HttpServletResponse response, final FilterChain chain) throws IOException, ServletException {
+<span class="nc" id="L162">        final HttpSession session = request.getSession();</span>
+<span class="nc" id="L163">        final String authorizationCode = request.getParameter(&quot;code&quot;);</span>
+<span class="nc" id="L164">        final String stateParameter = request.getParameter(&quot;state&quot;);</span>
+<span class="nc" id="L165">        final String redirectUri = request.getRequestURL().toString();</span>
+<span class="nc" id="L166">        final String redirectTo = request.getParameter(&quot;redirectTo&quot;);</span>
+<span class="nc" id="L167">        final String error = request.getParameter(&quot;error&quot;);</span>
+<span class="nc" id="L168">        final String errorDescription = request.getParameter(&quot;error_description&quot;);</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (StringUtils.isNotEmpty(error)) {</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (&quot;unsupported_response_type&quot;.equals(error)) {</span>
+<span class="nc" id="L172">                log.error(&quot;{}. For more details, refer to the wiki {}&quot;,</span>
+                        errorDescription,
+<span class="nc" id="L174">                        wiki(KeycloakWiki.EN_APP_STANDARD_FLOW_DISABLED));</span>
+            }
+<span class="nc" id="L176">            throw new EntandoTokenException(errorDescription, request, &quot;guest&quot;);</span>
+        }
+
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (authorizationCode != null) {</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if (stateParameter == null) {</span>
+<span class="nc" id="L181">                log.warn(&quot;State parameter not provided&quot;);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            } else if (!stateParameter.equals(session.getAttribute(SESSION_PARAM_STATE))) {</span>
+<span class="nc" id="L183">                log.warn(&quot;State parameter '{}' is different than generated '{}'&quot;, stateParameter, session.getAttribute(SESSION_PARAM_STATE));</span>
+            }
+
+            try {
+<span class="nc" id="L187">                final ResponseEntity&lt;AuthResponse&gt; responseEntity = oidcService.requestToken(authorizationCode, redirectUri);</span>
+<span class="nc bnc" id="L188" title="All 4 branches missed.">                if (!HttpStatus.OK.equals(responseEntity.getStatusCode()) || responseEntity.getBody() == null) {</span>
+<span class="nc" id="L189">                    throw new EntandoTokenException(&quot;invalid or expired token&quot;, request, &quot;guest&quot;);</span>
+                }
+
+<span class="nc" id="L192">                final ResponseEntity&lt;AccessToken&gt; tokenResponse = oidcService.validateToken(responseEntity.getBody().getAccessToken());</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                if (!HttpStatus.OK.equals(tokenResponse.getStatusCode())</span>
+<span class="nc bnc" id="L194" title="All 4 branches missed.">                        || tokenResponse.getBody() == null || !tokenResponse.getBody().isActive()) {</span>
+<span class="nc" id="L195">                    throw new EntandoTokenException(&quot;invalid or expired token&quot;, request, &quot;guest&quot;);</span>
+                }
+<span class="nc" id="L197">                final UserDetails user = providerManager.getUser(tokenResponse.getBody().getUsername());</span>
+<span class="nc" id="L198">                session.setAttribute(SESSION_PARAM_ACCESS_TOKEN, responseEntity.getBody().getAccessToken());</span>
+<span class="nc" id="L199">                session.setAttribute(SESSION_PARAM_REFRESH_TOKEN, responseEntity.getBody().getRefreshToken());</span>
+
+<span class="nc" id="L201">                keycloakGroupManager.processNewUser(user);</span>
+<span class="nc" id="L202">                saveUserOnSession(request, user);</span>
+<span class="nc" id="L203">                log.info(&quot;Sucessfuly authenticated user {}&quot;, user.getUsername());</span>
+<span class="nc" id="L204">            } catch (HttpClientErrorException e) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                if (HttpStatus.FORBIDDEN.equals(e.getStatusCode())) {</span>
+<span class="nc" id="L206">                    throw new RestServerError(&quot;Unable to validate token because the Client in keycloak is configured as public. &quot; +</span>
+                            &quot;Please change the client on keycloak to confidential. &quot; +
+<span class="nc" id="L208">                            &quot;For more details, refer to the wiki &quot; + wiki(KeycloakWiki.EN_APP_CLIENT_PUBLIC), e);</span>
+                }
+<span class="nc bnc" id="L210" title="All 2 branches missed.">                if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode())) {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                    if (isInvalidCredentials(e)) {</span>
+<span class="nc" id="L212">                        throw new RestServerError(&quot;Unable to validate token because the Client credentials are invalid. &quot; +</span>
+                                &quot;Please make sure the credentials from keycloak is correctly set in the params or environment variable.&quot; +
+<span class="nc" id="L214">                                &quot;For more details, refer to the wiki &quot; + wiki(KeycloakWiki.EN_APP_CLIENT_CREDENTIALS), e);</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                    } else if (isInvalidCode(e)) {</span>
+<span class="nc" id="L216">                        redirect(request, response, session);</span>
+<span class="nc" id="L217">                        return;</span>
+                    }
+                }
+<span class="nc" id="L220">                throw new RestServerError(&quot;Unable to validate token&quot;, e);</span>
+<span class="nc" id="L221">            } catch (EntException e) {</span>
+<span class="nc" id="L222">                throw new RestServerError(&quot;Unable to find user&quot;, e);</span>
+<span class="nc" id="L223">            }</span>
+
+<span class="nc" id="L225">            redirect(request, response, session);</span>
+<span class="nc" id="L226">            return;</span>
+        } else {
+<span class="nc" id="L228">            final String path = request.getRequestURL().toString().replace(request.getServletPath(), &quot;&quot;);</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (redirectTo != null){</span>
+<span class="nc" id="L230">                final String redirect = redirectTo.replace(path, &quot;&quot;);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                if (!redirect.startsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L232">                    throw new EntandoTokenException(&quot;Invalid redirect&quot;, request, &quot;guest&quot;);</span>
+                }
+<span class="nc" id="L234">                session.setAttribute(SESSION_PARAM_REDIRECT, redirect);</span>
+            }
+        }
+
+<span class="nc" id="L238">        final Object user = session.getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+
+<span class="nc bnc" id="L240" title="All 4 branches missed.">        if (user != null &amp;&amp; !((UserDetails)user).getUsername().equals(&quot;guest&quot;)) {</span>
+<span class="nc" id="L241">            chain.doFilter(request, response);</span>
+        } else {
+<span class="nc" id="L243">            final String state = UUID.randomUUID().toString();</span>
+<span class="nc" id="L244">            final String redirect = oidcService.getRedirectUrl(redirectUri, state);</span>
+
+<span class="nc" id="L246">            session.setAttribute(SESSION_PARAM_STATE, state);</span>
+<span class="nc" id="L247">            response.sendRedirect(redirect);</span>
+        }
+<span class="nc" id="L249">    }</span>
+
+    private void saveUserOnSession(final HttpServletRequest request, final UserDetails user) {
+<span class="nc" id="L252">        request.getSession().setAttribute(&quot;user&quot;, user);</span>
+<span class="nc" id="L253">        request.getSession().setAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER, user);</span>
+<span class="nc" id="L254">    }</span>
+
+    private void redirect(final HttpServletRequest request, final HttpServletResponse response, final HttpSession session) throws IOException {
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        final String redirectPath = session.getAttribute(SESSION_PARAM_REDIRECT) != null</span>
+<span class="nc" id="L258">                ? session.getAttribute(SESSION_PARAM_REDIRECT).toString()</span>
+<span class="nc" id="L259">                : &quot;/do/main&quot;;</span>
+<span class="nc" id="L260">        log.info(&quot;Redirecting user to {}&quot;, (request.getContextPath() + redirectPath));</span>
+<span class="nc" id="L261">        session.setAttribute(SESSION_PARAM_REDIRECT, null);</span>
+<span class="nc" id="L262">        response.sendRedirect(request.getContextPath() + redirectPath);</span>
+<span class="nc" id="L263">    }</span>
+
+    private boolean isInvalidCredentials(final HttpClientErrorException exception) {
+<span class="nc" id="L266">        return StringUtils.contains(exception.getResponseBodyAsString(), &quot;unauthorized_client&quot;);</span>
+    }
+
+    private boolean isInvalidCode(final HttpClientErrorException exception) {
+<span class="nc" id="L270">        return StringUtils.contains(exception.getResponseBodyAsString(), &quot;invalid_grant&quot;);</span>
+    }
+
+<span class="nc" id="L273">    @Override public void init(final FilterConfig filterConfig) {}</span>
+<span class="nc" id="L274">    @Override public void destroy() {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
