@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PreviewControllerServlet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Portal UI</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.servlet</a> &gt; <span class="el_source">PreviewControllerServlet.java</span></div><h1>PreviewControllerServlet.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.servlet;
+
+import java.io.IOException;
+import java.util.List;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.services.controller.ControllerManager;
+import com.agiletec.aps.system.services.controller.control.ControlServiceInterface;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+/**
+ * Controller Servlet for pages preview. It's the entry point for the preview of
+ * the draft version of a page. Check the request, verify the authorization,
+ * generate the page and dispose the response.
+ * 
+ * @author E.Mezzano
+ */
+<span class="nc" id="L38">public class PreviewControllerServlet extends ControllerServlet {</span>
+
+<span class="nc" id="L40">	private static final Logger _logger = LoggerFactory.getLogger(PreviewControllerServlet.class);</span>
+
+	@Override
+	protected void service(HttpServletRequest request, HttpServletResponse response) 
+			throws ServletException, IOException {
+<span class="nc" id="L45">		request.setCharacterEncoding(&quot;UTF-8&quot;);</span>
+<span class="nc" id="L46">		RequestContext reqCtx = this.initRequestContext(request, response);</span>
+<span class="nc" id="L47">		int status = this.controlRequest(request, reqCtx);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">		if (status == ControllerManager.OUTPUT) {</span>
+<span class="nc" id="L49">			_logger.debug(&quot;Output&quot;);</span>
+			try {
+<span class="nc" id="L51">				this.initFreemarker(request, response, reqCtx);</span>
+<span class="nc" id="L52">				this.executePage(request, reqCtx);</span>
+<span class="nc" id="L53">			} catch (Throwable t) {</span>
+<span class="nc" id="L54">				_logger.error(&quot;Error building response&quot;, t);</span>
+<span class="nc" id="L55">				throw new ServletException(&quot;Error building response&quot;, t);</span>
+<span class="nc" id="L56">			}</span>
+		} else {
+//			if (status == ControllerManager.REDIRECT) {
+//				_logger.debug(&quot;Redirection&quot;);
+//				this.redirect(reqCtx, response);
+//			} else if (status == ControllerManager.ERROR) {
+//				_logger.debug(&quot;Error&quot;);
+//				this.outputError(reqCtx, response);
+//			} else {
+<span class="nc" id="L65">				_logger.error(&quot;Error: final status = {} - request: {} - path: {}&quot;,</span>
+<span class="nc" id="L66">						ControllerManager.getStatusDescription(status),</span>
+<span class="nc" id="L67">						request.getServletPath(), request.getPathInfo());</span>
+<span class="nc" id="L68">				throw new ServletException(&quot;Service not available&quot;);</span>
+//			}
+		}
+<span class="nc" id="L71">		return;</span>
+	}
+
+	@Override
+	protected int controlRequest(HttpServletRequest request, RequestContext reqCtx) {
+<span class="nc" id="L76">		int status = ControllerManager.INVALID_STATUS;</span>
+<span class="nc" id="L77">		List&lt;ControlServiceInterface&gt; services = (List&lt;ControlServiceInterface&gt;) ApsWebApplicationUtils.getBean(&quot;PreviewControllerServices&quot;, request);</span>
+		try {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			for (ControlServiceInterface service : services) {</span>
+<span class="nc" id="L80">				status = service.service(reqCtx, status);</span>
+<span class="nc bnc" id="L81" title="All 6 branches missed.">				if (status == ControllerManager.OUTPUT</span>
+						|| status == ControllerManager.REDIRECT
+						|| status == ControllerManager.SYS_ERROR) {
+<span class="nc" id="L84">					break;</span>
+				}
+<span class="nc" id="L86">			}</span>
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			_logger.error(&quot;generic error&quot;, t);</span>
+			// ApsSystemUtils.logThrowable(t, this, &quot;service&quot;);
+<span class="nc" id="L90">			status = ControllerManager.SYS_ERROR;</span>
+<span class="nc" id="L91">		}</span>
+<span class="nc" id="L92">		return status;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
