@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserProfileAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.user</a> &gt; <span class="el_source">UserProfileAction.java</span></div><h1>UserProfileAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.user;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+
+import com.agiletec.aps.system.services.user.AbstractUser;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.apsadmin.system.entity.AbstractApsEntityAction;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L36">public class UserProfileAction extends AbstractApsEntityAction {</span>
+
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(UserProfileAction.class);</span>
+	
+	@Override
+    public String edit() {
+<span class="fc" id="L42">        String username = this.getUsername();</span>
+        try {
+<span class="fc" id="L44">            String checkUsernameResult = this.checkUsername(username, false);</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if (null != checkUsernameResult) return checkUsernameResult;</span>
+<span class="fc" id="L46">            IUserProfile userProfile = (IUserProfile) this.getUserProfileManager().getProfile(username);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            if (null == userProfile) {</span>
+<span class="fc" id="L48">                List&lt;IApsEntity&gt; userProfileTypes = new ArrayList&lt;IApsEntity&gt;();</span>
+<span class="fc" id="L49">                userProfileTypes.addAll(this.getUserProfileManager().getEntityPrototypes().values());</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                if (userProfileTypes.isEmpty()) {</span>
+<span class="nc" id="L51">                    throw new RuntimeException(&quot;Unexpected error - no one user profile types&quot;);</span>
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">                } else if (userProfileTypes.size() == 1) {</span>
+<span class="nc" id="L53">                    userProfile = (IUserProfile) userProfileTypes.get(0);</span>
+<span class="nc" id="L54">                    userProfile.setId(username);</span>
+                } else {
+<span class="fc" id="L56">                    return &quot;chooseType&quot;;</span>
+                }
+            }
+<span class="fc" id="L59">            this.getRequest().getSession().setAttribute(USERPROFILE_ON_SESSION, userProfile);</span>
+<span class="nc" id="L60">        } catch (Throwable t) {</span>
+<span class="nc" id="L61">        	_logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L62">            return FAILURE;</span>
+<span class="fc" id="L63">        }</span>
+<span class="fc" id="L64">        return SUCCESS;</span>
+    }
+	
+	public String saveEmpty() {
+<span class="fc" id="L68">		return this.createNewProfile(true);</span>
+	}
+    
+	public String saveAndContinue() {
+<span class="fc" id="L72">		return this.createNewProfile(false);</span>
+	}
+    
+	protected String createNewProfile(boolean onlyVoid) {
+<span class="fc" id="L76">        String username = this.getUsername();</span>
+<span class="fc" id="L77">        String profileTypeCode = this.getProfileTypeCode();</span>
+        try {
+<span class="fc" id="L79">            String check = this.checkUsername(username, false);</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (null != check) return check;</span>
+<span class="fc" id="L81">			this.getUserProfileManager().deleteProfile(username);</span>
+			/*
+            IUserProfile userProfile = (IUserProfile) this.getUserProfileManager().getProfile(username);
+            if (null != userProfile) {
+                this.getRequest().getSession().setAttribute(USERPROFILE_ON_SESSION, userProfile);
+                return &quot;edit&quot;;
+            }
+			*/
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">            if (StringUtils.isBlank(profileTypeCode)) {</span>
+<span class="nc" id="L90">                String[] args = {profileTypeCode};</span>
+<span class="nc" id="L91">                this.addFieldError(&quot;profileTypeCode&quot;, this.getText(&quot;error.profileType.mandatory&quot;, args));</span>
+<span class="nc" id="L92">                return INPUT;</span>
+            }
+<span class="fc" id="L94">            IUserProfile prototype = (IUserProfile) this.getUserProfileManager().getEntityPrototype(profileTypeCode);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">            if (null == prototype) {</span>
+<span class="fc" id="L96">                String[] args = {profileTypeCode};</span>
+<span class="fc" id="L97">                this.addFieldError(&quot;profileTypeCode&quot;, this.getText(&quot;error.newUserProfile.invalidProfileType&quot;, args));</span>
+<span class="fc" id="L98">                return INPUT;</span>
+            }
+<span class="fc" id="L100">            prototype.setId(this.getUsername());</span>
+<span class="fc" id="L101">			this.getUserProfileManager().addProfile(username, prototype);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">			if (onlyVoid) {</span>
+<span class="fc" id="L103">				this.getRequest().getSession().removeAttribute(USERPROFILE_ON_SESSION);</span>
+			} else {
+<span class="fc" id="L105">				this.getRequest().getSession().setAttribute(USERPROFILE_ON_SESSION, prototype);</span>
+			}
+<span class="nc" id="L107">        } catch (Throwable t) {</span>
+<span class="nc" id="L108">        	_logger.error(&quot;error in createNewProfile&quot;, t);</span>
+<span class="nc" id="L109">            return FAILURE;</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">        return SUCCESS;</span>
+    }
+	
+    @Override
+    public String createNew() {
+<span class="nc" id="L116">        return this.createNewProfile(false);</span>
+    }
+    
+    @Override
+    public String save() {
+        try {
+<span class="fc" id="L122">            IUserProfile userProfile = (IUserProfile) this.getApsEntity();</span>
+<span class="fc" id="L123">            String username = userProfile.getUsername();</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (null == this.getUserProfileManager().getProfile(userProfile.getUsername())) {</span>
+<span class="nc" id="L125">                this.getUserProfileManager().addProfile(username, userProfile);</span>
+            } else {
+<span class="fc" id="L127">                this.getUserProfileManager().updateProfile(username, userProfile);</span>
+            }
+<span class="fc" id="L129">			UserDetails currentUser = super.getCurrentUser();</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">			if (null != currentUser </span>
+<span class="pc bpc" id="L131" title="3 of 4 branches missed.">					&amp;&amp; currentUser.getUsername().equals(username)</span>
+					&amp;&amp; (currentUser instanceof AbstractUser)) {
+<span class="nc" id="L133">				((AbstractUser) currentUser).setProfile(userProfile);</span>
+			}
+<span class="nc" id="L135">        } catch (Throwable t) {</span>
+<span class="nc" id="L136">        	_logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L137">            return FAILURE;</span>
+<span class="fc" id="L138">        }</span>
+<span class="fc" id="L139">        return SUCCESS;</span>
+    }
+    
+    @Override
+    public String view() {
+<span class="nc" id="L144">        String username = this.getUsername();</span>
+        try {
+<span class="nc" id="L146">            String checkUsernameResult = this.checkUsername(username, true);</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            if (null != checkUsernameResult) return checkUsernameResult;</span>
+<span class="nc" id="L148">            IUserProfile userProfile = (IUserProfile) this.getUserProfileManager().getProfile(username);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">            if (null == userProfile) {</span>
+<span class="nc" id="L150">                String[] args = {username};</span>
+<span class="nc" id="L151">                this.addFieldError(&quot;username&quot;, this.getText(&quot;error.viewUserProfile.userWithoutProfile&quot;, args));</span>
+<span class="nc" id="L152">                return INPUT;</span>
+            }
+<span class="nc" id="L154">        } catch (Throwable t) {</span>
+<span class="nc" id="L155">        	_logger.error(&quot;error in view&quot;, t);</span>
+<span class="nc" id="L156">            return FAILURE;</span>
+<span class="nc" id="L157">        }</span>
+<span class="nc" id="L158">        return SUCCESS;</span>
+    }
+    
+	public String changeProfileType() {
+<span class="nc" id="L162">        String username = this.getUsername();</span>
+        try {
+<span class="nc" id="L164">            String check = this.checkUsername(username, false);</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (null != check) return check;</span>
+<span class="nc" id="L166">            this.getRequest().getSession().removeAttribute(USERPROFILE_ON_SESSION);</span>
+<span class="nc" id="L167">        } catch (Throwable t) {</span>
+<span class="nc" id="L168">        	_logger.error(&quot;error changing Profile Type&quot;);</span>
+<span class="nc" id="L169">            return FAILURE;</span>
+<span class="nc" id="L170">        }</span>
+<span class="nc" id="L171">        return SUCCESS;</span>
+    }
+	
+    private String checkUsername(String username, boolean checkNullProfile) throws EntException {
+<span class="pc bpc" id="L175" title="4 of 6 branches missed.">        if (StringUtils.isBlank(username) || (checkNullProfile &amp;&amp; null == this.getUserProfileManager().getProfile(username))) {</span>
+<span class="nc" id="L176">            String[] args = {username};</span>
+<span class="nc" id="L177">            this.addFieldError(&quot;username&quot;, this.getText(&quot;error.newUserProfile.invalidUsername&quot;, args));</span>
+<span class="nc" id="L178">            return INPUT;</span>
+        }
+<span class="fc" id="L180">        return null;</span>
+    }
+    
+    public List&lt;SmallEntityType&gt; getUserProfileTypes() {
+<span class="nc" id="L184">        List&lt;SmallEntityType&gt; userProfileTypes = null;</span>
+        try {
+<span class="nc" id="L186">            userProfileTypes = this.getUserProfileManager().getSmallEntityTypes();</span>
+<span class="nc" id="L187">        } catch (Throwable t) {</span>
+<span class="nc" id="L188">        	_logger.error(&quot;error in getUserProfileTypes&quot;, t);</span>
+<span class="nc" id="L189">        }</span>
+<span class="nc" id="L190">        return userProfileTypes;</span>
+    }
+    
+    public IUserProfile getUserProfile() {
+<span class="nc" id="L194">        return (IUserProfile) this.getApsEntity();</span>
+    }
+    
+    public IUserProfile getUserProfile(String username) {
+<span class="nc" id="L198">        IUserProfile userProfile = null;</span>
+        try {
+<span class="nc" id="L200">            userProfile = this.getUserProfileManager().getProfile(username);</span>
+<span class="nc" id="L201">        } catch (Throwable t) {</span>
+<span class="nc" id="L202">        	_logger.error(&quot;Error extracting user profile by username {}&quot;, username, t);</span>
+<span class="nc" id="L203">        }</span>
+<span class="nc" id="L204">        return userProfile;</span>
+    }
+    
+	@Override
+    public IApsEntity getApsEntity() {
+<span class="fc" id="L209">        return (IUserProfile) this.getRequest().getSession().getAttribute(USERPROFILE_ON_SESSION);</span>
+    }
+    
+    public String getUsername() {
+<span class="fc" id="L213">        return _username;</span>
+    }
+    public void setUsername(String username) {
+<span class="fc" id="L216">        this._username = username;</span>
+<span class="fc" id="L217">    }</span>
+    
+    public String getProfileTypeCode() {
+<span class="fc" id="L220">        return _profileTypeCode;</span>
+    }
+    public void setProfileTypeCode(String profileTypeCode) {
+<span class="fc" id="L223">        this._profileTypeCode = profileTypeCode;</span>
+<span class="fc" id="L224">    }</span>
+    
+    protected IUserProfileManager getUserProfileManager() {
+<span class="fc" id="L227">        return _userProfileManager;</span>
+    }
+    public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="fc" id="L230">        this._userProfileManager = userProfileManager;</span>
+<span class="fc" id="L231">    }</span>
+	
+    private String _username;
+    private String _profileTypeCode;
+    private IUserProfileManager _userProfileManager;
+	
+    public static final String USERPROFILE_ON_SESSION = &quot;userprofile_profileOnSession&quot;;
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

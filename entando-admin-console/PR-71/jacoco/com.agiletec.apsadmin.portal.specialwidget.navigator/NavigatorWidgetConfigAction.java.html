@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NavigatorWidgetConfigAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.portal.specialwidget.navigator</a> &gt; <span class="el_source">NavigatorWidgetConfigAction.java</span></div><h1>NavigatorWidgetConfigAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.portal.specialwidget.navigator;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.system.services.page.widget.INavigatorParser;
+import com.agiletec.aps.system.services.page.widget.NavigatorExpression;
+import com.agiletec.apsadmin.portal.specialwidget.SimpleWidgetConfigAction;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+
+/**
+ * Classe action per la gestione della configurazione dei widget tipo
+ * Navigatore.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L36">public class NavigatorWidgetConfigAction extends SimpleWidgetConfigAction {</span>
+
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(NavigatorWidgetConfigAction.class);</span>
+
+	@Override
+	public void validate() {
+<span class="fc" id="L42">		super.validate();</span>
+<span class="fc bfc" id="L43" title="All 4 branches covered.">		if (this.getActionErrors().size() &gt; 0 || this.getFieldErrors().size() &gt; 0) {</span>
+<span class="fc" id="L44">			super.extractInitConfig();</span>
+<span class="fc" id="L45">			this.createExpressions(this.getNavSpec());</span>
+		}
+<span class="fc" id="L47">	}</span>
+
+	@Override
+	public String save() {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">		if (StringUtils.isBlank(this.getNavSpec())) {</span>
+<span class="fc" id="L52">			this.addActionError(this.getText(&quot;error.widget.configNavigator.noExpressions&quot;));</span>
+<span class="fc" id="L53">			super.extractInitConfig();</span>
+<span class="fc" id="L54">			this.createExpressions(this.getNavSpec());</span>
+<span class="fc" id="L55">			return INPUT;</span>
+		}
+<span class="fc" id="L57">		return super.save();</span>
+	}
+
+	@Override
+	protected String extractInitConfig() {
+		try {
+<span class="fc" id="L63">			String result = super.extractInitConfig();</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">			if (!result.equals(SUCCESS)) {</span>
+<span class="nc" id="L65">				return result;</span>
+			}
+<span class="fc" id="L67">			Widget widget = this.getWidget();</span>
+<span class="fc" id="L68">			String navSpec = null;</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">			if (null != widget.getConfig()) {</span>
+<span class="fc" id="L70">				navSpec = widget.getConfig().getProperty(&quot;navSpec&quot;);</span>
+			}
+<span class="fc" id="L72">			this.createExpressions(navSpec);</span>
+<span class="fc" id="L73">			this.setNavSpec(navSpec);</span>
+<span class="nc" id="L74">		} catch (Throwable t) {</span>
+<span class="nc" id="L75">			_logger.error(&quot;error in extractInitConfig&quot;, t);</span>
+<span class="nc" id="L76">			return FAILURE;</span>
+<span class="fc" id="L77">		}</span>
+<span class="fc" id="L78">		return SUCCESS;</span>
+	}
+
+	public String addExpression() {
+		try {
+<span class="fc" id="L83">			NavigatorExpression newExpression = this.createNewExpression();</span>
+<span class="fc" id="L84">			List&lt;NavigatorExpression&gt; expressions = this.getNavigatorParser().getExpressions(this.getNavSpec());</span>
+<span class="fc" id="L85">			expressions.add(newExpression);</span>
+<span class="fc" id="L86">			this.createNavigatorParams(expressions);</span>
+<span class="nc" id="L87">		} catch (Throwable t) {</span>
+<span class="nc" id="L88">			_logger.error(&quot;error in addExpression&quot;, t);</span>
+<span class="nc" id="L89">			return FAILURE;</span>
+<span class="fc" id="L90">		}</span>
+<span class="fc" id="L91">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Crea una nuova espressione in base ai parametri della richiesta corrente.
+	 *
+	 * @return La nuova espressione.
+	 */
+	protected NavigatorExpression createNewExpression() {
+<span class="fc" id="L100">		NavigatorExpression navExpression = new NavigatorExpression();</span>
+<span class="fc" id="L101">		navExpression.setSpecId(this.getSpecId());</span>
+<span class="fc" id="L102">		navExpression.setSpecAbsLevel(this.getSpecAbsLevel());</span>
+<span class="fc" id="L103">		navExpression.setSpecCode(this.getSpecCode());</span>
+<span class="fc" id="L104">		navExpression.setSpecSuperLevel(this.getSpecSuperLevel());</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">		if (this.getOperatorId() &gt; 0) {</span>
+<span class="fc" id="L106">			navExpression.setOperatorId(this.getOperatorId());</span>
+<span class="fc" id="L107">			navExpression.setOperatorSubtreeLevel(this.getOperatorSubtreeLevel());</span>
+		}
+<span class="fc" id="L109">		return navExpression;</span>
+	}
+
+	public String moveExpression() {
+		try {
+<span class="fc" id="L114">			String navSpec = this.getNavSpec();</span>
+<span class="fc" id="L115">			List&lt;NavigatorExpression&gt; expressions = this.getNavigatorParser().getExpressions(navSpec);</span>
+<span class="fc" id="L116">			this.executeMoveExpression(expressions);</span>
+<span class="fc" id="L117">			this.createNavigatorParams(expressions);</span>
+<span class="nc" id="L118">		} catch (Throwable t) {</span>
+<span class="nc" id="L119">			_logger.error(&quot;error in moveExpression&quot;, t);</span>
+<span class="nc" id="L120">			return FAILURE;</span>
+<span class="fc" id="L121">		}</span>
+<span class="fc" id="L122">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Esegue il movimento richiesto sulla lista di espressioni specificata. Il
+	 * tipo di movimento richiesto viene ricavato in base ai parametri della
+	 * richiesta corrente.
+	 *
+	 * @param expressions La lista di espressioni nel quale eseguire il
+	 * movimento richiesto.
+	 */
+	protected void executeMoveExpression(List&lt;NavigatorExpression&gt; expressions) {
+<span class="fc" id="L134">		int elementIndex = this.getExpressionIndex();</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">		if (elementIndex &lt; 0 || elementIndex &gt;= expressions.size()) {</span>
+<span class="fc" id="L136">			return;</span>
+		}
+<span class="fc" id="L138">		String movement = this.getMovement();</span>
+<span class="pc bpc" id="L139" title="3 of 4 branches missed.">		if (!(elementIndex == 0 &amp;&amp; movement.equals(ApsAdminSystemConstants.MOVEMENT_UP_CODE))</span>
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">				&amp;&amp; !(elementIndex == expressions.size() - 1 &amp;&amp; movement.equals(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE))) {</span>
+<span class="fc" id="L141">			NavigatorExpression elementToMove = expressions.get(elementIndex);</span>
+<span class="fc" id="L142">			expressions.remove(elementIndex);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			if (movement.equals(ApsAdminSystemConstants.MOVEMENT_UP_CODE)) {</span>
+<span class="fc" id="L144">				expressions.add(elementIndex - 1, elementToMove);</span>
+			}
+<span class="fc bfc" id="L146" title="All 2 branches covered.">			if (movement.equals(ApsAdminSystemConstants.MOVEMENT_DOWN_CODE)) {</span>
+<span class="fc" id="L147">				expressions.add(elementIndex + 1, elementToMove);</span>
+			}
+		}
+<span class="fc" id="L150">	}</span>
+
+	public String removeExpression() {
+		try {
+<span class="fc" id="L154">			String navSpec = this.getNavSpec();</span>
+<span class="fc" id="L155">			List&lt;NavigatorExpression&gt; expressions = this.getNavigatorParser().getExpressions(navSpec);</span>
+<span class="fc" id="L156">			int elementIndex = this.getExpressionIndex();</span>
+<span class="pc bpc" id="L157" title="1 of 4 branches missed.">			if (elementIndex &gt;= 0 &amp;&amp; elementIndex &lt; expressions.size()) {</span>
+<span class="fc" id="L158">				expressions.remove(elementIndex);</span>
+			}
+<span class="fc" id="L160">			this.createNavigatorParams(expressions);</span>
+<span class="nc" id="L161">		} catch (Throwable t) {</span>
+<span class="nc" id="L162">			_logger.error(&quot;error in removeExpression&quot;, t);</span>
+<span class="nc" id="L163">			return FAILURE;</span>
+<span class="fc" id="L164">		}</span>
+<span class="fc" id="L165">		return SUCCESS;</span>
+	}
+
+	/**
+	 * Crea e valorizza l'action corrente in base ai parametri ricavati da una
+	 * lista di espressioni.
+	 *
+	 * @param expressions La lista di espressioni tramite il quale valorizzare
+	 * l'action corrente.
+	 * @throws Throwable Il caso di errore.
+	 */
+	protected void createNavigatorParams(List&lt;NavigatorExpression&gt; expressions) throws Throwable {
+<span class="fc" id="L177">		Widget prototype = this.createNewShowlet();</span>
+		//COSTRUISCE SHOWLET PROTOTIPO VUOTA E SETTA SPECIFICATORE
+<span class="fc" id="L179">		String navSpec = this.getNavigatorParser().getSpec(expressions);</span>
+<span class="fc" id="L180">		prototype.getConfig().setProperty(&quot;navSpec&quot;, navSpec);</span>
+		//COSTRUISCE LE NUOVE ESPRESSIONI IN BASE AL NUOVO PARAMETRO
+<span class="fc" id="L182">		this.createExpressions(expressions);</span>
+<span class="fc" id="L183">		this.setWidget(prototype);</span>
+		//SETTA IL WIDGET COSTRUITO
+<span class="fc" id="L185">		this.setNavSpec(navSpec);</span>
+<span class="fc" id="L186">	}</span>
+
+	public String getNavSpec() {
+<span class="fc" id="L189">		return _navSpec;</span>
+	}
+
+	public void setNavSpec(String navSpec) {
+<span class="fc" id="L193">		this._navSpec = navSpec;</span>
+<span class="fc" id="L194">	}</span>
+
+	protected void createExpressions(String navSpec) {
+<span class="fc" id="L197">		List&lt;NavigatorExpression&gt; expressions = this.getNavigatorParser().getExpressions(navSpec);</span>
+<span class="fc" id="L198">		this.createExpressions(expressions);</span>
+<span class="fc" id="L199">	}</span>
+
+	protected void createExpressions(List&lt;NavigatorExpression&gt; expressions) {
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">		if (this.getExpressions() == null) {</span>
+<span class="fc" id="L203">			this.setExpressions(new ArrayList&lt;NavigatorExpression&gt;());</span>
+		}
+<span class="fc" id="L205">		this.getExpressions().addAll(expressions);</span>
+<span class="fc" id="L206">	}</span>
+
+	/**
+	 * Restituisce una lista piatta delle pagine del portale.
+	 *
+	 * @return La lista delle pagine del portale.
+	 */
+	public List&lt;IPage&gt; getPages() {
+<span class="nc" id="L214">		IPage root = this.getPageManager().getOnlineRoot();</span>
+<span class="nc" id="L215">		List&lt;IPage&gt; pages = new ArrayList&lt;IPage&gt;();</span>
+<span class="nc" id="L216">		this.addPublicPages(root, pages);</span>
+<span class="nc" id="L217">		return pages;</span>
+	}
+
+	private void addPublicPages(IPage page, List&lt;IPage&gt; pages) {
+<span class="nc bnc" id="L221" title="All 2 branches missed.">		if (null == page) {</span>
+<span class="nc" id="L222">			return;</span>
+		}
+<span class="nc" id="L224">		pages.add(page);</span>
+<span class="nc" id="L225">		String[] children = page.getChildrenCodes();</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">		for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="nc" id="L227">			IPage child = this.getPageManager().getOnlinePage(children[i]);</span>
+<span class="nc" id="L228">			this.addPublicPages(child, pages);</span>
+		}
+<span class="nc" id="L230">	}</span>
+
+	public List&lt;NavigatorExpression&gt; getExpressions() {
+<span class="fc" id="L233">		return _expressions;</span>
+	}
+
+	protected void setExpressions(List&lt;NavigatorExpression&gt; expressions) {
+<span class="fc" id="L237">		this._expressions = expressions;</span>
+<span class="fc" id="L238">	}</span>
+
+	protected INavigatorParser getNavigatorParser() {
+<span class="fc" id="L241">		return _navigatorParser;</span>
+	}
+
+	public void setNavigatorParser(INavigatorParser navigatorParser) {
+<span class="fc" id="L245">		this._navigatorParser = navigatorParser;</span>
+<span class="fc" id="L246">	}</span>
+
+	public int getOperatorId() {
+<span class="fc" id="L249">		return _operatorId;</span>
+	}
+
+	public void setOperatorId(int operatorId) {
+<span class="fc" id="L253">		this._operatorId = operatorId;</span>
+<span class="fc" id="L254">	}</span>
+
+	public int getSpecId() {
+<span class="fc" id="L257">		return _specId;</span>
+	}
+
+	public void setSpecId(int specId) {
+<span class="fc" id="L261">		this._specId = specId;</span>
+<span class="fc" id="L262">	}</span>
+
+	public int getSpecAbsLevel() {
+<span class="fc" id="L265">		return _specAbsLevel;</span>
+	}
+
+	public void setSpecAbsLevel(int specAbsLevel) {
+<span class="fc" id="L269">		this._specAbsLevel = specAbsLevel;</span>
+<span class="fc" id="L270">	}</span>
+
+	public String getSpecCode() {
+<span class="fc" id="L273">		return _specCode;</span>
+	}
+
+	public void setSpecCode(String specCode) {
+<span class="fc" id="L277">		this._specCode = specCode;</span>
+<span class="fc" id="L278">	}</span>
+
+	public int getSpecSuperLevel() {
+<span class="fc" id="L281">		return _specSuperLevel;</span>
+	}
+
+	public void setSpecSuperLevel(int specSuperLevel) {
+<span class="fc" id="L285">		this._specSuperLevel = specSuperLevel;</span>
+<span class="fc" id="L286">	}</span>
+
+	public int getOperatorSubtreeLevel() {
+<span class="fc" id="L289">		return _operatorSubtreeLevel;</span>
+	}
+
+	public void setOperatorSubtreeLevel(int operatorLevel) {
+<span class="fc" id="L293">		this._operatorSubtreeLevel = operatorLevel;</span>
+<span class="fc" id="L294">	}</span>
+
+	public String getMovement() {
+<span class="fc" id="L297">		return _movement;</span>
+	}
+
+	public void setMovement(String movement) {
+<span class="fc" id="L301">		this._movement = movement;</span>
+<span class="fc" id="L302">	}</span>
+
+	public int getExpressionIndex() {
+<span class="fc" id="L305">		return _expressionIndex;</span>
+	}
+
+	public void setExpressionIndex(int expressionIndex) {
+<span class="fc" id="L309">		this._expressionIndex = expressionIndex;</span>
+<span class="fc" id="L310">	}</span>
+
+	private String _navSpec;
+
+	private List&lt;NavigatorExpression&gt; _expressions;
+	private INavigatorParser _navigatorParser;
+
+	private int _specId;
+<span class="fc" id="L318">	private int _specSuperLevel = -1;</span>
+<span class="fc" id="L319">	private int _specAbsLevel = -1;</span>
+	private String _specCode;
+
+<span class="fc" id="L322">	private int _operatorId = -1;</span>
+<span class="fc" id="L323">	private int _operatorSubtreeLevel = -1;</span>
+
+	private String _movement;
+<span class="fc" id="L326">	private int _expressionIndex = -1;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

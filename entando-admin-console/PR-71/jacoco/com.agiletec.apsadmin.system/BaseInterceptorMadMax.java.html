@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BaseInterceptorMadMax.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system</a> &gt; <span class="el_source">BaseInterceptorMadMax.java</span></div><h1>BaseInterceptorMadMax.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system;
+
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.ServletActionContext;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.AbstractInterceptor;
+
+/**
+ * Interceptor gestore della verifica delle autorizzazioni dell'utente corrente.
+ * Verifica che l'utente corrente sia abilitato all'esecuzione dell'azione richiesta.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public abstract class BaseInterceptorMadMax extends AbstractInterceptor {</span>
+	
+<span class="fc" id="L41">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(BaseInterceptorMadMax.class);</span>
+	
+	@Override
+    public String intercept(ActionInvocation invocation) throws Exception {
+<span class="fc" id="L45">        boolean isAuthorized = false;</span>
+        try {
+<span class="fc" id="L47">            HttpSession session = ServletActionContext.getRequest().getSession();</span>
+<span class="fc" id="L48">            UserDetails currentUser = (UserDetails) session.getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+<span class="fc" id="L49">            IAuthorizationManager authManager = (IAuthorizationManager) ApsWebApplicationUtils.getBean(SystemConstants.AUTHORIZATION_SERVICE, ServletActionContext.getRequest());</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (currentUser != null) {</span>
+<span class="fc" id="L51">                Set&lt;String&gt; authorizations = this.extractAllRequiredPermissions();</span>
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">                if (null == authorizations || authorizations.isEmpty() || </span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">                        authManager.isAuthOnPermission(currentUser, Permission.SUPERUSER)) {</span>
+<span class="fc" id="L54">                    isAuthorized = true;</span>
+                } else {
+<span class="fc" id="L56">                    isAuthorized = this.checkAuthorizations(currentUser, authorizations, authManager);</span>
+                }
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                if (!isAuthorized) {</span>
+<span class="fc" id="L59">                    return this.getErrorResultName();</span>
+                }
+            }
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            if (isAuthorized) {</span>
+<span class="fc" id="L63">                return this.invoke(invocation);</span>
+            }
+<span class="nc" id="L65">        } catch (Throwable t) {</span>
+<span class="nc" id="L66">        	_logger.error(&quot;Error occurred verifying authority of current user&quot;, t);</span>
+<span class="nc" id="L67">            return BaseAction.FAILURE;</span>
+<span class="fc" id="L68">        }</span>
+<span class="fc" id="L69">        return this.getErrorResultName();</span>
+    }
+    
+    protected Set&lt;String&gt; extractAllRequiredPermissions() {
+<span class="fc" id="L73">        Set&lt;String&gt; requiredPermissions = new HashSet&lt;String&gt;();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (null != this.getRequiredPermission()) {</span>
+<span class="fc" id="L75">            requiredPermissions.add(this.getRequiredPermission().trim());</span>
+        }
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (null != this.getRequiredPermissions()) {</span>
+<span class="fc" id="L78">            String[] permissions = this.getRequiredPermissions().split(&quot;,&quot;);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            for (int i = 0; i &lt; permissions.length; i++) {</span>
+<span class="fc" id="L80">                requiredPermissions.add(permissions[i].trim());</span>
+            }
+        }
+<span class="fc" id="L83">        return requiredPermissions;</span>
+    }
+    
+    private boolean checkAuthorizations(UserDetails currentUser, Set&lt;String&gt; authorizations, IAuthorizationManager authManager) {
+<span class="fc" id="L87">        Iterator&lt;String&gt; iter = authorizations.iterator();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        boolean orClause = (null != this.getORClause()) ? this.getORClause().booleanValue() : false;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L90">            String permission = iter.next();</span>
+<span class="pc bpc" id="L91" title="3 of 4 branches missed.">            if (orClause &amp;&amp; authManager.isAuthOnPermission(currentUser, permission)) {</span>
+<span class="nc" id="L92">                return true;</span>
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">            } else if (!orClause &amp;&amp; !authManager.isAuthOnPermission(currentUser, permission)) {</span>
+<span class="fc" id="L94">                return false;</span>
+            }
+<span class="fc" id="L96">        }</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        return (orClause) ? false : true;</span>
+    }
+    
+    /**
+     * Restituisce il permesso specifico.
+     * @return Il permesso specifico.
+     */
+    public abstract String getRequiredPermission();
+    
+    public abstract String getRequiredPermissions();
+    
+    public abstract Boolean getORClause();
+    
+    public abstract String getErrorResultName();
+    
+    /**
+     * Invokes the next step in processing this ActionInvocation. 
+	 * @param invocation the execution state of the Action
+     * @return The code of the execution result.
+	 * @throws Exception in case of error
+     */
+    protected String invoke(ActionInvocation invocation) throws Exception {
+<span class="fc" id="L119">        return invocation.invoke();</span>
+    }
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

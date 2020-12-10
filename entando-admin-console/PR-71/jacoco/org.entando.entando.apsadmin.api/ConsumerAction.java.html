@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsumerAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.api</a> &gt; <span class="el_source">ConsumerAction.java</span></div><h1>ConsumerAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.api;
+
+
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.system.BaseAction;
+import java.util.Arrays;
+import org.entando.entando.aps.system.services.oauth2.IOAuthConsumerManager;
+import org.entando.entando.aps.system.services.oauth2.model.ConsumerRecordVO;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import java.util.Date;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L33">public class ConsumerAction extends BaseAction {</span>
+
+<span class="fc" id="L35">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ConsumerAction.class);</span>
+
+    private String consumerKey;
+    private int strutsAction;
+    private String secret;
+    private String description;
+    private String name;
+    private String callbackUrl;
+    private String scope;
+    private List&lt;String&gt; grantTypes;
+    private Date expirationDate;
+    private Date issuedDate;
+    private IOAuthConsumerManager oauthConsumerManager;
+
+    @Override
+    public void validate() {
+<span class="fc" id="L51">        super.validate();</span>
+        try {
+<span class="fc" id="L53">            ConsumerRecordVO consumer = this.getOauthConsumerManager().getConsumerRecord(this.getConsumerKey());</span>
+<span class="fc" id="L54">            String[] args = {this.getConsumerKey()};</span>
+<span class="fc bfc" id="L55" title="All 4 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD &amp;&amp; null != consumer) {</span>
+<span class="fc" id="L56">                this.addFieldError(&quot;consumerKey&quot;, this.getText(&quot;error.consumer.exists&quot;, args));</span>
+<span class="fc bfc" id="L57" title="All 4 branches covered.">            } else if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT &amp;&amp; null == consumer) {</span>
+<span class="fc" id="L58">                this.addFieldError(&quot;consumerKey&quot;, this.getText(&quot;error.consumer.notExists&quot;, args));</span>
+            }
+<span class="nc" id="L60">        } catch (Exception t) {</span>
+<span class="nc" id="L61">            logger.error(&quot;Error validating consumer&quot;, t);</span>
+<span class="nc" id="L62">            this.addActionError(this.getText(&quot;error.consumer.systemError&quot;));</span>
+<span class="fc" id="L63">        }</span>
+<span class="fc" id="L64">    }</span>
+
+    public String newConsumer() {
+<span class="fc" id="L67">        this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="fc" id="L68">        return SUCCESS;</span>
+    }
+
+    public String edit() {
+        try {
+<span class="fc" id="L73">            this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L74">            ConsumerRecordVO consumer = this.getOauthConsumerManager().getConsumerRecord(this.getConsumerKey());</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            if (null == consumer) {</span>
+<span class="fc" id="L76">                String[] args = {this.getConsumerKey()};</span>
+<span class="fc" id="L77">                this.addActionError(this.getText(&quot;error.consumer.notExists&quot;, args));</span>
+<span class="fc" id="L78">                return &quot;list&quot;;</span>
+            }
+<span class="fc" id="L80">            this.setCallbackUrl(consumer.getCallbackUrl());</span>
+<span class="fc" id="L81">            this.setDescription(consumer.getDescription());</span>
+<span class="fc" id="L82">            this.setName(consumer.getName());</span>
+<span class="fc" id="L83">            this.setScope(consumer.getScope());</span>
+<span class="fc" id="L84">            this.setExpirationDate(consumer.getExpirationDate());</span>
+<span class="fc" id="L85">            this.setIssuedDate(consumer.getIssuedDate());</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">            if (null != consumer.getAuthorizedGrantTypes()) {</span>
+<span class="fc" id="L87">                this.setGrantTypes(Arrays.asList(consumer.getAuthorizedGrantTypes().split(&quot;,&quot;)));</span>
+            }
+<span class="nc" id="L89">        } catch (Exception t) {</span>
+<span class="nc" id="L90">            logger.error(&quot;error in edit&quot;, t);</span>
+<span class="nc" id="L91">            return FAILURE;</span>
+<span class="fc" id="L92">        }</span>
+<span class="fc" id="L93">        return SUCCESS;</span>
+    }
+
+    public String save() {
+<span class="fc" id="L97">        ConsumerRecordVO consumer = null;</span>
+        try {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L100">                consumer = new ConsumerRecordVO();</span>
+<span class="fc" id="L101">                consumer.setKey(this.getConsumerKey());</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">            } else if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L103">                consumer = this.getOauthConsumerManager().getConsumerRecord(this.getConsumerKey());</span>
+            }
+<span class="fc" id="L105">            consumer.setCallbackUrl(this.getCallbackUrl());</span>
+<span class="fc" id="L106">            consumer.setDescription(this.getDescription());</span>
+<span class="fc" id="L107">            consumer.setName(this.getName());</span>
+<span class="fc" id="L108">            consumer.setExpirationDate(this.getExpirationDate());</span>
+<span class="fc" id="L109">            consumer.setScope(this.getScope());</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            String grantTypesCsv = (null != this.getGrantTypes()) ? StringUtils.join(this.getGrantTypes(), &quot;,&quot;) : null;</span>
+<span class="fc" id="L111">            consumer.setAuthorizedGrantTypes(grantTypesCsv);</span>
+<span class="fc" id="L112">            consumer.setSecret(this.getSecret());</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L114">                this.getOauthConsumerManager().addConsumer(consumer);</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">            } else if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L116">                this.getOauthConsumerManager().updateConsumer(consumer);</span>
+            }
+<span class="nc" id="L118">        } catch (Exception t) {</span>
+<span class="nc" id="L119">            logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L120">            return FAILURE;</span>
+<span class="fc" id="L121">        }</span>
+<span class="fc" id="L122">        return SUCCESS;</span>
+    }
+
+    public String trash() {
+        try {
+<span class="fc" id="L127">            String check = this.checkForDelete();</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L129">                return check;</span>
+            }
+<span class="nc" id="L131">        } catch (Exception t) {</span>
+<span class="nc" id="L132">            logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L133">            return FAILURE;</span>
+<span class="fc" id="L134">        }</span>
+<span class="fc" id="L135">        return SUCCESS;</span>
+    }
+
+    public String delete() {
+        try {
+<span class="fc" id="L140">            String check = this.checkForDelete();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">            if (null != check) {</span>
+<span class="fc" id="L142">                return check;</span>
+            }
+<span class="fc" id="L144">            this.getOauthConsumerManager().deleteConsumer(this.getConsumerKey());</span>
+<span class="nc" id="L145">        } catch (Exception t) {</span>
+<span class="nc" id="L146">            logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L147">            return FAILURE;</span>
+<span class="fc" id="L148">        }</span>
+<span class="fc" id="L149">        return SUCCESS;</span>
+    }
+
+    protected String checkForDelete() throws EntException {
+<span class="fc" id="L153">        ConsumerRecordVO consumer = this.getOauthConsumerManager().getConsumerRecord(this.getConsumerKey());</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        if (null == consumer) {</span>
+<span class="fc" id="L155">            String[] args = {this.getConsumerKey()};</span>
+<span class="fc" id="L156">            this.addActionError(this.getText(&quot;error.consumer.notExist&quot;, args));</span>
+<span class="fc" id="L157">            return &quot;list&quot;;</span>
+        }
+<span class="fc" id="L159">        return null;</span>
+    }
+
+    public ConsumerRecordVO getConsumer(String key) throws Throwable {
+<span class="nc" id="L163">        return this.getOauthConsumerManager().getConsumerRecord(key);</span>
+    }
+
+    public List&lt;String&gt; getAllowedGrantTypes() {
+<span class="nc" id="L167">        return IOAuthConsumerManager.GRANT_TYPES;</span>
+    }
+
+    public String getConsumerKey() {
+<span class="fc" id="L171">        return consumerKey;</span>
+    }
+
+    public void setConsumerKey(String consumerKey) {
+<span class="fc" id="L175">        this.consumerKey = consumerKey;</span>
+<span class="fc" id="L176">    }</span>
+
+    public int getStrutsAction() {
+<span class="fc" id="L179">        return strutsAction;</span>
+    }
+
+    public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L183">        this.strutsAction = strutsAction;</span>
+<span class="fc" id="L184">    }</span>
+
+    public String getSecret() {
+<span class="fc" id="L187">        return secret;</span>
+    }
+
+    public void setSecret(String secret) {
+<span class="fc" id="L191">        this.secret = secret;</span>
+<span class="fc" id="L192">    }</span>
+
+    public String getDescription() {
+<span class="fc" id="L195">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="fc" id="L199">        this.description = description;</span>
+<span class="fc" id="L200">    }</span>
+
+    public String getCallbackUrl() {
+<span class="fc" id="L203">        return callbackUrl;</span>
+    }
+
+    public void setCallbackUrl(String callbackUrl) {
+<span class="fc" id="L207">        this.callbackUrl = callbackUrl;</span>
+<span class="fc" id="L208">    }</span>
+
+    public Date getExpirationDate() {
+<span class="fc" id="L211">        return expirationDate;</span>
+    }
+
+    public void setExpirationDate(Date expirationDate) {
+<span class="fc" id="L215">        this.expirationDate = expirationDate;</span>
+<span class="fc" id="L216">    }</span>
+
+    public Date getIssuedDate() {
+<span class="nc" id="L219">        return issuedDate;</span>
+    }
+
+    public void setIssuedDate(Date issuedDate) {
+<span class="fc" id="L223">        this.issuedDate = issuedDate;</span>
+<span class="fc" id="L224">    }</span>
+
+    public String getName() {
+<span class="fc" id="L227">        return name;</span>
+    }
+
+    public void setName(String name) {
+<span class="fc" id="L231">        this.name = name;</span>
+<span class="fc" id="L232">    }</span>
+
+    public String getScope() {
+<span class="fc" id="L235">        return scope;</span>
+    }
+
+    public void setScope(String scope) {
+<span class="fc" id="L239">        this.scope = scope;</span>
+<span class="fc" id="L240">    }</span>
+
+    public List&lt;String&gt; getGrantTypes() {
+<span class="fc" id="L243">        return grantTypes;</span>
+    }
+
+    public void setGrantTypes(List&lt;String&gt; grantTypes) {
+<span class="fc" id="L247">        this.grantTypes = grantTypes;</span>
+<span class="fc" id="L248">    }</span>
+
+    protected IOAuthConsumerManager getOauthConsumerManager() {
+<span class="fc" id="L251">        return oauthConsumerManager;</span>
+    }
+
+    public void setOauthConsumerManager(IOAuthConsumerManager oauthConsumerManager) {
+<span class="fc" id="L255">        this.oauthConsumerManager = oauthConsumerManager;</span>
+<span class="fc" id="L256">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
