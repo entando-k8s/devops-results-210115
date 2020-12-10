@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActivityStreamController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.activitystream</a> &gt; <span class="el_source">ActivityStreamController.java</span></div><h1>ActivityStreamController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.activitystream;
+
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordDto;
+import org.entando.entando.aps.system.services.activitystream.IActivityStreamService;
+import org.entando.entando.web.activitystream.valiator.ActivityStreamValidator;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+
+@RestController
+@RequestMapping(value = &quot;/activityStream&quot;)
+<span class="fc" id="L42">public class ActivityStreamController {</span>
+
+<span class="fc" id="L44">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    @Autowired
+    private IActivityStreamService activityStreamService;
+
+<span class="fc" id="L49">    private ActivityStreamValidator activityStreamValidator = new ActivityStreamValidator();</span>
+
+    protected IActivityStreamService getActivityStreamService() {
+<span class="fc" id="L52">        return activityStreamService;</span>
+    }
+
+    public void setActivityStreamService(IActivityStreamService activityStreamService) {
+<span class="nc" id="L56">        this.activityStreamService = activityStreamService;</span>
+<span class="nc" id="L57">    }</span>
+
+    protected ActivityStreamValidator getActivityStreamValidator() {
+<span class="fc" id="L60">        return activityStreamValidator;</span>
+    }
+
+    public void setActivityStreamValidator(ActivityStreamValidator activityStreamValidator) {
+<span class="nc" id="L64">        this.activityStreamValidator = activityStreamValidator;</span>
+<span class="nc" id="L65">    }</span>
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ActionLogRecordDto&gt;&gt; getActivityStream(RestListRequest requestList, HttpServletRequest request) throws JsonProcessingException {
+<span class="fc" id="L70">        this.getActivityStreamValidator().validateRestListRequest(requestList, ActionLogRecordDto.class);</span>
+<span class="fc" id="L71">        PagedMetadata&lt;ActionLogRecordDto&gt; result = this.getActivityStreamService().getActivityStream(requestList, (UserDetails) request.getSession().getAttribute(&quot;user&quot;));</span>
+<span class="fc" id="L72">        this.getActivityStreamValidator().validateRestListResult(requestList, result);</span>
+<span class="fc" id="L73">        logger.debug(&quot;loading activity stream list -&gt; {}&quot;, result);</span>
+<span class="fc" id="L74">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(value = &quot;/{recordId}/like&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ActionLogRecordDto&gt;&gt; addLike(@PathVariable int recordId, HttpServletRequest request) throws JsonProcessingException {
+<span class="fc" id="L80">        ActionLogRecordDto result = this.getActivityStreamService().addLike(recordId, (UserDetails) request.getSession().getAttribute(&quot;user&quot;));</span>
+<span class="fc" id="L81">        logger.debug(&quot;adding like to activity stream record&quot;, result);</span>
+<span class="fc" id="L82">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(value = &quot;/{recordId}/like&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ActionLogRecordDto&gt;&gt; removeLike(@PathVariable int recordId, HttpServletRequest request) throws JsonProcessingException {
+<span class="fc" id="L88">        ActionLogRecordDto result = this.getActivityStreamService().removeLike(recordId, (UserDetails) request.getSession().getAttribute(&quot;user&quot;));</span>
+<span class="fc" id="L89">        logger.debug(&quot;remove like to activity stream record&quot;, result);</span>
+<span class="fc" id="L90">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(value = &quot;/{recordId}/comments&quot;, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ActionLogRecordDto&gt;&gt; addComment(@PathVariable int recordId,
+            @Valid @RequestBody ActivityStreamCommentRequest commentRequest,
+            BindingResult bindingResult,
+            HttpServletRequest request) throws JsonProcessingException {
+<span class="fc" id="L99">        this.getActivityStreamValidator().validateBodyName(recordId, commentRequest, bindingResult);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L101">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L103">        ActionLogRecordDto result = this.getActivityStreamService().addComment(commentRequest, (UserDetails) request.getSession().getAttribute(&quot;user&quot;));</span>
+<span class="fc" id="L104">        logger.debug(&quot;adding comment to activity stream record&quot;, result);</span>
+<span class="fc" id="L105">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(value = &quot;/{recordId}/comments/{commentId}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ActionLogRecordDto&gt;&gt; removeComment(@PathVariable int recordId, @PathVariable int commentId, HttpServletRequest request) throws JsonProcessingException {
+<span class="nc" id="L111">        ActionLogRecordDto result = this.getActivityStreamService().removeComment(recordId, commentId, (UserDetails) request.getSession().getAttribute(&quot;user&quot;));</span>
+<span class="nc" id="L112">        logger.debug(&quot;remove comment to activity stream record&quot;, result);</span>
+<span class="nc" id="L113">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

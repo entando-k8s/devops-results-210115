@@ -1,0 +1,559 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject</a> &gt; <span class="el_source">DataObjectManager.java</span></div><h1>DataObjectManager.java</h1><pre class="source lang-java linenums">/*
+* Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+*
+* This library is free software; you can redistribute it and/or modify it under
+* the terms of the GNU Lesser General Public License as published by the Free
+* Software Foundation; either version 2.1 of the License, or (at your option)
+* any later version.
+*
+* This library is distributed in the hope that it will be useful, but WITHOUT
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+* FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+* details.
+ */
+package org.entando.entando.aps.system.services.dataobject;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.ApsEntityManager;
+import com.agiletec.aps.system.common.entity.IEntityDAO;
+import com.agiletec.aps.system.common.entity.IEntitySearcherDAO;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.SmallEntityType;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.CategoryUtilizer;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.keygenerator.IKeyGeneratorManager;
+import org.entando.entando.aps.system.services.dataobject.event.PublicDataChangedEvent;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+import org.entando.entando.aps.system.services.dataobject.model.DataObjectRecordVO;
+import org.entando.entando.aps.system.services.dataobject.model.SmallDataType;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * DataObjects manager. This implements all the methods needed to create and
+ * manage the DataObjects.
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L50">public class DataObjectManager extends ApsEntityManager implements IDataObjectManager, GroupUtilizer&lt;String&gt;, CategoryUtilizer {</span>
+
+<span class="fc" id="L52">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(DataObjectManager.class);</span>
+
+    private IDataObjectDAO dataObjectDao;
+
+    private IDataObjectSearcherDAO dataObjectSearcherDAO;
+
+    private IDataObjectUpdaterService dataobjectUpdaterService;
+
+    @Override
+    protected String getConfigItemName() {
+<span class="fc" id="L62">        return &quot;dataTypeDefinitions&quot;;</span>
+    }
+
+    /**
+     * Create a new instance of the requested dataobject. The new dataobject is
+     * forked (or cloned) from the corresponding prototype, and it's returned
+     * empty.
+     *
+     * @param typeCode The code of the requested (proto)type, as declared in the
+     * configuration.
+     * @return The new dataobject.
+     */
+    @Override
+    public DataObject createDataObject(String typeCode) {
+<span class="fc" id="L76">        return (DataObject) super.getEntityPrototype(typeCode);</span>
+    }
+
+    /**
+     * Return a list of the of the dataobject types in a 'small form'. 'Small
+     * form' mans that the dataobjects returned are purged from all unnecessary
+     * information (eg. attributes).
+     *
+     * @return The list of the types in a (small form).
+     * @deprecated From Entando 4.1.2, use getSmallEntityTypes() method
+     */
+    @Override
+    public List&lt;SmallDataType&gt; getSmallDataTypes() {
+<span class="fc" id="L89">        List&lt;SmallDataType&gt; smallDataObjectTypes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L90">        smallDataObjectTypes.addAll(this.getSmallDataTypesMap().values());</span>
+<span class="fc" id="L91">        Collections.sort(smallDataObjectTypes);</span>
+<span class="fc" id="L92">        return smallDataObjectTypes;</span>
+    }
+
+    /**
+     * Return the map of the prototypes of the dataobjects types. Return a map,
+     * index by the code of the type, of the prototypes of the available
+     * dataobject types.
+     *
+     * @return The map of the prototypes of the dataobject types in a
+     * 'SmallDataObjectType' objects.
+     */
+    @Override
+    public Map&lt;String, SmallDataType&gt; getSmallDataTypesMap() {
+<span class="fc" id="L105">        Map&lt;String, SmallDataType&gt; smallDataTypes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L106">        List&lt;SmallEntityType&gt; entityTypes = super.getSmallEntityTypes();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        for (SmallEntityType entityType : entityTypes) {</span>
+<span class="fc" id="L108">            SmallDataType sdt = new SmallDataType();</span>
+<span class="fc" id="L109">            sdt.setCode(entityType.getCode());</span>
+<span class="fc" id="L110">            sdt.setDescription(entityType.getDescription());</span>
+<span class="fc" id="L111">            smallDataTypes.put(entityType.getCode(), sdt);</span>
+<span class="fc" id="L112">        }</span>
+<span class="fc" id="L113">        return smallDataTypes;</span>
+    }
+
+    /**
+     * Return the code of the default page used to display the given dataobject.
+     * The default page is defined at dataobject type level; the type is
+     * extrapolated from the code built following the conventions.
+     *
+     * @param dataId The dataobject ID
+     * @return The page code.
+     */
+    @Override
+    public String getViewPage(String dataId) {
+<span class="nc" id="L126">        DataObject type = this.getTypeById(dataId);</span>
+<span class="nc" id="L127">        return type.getViewPage();</span>
+    }
+
+    /**
+     * Return the code of the default model of dataobject.
+     *
+     * @param dataId The dataobject code
+     * @return Il requested model code
+     */
+    @Override
+    public String getDefaultModel(String dataId) {
+<span class="nc" id="L138">        DataObject type = this.getTypeById(dataId);</span>
+<span class="nc" id="L139">        return type.getDefaultModel();</span>
+    }
+
+    /**
+     * Return the code of the model to be used when the dataobject is rendered
+     * in list
+     *
+     * @param dataId The code of the dataobject
+     * @return The code of the model
+     */
+    @Override
+    public String getListModel(String dataId) {
+<span class="nc" id="L151">        DataObject type = this.getTypeById(dataId);</span>
+<span class="nc" id="L152">        return type.getListModel();</span>
+    }
+
+    /**
+     * Return a complete dataobject given its ID; it is possible to choose to
+     * return the published -unmodifiable!- dataobject or the working copy. It
+     * also returns the data in the form of XML.
+     *
+     * @param id The ID of the dataobject
+     * @param onLine Specifies the type of the dataobject to return: 'true'
+     * references the published dataobject, 'false' the freely modifiable one.
+     * @return The requested dataobject.
+     * @throws EntException In case of error.
+     */
+    @Override
+    public DataObject loadDataObject(String id, boolean onLine) throws EntException {
+<span class="fc" id="L168">        return this.loadDataObject(id, onLine, false);</span>
+    }
+
+    @Override
+    public DataObject loadDataObject(String id, boolean onLine, boolean cacheable) throws EntException {
+<span class="fc" id="L173">        DataObject dataobject = null;</span>
+        try {
+<span class="fc" id="L175">            DataObjectRecordVO dataobjectVo = this.loadDataObjectVO(id);</span>
+<span class="fc" id="L176">            dataobject = this.createDataObject(dataobjectVo, onLine);</span>
+<span class="nc" id="L177">        } catch (EntException e) {</span>
+<span class="nc" id="L178">            logger.error(&quot;Error while loading dataobject : id {}&quot;, id, e);</span>
+<span class="nc" id="L179">            throw new EntException(&quot;Error while loading dataobject : id &quot; + id, e);</span>
+<span class="fc" id="L180">        }</span>
+<span class="fc" id="L181">        return dataobject;</span>
+    }
+
+    protected DataObject createDataObject(DataObjectRecordVO dataobjectVo, boolean onLine) throws EntException {
+<span class="fc" id="L185">        DataObject dataobject = null;</span>
+        try {
+<span class="fc bfc" id="L187" title="All 2 branches covered.">            if (dataobjectVo != null) {</span>
+                String xmlData;
+<span class="fc bfc" id="L189" title="All 2 branches covered.">                if (onLine) {</span>
+<span class="fc" id="L190">                    xmlData = dataobjectVo.getXmlOnLine();</span>
+                } else {
+<span class="fc" id="L192">                    xmlData = dataobjectVo.getXmlWork();</span>
+                }
+<span class="fc bfc" id="L194" title="All 2 branches covered.">                if (xmlData != null) {</span>
+<span class="fc" id="L195">                    dataobject = (DataObject) this.createEntityFromXml(dataobjectVo.getTypeCode(), xmlData);</span>
+<span class="fc" id="L196">                    dataobject.setId(dataobjectVo.getId());</span>
+<span class="fc" id="L197">                    dataobject.setTypeCode(dataobjectVo.getTypeCode());</span>
+<span class="fc" id="L198">                    dataobject.setDescription(dataobjectVo.getDescription());</span>
+<span class="fc" id="L199">                    dataobject.setOnLine(dataobjectVo.isOnLine());</span>
+<span class="fc" id="L200">                    dataobject.setMainGroup(dataobjectVo.getMainGroupCode());</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">                    if (null == dataobject.getVersion()) {</span>
+<span class="nc" id="L202">                        dataobject.setVersion(dataobjectVo.getVersion());</span>
+                    }
+<span class="fc bfc" id="L204" title="All 2 branches covered.">                    if (null == dataobject.getFirstEditor()) {</span>
+<span class="fc" id="L205">                        dataobject.setFirstEditor(dataobjectVo.getFirstEditor());</span>
+                    }
+<span class="fc bfc" id="L207" title="All 2 branches covered.">                    if (null == dataobject.getLastEditor()) {</span>
+<span class="fc" id="L208">                        dataobject.setLastEditor(dataobjectVo.getLastEditor());</span>
+                    }
+<span class="fc bfc" id="L210" title="All 2 branches covered.">                    if (null == dataobject.getCreated()) {</span>
+<span class="fc" id="L211">                        dataobject.setCreated(dataobjectVo.getCreate());</span>
+                    }
+<span class="fc bfc" id="L213" title="All 2 branches covered.">                    if (null == dataobject.getLastModified()) {</span>
+<span class="fc" id="L214">                        dataobject.setLastModified(dataobjectVo.getModify());</span>
+                    }
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">                    if (null == dataobject.getStatus()) {</span>
+<span class="nc" id="L217">                        dataobject.setStatus(dataobjectVo.getStatus());</span>
+                    }
+                }
+            }
+<span class="nc" id="L221">        } catch (EntException e) {</span>
+<span class="nc" id="L222">            logger.error(&quot;Error while creating dataobject by vo&quot;, e);</span>
+<span class="nc" id="L223">            throw new EntException(&quot;Error while creating dataobject by vo&quot;, e);</span>
+<span class="fc" id="L224">        }</span>
+<span class="fc" id="L225">        return dataobject;</span>
+    }
+
+    /**
+     * Return a {@link DataObjectRecordVO} (shortly: VO) containing the all
+     * dataobject informations stored in the DB.
+     *
+     * @param id The id of the requested dataobject.
+     * @return The VO object corresponding to the wanted dataobject.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public DataObjectRecordVO loadDataObjectVO(String id) throws EntException {
+<span class="fc" id="L238">        DataObjectRecordVO dataobjectVo = null;</span>
+        try {
+<span class="fc" id="L240">            dataobjectVo = (DataObjectRecordVO) this.getDataObjectDAO().loadEntityRecord(id);</span>
+<span class="nc" id="L241">        } catch (Throwable t) {</span>
+<span class="nc" id="L242">            logger.error(&quot;Error while loading dataobject vo : id {}&quot;, id, t);</span>
+<span class="nc" id="L243">            throw new EntException(&quot;Error while loading dataobject vo : id &quot; + id, t);</span>
+<span class="fc" id="L244">        }</span>
+<span class="fc" id="L245">        return dataobjectVo;</span>
+    }
+
+    /**
+     * Save a dataobject in the DB.
+     *
+     * @param dataobject The dataobject to add.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public void saveDataObject(DataObject dataobject) throws EntException {
+<span class="fc" id="L256">        this.addDataObject(dataobject);</span>
+<span class="fc" id="L257">    }</span>
+
+    @Override
+    public void saveDataObjectAndContinue(DataObject dataobject) throws EntException {
+<span class="nc" id="L261">        this.addUpdateDataObject(dataobject, false);</span>
+<span class="nc" id="L262">    }</span>
+
+    /**
+     * Save a dataobject in the DB. Hopefully this method has no annotation
+     * attached
+     *
+     * @param dataobject
+     * @throws EntException
+     */
+    @Override
+    public void addDataObject(DataObject dataobject) throws EntException {
+<span class="fc" id="L273">        this.addUpdateDataObject(dataobject, true);</span>
+<span class="fc" id="L274">    }</span>
+
+    private void addUpdateDataObject(DataObject dataobject, boolean updateDate) throws EntException {
+        try {
+<span class="fc" id="L278">            dataobject.setLastModified(new Date());</span>
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">            if (updateDate) {</span>
+<span class="fc" id="L280">                dataobject.incrementVersion(false);</span>
+            }
+<span class="fc" id="L282">            String status = dataobject.getStatus();</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            if (null == status) {</span>
+<span class="nc" id="L284">                dataobject.setStatus(DataObject.STATUS_DRAFT);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            } else if (status.equals(DataObject.STATUS_PUBLIC)) {</span>
+<span class="fc" id="L286">                dataobject.setStatus(DataObject.STATUS_READY);</span>
+            }
+<span class="fc bfc" id="L288" title="All 2 branches covered.">            if (null == dataobject.getId()) {</span>
+<span class="fc" id="L289">                IKeyGeneratorManager keyGenerator = (IKeyGeneratorManager) this.getService(SystemConstants.KEY_GENERATOR_MANAGER);</span>
+<span class="fc" id="L290">                int key = keyGenerator.getUniqueKeyCurrentValue();</span>
+<span class="fc" id="L291">                String id = dataobject.getTypeCode() + key;</span>
+<span class="fc" id="L292">                dataobject.setId(id);</span>
+<span class="fc" id="L293">                this.getDataObjectDAO().addEntity(dataobject);</span>
+<span class="fc" id="L294">            } else {</span>
+<span class="fc" id="L295">                this.getDataObjectDAO().updateDataObject(dataobject, updateDate);</span>
+            }
+<span class="nc" id="L297">        } catch (Throwable t) {</span>
+<span class="nc" id="L298">            logger.error(&quot;Error while saving dataobject&quot;, t);</span>
+<span class="nc" id="L299">            throw new EntException(&quot;Error while saving dataobject&quot;, t);</span>
+<span class="fc" id="L300">        }</span>
+<span class="fc" id="L301">    }</span>
+
+    /**
+     * Publish a dataobject.
+     *
+     * @param dataobject The ID associated to the dataobject to be displayed in
+     * the portal.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public void insertDataObject(DataObject dataobject) throws EntException {
+        try {
+<span class="fc" id="L313">            dataobject.setLastModified(new Date());</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            if (null == dataobject.getId()) {</span>
+<span class="fc" id="L315">                dataobject.setCreated(new Date());</span>
+<span class="fc" id="L316">                this.saveDataObject(dataobject);</span>
+            }
+<span class="fc" id="L318">            dataobject.incrementVersion(true);</span>
+<span class="fc" id="L319">            dataobject.setStatus(DataObject.STATUS_PUBLIC);</span>
+<span class="fc" id="L320">            this.getDataObjectDAO().insertDataObject(dataobject);</span>
+<span class="fc" id="L321">            int operationEventCode = -1;</span>
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">            if (dataobject.isOnLine()) {</span>
+<span class="fc" id="L323">                operationEventCode = PublicDataChangedEvent.UPDATE_OPERATION_CODE;</span>
+            } else {
+<span class="nc" id="L325">                operationEventCode = PublicDataChangedEvent.INSERT_OPERATION_CODE;</span>
+            }
+<span class="fc" id="L327">            this.notifyPublicDataObjectChanging(dataobject, operationEventCode);</span>
+<span class="nc" id="L328">        } catch (Throwable t) {</span>
+<span class="nc" id="L329">            logger.error(&quot;Error while inserting dataobject on line&quot;, t);</span>
+<span class="nc" id="L330">            throw new EntException(&quot;Error while inserting dataobject on line&quot;, t);</span>
+<span class="fc" id="L331">        }</span>
+<span class="fc" id="L332">    }</span>
+
+    @Override
+    public void reloadEntityReferences(String entityId) {
+        try {
+<span class="fc" id="L337">            DataObjectRecordVO dataobjectVo = this.loadDataObjectVO(entityId);</span>
+<span class="fc" id="L338">            DataObject dataobject = this.createDataObject(dataobjectVo, true);</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">            if (dataobject != null) {</span>
+<span class="fc" id="L340">                this.getDataObjectDAO().reloadDataObjectReferences(dataobject);</span>
+            }
+<span class="fc" id="L342">            logger.debug(&quot;Reloaded dataobject references for dataobject {}&quot;, entityId);</span>
+<span class="nc" id="L343">        } catch (Throwable t) {</span>
+<span class="nc" id="L344">            logger.error(&quot;Error while reloading dataobject references for dataobject {}&quot;, entityId, t);</span>
+<span class="fc" id="L345">        }</span>
+<span class="fc" id="L346">    }</span>
+
+    /**
+     * Unpublish a dataobject, preventing it from being displayed in the portal.
+     * Obviously the dataobject itself is not deleted.
+     *
+     * @param dataobject the dataobject to unpublish.
+     * @throws EntException in case of error
+     */
+    @Override
+    public void removeDataObject(DataObject dataobject) throws EntException {
+        try {
+<span class="fc" id="L358">            dataobject.setLastModified(new Date());</span>
+<span class="fc" id="L359">            dataobject.incrementVersion(false);</span>
+<span class="pc bpc" id="L360" title="1 of 4 branches missed.">            if (null != dataobject.getStatus() &amp;&amp; dataobject.getStatus().equals(DataObject.STATUS_PUBLIC)) {</span>
+<span class="fc" id="L361">                dataobject.setStatus(DataObject.STATUS_READY);</span>
+            }
+<span class="fc" id="L363">            this.getDataObjectDAO().removeDataObject(dataobject);</span>
+<span class="fc" id="L364">            this.notifyPublicDataObjectChanging(dataobject, PublicDataChangedEvent.REMOVE_OPERATION_CODE);</span>
+<span class="nc" id="L365">        } catch (Throwable t) {</span>
+<span class="nc" id="L366">            logger.error(&quot;Error while removing onLine dataobject&quot;, t);</span>
+<span class="nc" id="L367">            throw new EntException(&quot;Error while removing onLine dataobject&quot;, t);</span>
+<span class="fc" id="L368">        }</span>
+<span class="fc" id="L369">    }</span>
+
+    /**
+     * Notify the modification of a published dataobject.
+     *
+     * @param dataobject    The modified dataobject.
+     * @param operationCode the operation code to notify.
+     * @throws EntException in caso of error.
+     */
+    private void notifyPublicDataObjectChanging(DataObject dataobject, int operationCode) {
+<span class="fc" id="L379">        PublicDataChangedEvent event = new PublicDataChangedEvent();</span>
+<span class="fc" id="L380">        event.setDataObject(dataobject);</span>
+<span class="fc" id="L381">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L382">        this.notifyEvent(event);</span>
+<span class="fc" id="L383">    }</span>
+
+    /**
+     * Return the dataobject type from the given ID code. The code is extracted
+     * following the coding conventions: the first three characters are the type
+     * of the code.
+     *
+     * @param dataId the dataobject ID whose dataobject type is extracted.
+     * @return The dataobject type requested
+     */
+    private DataObject getTypeById(String dataId) {
+<span class="nc" id="L394">        String typeCode = dataId.substring(0, 3);</span>
+<span class="nc" id="L395">        DataObject type = (DataObject) super.getEntityTypes().get(typeCode);</span>
+<span class="nc" id="L396">        return type;</span>
+    }
+
+    /**
+     * Deletes a dataobject from the DB.
+     *
+     * @param dataobject The dataobject to delete.
+     * @throws EntException in case of error.
+     */
+    @Override
+    public void deleteDataObject(DataObject dataobject) throws EntException {
+        try {
+<span class="fc" id="L408">            this.getDataObjectDAO().deleteEntity(dataobject.getId());</span>
+<span class="nc" id="L409">        } catch (Throwable t) {</span>
+<span class="nc" id="L410">            logger.error(&quot;Error while deleting dataobject {}&quot;, dataobject.getId(), t);</span>
+<span class="nc" id="L411">            throw new EntException(&quot;Error while deleting dataobject &quot; + dataobject.getId(), t);</span>
+<span class="fc" id="L412">        }</span>
+<span class="fc" id="L413">    }</span>
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String dataobjectType, String[] categories, EntitySearchFilter[] filters,
+            Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L418">        return this.loadDataObjectsId(dataobjectType, categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String dataobjectType, String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L424">        List&lt;String&gt; dataobjectsId = null;</span>
+        try {
+<span class="fc" id="L426">            dataobjectsId = this.getDataObjectSearcherDAO().loadDataObjectsId(dataobjectType, categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L427">        } catch (Throwable t) {</span>
+<span class="nc" id="L428">            logger.error(&quot;Error while loading dataobjects&quot;, t);</span>
+<span class="nc" id="L429">            throw new EntException(&quot;Error while loading dataobjects&quot;, t);</span>
+<span class="fc" id="L430">        }</span>
+<span class="fc" id="L431">        return dataobjectsId;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String[] categories,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L437">        return this.loadDataObjectsId(categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) throws EntException {
+<span class="fc" id="L443">        List&lt;String&gt; dataobjectsId = null;</span>
+        try {
+<span class="fc" id="L445">            dataobjectsId = this.getDataObjectSearcherDAO().loadDataObjectsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L446">        } catch (Throwable t) {</span>
+<span class="nc" id="L447">            logger.error(&quot;Error while loading dataobjects&quot;, t);</span>
+<span class="nc" id="L448">            throw new EntException(&quot;Error while loading dataobjects&quot;, t);</span>
+<span class="fc" id="L449">        }</span>
+<span class="fc" id="L450">        return dataobjectsId;</span>
+    }
+
+    @Override
+    public List getCategoryUtilizers(String resourceId) throws EntException {
+<span class="fc" id="L455">        List&lt;String&gt; dataIds = null;</span>
+        try {
+<span class="fc" id="L457">            dataIds = this.getDataObjectDAO().getCategoryUtilizers(resourceId);</span>
+<span class="nc" id="L458">        } catch (Throwable t) {</span>
+<span class="nc" id="L459">            throw new EntException(&quot;Error while loading referenced dataobjects : category &quot; + resourceId, t);</span>
+<span class="fc" id="L460">        }</span>
+<span class="fc" id="L461">        return dataIds;</span>
+    }
+
+    @Override
+    public void reloadCategoryReferences(String categoryCode) {
+        try {
+<span class="nc" id="L467">            this.getDataObjectUpdaterService().reloadCategoryReferences(categoryCode);</span>
+<span class="fc" id="L468">        } catch (Throwable t) {</span>
+<span class="fc" id="L469">            ApsSystemUtils.logThrowable(t, this, &quot;reloadCategoryReferences&quot;);</span>
+<span class="nc" id="L470">        }</span>
+<span class="fc" id="L471">    }</span>
+
+    @Override
+    public List getCategoryUtilizersForReloadReferences(String categoryCode) {
+<span class="nc" id="L475">        List&lt;String&gt; dataIdToReload = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L477">            Set&lt;String&gt; dataobjects = this.getDataObjectUpdaterService().getDataObjectsId(categoryCode);</span>
+<span class="nc bnc" id="L478" title="All 2 branches missed.">            if (null != dataobjects) {</span>
+<span class="nc" id="L479">                dataIdToReload.addAll(dataobjects);</span>
+            }
+<span class="nc" id="L481">        } catch (Throwable t) {</span>
+<span class="nc" id="L482">            ApsSystemUtils.logThrowable(t, this, &quot;getCategoryUtilizersForReloadReferences&quot;);</span>
+<span class="nc" id="L483">        }</span>
+<span class="nc" id="L484">        return dataIdToReload;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getGroupUtilizers(String groupName) throws EntException {
+<span class="fc" id="L489">        List&lt;String&gt; dataIds = null;</span>
+        try {
+<span class="fc" id="L491">            dataIds = this.getDataObjectDAO().getGroupUtilizers(groupName);</span>
+<span class="nc" id="L492">        } catch (Throwable t) {</span>
+<span class="nc" id="L493">            throw new EntException(&quot;Error while loading referenced dataobjects : group &quot; + groupName, t);</span>
+<span class="fc" id="L494">        }</span>
+<span class="fc" id="L495">        return dataIds;</span>
+    }
+
+    @Override
+    public boolean isSearchEngineUser() {
+<span class="nc" id="L500">        return true;</span>
+    }
+
+    @Override
+    public DataObjectsStatus getDataObjectsStatus() {
+<span class="nc" id="L505">        DataObjectsStatus status = null;</span>
+        try {
+<span class="nc" id="L507">            status = this.getDataObjectDAO().loadDataObjectsStatus();</span>
+<span class="nc" id="L508">        } catch (Throwable t) {</span>
+<span class="nc" id="L509">            logger.error(&quot;error in getDataObjectsStatus&quot;);</span>
+<span class="nc" id="L510">        }</span>
+<span class="nc" id="L511">        return status;</span>
+    }
+
+    /**
+     * Return the DAO which handles all the operations on the dataobjects.
+     *
+     * @return The DAO managing the dataobjects.
+     */
+    protected IDataObjectDAO getDataObjectDAO() {
+<span class="fc" id="L520">        return dataObjectDao;</span>
+    }
+
+    public void setDataObjectDAO(IDataObjectDAO dao) {
+<span class="fc" id="L524">        this.dataObjectDao = dao;</span>
+<span class="fc" id="L525">    }</span>
+
+    @Override
+    protected IEntitySearcherDAO getEntitySearcherDao() {
+<span class="fc" id="L529">        return this.getDataObjectSearcherDAO();</span>
+    }
+
+    @Override
+    protected IEntityDAO getEntityDao() {
+<span class="nc" id="L534">        return this.getDataObjectDAO();</span>
+    }
+
+    public IDataObjectSearcherDAO getDataObjectSearcherDAO() {
+<span class="fc" id="L538">        return dataObjectSearcherDAO;</span>
+    }
+
+    public void setDataObjectSearcherDAO(IDataObjectSearcherDAO dataObjectSearcherDAO) {
+<span class="fc" id="L542">        this.dataObjectSearcherDAO = dataObjectSearcherDAO;</span>
+<span class="fc" id="L543">    }</span>
+
+    protected IDataObjectUpdaterService getDataObjectUpdaterService() {
+<span class="fc" id="L546">        return dataobjectUpdaterService;</span>
+    }
+
+    public void setDataObjectUpdaterService(IDataObjectUpdaterService dataobjectUpdaterService) {
+<span class="nc" id="L550">        this.dataobjectUpdaterService = dataobjectUpdaterService;</span>
+<span class="nc" id="L551">    }</span>
+
+    @Override
+    public IApsEntity getEntity(String entityId) throws EntException {
+<span class="nc" id="L555">        return this.loadDataObject(entityId, false);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.user</a> &gt; <span class="el_source">UserService.java</span></div><h1>UserService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.user;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.authorization.Authorization;
+import com.agiletec.aps.system.services.authorization.IAuthorizationManager;
+import com.agiletec.aps.system.services.user.*;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.role.IRoleService;
+import org.entando.entando.aps.system.services.user.model.UserAuthorityDto;
+import org.entando.entando.aps.system.services.user.model.UserDto;
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.user.model.UserAuthoritiesRequest;
+import org.entando.entando.web.user.model.UserPasswordRequest;
+import org.entando.entando.web.user.model.UserRequest;
+import org.entando.entando.web.user.validator.UserValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.BindingResult;
+
+/**
+ *
+ * @author paddeo
+ */
+<span class="fc" id="L51">public class UserService implements IUserService {</span>
+
+<span class="fc" id="L53">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private static final String ERRCODE_USER_NOT_FOUND = &quot;1&quot;;
+
+    @Autowired
+    private IUserManager userManager;
+
+    @Autowired
+    private IUserProfileManager userProfileManager;
+
+    @Autowired
+    private IAuthorizationManager authorizationManager;
+
+    @Autowired
+    private IAuthenticationProviderManager authenticationProvider;
+
+    @Autowired
+    private IDtoBuilder&lt;UserDetails, UserDto&gt; dtoBuilder;
+
+    @Autowired
+    private IRoleService roleService;
+
+    public IUserManager getUserManager() {
+<span class="fc" id="L76">        return userManager;</span>
+    }
+
+    public void setUserManager(IUserManager userManager) {
+<span class="nc" id="L80">        this.userManager = userManager;</span>
+<span class="nc" id="L81">    }</span>
+
+    public IUserProfileManager getUserProfileManager() {
+<span class="fc" id="L84">        return userProfileManager;</span>
+    }
+
+    public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="nc" id="L88">        this.userProfileManager = userProfileManager;</span>
+<span class="nc" id="L89">    }</span>
+
+    public IAuthorizationManager getAuthorizationManager() {
+<span class="fc" id="L92">        return authorizationManager;</span>
+    }
+
+    public void setAuthorizationManager(IAuthorizationManager authorizationManager) {
+<span class="fc" id="L96">        this.authorizationManager = authorizationManager;</span>
+<span class="fc" id="L97">    }</span>
+
+    public IAuthenticationProviderManager getAuthenticationProvider() {
+<span class="nc" id="L100">        return authenticationProvider;</span>
+    }
+
+    public void setAuthenticationProvider(IAuthenticationProviderManager authenticationProvider) {
+<span class="fc" id="L104">        this.authenticationProvider = authenticationProvider;</span>
+<span class="fc" id="L105">    }</span>
+
+    public IDtoBuilder&lt;UserDetails, UserDto&gt; getDtoBuilder() {
+<span class="nc" id="L108">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;UserDetails, UserDto&gt; dtoBuilder) {
+<span class="nc" id="L112">        this.dtoBuilder = dtoBuilder;</span>
+<span class="nc" id="L113">    }</span>
+
+    @Override
+    public List&lt;UserAuthorityDto&gt; getUserAuthorities(String username) {
+<span class="fc" id="L117">        UserDetails user = this.loadUser(username);</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L119">            return null;</span>
+        }
+<span class="fc" id="L121">        List&lt;UserAuthorityDto&gt; dtos = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L123">            List&lt;Authorization&gt; auths = this.getAuthorizationManager().getUserAuthorizations(username);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (null != auths) {</span>
+<span class="fc" id="L125">                auths.forEach(auth -&gt; dtos.add(new UserAuthorityDto(auth)));</span>
+            }
+<span class="nc" id="L127">        } catch (EntException e) {</span>
+<span class="nc" id="L128">            logger.error(&quot;Error extracting auths for user {}&quot;, username, e);</span>
+<span class="nc" id="L129">            throw new RestServerError(&quot;Error extracting auths for user &quot; + username, e);</span>
+<span class="fc" id="L130">        }</span>
+<span class="fc" id="L131">        return dtos;</span>
+    }
+
+    @Override
+    public List&lt;UserAuthorityDto&gt; addUserAuthorities(String username, UserAuthoritiesRequest request) {
+<span class="fc" id="L136">        UserDetails user = this.loadUser(username);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L138">            return null;</span>
+        }
+<span class="fc" id="L140">        List&lt;UserAuthorityDto&gt; authorizations = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L141">        request.forEach(authorization -&gt; {</span>
+            try {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                if (!this.getAuthorizationManager().isAuthOnGroupAndRole(user, authorization.getGroup(), authorization.getRole(), true)) {</span>
+<span class="fc" id="L144">                    this.getAuthorizationManager().addUserAuthorization(username, authorization.getGroup(), authorization.getRole());</span>
+                }
+<span class="nc" id="L146">            } catch (EntException ex) {</span>
+<span class="nc" id="L147">                logger.error(&quot;Error in add authorities for {}&quot;, username, ex);</span>
+<span class="nc" id="L148">                throw new RestServerError(&quot;Error in add authorities&quot;, ex);</span>
+<span class="fc" id="L149">            }</span>
+<span class="fc" id="L150">            authorizations.add(new UserAuthorityDto(authorization.getGroup(), authorization.getRole()));</span>
+<span class="fc" id="L151">        });</span>
+<span class="fc" id="L152">        return authorizations;</span>
+    }
+
+    @Override
+    public List&lt;UserAuthorityDto&gt; updateUserAuthorities(String username, UserAuthoritiesRequest request) {
+<span class="fc" id="L157">        this.deleteUserAuthorities(username);</span>
+<span class="fc" id="L158">        return this.addUserAuthorities(username, request);</span>
+    }
+
+    @Override
+    public void deleteUserAuthorities(String username) {
+        try {
+<span class="fc" id="L164">            this.getAuthorizationManager().deleteUserAuthorizations(username);</span>
+<span class="nc" id="L165">        } catch (EntException e) {</span>
+<span class="nc" id="L166">            logger.error(&quot;Error in delete authorities for {}&quot;, username, e);</span>
+<span class="nc" id="L167">            throw new RestServerError(&quot;Error in delete authorities&quot;, e);</span>
+<span class="fc" id="L168">        }</span>
+<span class="fc" id="L169">    }</span>
+
+    @Override
+    public PagedMetadata&lt;UserDto&gt; getUsers(RestListRequest requestList, String withProfile) {
+        try {
+            //transforms the filters by overriding the key specified in the request with the correct one known by the dto
+<span class="fc" id="L175">            List&lt;FieldSearchFilter&gt; filters = new ArrayList&lt;&gt;(requestList.buildFieldSearchFilters());</span>
+<span class="fc" id="L176">            List&lt;EntitySearchFilter&gt; entityFilters = new ArrayList&lt;&gt;(requestList.buildEntitySearchFilters());</span>
+<span class="fc" id="L177">            filters.stream()</span>
+<span class="pc bpc" id="L178" title="1 of 4 branches missed.">                    .filter(i -&gt; ((i.getKey() != null) &amp;&amp; (UserDto.getEntityFieldName(i.getKey()) != null)))</span>
+<span class="fc" id="L179">                    .forEach(i -&gt; i.setKey(UserDto.getEntityFieldName(i.getKey())));</span>
+<span class="fc" id="L180">            List&lt;String&gt; userNames = null;</span>
+<span class="fc" id="L181">            List&lt;UserDetails&gt; users = new ArrayList&lt;&gt;(),</span>
+<span class="fc" id="L182">                    allUsers = new ArrayList&lt;&gt;();</span>
+
+            //username filter
+<span class="fc" id="L185">            List&lt;FieldSearchFilter&gt; usernameFilter = filters.stream().filter(filter</span>
+<span class="pc bpc" id="L186" title="1 of 4 branches missed.">                    -&gt; filter.getValue() != null &amp;&amp; filter.getKey().equals(&quot;username&quot;)).collect(Collectors.toList());</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">            if (usernameFilter.size() &gt; 0) {</span>
+<span class="nc" id="L188">                String text = (String) filters.get(0).getValue();</span>
+<span class="nc" id="L189">                userNames = this.getUserManager().searchUsernames(text);</span>
+<span class="nc" id="L190">            } else {</span>
+<span class="fc" id="L191">                userNames = this.getUserManager().getUsernames();</span>
+            }
+<span class="fc" id="L193">            userNames.forEach(username -&gt; allUsers.add(this.loadUser(username)));</span>
+
+            // Profile and attributes filters
+<span class="fc" id="L196">            users.addAll(allUsers.stream().filter(user</span>
+<span class="fc bfc" id="L197" title="All 4 branches covered.">                    -&gt; (withProfile == null || withProfile.equals(&quot;1&quot;))</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">                    &amp;&amp; checkAttributesFilter(filters, entityFilters, user)).collect(Collectors.toList()));</span>
+
+<span class="fc" id="L200">            List&lt;UserDto&gt; dtoList = dtoBuilder.convert(users);</span>
+<span class="fc" id="L201">            SearcherDaoPaginatedResult&lt;UserDetails&gt; result = new SearcherDaoPaginatedResult&lt;&gt;(users.size(), users);</span>
+<span class="fc" id="L202">            PagedMetadata&lt;UserDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, result);</span>
+<span class="fc" id="L203">            pagedMetadata.setBody(dtoList);</span>
+<span class="fc" id="L204">            pagedMetadata.imposeLimits();</span>
+<span class="fc" id="L205">            return pagedMetadata;</span>
+<span class="nc" id="L206">        } catch (Throwable t) {</span>
+<span class="nc" id="L207">            logger.error(&quot;error in search users&quot;, t);</span>
+<span class="nc" id="L208">            throw new RestServerError(&quot;error in search users&quot;, t);</span>
+        }
+    }
+
+    private boolean checkAttributesFilter(List&lt;FieldSearchFilter&gt; filters, List&lt;EntitySearchFilter&gt; entityFilters, UserDetails user) {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">        if (!filters.stream().anyMatch(filter</span>
+<span class="pc bpc" id="L214" title="1 of 4 branches missed.">                -&gt; filter.getValue() != null &amp;&amp; filter.getKey().equals(&quot;profileType&quot;))) {</span>
+<span class="fc" id="L215">            return true;</span>
+        }
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        if (user.getProfile() == null) {</span>
+<span class="fc" id="L218">            return false;</span>
+        }
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if (!filters.stream().anyMatch(filter</span>
+<span class="pc bpc" id="L221" title="2 of 4 branches missed.">                -&gt; filter.getValue() != null &amp;&amp; (filter.getValue().equals(((IUserProfile) user.getProfile()).getTypeCode())</span>
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">                || filter.getValue().equals(&quot;All&quot;)))) {</span>
+<span class="nc" id="L223">            return false;</span>
+        }
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        if (entityFilters.size() &gt; 0) {</span>
+            try {
+<span class="fc" id="L227">                EntitySearchFilter[] attributes = new EntitySearchFilter[entityFilters.size()];</span>
+<span class="fc" id="L228">                List&lt;String&gt; userNames = this.getUserProfileManager().searchId(entityFilters.toArray(attributes));</span>
+<span class="pc bpc" id="L229" title="1 of 4 branches missed.">                if (userNames.size() == 0 || !userNames.contains(user.getUsername())) {</span>
+<span class="fc" id="L230">                    return false;</span>
+                }
+<span class="nc" id="L232">            } catch (EntException ex) {</span>
+<span class="nc" id="L233">                logger.error(&quot;error in filter users by profile attribute&quot;, ex);</span>
+<span class="nc" id="L234">                throw new RestServerError(&quot;error in filter users by profile attribute&quot;, ex);</span>
+<span class="fc" id="L235">            }</span>
+        }
+<span class="fc" id="L237">        return true;</span>
+    }
+
+    @Override
+    public UserDto getUser(String username) {
+<span class="fc" id="L242">        UserDetails user = this.loadUser(username);</span>
+<span class="fc" id="L243">        return dtoBuilder.convert(user);</span>
+    }
+
+    @Override
+    public UserDto updateUser(UserRequest userRequest) {
+<span class="fc" id="L248">        UserDetails oldUser = this.loadUser(userRequest.getUsername());</span>
+        try {
+<span class="fc" id="L250">            UserDetails newUser = this.updateUser(oldUser, userRequest);</span>
+<span class="pc bpc" id="L251" title="1 of 4 branches missed.">            if (userRequest.isReset() &amp;&amp; (oldUser instanceof User)) {</span>
+<span class="fc" id="L252">                ((User) newUser).setLastAccess(new Date());</span>
+<span class="fc" id="L253">                ((User) newUser).setLastPasswordChange(new Date());</span>
+            }
+<span class="fc" id="L255">            this.getUserManager().updateUser(newUser);</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">            if (null != userRequest.getPassword()) {</span>
+<span class="fc" id="L257">                this.getUserManager().changePassword(userRequest.getUsername(), userRequest.getPassword());</span>
+            }
+<span class="fc" id="L259">            UserDetails modifiedUser = this.getUserManager().getUser(userRequest.getUsername());</span>
+<span class="fc" id="L260">            return dtoBuilder.convert(modifiedUser);</span>
+<span class="nc" id="L261">        } catch (EntException e) {</span>
+<span class="nc" id="L262">            logger.error(&quot;Error in updating user {}&quot;, userRequest.getUsername(), e);</span>
+<span class="nc" id="L263">            throw new RestServerError(&quot;Error in updating user&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public UserDto addUser(UserRequest userRequest) {
+        try {
+<span class="fc" id="L270">            String username = userRequest.getUsername();</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">            if (null != this.getUserManager().getUser(username)) {</span>
+<span class="nc" id="L272">                BindingResult bindingResult = new BeanPropertyBindingResult(userRequest, &quot;user&quot;);</span>
+<span class="nc" id="L273">                bindingResult.reject(UserValidator.ERRCODE_USER_ALREADY_EXISTS, new String[]{username}, &quot;user.exists&quot;);</span>
+<span class="nc" id="L274">                throw new ValidationConflictException(bindingResult);</span>
+            }
+<span class="fc" id="L276">            UserDetails newUser = this.createUser(userRequest);</span>
+<span class="fc" id="L277">            this.getUserManager().addUser(newUser);</span>
+<span class="fc" id="L278">            UserDetails addedUser = this.getUserManager().getUser(username);</span>
+<span class="fc" id="L279">            return dtoBuilder.convert(addedUser);</span>
+<span class="nc" id="L280">        } catch (EntException e) {</span>
+<span class="nc" id="L281">            logger.error(&quot;Error in adding user {}&quot;, userRequest.getUsername(), e);</span>
+<span class="nc" id="L282">            throw new RestServerError(&quot;Error in adding user&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public void removeUser(String username) {
+        try {
+<span class="fc" id="L289">            this.getUserManager().removeUser(username);</span>
+<span class="nc" id="L290">        } catch (EntException e) {</span>
+<span class="nc" id="L291">            logger.error(&quot;Error in deleting user {}&quot;, username, e);</span>
+<span class="nc" id="L292">            throw new RestServerError(&quot;Error in deleting user&quot;, e);</span>
+<span class="fc" id="L293">        }</span>
+<span class="fc" id="L294">    }</span>
+
+    @Override
+    public UserDto updateUserPassword(UserPasswordRequest passwordRequest) {
+        try {
+<span class="fc" id="L299">            this.getUserManager().changePassword(passwordRequest.getUsername(), passwordRequest.getNewPassword());</span>
+<span class="fc" id="L300">            UserDetails user = this.loadUser(passwordRequest.getUsername());</span>
+<span class="fc" id="L301">            return dtoBuilder.convert(user);</span>
+<span class="nc" id="L302">        } catch (EntException e) {</span>
+<span class="nc" id="L303">            logger.error(&quot;Error in updating password for user {}&quot;, passwordRequest.getUsername(), e);</span>
+<span class="nc" id="L304">            throw new RestServerError(&quot;Error in updating password&quot;, e);</span>
+        }
+    }
+
+
+    @Override
+    public List&lt;UserGroupPermissions&gt; getMyGroupPermissions(UserDetails user) {
+
+<span class="nc" id="L312">        return Optional.ofNullable(user)</span>
+<span class="nc" id="L313">                .map(UserDetails::getAuthorizations)</span>
+<span class="nc" id="L314">                .orElse(new ArrayList&lt;&gt;())</span>
+<span class="nc" id="L315">                .stream()</span>
+<span class="nc" id="L316">                .map(authorization -&gt; new UserGroupPermissions(authorization.getGroup().getName(), authorization.getRole().getPermissions()))</span>
+<span class="nc" id="L317">                .collect(Collectors.toList());</span>
+    }
+
+
+
+    private UserDetails loadUser(String username) {
+        try {
+<span class="fc" id="L324">            UserDetails user = this.getUserManager().getUser(username);</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">            if (user == null) {</span>
+<span class="fc" id="L326">                throw new ResourceNotFoundException(ERRCODE_USER_NOT_FOUND, &quot;user&quot;, username);</span>
+            }
+<span class="fc" id="L328">            return user;</span>
+<span class="fc" id="L329">        } catch (ResourceNotFoundException e) {</span>
+<span class="fc" id="L330">            throw e;</span>
+<span class="nc" id="L331">        } catch (EntException e) {</span>
+<span class="nc" id="L332">            logger.error(&quot;Error in loading user {}&quot;, username, e);</span>
+<span class="nc" id="L333">            throw new RestServerError(&quot;Error in loading user&quot;, e);</span>
+        }
+    }
+
+    private UserDetails updateUser(UserDetails oldUser, UserRequest userRequest) {
+<span class="fc" id="L338">        User user = new User();</span>
+<span class="fc" id="L339">        user.setUsername(userRequest.getUsername());</span>
+<span class="fc" id="L340">        user.setPassword(userRequest.getPassword());</span>
+<span class="pc bpc" id="L341" title="2 of 4 branches missed.">        user.setDisabled(userRequest.getStatus() != null &amp;&amp; !userRequest.getStatus().equals(IUserService.STATUS_ACTIVE));</span>
+<span class="pc bpc" id="L342" title="1 of 2 branches missed.">        if (oldUser instanceof User) {</span>
+<span class="fc" id="L343">            User userToClone = (User) oldUser;</span>
+<span class="fc" id="L344">            user.setLastAccess(userToClone.getLastAccess());</span>
+<span class="fc" id="L345">            user.setLastPasswordChange(userToClone.getLastPasswordChange());</span>
+        }
+<span class="fc" id="L347">        return user;</span>
+    }
+
+    private UserDetails createUser(UserRequest userRequest) {
+<span class="fc" id="L351">        User user = new User();</span>
+<span class="fc" id="L352">        user.setUsername(userRequest.getUsername());</span>
+<span class="fc" id="L353">        user.setPassword(userRequest.getPassword());</span>
+<span class="fc" id="L354">        user.setProfile(userProfileManager.getProfileType(userRequest.getProfileType()));</span>
+<span class="pc bpc" id="L355" title="1 of 4 branches missed.">        user.setDisabled(userRequest.getStatus() != null &amp;&amp; !userRequest.getStatus().equals(IUserService.STATUS_ACTIVE));</span>
+<span class="fc" id="L356">        return user;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

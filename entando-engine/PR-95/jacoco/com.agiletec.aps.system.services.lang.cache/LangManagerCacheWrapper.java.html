@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LangManagerCacheWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.lang.cache</a> &gt; <span class="el_source">LangManagerCacheWrapper.java</span></div><h1>LangManagerCacheWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.lang.cache;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.cache.Cache;
+
+import com.agiletec.aps.system.common.AbstractGenericCacheWrapper;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.lang.LangDOM;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L33">public class LangManagerCacheWrapper extends AbstractGenericCacheWrapper&lt;Lang&gt; implements ILangManagerCacheWrapper {</span>
+
+<span class="fc" id="L35">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(LangManagerCacheWrapper.class);</span>
+
+    @Override
+    public void initCache(String xmlConfig) throws EntException {
+        try {
+<span class="fc" id="L40">            Cache cache = this.getCache();</span>
+<span class="fc" id="L41">            LangDOM langDom = new LangDOM(xmlConfig);</span>
+<span class="fc" id="L42">            Map&lt;String, Lang&gt; langMap = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L43">            List&lt;Lang&gt; systemLangs = langDom.getLangs();</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            for (Lang lang : systemLangs) {</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">                if (lang.isDefault()) {</span>
+<span class="fc" id="L46">                    cache.put(LANG_DEFAULT_CACHE_NAME, lang);</span>
+                }
+<span class="fc" id="L48">                langMap.put(lang.getCode(), lang);</span>
+<span class="fc" id="L49">            }</span>
+<span class="fc" id="L50">            this.insertAndCleanCache(cache, langMap);</span>
+<span class="nc" id="L51">        } catch (Throwable t) {</span>
+<span class="nc" id="L52">            logger.error(&quot;Error loading the system langs&quot;, t);</span>
+<span class="nc" id="L53">            throw new EntException(&quot;Error loading the system langs&quot;, t);</span>
+<span class="fc" id="L54">        }</span>
+<span class="fc" id="L55">    }</span>
+
+    @Override
+    public List&lt;Lang&gt; getLangs() {
+<span class="fc" id="L59">        List&lt;Lang&gt; langs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L60">        Cache cache = this.getCache();</span>
+<span class="fc" id="L61">        List&lt;String&gt; codes = (List&lt;String&gt;) this.get(cache, LANG_CODES_CACHE_NAME, List.class);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        if (null != codes) {</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">            for (String code : codes) {</span>
+<span class="fc" id="L64">                Lang lang = this.get(cache, LANG_CACHE_NAME_PREFIX + code, Lang.class);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">                if (lang.isDefault()) {</span>
+<span class="fc" id="L66">                    langs.add(0, lang);</span>
+                } else {
+<span class="fc" id="L68">                    langs.add(lang);</span>
+                }
+<span class="fc" id="L70">            }</span>
+        }
+<span class="fc" id="L72">        return langs;</span>
+    }
+
+    @Override
+    public Lang getDefaultLang() {
+<span class="fc" id="L77">        return this.get(this.getCache(), LANG_DEFAULT_CACHE_NAME, Lang.class);</span>
+    }
+
+    @Override
+    public Lang getLang(String code) {
+<span class="fc" id="L82">        return this.get(this.getCache(), LANG_CACHE_NAME_PREFIX + code, Lang.class);</span>
+    }
+
+    @Override
+    public void addLang(Lang lang) {
+<span class="fc" id="L87">        this.manage(lang.getCode(), lang, AbstractGenericCacheWrapper.Action.ADD);</span>
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    public void updateLang(Lang lang) {
+<span class="fc" id="L92">        this.manage(lang.getCode(), lang, AbstractGenericCacheWrapper.Action.UPDATE);</span>
+<span class="fc" id="L93">    }</span>
+
+    @Override
+    public void removeLang(Lang lang) {
+<span class="fc" id="L97">        this.manage(lang.getCode(), lang, AbstractGenericCacheWrapper.Action.DELETE);</span>
+<span class="fc" id="L98">    }</span>
+
+    @Override
+    protected String getCodesCacheKey() {
+<span class="fc" id="L102">        return LANG_CODES_CACHE_NAME;</span>
+    }
+
+    @Override
+    protected String getCacheKeyPrefix() {
+<span class="fc" id="L107">        return LANG_CACHE_NAME_PREFIX;</span>
+    }
+
+    @Override
+    protected String getCacheName() {
+<span class="fc" id="L112">        return LANG_MANAGER_CACHE_NAME;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

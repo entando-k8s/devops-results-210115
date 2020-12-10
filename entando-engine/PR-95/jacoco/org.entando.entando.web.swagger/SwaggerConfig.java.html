@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SwaggerConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.swagger</a> &gt; <span class="el_source">SwaggerConfig.java</span></div><h1>SwaggerConfig.java</h1><pre class="source lang-java linenums">package org.entando.entando.web.swagger;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.fasterxml.classmate.TypeResolver;
+import java.lang.reflect.WildcardType;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import org.entando.entando.web.user.model.UserAuthoritiesRequest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
+import springfox.documentation.builders.AuthorizationCodeGrantBuilder;
+import springfox.documentation.builders.OAuthBuilder;
+import springfox.documentation.builders.PathSelectors;
+import springfox.documentation.builders.RequestHandlerSelectors;
+import springfox.documentation.schema.AlternateTypeRules;
+import springfox.documentation.service.AuthorizationScope;
+import springfox.documentation.service.GrantType;
+import springfox.documentation.service.SecurityReference;
+import springfox.documentation.service.SecurityScheme;
+import springfox.documentation.service.TokenEndpoint;
+import springfox.documentation.service.TokenRequestEndpoint;
+import springfox.documentation.spi.DocumentationType;
+import springfox.documentation.spi.service.contexts.SecurityContext;
+import springfox.documentation.spring.web.plugins.Docket;
+import springfox.documentation.swagger.web.SecurityConfiguration;
+import springfox.documentation.swagger.web.SecurityConfigurationBuilder;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
+
+@ComponentScan
+@EnableSwagger2
+public class SwaggerConfig {
+
+    private static final String REFERENCE_NAME = &quot;entando&quot;;
+    private static final String GROUP_NAME = &quot;entando&quot;;
+
+    private TypeResolver typeResolver;
+
+    private String kcClientId;
+    private String kcClientSecret;
+    private String authServer;
+
+<span class="fc" id="L45">    public SwaggerConfig(Environment environment, TypeResolver typeResolver) {</span>
+
+<span class="fc" id="L47">        this.typeResolver = typeResolver;</span>
+<span class="fc" id="L48">        this.authServer = environment.getProperty(SystemConstants.SYSTEM_PROP_KEYCLOAK_AUTH_URL);</span>
+
+<span class="fc" id="L50">        boolean kcEnabled = Boolean.parseBoolean(environment.getProperty(SystemConstants.SYSTEM_PROP_KEYCLOAK_ENABLED));</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (kcEnabled) {</span>
+<span class="fc" id="L52">            String kcRealm = environment.getProperty(SystemConstants.SYSTEM_PROP_KEYCLOAK_REALM);</span>
+<span class="fc" id="L53">            this.authServer = String.format(&quot;%s/realms/%s/protocol/openid-connect&quot;, this.authServer, kcRealm);</span>
+        }
+<span class="fc" id="L55">    }</span>
+
+    @Bean
+    public Docket api() {
+
+<span class="fc" id="L60">        return new Docket(DocumentationType.SWAGGER_2)</span>
+<span class="fc" id="L61">                .groupName(GROUP_NAME)</span>
+<span class="fc" id="L62">                .select()</span>
+<span class="fc" id="L63">                .apis(RequestHandlerSelectors.any())</span>
+<span class="fc" id="L64">                .paths(PathSelectors.any())</span>
+<span class="fc" id="L65">                .build()</span>
+<span class="fc" id="L66">                .securitySchemes((getSecuritySchemes()))</span>
+<span class="fc" id="L67">                .securityContexts(securityContext())</span>
+<span class="fc" id="L68">                .directModelSubstitute(UserAuthoritiesRequest.class, String.class)</span>
+<span class="fc" id="L69">                .alternateTypeRules(</span>
+                        // This rule is necessary to allow Swagger resolving Map&lt;String, List&lt;String&gt;&gt; types
+<span class="fc" id="L71">                        AlternateTypeRules.newRule(</span>
+<span class="fc" id="L72">                                typeResolver.resolve(Map.class, String.class, typeResolver.resolve(List.class, String.class)),</span>
+<span class="fc" id="L73">                                typeResolver.resolve(Map.class, String.class, WildcardType.class), Ordered.HIGHEST_PRECEDENCE)</span>
+                );
+    }
+
+    private List&lt;SecurityScheme&gt; getSecuritySchemes() {
+
+<span class="fc" id="L79">        SecurityScheme oAuth = new OAuthBuilder()</span>
+<span class="fc" id="L80">                .name(REFERENCE_NAME)</span>
+<span class="fc" id="L81">                .grantTypes(getGrantTypes())</span>
+<span class="fc" id="L82">                .build();</span>
+
+<span class="fc" id="L84">        return Collections.singletonList(oAuth);</span>
+    }
+
+    private List&lt;GrantType&gt; getGrantTypes() {
+
+<span class="fc" id="L89">        GrantType grantType = new AuthorizationCodeGrantBuilder()</span>
+<span class="fc" id="L90">                .tokenEndpoint(new TokenEndpoint(this.authServer + &quot;/token&quot;, &quot;oauthtoken&quot;))</span>
+<span class="fc" id="L91">                .tokenRequestEndpoint(</span>
+                        new TokenRequestEndpoint(this.authServer + &quot;/auth&quot;, this.kcClientId, this.kcClientSecret))
+<span class="fc" id="L93">                .build();</span>
+
+<span class="fc" id="L95">        return Collections.singletonList(grantType);</span>
+    }
+
+    private List&lt;SecurityContext&gt; securityContext() {
+
+<span class="fc" id="L100">        SecurityContext securityContext = SecurityContext.builder()</span>
+<span class="fc" id="L101">                .securityReferences(getDefaultAuths())</span>
+<span class="fc" id="L102">                .forPaths(PathSelectors.regex(&quot;/.*&quot;))</span>
+<span class="fc" id="L103">                .build();</span>
+
+<span class="fc" id="L105">        return Collections.singletonList(securityContext);</span>
+    }
+
+    private List&lt;SecurityReference&gt; getDefaultAuths() {
+
+<span class="fc" id="L110">        SecurityReference securityReference = SecurityReference.builder()</span>
+<span class="fc" id="L111">                .reference(REFERENCE_NAME)</span>
+<span class="fc" id="L112">                .scopes(new AuthorizationScope[0])</span>
+<span class="fc" id="L113">                .build();</span>
+
+<span class="fc" id="L115">        return Collections.singletonList(securityReference);</span>
+    }
+
+
+    @Bean
+    public SecurityConfiguration security() {
+
+<span class="fc" id="L122">        return SecurityConfigurationBuilder.builder()</span>
+<span class="fc" id="L123">                .useBasicAuthenticationWithAccessCodeGrant(true)</span>
+<span class="fc" id="L124">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
