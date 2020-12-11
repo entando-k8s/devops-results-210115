@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrashedResourceAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.apsadmin.resource</a> &gt; <span class="el_source">TrashedResourceAction.java</span></div><h1>TrashedResourceAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpversioning.apsadmin.resource;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMonoInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMultiInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInstance;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jacms.apsadmin.resource.ResourceFinderAction;
+import com.agiletec.plugins.jpversioning.aps.system.services.resource.ITrashedResourceManager;
+import java.io.ByteArrayInputStream;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+<span class="fc" id="L41">public class TrashedResourceAction extends ResourceFinderAction {</span>
+    
+<span class="fc" id="L43">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(TrashedResourceAction.class);</span>
+	
+	private String _contentType;
+	private String _nameFile;
+
+	private String _resourceId;
+	private String _size;
+	private String _langCode;
+
+	private ITrashedResourceManager _trashedResourceManager;
+    
+    public InputStream getInputStream() {
+<span class="nc" id="L55">		InputStream documentInputStream = null;</span>
+		try {
+<span class="nc" id="L57">			String resourceId = this.getResourceId();</span>
+<span class="nc bnc" id="L58" title="All 4 branches missed.">			if (null ==  resourceId || resourceId.length() == 0) {</span>
+<span class="nc" id="L59">				return new ByteArrayInputStream(new byte[0]);</span>
+			}
+<span class="nc" id="L61">			ResourceInterface resource = this.getTrashedResourceManager().loadTrashedResource(resourceId);</span>
+<span class="nc" id="L62">			String mainGroup = resource.getMainGroup();</span>
+<span class="nc" id="L63">			UserDetails currentUser = this.getCurrentUser();</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">			if (!this.getAuthorizationManager().isAuthOnGroup(currentUser, mainGroup)) {</span>
+<span class="nc" id="L65">				return new ByteArrayInputStream(new byte[0]);</span>
+			}
+<span class="nc" id="L67">			int size = Integer.parseInt(this.getSize());</span>
+<span class="nc" id="L68">			ResourceInstance instance = null;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">			if (resource.isMultiInstance()) {</span>
+<span class="nc" id="L70">				instance = ((AbstractMultiInstanceResource) resource).getInstance(size, getLangCode());</span>
+			} else {
+<span class="nc" id="L72">				instance = ((AbstractMonoInstanceResource) resource).getInstance();</span>
+			}
+<span class="nc" id="L74">			documentInputStream = this.getTrashedResourceManager().getTrashFileStream(resource, instance);</span>
+<span class="nc" id="L75">			this.setContentType(instance.getMimeType());</span>
+<span class="nc" id="L76">			this.setNameFile(instance.getFileName());</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            if (null == documentInputStream) {</span>
+<span class="nc" id="L78">                documentInputStream = new ByteArrayInputStream(new byte[0]);</span>
+            }
+<span class="nc" id="L80">		} catch (Throwable t) {</span>
+<span class="nc" id="L81">            logger.error(&quot;Error extracting input stream&quot;, t);</span>
+<span class="nc" id="L82">		}</span>
+<span class="nc" id="L83">		return documentInputStream;</span>
+	}
+
+	public String download(){
+<span class="nc" id="L87">		return SUCCESS;</span>
+	}	
+
+	public String restore(){
+		try {
+<span class="fc" id="L92">			String id = this.getResourceId();</span>
+<span class="fc" id="L93">			this.getTrashedResourceManager().restoreResource(id);</span>
+<span class="nc" id="L94">		} catch(Throwable t) {</span>
+<span class="nc" id="L95">			logger.error(&quot;Error on restore&quot;, t);</span>
+<span class="nc" id="L96">			return FAILURE;</span>
+<span class="fc" id="L97">		}</span>
+<span class="fc" id="L98">		return SUCCESS;</span>
+	}
+
+	public String trash() {
+<span class="nc" id="L102">		return SUCCESS;</span>
+	}
+
+	public String remove(){
+		try {
+<span class="fc" id="L107">			this.getTrashedResourceManager().removeFromTrash(this.getResourceId());</span>
+<span class="nc" id="L108">		} catch(Throwable t) {</span>
+<span class="nc" id="L109">			logger.error(&quot;Error removing trashed resource&quot;, t);</span>
+<span class="nc" id="L110">			return FAILURE;</span>
+<span class="fc" id="L111">		}</span>
+<span class="fc" id="L112">		return SUCCESS;</span>
+	}
+
+	public ResourceInterface getTrashedResource(String id) throws Throwable{
+		try {
+<span class="fc" id="L117">			return this.getTrashedResourceManager().loadTrashedResource(id);</span>
+<span class="nc" id="L118">		} catch (Throwable t) {</span>
+<span class="nc" id="L119">			logger.error(&quot;Error extracting trashed resource&quot;, t);</span>
+<span class="nc" id="L120">			throw t;</span>
+		}
+	}
+
+	public List&lt;String&gt; getTrashedResources() throws Throwable {
+<span class="fc" id="L125">		List&lt;String&gt; resources = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L127">			resources = this.searchTrashedResources(this.getResourceTypeCode(), this.getText(), this.getCurrentUser());</span>
+<span class="nc" id="L128">		} catch (Throwable t) {</span>
+<span class="nc" id="L129">			logger.error(&quot;Error extracting trashed resources&quot;, t);</span>
+<span class="nc" id="L130">			throw t;</span>
+<span class="fc" id="L131">		}</span>
+<span class="fc" id="L132">		return resources;</span>
+	}
+
+	private List&lt;String&gt; searchTrashedResources(String resourceTypeCode, String text, UserDetails currentUser) throws EntException {
+<span class="fc" id="L136">		List&lt;String&gt; allowedGroups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L137">		List&lt;Group&gt; userGroups = this.getAuthorizationManager().getUserGroups(currentUser);</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">		for (int i=0; i&lt;userGroups.size(); i++) {</span>
+<span class="fc" id="L139">			Group group = userGroups.get(i);</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">			if (group.getName().equals(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L141">				allowedGroups.clear();</span>
+<span class="fc" id="L142">				break;</span>
+			} else {
+<span class="fc" id="L144">				allowedGroups.add(group.getName());</span>
+			}
+		}
+<span class="fc" id="L147">		return this.getTrashedResourceManager().searchTrashedResourceIds(resourceTypeCode, text, allowedGroups);</span>
+	}
+
+	public String getResourceId() {
+<span class="fc" id="L151">		return _resourceId;</span>
+	}
+	public void setResourceId(String resourceId) {
+<span class="fc" id="L154">		this._resourceId = resourceId;</span>
+<span class="fc" id="L155">	}</span>
+
+	public void setContentType(String contentType) {
+<span class="nc" id="L158">		this._contentType = contentType;</span>
+<span class="nc" id="L159">	}</span>
+	public String getContentType() {
+<span class="nc" id="L161">		return _contentType;</span>
+	}
+
+	public void setNameFile(String nameFile) {
+<span class="nc" id="L165">		this._nameFile = nameFile;</span>
+<span class="nc" id="L166">	}</span>
+	public String getNameFile() {
+<span class="nc" id="L168">		return _nameFile;</span>
+	}
+
+	public void setSize(String size) {
+<span class="nc" id="L172">		this._size = size;</span>
+<span class="nc" id="L173">	}</span>
+	public String getSize() {
+<span class="nc" id="L175">		return _size;</span>
+	}
+
+	public void setLangCode(String langCode) {
+<span class="nc" id="L179">		this._langCode = langCode;</span>
+<span class="nc" id="L180">	}</span>
+	public String getLangCode() {
+<span class="nc" id="L182">		return _langCode;</span>
+	}
+
+	protected ITrashedResourceManager getTrashedResourceManager() {
+<span class="fc" id="L186">		return _trashedResourceManager;</span>
+	}
+	public void setTrashedResourceManager(ITrashedResourceManager trashedResourceManager) {
+<span class="fc" id="L189">		this._trashedResourceManager = trashedResourceManager;</span>
+<span class="fc" id="L190">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

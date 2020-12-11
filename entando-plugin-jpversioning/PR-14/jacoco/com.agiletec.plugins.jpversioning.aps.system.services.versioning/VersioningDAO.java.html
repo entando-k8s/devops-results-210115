@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VersioningDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.aps.system.services.versioning</a> &gt; <span class="el_source">VersioningDAO.java</span></div><h1>VersioningDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpversioning.aps.system.services.versioning;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L41">public class VersioningDAO extends AbstractDAO implements IVersioningDAO {</span>
+
+<span class="fc" id="L43">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(VersioningDAO.class);</span>
+
+    @Override
+    public List&lt;Long&gt; getVersions(String contentId) {
+<span class="fc" id="L47">        Connection conn = null;</span>
+<span class="fc" id="L48">        PreparedStatement stat = null;</span>
+<span class="fc" id="L49">        ResultSet res = null;</span>
+<span class="fc" id="L50">        List&lt;Long&gt; ids = null;</span>
+        try {
+<span class="fc" id="L52">            conn = this.getConnection();</span>
+<span class="fc" id="L53">            stat = conn.prepareStatement(SELECT_VERSIONS_BY_CONTENTID);</span>
+<span class="fc" id="L54">            stat.setString(1, contentId);</span>
+<span class="fc" id="L55">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">                if (ids == null) {</span>
+<span class="fc" id="L58">                    ids = new ArrayList&lt;&gt;();</span>
+                }
+<span class="fc" id="L60">                ids.add(res.getLong(1));</span>
+            }
+<span class="nc" id="L62">        } catch (Throwable t) {</span>
+<span class="nc" id="L63">            _logger.error(&quot;Error loading content version&quot;, t);</span>
+<span class="nc" id="L64">            throw new RuntimeException(&quot;Error loading content version&quot;, t);</span>
+        } finally {
+<span class="fc" id="L66">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L68">        return ids;</span>
+    }
+
+    @Override
+    public List&lt;Long&gt; getLastVersions(String contentType, String descr) {
+<span class="fc" id="L73">        Connection conn = null;</span>
+<span class="fc" id="L74">        PreparedStatement stat = null;</span>
+<span class="fc" id="L75">        ResultSet res = null;</span>
+<span class="fc" id="L76">        List&lt;Long&gt; lastVersions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L77">        String query = this.createQueryForGetLastVersions(contentType, descr);</span>
+        try {
+<span class="fc" id="L79">            conn = this.getConnection();</span>
+<span class="fc" id="L80">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L81">            int i = 0;</span>
+<span class="pc bpc" id="L82" title="1 of 4 branches missed.">            if (null != contentType &amp;&amp; contentType.trim().length() &gt; 0) {</span>
+<span class="fc" id="L83">                stat.setString(++i, contentType);</span>
+            }
+<span class="pc bpc" id="L85" title="1 of 4 branches missed.">            if (null != descr &amp;&amp; descr.trim().length() &gt; 0) {</span>
+<span class="fc" id="L86">                StringBuilder strBff = new StringBuilder(&quot;%&quot;);</span>
+<span class="fc" id="L87">                strBff.append(descr);</span>
+<span class="fc" id="L88">                strBff.append(&quot;%&quot;);</span>
+<span class="fc" id="L89">                stat.setString(++i, strBff.toString());</span>
+            }
+<span class="fc" id="L91">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L93">                lastVersions.add(res.getLong(1));</span>
+            }
+<span class="nc" id="L95">        } catch (Throwable t) {</span>
+<span class="nc" id="L96">            _logger.error(&quot;Error loading content versions&quot;, t);</span>
+<span class="nc" id="L97">            throw new RuntimeException(&quot;Error loading content versions&quot;, t);</span>
+        } finally {
+<span class="fc" id="L99">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L101">        return lastVersions;</span>
+    }
+
+    @Override
+    public ContentVersion getVersion(long id) {
+<span class="fc" id="L106">        Connection conn = null;</span>
+<span class="fc" id="L107">        PreparedStatement stat = null;</span>
+<span class="fc" id="L108">        ContentVersion contentVersion = null;</span>
+<span class="fc" id="L109">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L111">            conn = this.getConnection();</span>
+<span class="fc" id="L112">            stat = conn.prepareStatement(SELECT_VERSION_BY_VERSIONID);</span>
+<span class="fc" id="L113">            stat.setLong(1, id);</span>
+<span class="fc" id="L114">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L116">                contentVersion = this.prepareContentVersionFromResultSet(res);</span>
+            }
+<span class="nc" id="L118">        } catch (Throwable t) {</span>
+<span class="nc" id="L119">            _logger.error(&quot;Error loading version&quot;, t);</span>
+<span class="nc" id="L120">            throw new RuntimeException(&quot;Error loading version&quot;, t);</span>
+        } finally {
+<span class="fc" id="L122">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L124">        return contentVersion;</span>
+    }
+
+    @Override
+    public ContentVersion getLastVersion(String contentId) {
+<span class="fc" id="L129">        Connection conn = null;</span>
+<span class="fc" id="L130">        PreparedStatement stat = null;</span>
+<span class="fc" id="L131">        ResultSet res = null;</span>
+<span class="fc" id="L132">        ContentVersion contentVersion = null;</span>
+        try {
+<span class="fc" id="L134">            conn = this.getConnection();</span>
+<span class="fc" id="L135">            stat = conn.prepareStatement(SELECT_LAST_VERSION_BY_CONTENTID);</span>
+<span class="fc" id="L136">            stat.setString(1, contentId);</span>
+<span class="fc" id="L137">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L139">                contentVersion = this.prepareContentVersionFromResultSet(res);</span>
+            }
+<span class="nc" id="L141">        } catch (Throwable t) {</span>
+<span class="nc" id="L142">            _logger.error(&quot;Error loading last content version&quot;, t);</span>
+<span class="nc" id="L143">            throw new RuntimeException(&quot;Error loading last content version&quot;, t);</span>
+        } finally {
+<span class="fc" id="L145">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L147">        return contentVersion;</span>
+    }
+
+    @Override
+    public void addContentVersion(ContentVersion contentVersion) {
+<span class="fc" id="L152">        Connection conn = null;</span>
+<span class="fc" id="L153">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L155">            conn = this.getConnection();</span>
+<span class="fc" id="L156">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L157">            long nextId = this.extractNextId(NEXT_ID, conn);</span>
+<span class="fc" id="L158">            contentVersion.setId(nextId);</span>
+<span class="fc" id="L159">            stat = conn.prepareStatement(ADD_VERSION_RECORD);</span>
+<span class="fc" id="L160">            stat.setLong(1, contentVersion.getId());</span>
+<span class="fc" id="L161">            stat.setString(2, contentVersion.getContentId());</span>
+<span class="fc" id="L162">            stat.setString(3, contentVersion.getContentType());</span>
+<span class="fc" id="L163">            stat.setString(4, contentVersion.getDescr());</span>
+<span class="fc" id="L164">            stat.setString(5, contentVersion.getStatus());</span>
+<span class="fc" id="L165">            stat.setString(6, contentVersion.getXml());</span>
+<span class="fc" id="L166">            stat.setTimestamp(7, new Timestamp(contentVersion.getVersionDate().getTime()));</span>
+<span class="fc" id="L167">            stat.setString(8, contentVersion.getVersion());</span>
+<span class="fc" id="L168">            stat.setInt(9, contentVersion.getOnlineVersion());</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            int approved = contentVersion.isApproved() ? 1 : 0;</span>
+<span class="fc" id="L170">            stat.setInt(10, approved);</span>
+<span class="fc" id="L171">            stat.setString(11, contentVersion.getUsername());</span>
+<span class="fc" id="L172">            stat.executeUpdate();</span>
+<span class="fc" id="L173">            conn.commit();</span>
+<span class="nc" id="L174">        } catch (Throwable t) {</span>
+<span class="nc" id="L175">            this.executeRollback(conn);</span>
+<span class="nc" id="L176">            _logger.error(&quot;Error adding version record&quot;, t);</span>
+<span class="nc" id="L177">            throw new RuntimeException(&quot;Error adding version record&quot;, t);</span>
+        } finally {
+<span class="fc" id="L179">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L181">    }</span>
+
+    @Override
+    public void deleteVersion(long versionId) {
+<span class="fc" id="L185">        Connection conn = null;</span>
+<span class="fc" id="L186">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L188">            conn = this.getConnection();</span>
+<span class="fc" id="L189">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L190">            stat = conn.prepareStatement(DELETE_VERSION);</span>
+<span class="fc" id="L191">            stat.setLong(1, versionId);</span>
+<span class="fc" id="L192">            stat.executeUpdate();</span>
+<span class="fc" id="L193">            conn.commit();</span>
+<span class="nc" id="L194">        } catch (Throwable t) {</span>
+<span class="nc" id="L195">            this.executeRollback(conn);</span>
+<span class="nc" id="L196">            _logger.error(&quot;Error deleting version&quot;, t);</span>
+<span class="nc" id="L197">            throw new RuntimeException(&quot;Error deleting version&quot;, t);</span>
+        } finally {
+<span class="fc" id="L199">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L201">    }</span>
+
+    @Override
+    public void deleteWorkVersions(String contentId, int onlineVersion) {
+<span class="nc" id="L205">        Connection conn = null;</span>
+<span class="nc" id="L206">        PreparedStatement stat = null;</span>
+        try {
+<span class="nc" id="L208">            conn = this.getConnection();</span>
+<span class="nc" id="L209">            conn.setAutoCommit(false);</span>
+<span class="nc" id="L210">            stat = conn.prepareStatement(DELETE_WORK_VERSION_RECORDS);</span>
+<span class="nc" id="L211">            stat.setString(1, contentId);</span>
+<span class="nc" id="L212">            stat.setInt(2, onlineVersion);</span>
+<span class="nc" id="L213">            stat.executeUpdate();</span>
+<span class="nc" id="L214">            conn.commit();</span>
+<span class="nc" id="L215">        } catch (Throwable t) {</span>
+<span class="nc" id="L216">            this.executeRollback(conn);</span>
+<span class="nc" id="L217">            _logger.error(&quot;Error deleting work versions&quot;, t);</span>
+<span class="nc" id="L218">            throw new RuntimeException(&quot;Error deleting work versions&quot;, t);</span>
+        } finally {
+<span class="nc" id="L220">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="nc" id="L222">    }</span>
+
+    protected long extractNextId(String query, Connection conn) {
+<span class="fc" id="L225">        long id = 0;</span>
+<span class="fc" id="L226">        Statement stat = null;</span>
+<span class="fc" id="L227">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L229">            stat = conn.createStatement();</span>
+<span class="fc" id="L230">            res = stat.executeQuery(query);</span>
+<span class="fc" id="L231">            res.next();</span>
+<span class="fc" id="L232">            id = res.getLong(1) + 1; // N.B.: funziona anche per il primo record</span>
+<span class="nc" id="L233">        } catch (Throwable t) {</span>
+<span class="nc" id="L234">            _logger.error(&quot;Error extracting next id&quot;, t);</span>
+<span class="nc" id="L235">            throw new RuntimeException(&quot;Error extracting next id&quot;, t);</span>
+        } finally {
+<span class="fc" id="L237">            closeDaoResources(res, stat);</span>
+        }
+<span class="fc" id="L239">        return id;</span>
+    }
+
+    private String createQueryForGetLastVersions(String contentType, String descr) {
+<span class="fc" id="L243">        StringBuilder query = new StringBuilder(SELECT_LAST_VERSIONS_HEAD);</span>
+<span class="fc" id="L244">        boolean appendWhere = true;</span>
+<span class="pc bpc" id="L245" title="1 of 4 branches missed.">        if (null != contentType &amp;&amp; contentType.trim().length() &gt; 0) {</span>
+<span class="fc" id="L246">            query.append(APPEND_WHERE);</span>
+<span class="fc" id="L247">            query.append(APPEND_CONTENTTYPE);</span>
+<span class="fc" id="L248">            appendWhere = false;</span>
+        }
+<span class="pc bpc" id="L250" title="1 of 4 branches missed.">        if (null != descr &amp;&amp; descr.trim().length() &gt; 0) {</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">            query.append(appendWhere ? APPEND_WHERE : APPEND_AND);</span>
+<span class="fc" id="L252">            query.append(APPEND_LIKE_DESCR);</span>
+<span class="fc" id="L253">            appendWhere = false;</span>
+        }
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        query.append(appendWhere ? APPEND_WHERE : APPEND_AND);</span>
+<span class="fc" id="L256">        query.append(&quot; id IN &quot;);</span>
+<span class="fc" id="L257">        query.append(APPEND_LAST_VERSIONS_TAIL);</span>
+<span class="fc" id="L258">        query.append(SELECT_VERSION_RECORDS_ORDER_BLOCK);</span>
+<span class="fc" id="L259">        return query.toString();</span>
+    }
+
+    private ContentVersion prepareContentVersionFromResultSet(ResultSet res) throws SQLException {
+<span class="fc" id="L263">        ContentVersion contentVersion = new ContentVersion();</span>
+<span class="fc" id="L264">        contentVersion.setId(res.getLong(1));</span>
+<span class="fc" id="L265">        contentVersion.setContentId(res.getString(2));</span>
+<span class="fc" id="L266">        contentVersion.setContentType(res.getString(3));</span>
+<span class="fc" id="L267">        contentVersion.setDescr(res.getString(4));</span>
+<span class="fc" id="L268">        contentVersion.setStatus(res.getString(5));</span>
+<span class="fc" id="L269">        contentVersion.setXml(res.getString(6));</span>
+<span class="fc" id="L270">        contentVersion.setVersionDate(res.getTimestamp(7));</span>
+<span class="fc" id="L271">        contentVersion.setVersion(res.getString(8));</span>
+<span class="fc" id="L272">        contentVersion.setOnlineVersion(res.getInt(9));</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        contentVersion.setApproved(res.getInt(10) &gt; 0);</span>
+<span class="fc" id="L274">        contentVersion.setUsername(res.getString(11));</span>
+<span class="fc" id="L275">        return contentVersion;</span>
+    }
+
+<span class="fc" id="L278">    private final String SELECT_VERSIONS_BY_CONTENTID</span>
+            = &quot;SELECT id FROM jpversioning_versionedcontents WHERE contentid = ? ORDER BY id DESC&quot;;
+
+<span class="fc" id="L281">    private final String NEXT_ID</span>
+            = &quot;SELECT MAX(id) FROM jpversioning_versionedcontents&quot;;
+
+<span class="fc" id="L284">    private final String SELECT_LAST_VERSIONS_HEAD</span>
+            = &quot;SELECT id FROM jpversioning_versionedcontents &quot;;
+
+<span class="fc" id="L287">    private final String APPEND_WHERE = &quot;WHERE &quot;;</span>
+<span class="fc" id="L288">    private final String APPEND_CONTENTTYPE = &quot;contenttype = ? &quot;;</span>
+<span class="fc" id="L289">    private final String APPEND_AND = &quot;AND &quot;;</span>
+<span class="fc" id="L290">    private final String APPEND_LIKE_DESCR = &quot;descr LIKE ? &quot;;</span>
+<span class="fc" id="L291">    private final String APPEND_LAST_VERSIONS_TAIL</span>
+            = &quot;( SELECT MAX(id) AS id FROM jpversioning_versionedcontents GROUP BY contentid ) &quot;;
+
+<span class="fc" id="L294">    private final String SELECT_VERSION_BY_VERSIONID</span>
+            = &quot;SELECT id, contentid, contenttype, descr, status, contentxml, versiondate, versioncode, &quot;
+            + &quot;onlineversion, approved, username FROM jpversioning_versionedcontents WHERE id = ? &quot;;
+
+<span class="fc" id="L298">    private final String SELECT_VERSION_RECORDS_ORDER_BLOCK = &quot; ORDER BY versiondate DESC, id DESC &quot;;</span>
+
+<span class="fc" id="L300">    private final String SELECT_LAST_VERSION_BY_CONTENTID</span>
+            = &quot;SELECT id, contentid, contenttype, descr, status, contentxml, versiondate, versioncode, &quot;
+            + &quot;onlineversion, approved, username FROM jpversioning_versionedcontents &quot;
+            + &quot;WHERE contentid = ? &quot; + SELECT_VERSION_RECORDS_ORDER_BLOCK;
+
+<span class="fc" id="L305">    private final String ADD_VERSION_RECORD</span>
+            = &quot;INSERT INTO jpversioning_versionedcontents ( id, contentid, contenttype, descr, &quot;
+            + &quot;status, contentxml, versiondate, versioncode, onlineversion, approved, username ) &quot;
+            + &quot; VALUES ( ? , ? , ? , ? , ? , ? , ? , ? , ?, ?, ? ) &quot;;
+
+<span class="fc" id="L310">    private final String DELETE_VERSION = &quot;DELETE FROM jpversioning_versionedcontents WHERE id = ? &quot;;</span>
+
+<span class="fc" id="L312">    private final String DELETE_WORK_VERSION_RECORDS</span>
+            = &quot;DELETE FROM jpversioning_versionedcontents WHERE contentid = ? AND onlineversion = ? AND approved &lt;&gt; 1 &quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

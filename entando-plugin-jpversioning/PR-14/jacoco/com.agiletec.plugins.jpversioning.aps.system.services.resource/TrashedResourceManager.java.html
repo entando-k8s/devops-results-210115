@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TrashedResourceManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Versioning</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jpversioning.aps.system.services.resource</a> &gt; <span class="el_source">TrashedResourceManager.java</span></div><h1>TrashedResourceManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package com.agiletec.plugins.jpversioning.aps.system.services.resource;
+
+import java.io.File;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.xml.parsers.SAXParser;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.entando.entando.aps.system.services.storage.IStorageManager;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntSafeXmlUtils;
+import org.xml.sax.InputSource;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceDAO;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMonoInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.AbstractMultiInstanceResource;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInstance;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceRecordVO;
+import com.agiletec.plugins.jacms.aps.system.services.resource.parse.ResourceHandler;
+import com.agiletec.plugins.jpversioning.aps.system.JpversioningSystemConstants;
+
+/**
+ * Manager of trashed resources.
+ * @author G.Cocco, E.Mezzano
+ */
+@Aspect
+<span class="fc" id="L61">public class TrashedResourceManager extends AbstractService implements ITrashedResourceManager {</span>
+
+<span class="fc" id="L63">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(TrashedResourceManager.class);</span>
+
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L67">		this.checkTrashedResourceDiskFolder(this.getResourceTrashRootDiskSubFolder());</span>
+<span class="fc" id="L68">		_logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L69">		_logger.debug(&quot;Folder trashed resources: {}&quot;, this.getResourceTrashRootDiskSubFolder());</span>
+<span class="fc" id="L70">	}</span>
+
+	@Before(&quot;execution(* com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager.deleteResource(..)) &amp;&amp; args(resource)&quot;)
+	public void onDeleteResource(ResourceInterface resource) throws EntException {
+<span class="fc" id="L74">		this.addTrashedResource(resource);</span>
+<span class="fc" id="L75">	}</span>
+
+	@Override
+	public List&lt;String&gt; searchTrashedResourceIds(String resourceTypeCode, String text, List&lt;String&gt; allowedGroups) throws EntException {
+<span class="fc" id="L79">		List&lt;String&gt; resources = null;</span>
+    	try {
+<span class="fc" id="L81">    		resources = this.getTrashedResourceDAO().searchTrashedResourceIds(resourceTypeCode, text, allowedGroups);</span>
+<span class="nc" id="L82">    	} catch (Throwable t) {</span>
+<span class="nc" id="L83">			_logger.error(&quot;Error while extracting trashed resources&quot;, t);</span>
+<span class="nc" id="L84">			throw new EntException(&quot;Error while extracting trashed resources&quot;, t);</span>
+<span class="fc" id="L85">    	}</span>
+<span class="fc" id="L86">    	return resources;</span>
+	}
+
+	@Override
+	public ResourceInterface loadTrashedResource(String id) throws EntException{
+<span class="fc" id="L91">		ResourceInterface resource = null;</span>
+		try {
+<span class="fc" id="L93">			ResourceRecordVO resourceVo = this.getTrashedResourceDAO().getTrashedResource(id);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">			if (null != resourceVo) {</span>
+<span class="fc" id="L95">				resource = this.createResource(resourceVo);</span>
+<span class="fc" id="L96">				_logger.info(&quot;loaded trashed resource {}&quot;, id);</span>
+			}
+<span class="nc" id="L98">		} catch (Throwable t) {</span>
+<span class="nc" id="L99">			_logger.error(&quot;Error while loading trashed resource&quot;, t);</span>
+<span class="nc" id="L100">			throw new EntException(&quot;Error while loading trashed resource&quot;, t);</span>
+<span class="fc" id="L101">		}</span>
+<span class="fc" id="L102">		return resource;</span>
+	}
+
+	@Override
+	public void restoreResource(String resourceId) throws EntException {
+<span class="fc" id="L107">		ResourceInterface resource = this.loadTrashedResource(resourceId);</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">		if (null != resource) {</span>
+			try {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">				boolean isProtected = !Group.FREE_GROUP_NAME.equals(resource.getMainGroup());</span>
+<span class="fc" id="L111">				String folder = this.getSubfolder(resource);</span>
+<span class="fc" id="L112">				String folderDest = resource.getFolder();</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">				if (resource.isMultiInstance()) {</span>
+<span class="fc" id="L114">					AbstractMultiInstanceResource multiResource = (AbstractMultiInstanceResource) resource;</span>
+<span class="fc" id="L115">					Map&lt;String, ResourceInstance&gt; instancesMap = multiResource.getInstances();</span>
+<span class="fc" id="L116">					Iterator&lt;ResourceInstance&gt; iter = instancesMap.values().iterator();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">					while (iter.hasNext()) {</span>
+<span class="fc" id="L118">						ResourceInstance resourceInstance = iter.next();</span>
+<span class="fc" id="L119">						String path = folder + resourceInstance.getFileName();</span>
+						//System.out.println(&quot;source &quot; + path);
+<span class="fc" id="L121">						InputStream is = this.getStorageManager().getStream(path, true);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">						if (is != null) {</span>
+<span class="fc" id="L123">							String pathDest = folderDest + resourceInstance.getFileName();</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">							if (isProtected) {</span>
+<span class="fc" id="L125">								pathDest = getProtectedFilePathString(folderDest,resource.getMainGroup(), resourceInstance.getFileName());</span>
+							}
+<span class="fc" id="L127">							this.getStorageManager().saveFile(pathDest, isProtected, is);</span>
+						}
+<span class="fc" id="L129">					}</span>
+<span class="fc" id="L130">				} else {</span>
+<span class="fc" id="L131">					AbstractMonoInstanceResource monoResource = (AbstractMonoInstanceResource) resource;</span>
+<span class="fc" id="L132">					ResourceInstance resourceInstance = monoResource.getInstance();</span>
+<span class="fc" id="L133">					String path = folder + resourceInstance.getFileName();</span>
+<span class="fc" id="L134">					InputStream is = this.getStorageManager().getStream(path, true);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">					if (null != is) {</span>
+<span class="fc" id="L136">						String pathDest = folderDest + resourceInstance.getFileName();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">						if (isProtected) {</span>
+<span class="fc" id="L138">							pathDest = getProtectedFilePathString(folderDest,resource.getMainGroup(), resourceInstance.getFileName());</span>
+						}
+<span class="fc" id="L140">						this.getStorageManager().saveFile(pathDest, isProtected, is);</span>
+					}
+				}
+<span class="fc" id="L143">	    		this.getResourceDAO().addResource(resource);</span>
+<span class="fc" id="L144">				this.removeFromTrash(resource);</span>
+<span class="nc" id="L145">			} catch (Throwable t) {</span>
+<span class="nc" id="L146">				_logger.error(&quot;Error on restoring trashed resource&quot;, t);</span>
+<span class="nc" id="L147">				throw new EntException(&quot;Error on restoring trashed resource&quot;, t);</span>
+<span class="fc" id="L148">			}</span>
+		}
+<span class="fc" id="L150">	}</span>
+
+	@Override
+	public void removeFromTrash(String resourceId) throws EntException {
+		try {
+<span class="fc" id="L155">			ResourceRecordVO resourceVo = this.getTrashedResourceDAO().getTrashedResource(resourceId);</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">			if (null != resourceVo) {</span>
+<span class="fc" id="L157">				ResourceInterface resource = this.createResource(resourceVo);</span>
+<span class="fc" id="L158">				this.removeFromTrash(resource);</span>
+			}
+<span class="nc" id="L160">		} catch (Throwable t) {</span>
+<span class="nc" id="L161">    		_logger.error(&quot;Error removing Trashed Resource&quot;, t);</span>
+<span class="nc" id="L162">    		throw new EntException(&quot;Error removing Trashed Resource&quot;, t);</span>
+<span class="fc" id="L163">		}</span>
+<span class="fc" id="L164">	}</span>
+
+	protected void removeFromTrash(ResourceInterface resource) throws EntException {
+		try {
+			//ResourceRecordVO resourceVo = this.getTrashedResourceDAO().getTrashedResource(resourceId);
+			//if (null != resourceVo) {
+				//ResourceInterface resource = this.createResource(resourceVo);
+<span class="fc" id="L171">			String folder = this.getSubfolder(resource);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">			if (resource.isMultiInstance()) {</span>
+<span class="fc" id="L173">				AbstractMultiInstanceResource multiResource = (AbstractMultiInstanceResource) resource;</span>
+<span class="fc" id="L174">				Map&lt;String, ResourceInstance&gt; instancesMap = multiResource.getInstances();</span>
+<span class="fc" id="L175">				Iterator&lt;ResourceInstance&gt; iter = instancesMap.values().iterator();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">				while (iter.hasNext()) {</span>
+<span class="fc" id="L177">					ResourceInstance resourceInstance = iter.next();</span>
+<span class="fc" id="L178">					String path = folder + resourceInstance.getFileName();</span>
+<span class="fc" id="L179">					this.getStorageManager().deleteFile(path, true);</span>
+<span class="fc" id="L180">				}</span>
+<span class="fc" id="L181">			} else {</span>
+<span class="fc" id="L182">				AbstractMonoInstanceResource monoResource = (AbstractMonoInstanceResource) resource;</span>
+<span class="fc" id="L183">				ResourceInstance resourceInstance = monoResource.getInstance();</span>
+<span class="fc" id="L184">				String path = folder + resourceInstance.getFileName();</span>
+<span class="fc" id="L185">				this.getStorageManager().deleteFile(path, true);</span>
+			}
+			//}
+<span class="fc" id="L188">			this.getTrashedResourceDAO().delTrashedResource(resource.getId());</span>
+<span class="nc" id="L189">		} catch (Throwable t) {</span>
+<span class="nc" id="L190">    		_logger.error(&quot;Error removing Trashed Resource&quot;, t);</span>
+<span class="nc" id="L191">    		throw new EntException(&quot;Error removing Trashed Resource&quot;, t);</span>
+<span class="fc" id="L192">		}</span>
+<span class="fc" id="L193">	}</span>
+
+	@Override
+	public void addTrashedResource(ResourceInterface resource) throws EntException {
+<span class="fc" id="L197">		String folder = this.getSubfolder(resource);</span>
+<span class="fc" id="L198">		List&lt;String&gt; paths = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="fc bfc" id="L200" title="All 2 branches covered.">			if (resource.isMultiInstance()) {</span>
+<span class="fc" id="L201">				AbstractMultiInstanceResource multiResource = (AbstractMultiInstanceResource) resource;</span>
+<span class="fc" id="L202">				Map&lt;String, ResourceInstance&gt; instancesMap = multiResource.getInstances();</span>
+<span class="fc" id="L203">				Iterator&lt;ResourceInstance&gt; iter = instancesMap.values().iterator();</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">				while (iter.hasNext()) {</span>
+<span class="fc" id="L205">					ResourceInstance resourceInstance = iter.next();</span>
+<span class="fc" id="L206">					InputStream is = resource.getResourceStream(resourceInstance);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">					if (null != is) {</span>
+<span class="fc" id="L208">						String path = folder + resourceInstance.getFileName();</span>
+<span class="fc" id="L209">						paths.add(path);</span>
+<span class="fc" id="L210">						this.getStorageManager().saveFile(path, true, is);</span>
+					}
+<span class="fc" id="L212">				}</span>
+<span class="fc" id="L213">			} else {</span>
+<span class="fc" id="L214">				AbstractMonoInstanceResource monoResource = (AbstractMonoInstanceResource) resource;</span>
+<span class="fc" id="L215">				ResourceInstance resourceInstance = monoResource.getInstance();</span>
+<span class="fc" id="L216">				InputStream is = resource.getResourceStream(resourceInstance);</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">				if (null != is) {</span>
+<span class="fc" id="L218">					String path = folder + resourceInstance.getFileName();</span>
+<span class="fc" id="L219">					paths.add(path);</span>
+<span class="fc" id="L220">					this.getStorageManager().saveFile(path, true, is);</span>
+				}
+			}
+<span class="fc" id="L223">			this.getTrashedResourceDAO().addTrashedResource(resource);</span>
+<span class="nc" id="L224">		} catch (Throwable t) {</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">			for (int i = 0; i &lt; paths.size(); i++) {</span>
+<span class="nc" id="L226">				String path = paths.get(i);</span>
+<span class="nc" id="L227">				this.getStorageManager().deleteFile(path, true);</span>
+			}
+<span class="nc" id="L229">    		_logger.error(&quot;Error adding Trashed Resource&quot;, t);</span>
+<span class="nc" id="L230">    		throw new EntException(&quot;Error adding Trashed Resource&quot;, t);</span>
+<span class="fc" id="L231">    	}</span>
+<span class="fc" id="L232">	}</span>
+
+	/**
+	 * Verifica l'esistenza della directory di destinazione dei file
+	 */
+	private void checkTrashedResourceDiskFolder(String dirPath) {
+		try {
+<span class="fc" id="L239">			boolean exist = this.getStorageManager().exists(dirPath, true);</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">			if (!exist) {</span>
+<span class="fc" id="L241">				this.getStorageManager().createDirectory(dirPath, true);</span>
+			}
+<span class="nc" id="L243">		} catch (Throwable t) {</span>
+<span class="nc" id="L244">			_logger.error(&quot;Error on check Trashed disk folder&quot;, t);</span>
+<span class="nc" id="L245">    		throw new RuntimeException(&quot;Error on check Trashed disk folder&quot;, t);</span>
+<span class="fc" id="L246">		}</span>
+<span class="fc" id="L247">	}</span>
+	/*
+	protected Map&lt;String,String&gt; resourceInstancesTrashFilePaths(ResourceInterface resource) throws EntException {
+		Map&lt;String,String&gt; filesPath = new HashMap&lt;String, String&gt;();
+		StringBuilder subfolder = new StringBuilder(this.getResourceTrashRootDiskSubFolder());
+		subfolder.append(File.separator).append(resource.getType())
+				.append(File.separator).append(resource.getMainGroup()).append(File.separator);
+		if (resource.isMultiInstance()) {
+			AbstractMultiInstanceResource multiInstanceResource = (AbstractMultiInstanceResource) resource;
+			Map&lt;String, ResourceInstance&gt; instances = multiInstanceResource.getInstances();
+			Set&lt;String&gt; keys = instances.keySet();
+			Iterator&lt;String&gt; iterator = keys.iterator();
+			while (iterator.hasNext()) {
+				String key = iterator.next();
+				ResourceInstance instance = instances.get(key);
+				InputStream is = resource.getResourceStream(instance);
+				String filename = instance.getFileName();
+				this.getStorageManager().saveFile(subfolder.toString() + filename, true, is);
+			}
+		} else {
+			AbstractMonoInstanceResource monoInstanceResource = (AbstractMonoInstanceResource) resource;
+			ResourceInstance instance = monoInstanceResource.getInstance();
+			InputStream is = resource.getResourceStream(instance);
+			String filename = instance.getFileName();
+			this.getStorageManager().saveFile(subfolder.toString() + filename, true, is);
+		}
+		return filesPath;
+	}
+	*/
+	@Override
+	public InputStream getTrashFileStream(ResourceInterface resource, ResourceInstance instance) throws EntException {
+		try {
+<span class="fc" id="L279">			String path = this.getSubfolder(resource) + instance.getFileName();</span>
+<span class="fc" id="L280">			return this.getStorageManager().getStream(path, true);</span>
+<span class="nc" id="L281">		} catch (Throwable t) {</span>
+<span class="nc" id="L282">			_logger.error(&quot;Error on extracting stream&quot;, t);</span>
+<span class="nc" id="L283">    		throw new EntException(&quot;Error on extracting stream&quot;, t);</span>
+		}
+	}
+
+	@Override
+	public String getSubfolder(ResourceInterface resource) {
+<span class="fc" id="L289">		StringBuilder subfolder = new StringBuilder(this.getResourceTrashRootDiskSubFolder());</span>
+<span class="fc" id="L290">		subfolder.append(File.separator).append(resource.getType())</span>
+<span class="fc" id="L291">				.append(File.separator).append(resource.getId()).append(File.separator);</span>
+<span class="fc" id="L292">		return subfolder.toString();</span>
+	}
+
+	/*
+     * Metodo di servizio. Restituisce una risorsa
+     * in base ai dati del corrispondente record del db.
+     * @param resourceVo Il vo relativo al record del db.
+     * @return La risorsa valorizzata.
+     * @throws EntException
+     */
+    private ResourceInterface createResource(ResourceRecordVO resourceVo) throws EntException {
+<span class="fc" id="L303">		String resourceType = resourceVo.getResourceType();</span>
+<span class="fc" id="L304">		String resourceXML = resourceVo.getXml();</span>
+<span class="fc" id="L305">		ResourceInterface resource = this.getResourceManager().createResourceType(resourceType);</span>
+<span class="fc" id="L306">		this.fillEmptyResourceFromXml(resource, resourceXML);</span>
+<span class="fc" id="L307">		resource.setMainGroup(resourceVo.getMainGroup());</span>
+<span class="fc" id="L308">		return resource;</span>
+	}
+
+    /**
+     * Valorizza una risorsa prototipo con gli elementi
+     * dell'xml che rappresenta una risorsa specifica.
+     * @param resource Il prototipo di risorsa da specializzare con gli attributi dell'xml.
+     * @param xml L'xml della risorsa specifica.
+     * @throws EntException
+     */
+    protected void fillEmptyResourceFromXml(ResourceInterface resource, String xml) throws EntException {
+    	try {
+<span class="fc" id="L320">			SAXParser parser = EntSafeXmlUtils.newSafeSAXParser();</span>
+<span class="fc" id="L321">    		InputSource is = new InputSource(new StringReader(xml));</span>
+<span class="fc" id="L322">    		ResourceHandler handler = new ResourceHandler(resource, this.getCategoryManager());</span>
+<span class="fc" id="L323">    		parser.parse(is, handler);</span>
+<span class="nc" id="L324">    	} catch (Throwable t) {</span>
+<span class="nc" id="L325">    		_logger.error(&quot;Error on loading resource&quot;, t);</span>
+<span class="nc" id="L326">    		throw new EntException(&quot;Error on loading resource&quot;, t);</span>
+<span class="fc" id="L327">    	}</span>
+<span class="fc" id="L328">    }</span>
+
+	protected String getResourceTrashRootDiskSubFolder() {
+<span class="fc" id="L331">		return JpversioningSystemConstants.DEFAULT_RESOURCE_TRASH_FOLDER_NAME;//folderName;</span>
+	}
+
+	protected IResourceManager getResourceManager() {
+<span class="fc" id="L335">		return _resourceManager;</span>
+	}
+	public void setResourceManager(IResourceManager resourceManager) {
+<span class="fc" id="L338">		this._resourceManager = resourceManager;</span>
+<span class="fc" id="L339">	}</span>
+
+	protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L342">		return _categoryManager;</span>
+	}
+	public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L345">		this._categoryManager = categoryManager;</span>
+<span class="fc" id="L346">	}</span>
+
+	protected IStorageManager getStorageManager() {
+<span class="fc" id="L349">		return _storageManager;</span>
+	}
+	public void setStorageManager(IStorageManager storageManager) {
+<span class="fc" id="L352">		this._storageManager = storageManager;</span>
+<span class="fc" id="L353">	}</span>
+
+    protected ITrashedResourceDAO getTrashedResourceDAO() {
+<span class="fc" id="L356">		return _trashedResourceDAO;</span>
+	}
+	public void setTrashedResourceDAO(ITrashedResourceDAO trashedResourceDAO) {
+<span class="fc" id="L359">		this._trashedResourceDAO = trashedResourceDAO;</span>
+<span class="fc" id="L360">	}</span>
+
+	protected IResourceDAO getResourceDAO() {
+<span class="fc" id="L363">		return _resourceDAO;</span>
+	}
+	public void setResourceDAO(IResourceDAO resourceDAO) {
+<span class="fc" id="L366">		this._resourceDAO = resourceDAO;</span>
+<span class="fc" id="L367">	}</span>
+
+	private String getProtectedFilePathString(String folder , String mainGroup, String filename) {
+<span class="fc" id="L370">		return Paths.get(folder,mainGroup, filename).toString();</span>
+	}
+
+    private IResourceManager _resourceManager;
+    private ICategoryManager _categoryManager;
+
+	private IStorageManager _storageManager;
+
+    private ITrashedResourceDAO _trashedResourceDAO;
+    private IResourceDAO _resourceDAO;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
