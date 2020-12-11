@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActionLoggerInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.system</a> &gt; <span class="el_source">ActionLoggerInterceptor.java</span></div><h1>ActionLoggerInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.system;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.ServletActionContext;
+import org.entando.entando.aps.system.services.actionlog.IActionLogManager;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecord;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.BaseAction;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.AbstractInterceptor;
+import java.lang.reflect.InvocationTargetException;
+import org.apache.commons.beanutils.BeanUtils;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * @author E.Santoboni - S.Puddu
+ */
+<span class="fc" id="L44">public class ActionLoggerInterceptor extends AbstractInterceptor {</span>
+
+<span class="fc" id="L46">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ActionLoggerInterceptor.class);</span>
+
+<span class="fc" id="L48">    private String excludeRequestParameters = &quot;&quot;;</span>
+<span class="fc" id="L49">    private String includeActionProperties = &quot;&quot;;</span>
+
+    @Override
+    public String intercept(ActionInvocation invocation) throws Exception {
+<span class="fc" id="L53">        ActionLogRecord actionRecord = null;</span>
+<span class="fc" id="L54">        String result = null;</span>
+        try {
+<span class="fc" id="L56">            actionRecord = this.buildActionRecord(invocation);</span>
+<span class="fc" id="L57">            result = invocation.invoke();</span>
+<span class="fc" id="L58">            List&lt;ActivityStreamInfo&gt; asiList = null;</span>
+<span class="fc" id="L59">            Object actionObject = invocation.getAction();</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (actionObject instanceof BaseAction) {</span>
+<span class="fc" id="L61">                BaseAction action = (BaseAction) actionObject;</span>
+<span class="fc" id="L62">                asiList = action.getActivityStreamInfos();</span>
+            }
+<span class="fc" id="L64">            this.includeActionProperties(actionRecord, actionObject);</span>
+<span class="pc bpc" id="L65" title="1 of 4 branches missed.">            if (null == asiList || asiList.isEmpty()) {</span>
+<span class="fc" id="L66">                this.getActionLoggerManager().addActionRecord(actionRecord);</span>
+            } else {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                for (ActivityStreamInfo asi : asiList) {</span>
+<span class="fc" id="L69">                    ActionLogRecord clone = this.createClone(actionRecord);</span>
+<span class="fc" id="L70">                    clone.setActivityStreamInfo(asi);</span>
+<span class="fc" id="L71">                    this.getActionLoggerManager().addActionRecord(clone);</span>
+<span class="fc" id="L72">                }</span>
+            }
+<span class="nc" id="L74">        } catch (Throwable t) {</span>
+<span class="nc" id="L75">            _logger.error(&quot;error in intercept&quot;, t);</span>
+<span class="fc" id="L76">        }</span>
+<span class="fc" id="L77">        return result;</span>
+    }
+
+    private ActionLogRecord createClone(ActionLogRecord record) {
+<span class="fc" id="L81">        ActionLogRecord clone = new ActionLogRecord();</span>
+<span class="fc" id="L82">        clone.setActionDate(new Date());</span>
+<span class="fc" id="L83">        clone.setActionName(record.getActionName());</span>
+<span class="fc" id="L84">        clone.setId(-1);</span>
+<span class="fc" id="L85">        clone.setNamespace(record.getNamespace());</span>
+<span class="fc" id="L86">        clone.setParameters(record.getParameters());</span>
+<span class="fc" id="L87">        clone.setUsername(record.getUsername());</span>
+<span class="fc" id="L88">        return clone;</span>
+    }
+
+    /**
+     * Build an {@link ActionLoggerRecord} object related to the current action
+     *
+     * @param invocation
+     * @return an {@link ActionLoggerRecord} for the current action
+     */
+    private ActionLogRecord buildActionRecord(ActionInvocation invocation) {
+<span class="fc" id="L98">        ActionLogRecord record = new ActionLogRecord();</span>
+<span class="fc" id="L99">        String username = this.getCurrentUsername();</span>
+<span class="fc" id="L100">        String namespace = invocation.getProxy().getNamespace();</span>
+<span class="fc" id="L101">        String actionName = invocation.getProxy().getActionName();</span>
+<span class="fc" id="L102">        String parameters = this.getParameters();</span>
+<span class="fc" id="L103">        record.setUsername(username);</span>
+<span class="fc" id="L104">        record.setNamespace(namespace);</span>
+<span class="fc" id="L105">        record.setActionName(actionName);</span>
+<span class="fc" id="L106">        record.setParameters(parameters);</span>
+<span class="fc" id="L107">        return record;</span>
+    }
+
+    /**
+     * Gets the username of the user in session
+     *
+     * @return the username of the current user
+     */
+    private String getCurrentUsername() {
+<span class="fc" id="L116">        String username = null;</span>
+<span class="fc" id="L117">        UserDetails currentUser = this.getCurrentUser();</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (null == currentUser) {</span>
+<span class="nc" id="L119">            username = &quot;ANONYMOUS&quot;;</span>
+        } else {
+<span class="fc" id="L121">            username = currentUser.getUsername();</span>
+        }
+<span class="fc" id="L123">        return username;</span>
+    }
+
+    private String getParameters() {
+<span class="fc" id="L127">        String[] paramsToExclude = this.getExcludeRequestParameters().split(&quot;,&quot;);</span>
+<span class="fc" id="L128">        StringBuilder params = new StringBuilder();</span>
+<span class="fc" id="L129">        Map&lt;String, String[]&gt; reqParams = this.getRequest().getParameterMap();</span>
+<span class="pc bpc" id="L130" title="2 of 4 branches missed.">        if (null != reqParams &amp;&amp; !reqParams.isEmpty()) {</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            for (Entry&lt;String, String[]&gt; pair : reqParams.entrySet()) {</span>
+<span class="fc" id="L132">                String key = pair.getKey();</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">                if (!this.isParamToExclude(key, paramsToExclude)) {</span>
+<span class="fc" id="L134">                    params.append(key).append(&quot;=&quot;);</span>
+<span class="fc" id="L135">                    String[] values = pair.getValue();</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                    if (null != values) {</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L138">                            params.append(values[i]).append(&quot;,&quot;);</span>
+                        }
+                    }
+<span class="fc" id="L141">                    params.deleteCharAt(params.length() - 1);</span>
+<span class="fc" id="L142">                    params.append(&quot;\n&quot;);</span>
+                }
+<span class="fc" id="L144">            }</span>
+        }
+<span class="fc" id="L146">        return params.toString();</span>
+    }
+
+    private void includeActionProperties(ActionLogRecord actionRecord, Object action) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        if (StringUtils.isEmpty(this.getIncludeActionProperties())) {</span>
+<span class="fc" id="L151">            return;</span>
+        }
+<span class="fc" id="L153">        String[] propertyToInclude = this.getIncludeActionProperties().split(&quot;,&quot;);</span>
+<span class="fc" id="L154">        StringBuilder params = new StringBuilder(actionRecord.getParameters());</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        for (String property : propertyToInclude) {</span>
+            try {
+<span class="fc" id="L157">                Object value = BeanUtils.getProperty(action, property);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">                if (null != value) {</span>
+<span class="fc" id="L159">                    params.append(property).append(&quot;=&quot;).append(value.toString());</span>
+<span class="fc" id="L160">                    params.append(&quot;\n&quot;);</span>
+                }
+<span class="nc" id="L162">            } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException ex) {</span>
+<span class="nc" id="L163">                _logger.debug(&quot;Error extracting property &quot; + property + &quot; from action&quot;, ex);</span>
+<span class="fc" id="L164">            }</span>
+        }
+<span class="fc" id="L166">        actionRecord.setParameters(params.toString());</span>
+<span class="fc" id="L167">    }</span>
+
+    private boolean isParamToExclude(String key, String[] paramsToExclude) {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        for (int i = 0; i &lt; paramsToExclude.length; i++) {</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">            if (key.equals(paramsToExclude[i])) {</span>
+<span class="nc" id="L172">                return true;</span>
+            }
+        }
+<span class="fc" id="L175">        return false;</span>
+    }
+
+    private UserDetails getCurrentUser() {
+<span class="fc" id="L179">        HttpSession session = this.getRequest().getSession();</span>
+<span class="fc" id="L180">        return (UserDetails) session.getAttribute(SystemConstants.SESSIONPARAM_CURRENT_USER);</span>
+    }
+
+    private HttpServletRequest getRequest() {
+<span class="fc" id="L184">        return ServletActionContext.getRequest();</span>
+    }
+
+    private IActionLogManager getActionLoggerManager() {
+<span class="fc" id="L188">        return (IActionLogManager) ApsWebApplicationUtils.getBean(SystemConstants.ACTION_LOGGER_MANAGER, this.getRequest());</span>
+    }
+
+    public String getExcludeRequestParameters() {
+<span class="fc" id="L192">        return excludeRequestParameters;</span>
+    }
+
+    public void setExcludeRequestParameters(String excludeRequestParameters) {
+<span class="nc" id="L196">        this.excludeRequestParameters = excludeRequestParameters;</span>
+<span class="nc" id="L197">    }</span>
+
+    public String getIncludeActionProperties() {
+<span class="fc" id="L200">        return includeActionProperties;</span>
+    }
+
+    public void setIncludeActionProperties(String includeActionParameters) {
+<span class="fc" id="L204">        this.includeActionProperties = includeActionParameters;</span>
+<span class="fc" id="L205">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GroupAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.user.group</a> &gt; <span class="el_source">GroupAction.java</span></div><h1>GroupAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.user.group;
+
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.apsadmin.user.AbstractAuthorityAction;
+import com.agiletec.apsadmin.user.group.helper.IGroupActionHelper;
+
+/**
+ * Classi action della gestione Gruppi.
+ */
+<span class="fc" id="L33">public class GroupAction extends AbstractAuthorityAction {</span>
+
+	private static final String ERROR_GROUP_NOT_EXIST = &quot;error.group.notExist&quot;;
+
+
+<span class="fc" id="L38">	private static final EntLogger logger = EntLogFactory.getSanitizedLogger(GroupAction.class);</span>
+	private static final String GROUP_LIST = &quot;groupList&quot;;
+
+
+	private int strutsAction;
+	private String name;
+	private String description;
+
+	private Map&lt;String, List&lt;Object&gt;&gt; references;
+
+	private IGroupManager groupManager;
+
+	private IGroupActionHelper helper;
+
+
+	@Override
+	public void validate() {
+<span class="fc" id="L55">		super.validate();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">		if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L57">			this.checkDuplicatedGroup();</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">		} else if (!this.existsGroup()) {</span>
+<span class="nc" id="L59">			addActionError(getText(ERROR_GROUP_NOT_EXIST));</span>
+		}
+<span class="fc" id="L61">	}</span>
+	
+	/**
+	 * Esegue in fase di aggiunta la verifica sulla duplicazione del gruppo.&lt;br /&gt;
+	 * Nel caso la verifica risulti negativa aggiunge un fieldError.
+	 */
+	protected void checkDuplicatedGroup() {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (this.existsGroup()) {</span>
+<span class="fc" id="L69">			String[] args = {this.getName()};</span>
+<span class="fc" id="L70">			this.addFieldError(&quot;name&quot;, this.getText(&quot;error.group.duplicated&quot;, args));</span>
+		}
+<span class="fc" id="L72">	}</span>
+	
+	public String newGroup() {
+<span class="fc" id="L75">		this.setStrutsAction(ApsAdminSystemConstants.ADD);</span>
+<span class="fc" id="L76">		return SUCCESS;</span>
+	}
+	
+	public String edit() {
+<span class="fc" id="L80">		this.setStrutsAction(ApsAdminSystemConstants.EDIT);</span>
+<span class="fc" id="L81">		return this.extractGroupFormValues();</span>
+	}
+	
+	public String showDetail() {
+<span class="nc" id="L85">		String result = this.extractGroupFormValues();</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">		if (!result.equals(SUCCESS)) return result;</span>
+<span class="nc" id="L87">		this.extractReferencingObjects(this.getName());</span>
+<span class="nc" id="L88">		return result;</span>
+	}
+	
+	protected String extractGroupFormValues() {
+		try {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			if (!this.existsGroup()) {</span>
+<span class="fc" id="L94">				addActionError(getText(ERROR_GROUP_NOT_EXIST));</span>
+<span class="fc" id="L95">				return GROUP_LIST;</span>
+			}
+<span class="fc" id="L97">			Group group = this.getGroupManager().getGroup(this.getName());</span>
+<span class="fc" id="L98">			this.setName(group.getName());</span>
+<span class="fc" id="L99">			this.setDescription(group.getDescr());</span>
+<span class="nc" id="L100">		} catch (Throwable t) {</span>
+<span class="nc" id="L101">			logger.error(&quot;error in extractGroupFormValues&quot;, t);</span>
+<span class="nc" id="L102">			return FAILURE;</span>
+<span class="fc" id="L103">		}</span>
+<span class="fc" id="L104">		return SUCCESS;</span>
+	}
+	
+	public String save() {
+		try {
+<span class="fc" id="L109">			Group group = new Group();</span>
+<span class="fc" id="L110">			group.setName(this.getName());</span>
+<span class="fc" id="L111">			group.setDescr(this.getDescription());</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">			if (this.getStrutsAction() == ApsAdminSystemConstants.ADD) {</span>
+<span class="fc" id="L113">				this.getGroupManager().addGroup(group);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">			} else if (this.getStrutsAction() == ApsAdminSystemConstants.EDIT) {</span>
+<span class="fc" id="L115">				this.getGroupManager().updateGroup(group);</span>
+			}
+<span class="nc" id="L117">		} catch (Throwable t) {</span>
+<span class="nc" id="L118">			logger.error(&quot;error in save&quot;, t);</span>
+<span class="nc" id="L119">			return FAILURE;</span>
+<span class="fc" id="L120">		}</span>
+<span class="fc" id="L121">		return SUCCESS;</span>
+	}
+	
+	public String trash() {
+		try {
+<span class="fc" id="L126">			String check = this.checkGroupForDelete();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">			if (null != check) return check;</span>
+<span class="nc" id="L128">		} catch (Throwable t) {</span>
+<span class="nc" id="L129">			logger.error(&quot;error in trash&quot;, t);</span>
+<span class="nc" id="L130">			return FAILURE;</span>
+<span class="fc" id="L131">		}</span>
+<span class="fc" id="L132">		return SUCCESS;</span>
+	}
+	
+	public String delete() {
+		try {
+<span class="fc" id="L137">			String check = this.checkGroupForDelete();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">			if (null != check) return check;</span>
+<span class="fc" id="L139">			Group group = groupManager.getGroup(this.getName());</span>
+<span class="fc" id="L140">			this.getGroupManager().removeGroup(group);</span>
+<span class="nc" id="L141">		} catch (Throwable t) {</span>
+<span class="nc" id="L142">			logger.error(&quot;error in delete&quot;, t);</span>
+<span class="nc" id="L143">			return FAILURE;</span>
+<span class="fc" id="L144">		}</span>
+<span class="fc" id="L145">		return SUCCESS;</span>
+	}
+	
+	/**
+	 * Verifica l'esistenza del gruppo.
+	 * @return true in caso positivo, false nel caso il gruppo non esista.
+	 */
+	protected boolean existsGroup() {
+<span class="pc bpc" id="L153" title="1 of 4 branches missed.">		return (name != null) &amp;&amp; (groupManager.getGroup(name) != null);</span>
+	}
+	
+	/**
+	 * Esegue i controlli necessari per la cancellazione di un gruppo. Imposta gli opportuni messaggi di errore come actionMessages.
+	 * Restituisce l'esito del controllo.
+	 * @return true in caso di cancellazione consentita, false in caso contrario.
+	 * @throws EntException In caso di errore.
+	 */
+	protected String checkGroupForDelete() throws EntException {
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (!this.existsGroup()) {</span>
+<span class="fc" id="L164">			addActionError(getText(ERROR_GROUP_NOT_EXIST));</span>
+<span class="fc" id="L165">			return GROUP_LIST;</span>
+		}
+<span class="pc bpc" id="L167" title="1 of 4 branches missed.">		if (Group.FREE_GROUP_NAME.equals(name) || Group.ADMINS_GROUP_NAME.equals(name)) {</span>
+<span class="fc" id="L168">			addActionError(getText(&quot;error.group.undeletable&quot;));</span>
+<span class="fc" id="L169">			return GROUP_LIST;</span>
+		}
+<span class="fc" id="L171">		this.extractReferencingObjects(name);</span>
+<span class="pc bpc" id="L172" title="1 of 4 branches missed.">		if (null != this.getReferences() &amp;&amp; this.getReferences().size() &gt; 0) {</span>
+<span class="fc" id="L173">	        return &quot;references&quot;;</span>
+		}
+<span class="fc" id="L175">		return null;</span>
+	}
+	
+	protected void extractReferencingObjects(String groupCode) {
+		try {
+<span class="fc" id="L180">			Group group = this.getGroupManager().getGroup(groupCode);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">			if (null != group) {</span>
+<span class="fc" id="L182">				Map references = this.getHelper().getReferencingObjects(group, this.getRequest());</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">				if (references.size() &gt; 0) {</span>
+<span class="fc" id="L184">					this.setReferences(references);</span>
+				}
+			}
+<span class="nc" id="L187">		} catch (Throwable t) {</span>
+<span class="nc" id="L188">			logger.error(&quot;Error extracting referenced objects by group '{}'&quot;, groupCode, t);</span>
+<span class="fc" id="L189">		}</span>
+<span class="fc" id="L190">	}</span>
+	
+	public int getStrutsAction() {
+<span class="fc" id="L193">		return strutsAction;</span>
+	}
+	public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L196">		this.strutsAction = strutsAction;</span>
+<span class="fc" id="L197">	}</span>
+	
+	public String getName() {
+<span class="fc" id="L200">		return name;</span>
+	}
+	public void setName(String name) {
+<span class="fc" id="L203">		this.name = name;</span>
+<span class="fc" id="L204">	}</span>
+	
+	public String getDescription() {
+<span class="fc" id="L207">		return description;</span>
+	}
+	public void setDescription(String description) {
+<span class="fc" id="L210">		this.description = description;</span>
+<span class="fc" id="L211">	}</span>
+	
+	protected IGroupManager getGroupManager() {
+<span class="fc" id="L214">		return groupManager;</span>
+	}
+	public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L217">		this.groupManager = groupManager;</span>
+<span class="fc" id="L218">	}</span>
+	
+	protected IGroupActionHelper getHelper() {
+<span class="fc" id="L221">		return helper;</span>
+	}
+	public void setHelper(IGroupActionHelper helper) {
+<span class="fc" id="L224">		this.helper = helper;</span>
+<span class="fc" id="L225">	}</span>
+	
+	public Map&lt;String, List&lt;Object&gt;&gt; getReferences() {
+<span class="fc" id="L228">		return references;</span>
+	}
+	protected void setReferences(Map&lt;String, List&lt;Object&gt;&gt; references) {
+<span class="fc" id="L231">		this.references = references;</span>
+<span class="fc" id="L232">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

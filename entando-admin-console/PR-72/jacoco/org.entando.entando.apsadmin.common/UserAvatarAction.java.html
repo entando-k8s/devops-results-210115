@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserAvatarAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.common</a> &gt; <span class="el_source">UserAvatarAction.java</span></div><h1>UserAvatarAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.apsadmin.common;
+
+import com.agiletec.aps.system.SystemConstants;
+
+import com.agiletec.aps.system.services.baseconfig.ConfigInterface;
+import com.agiletec.apsadmin.system.BaseAction;
+
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+
+import org.entando.entando.aps.system.services.userprofile.IUserProfileManager;
+import org.entando.entando.aps.system.services.userprofile.model.IUserProfile;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L38">public class UserAvatarAction extends BaseAction {</span>
+
+<span class="nc" id="L40">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(UserAvatarAction.class);</span>
+	
+	public String returnAvatarStream() {
+<span class="nc bnc" id="L43" title="All 2 branches missed.">		if (!this.isGravatarIntegrationEnabled()) {</span>
+<span class="nc" id="L44">			return this.extractDefaultAvatarStream();</span>
+		}
+<span class="nc" id="L46">		return this.extractGravatar();</span>
+	}
+	
+	protected String extractGravatar() {
+		try {
+<span class="nc" id="L51">			IUserProfile profile = this.getUserProfile();</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">			if (null == profile) {</span>
+<span class="nc" id="L53">				return this.extractDefaultAvatarStream();</span>
+			}
+<span class="nc" id="L55">			String email = (String) profile.getValueByRole(SystemConstants.USER_PROFILE_ATTRIBUTE_ROLE_MAIL);</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">			if (null == email) {</span>
+<span class="nc" id="L57">				return this.extractDefaultAvatarStream();</span>
+			}
+<span class="nc" id="L59">			URL url = new URL(this.createGravatarUri(email));</span>
+<span class="nc" id="L60">			HttpURLConnection conn = (HttpURLConnection) url.openConnection();</span>
+<span class="nc" id="L61">			conn.setRequestMethod(&quot;GET&quot;);</span>
+<span class="nc" id="L62">			this.setInputStream(conn.getInputStream());</span>
+<span class="nc" id="L63">		} catch (FileNotFoundException fnfe) {</span>
+<span class="nc" id="L64">			_logger.info(&quot;avatar not available&quot;, fnfe);</span>
+<span class="nc" id="L65">			return this.extractDefaultAvatarStream();</span>
+<span class="nc" id="L66">        } catch (Throwable t) {</span>
+<span class="nc" id="L67">			_logger.error(&quot;error in returnAvatarStream&quot;, t);</span>
+<span class="nc" id="L68">			return this.extractDefaultAvatarStream();</span>
+<span class="nc" id="L69">        }</span>
+<span class="nc" id="L70">		return SUCCESS;</span>
+	}
+	
+	private String createGravatarUri(String emailAddress) throws Throwable {
+<span class="nc" id="L74">		StringBuilder sb = new StringBuilder(this.getGravatarUrl());</span>
+<span class="nc" id="L75">		sb.append(this.createMd5Hex(emailAddress));</span>
+<span class="nc" id="L76">		sb.append(&quot;.&quot;).append(this.getGravatarExtension()).append(&quot;?d=404&amp;s=&quot;).append(this.getGravatarSize());</span>
+<span class="nc" id="L77">		return sb.toString();</span>
+	}
+	
+	private String createMd5Hex(String emailAddress) throws Throwable {
+<span class="nc" id="L81">		StringBuilder sb = new StringBuilder();</span>
+		try {
+<span class="nc" id="L83">			MessageDigest md = MessageDigest.getInstance(&quot;MD5&quot;);</span>
+<span class="nc" id="L84">			byte[] array = md.digest(emailAddress.getBytes(&quot;CP1252&quot;));</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">			for (int i = 0; i &lt; array.length; ++i) {</span>
+<span class="nc" id="L86">				sb.append(Integer.toHexString((array[i] &amp; 0xFF) | 0x100).substring(1,3));        </span>
+			}
+<span class="nc" id="L88">		} catch (Throwable t) {</span>
+<span class="nc" id="L89">			_logger.error(&quot;Error creating Md5 Hex&quot;, t);</span>
+<span class="nc" id="L90">			throw new RuntimeException(&quot;Error creating Md5 Hex&quot;, t);</span>
+<span class="nc" id="L91">		}</span>
+<span class="nc" id="L92">		return sb.toString();</span>
+	}
+	
+	protected String extractDefaultAvatarStream() {
+		try {
+<span class="nc" id="L97">			Resource resource = new ClassPathResource(&quot;avatar-default.png&quot;);</span>
+<span class="nc" id="L98">			this.setInputStream(resource.getInputStream());</span>
+<span class="nc" id="L99">		} catch (Throwable t) {</span>
+<span class="nc" id="L100">			_logger.error(&quot;error in extractDefaultAvatarStream&quot;, t);</span>
+<span class="nc" id="L101">            return FAILURE;</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">		return SUCCESS;</span>
+	}
+	
+	protected IUserProfile getUserProfile() throws EntException {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">		if (null == this.getUsername()) {</span>
+<span class="nc" id="L108">			return null;</span>
+		}
+<span class="nc" id="L110">		return this.getUserProfileManager().getProfile(this.getUsername());</span>
+	}
+	
+	public String getMimeType() {
+<span class="nc" id="L114">		return &quot;image/png&quot;;</span>
+	}
+	
+	protected boolean isGravatarIntegrationEnabled() {
+<span class="nc" id="L118">		String param = this.getConfigManager().getParam(SystemConstants.CONFIG_PARAM_GRAVATAR_INTEGRATION_ENABLED);</span>
+<span class="nc" id="L119">		boolean enabled = false;</span>
+		try {
+<span class="nc" id="L121">			enabled = Boolean.parseBoolean(param);</span>
+<span class="nc" id="L122">		} catch (Exception e) {}</span>
+<span class="nc" id="L123">		return enabled;</span>
+	}
+	
+	protected String getGravatarUrl() {
+<span class="nc" id="L127">		return _gravatarUrl;</span>
+	}
+	public void setGravatarUrl(String gravatarUrl) {
+<span class="nc" id="L130">		this._gravatarUrl = gravatarUrl;</span>
+<span class="nc" id="L131">	}</span>
+	
+	public String getGravatarExtension() {
+<span class="nc" id="L134">		return _gravatarExtension;</span>
+	}
+	public void setGravatarExtension(String gravatarExtension) {
+<span class="nc" id="L137">		this._gravatarExtension = gravatarExtension;</span>
+<span class="nc" id="L138">	}</span>
+	
+	public String getGravatarSize() {
+<span class="nc" id="L141">		return _gravatarSize;</span>
+	}
+	public void setGravatarSize(String gravatarSize) {
+<span class="nc" id="L144">		this._gravatarSize = gravatarSize;</span>
+<span class="nc" id="L145">	}</span>
+	
+	public String getUsername() {
+<span class="nc" id="L148">		return _username;</span>
+	}
+	public void setUsername(String username) {
+<span class="nc" id="L151">		this._username = username;</span>
+<span class="nc" id="L152">	}</span>
+	
+	public InputStream getInputStream() {
+<span class="nc" id="L155">		return _inputStream;</span>
+	}
+	public void setInputStream(InputStream inputStream) {
+<span class="nc" id="L158">		this._inputStream = inputStream;</span>
+<span class="nc" id="L159">	}</span>
+	
+	protected IUserProfileManager getUserProfileManager() {
+<span class="nc" id="L162">		return _userProfileManager;</span>
+	}
+	public void setUserProfileManager(IUserProfileManager userProfileManager) {
+<span class="nc" id="L165">		this._userProfileManager = userProfileManager;</span>
+<span class="nc" id="L166">	}</span>
+	
+	protected ConfigInterface getConfigManager() {
+<span class="nc" id="L169">		return _configManager;</span>
+	}
+	public void setConfigManager(ConfigInterface configManager) {
+<span class="nc" id="L172">		this._configManager = configManager;</span>
+<span class="nc" id="L173">	}</span>
+	
+	private String _gravatarUrl;
+	
+<span class="nc" id="L177">	private String _gravatarExtension = &quot;png&quot;;</span>
+<span class="nc" id="L178">	private String _gravatarSize = &quot;56&quot;;</span>
+	
+	private String _username;
+	private InputStream _inputStream;
+	
+	private IUserProfileManager _userProfileManager;
+	private ConfigInterface _configManager;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

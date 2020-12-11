@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GuiFragmentResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.internalservlet.system.dispatcher</a> &gt; <span class="el_source">GuiFragmentResult.java</span></div><h1>GuiFragmentResult.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.internalservlet.system.dispatcher;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionInvocation;
+
+import freemarker.template.Template;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.Writer;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.result.ServletDispatcherResult;
+
+import org.entando.entando.aps.system.services.controller.executor.ExecutorBeanContainer;
+import org.entando.entando.aps.system.services.guifragment.GuiFragment;
+import org.entando.entando.aps.system.services.guifragment.IGuiFragmentManager;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Renders a view using a GuiFragment (Entando object) builded by Freemarker.
+ * If the fragment isn't available, includes or forwards to a view (usually a jsp) {@link ServletDispatcherResult}
+ *
+ * &lt;b&gt;This result type takes the following parameters:&lt;/b&gt;
+ *
+ * &lt;!-- START SNIPPET: params --&gt;
+ *
+ * &lt;ul&gt;
+ *
+ * &lt;li&gt;&lt;b&gt;code (default)&lt;/b&gt; - the code of the fragment to process.&lt;/li&gt;
+ * &lt;li&gt;&lt;b&gt;jspLocation&lt;/b&gt; - the location to go to after execution (jsp) if the fragment isn't available.&lt;/li&gt;
+ *
+ * &lt;/ul&gt;
+ *
+ * &lt;!-- END SNIPPET: params --&gt;
+ *
+ * &lt;b&gt;Example:&lt;/b&gt;
+ *
+ * &lt;pre&gt;
+ * &lt;!-- START SNIPPET: example --&gt;
+ *
+ * &amp;lt;result name=&quot;success&quot; type=&quot;guiFragment&quot;&amp;gt;fooCode&amp;lt;/result&amp;gt;
+ *
+ * &lt;!-- END SNIPPET: example --&gt;
+ * &lt;/pre&gt;
+ * @author E.Santoboni
+ */
+public class GuiFragmentResult extends ServletDispatcherResult {
+
+<span class="fc" id="L71">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(GuiFragmentResult.class);</span>
+	
+	/** The default parameter */
+    public static final String DEFAULT_PARAM = &quot;code&quot;;
+	
+	private Writer _writer;
+	
+	protected String _code;
+	protected String _jspLocation;
+	
+	public GuiFragmentResult() {
+<span class="nc" id="L82">		super();</span>
+<span class="nc" id="L83">	}</span>
+	
+	public GuiFragmentResult(String code) {
+<span class="nc" id="L86">		super(code);</span>
+<span class="nc" id="L87">		this._code = code;</span>
+<span class="nc" id="L88">	}</span>
+	
+	public GuiFragmentResult(String code, String jspLocation) {
+<span class="nc" id="L91">		super(code);</span>
+<span class="nc" id="L92">		this._code = code;</span>
+<span class="nc" id="L93">		this._jspLocation = jspLocation;</span>
+<span class="nc" id="L94">	}</span>
+	
+	/**
+	 * Execute this result, using the specified fragment.
+	 * @param code The code of the fragment
+	 * @param invocation The invocation
+	 */
+	@Override
+	public void doExecute(String code, ActionInvocation invocation) throws Exception {
+<span class="nc bnc" id="L103" title="All 2 branches missed.">		if (null == code) {</span>
+<span class="nc" id="L104">			code = conditionalParse(this._code, invocation);</span>
+		}
+<span class="nc bnc" id="L106" title="All 2 branches missed.">		if (null == code) {</span>
+<span class="nc" id="L107">			this.executeDispatcherResult(invocation);</span>
+<span class="nc" id="L108">			return;</span>
+		}
+<span class="nc" id="L110">		ActionContext ctx = invocation.getInvocationContext();</span>
+<span class="nc" id="L111">		HttpServletRequest req = (HttpServletRequest) ctx.get(ServletActionContext.HTTP_REQUEST);</span>
+<span class="nc" id="L112">		IGuiFragmentManager guiFragmentManager =</span>
+<span class="nc" id="L113">				(IGuiFragmentManager) ApsWebApplicationUtils.getBean(SystemConstants.GUI_FRAGMENT_MANAGER, req);</span>
+		try {
+<span class="nc" id="L115">			GuiFragment guiFragment = guiFragmentManager.getGuiFragment(code);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">			String output = (null != guiFragment) ? guiFragment.getCurrentGui() : null;</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">			if (StringUtils.isBlank(output)) {</span>
+<span class="nc" id="L118">				_logger.info(&quot;The fragment '{}' is not available - Action '{}' - Namespace '{}'&quot;, </span>
+<span class="nc" id="L119">						code, invocation.getProxy().getActionName(), invocation.getProxy().getNamespace());</span>
+<span class="nc" id="L120">				boolean execution = this.executeDispatcherResult(invocation);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">				if (!execution) {</span>
+<span class="nc" id="L122">					output = &quot;The fragment '&quot; + code + &quot;' is not available&quot;;</span>
+				} else {
+<span class="nc" id="L124">					return;</span>
+				}
+			}
+<span class="nc" id="L127">			RequestContext reqCtx = (RequestContext) req.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc" id="L128">			ExecutorBeanContainer ebc = (ExecutorBeanContainer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_EXECUTOR_BEAN_CONTAINER);</span>
+<span class="nc" id="L129">			Writer writer = this.getWriter();</span>
+<span class="nc" id="L130">			Template template = new Template(code, new StringReader(output), ebc.getConfiguration());</span>
+<span class="nc" id="L131">			template.process(ebc.getTemplateModel(), writer);</span>
+<span class="nc" id="L132">		} catch (Throwable t) {</span>
+<span class="nc" id="L133">			_logger.error(&quot;Error processing GuiFragment result!&quot;, t);</span>
+<span class="nc" id="L134">			throw new RuntimeException(&quot;Error processing GuiFragment result!&quot;, t);</span>
+<span class="nc" id="L135">		}</span>
+<span class="nc" id="L136">	}</span>
+	
+	protected boolean executeDispatcherResult(ActionInvocation invocation) throws Exception {
+<span class="nc" id="L139">		String finalLocation = conditionalParse(this._jspLocation, invocation);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">		if (null != finalLocation) {</span>
+<span class="nc" id="L141">			super.doExecute(finalLocation, invocation);</span>
+<span class="nc" id="L142">			return true;</span>
+		}
+<span class="nc" id="L144">		return false;</span>
+	}
+	
+	public void setWriter(Writer writer) {
+<span class="nc" id="L148">		this._writer = writer;</span>
+<span class="nc" id="L149">	}</span>
+	
+	protected Writer getWriter() throws IOException {
+<span class="nc bnc" id="L152" title="All 2 branches missed.">		if (_writer != null) {</span>
+<span class="nc" id="L153">			return _writer;</span>
+		}
+<span class="nc" id="L155">		return ServletActionContext.getResponse().getWriter();</span>
+	}
+	
+	public void setCode(String code) {
+<span class="nc" id="L159">		this._code = code;</span>
+<span class="nc" id="L160">	}</span>
+	
+	public void setJspLocation(String jspLocation) {
+<span class="nc" id="L163">		this._jspLocation = jspLocation;</span>
+<span class="nc" id="L164">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

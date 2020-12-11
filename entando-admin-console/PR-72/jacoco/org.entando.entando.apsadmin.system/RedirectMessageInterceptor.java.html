@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RedirectMessageInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.apsadmin.system</a> &gt; <span class="el_source">RedirectMessageInterceptor.java</span></div><h1>RedirectMessageInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.apsadmin.system;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.Result;
+import com.opensymphony.xwork2.interceptor.MethodFilterInterceptor;
+import com.opensymphony.xwork2.interceptor.ValidationAware;
+import org.apache.struts2.result.ServletActionRedirectResult;
+import org.apache.struts2.result.ServletRedirectResult;
+import org.entando.entando.aps.internalservlet.system.dispatcher.FrontServletActionRedirectResult;
+
+/**
+ * @author  http://glindholm.wordpress.com/2008/07/02/preserving-messages-across-a-redirect-in-struts-2/
+ * 
+ * An Interceptor to preserve an actions ValidationAware messages across a
+ * redirect result.
+ *
+ * It makes the assumption that you always want to preserve messages across a
+ * redirect and restore them to the next action if they exist.
+ *
+ * The way this works is it looks at the result type after a action has executed
+ * and if the result was a redirect (ServletRedirectResult) or a redirectAction
+ * (ServletActionRedirectResult) and there were any errors, messages, or
+ * fieldErrors they are stored in the session. Before the next action executes
+ * it will check if there are any messages stored in the session and add them to
+ * the next action.
+ * 
+ * The action you are redirecting towards will need to configure a result with name=&quot;input&quot; as the added messages will trigger the &quot;workflow&quot; interceptor to return a result of &quot;input&quot;
+ *
+ */
+public class RedirectMessageInterceptor extends MethodFilterInterceptor
+{
+	private static final long  serialVersionUID    = -1847557437429753540L;
+
+	public static final String FIELD_ERRORS_KEY    = &quot;RedirectMessageInterceptor_FieldErrors&quot;;
+	public static final String ACTION_ERRORS_KEY   = &quot;RedirectMessageInterceptor_ActionErrors&quot;;
+	public static final String ACTION_MESSAGES_KEY = &quot;RedirectMessageInterceptor_ActionMessages&quot;;
+
+<span class="fc" id="L68">	public RedirectMessageInterceptor() {}</span>
+	
+	@Override
+	public String doIntercept(ActionInvocation invocation) throws Exception {
+<span class="nc" id="L72">		Object action = invocation.getAction();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">		if (action instanceof ValidationAware) {</span>
+<span class="nc" id="L74">			this.before(invocation, (ValidationAware) action);</span>
+		}
+<span class="nc" id="L76">		String result = invocation.invoke();</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">		if (action instanceof ValidationAware) {</span>
+<span class="nc" id="L78">			after(invocation, (ValidationAware) action);</span>
+		}
+<span class="nc" id="L80">		return result;</span>
+	}
+
+	/**
+	 * Retrieve the errors and messages from the session and add them to the
+	 * action.
+	 * @param invocation
+	 * @param validationAware
+	 * @throws java.lang.Exception
+	 */
+	protected void before(ActionInvocation invocation, ValidationAware validationAware) throws Exception {
+<span class="nc" id="L91">		Map&lt;String, ?&gt; session = invocation.getInvocationContext().getSession();</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">		if (session!=null) {</span>
+<span class="nc" id="L93">			Collection&lt;String&gt; actionErrors = (Collection) session.remove(ACTION_ERRORS_KEY);</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">			if (actionErrors != null &amp;&amp; actionErrors.size() &gt; 0) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">				for (String error : actionErrors) {</span>
+<span class="nc" id="L96">					validationAware.addActionError(error);</span>
+<span class="nc" id="L97">				}</span>
+			}
+<span class="nc" id="L99">			Collection&lt;String&gt; actionMessages = (Collection) session.remove(ACTION_MESSAGES_KEY);</span>
+<span class="nc bnc" id="L100" title="All 4 branches missed.">			if (actionMessages != null &amp;&amp; actionMessages.size() &gt; 0) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">				for (String message : actionMessages) {</span>
+<span class="nc" id="L102">					validationAware.addActionMessage(message);</span>
+<span class="nc" id="L103">				}</span>
+			}
+<span class="nc" id="L105">			Map&lt;String, List&lt;String&gt;&gt; fieldErrors = (Map) session.remove(FIELD_ERRORS_KEY);</span>
+<span class="nc bnc" id="L106" title="All 4 branches missed.">			if (fieldErrors != null &amp;&amp; fieldErrors.size() &gt; 0) {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">				for (Map.Entry&lt;String, List&lt;String&gt;&gt; fieldError : fieldErrors.entrySet()) {</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">					for (String message : fieldError.getValue()) {</span>
+<span class="nc" id="L109">						validationAware.addFieldError(fieldError.getKey(), message);</span>
+<span class="nc" id="L110">					}</span>
+<span class="nc" id="L111">				}</span>
+			}
+		}
+<span class="nc" id="L114">	}</span>
+
+	/**
+	 * If the result is a redirect then store error and messages in the session.
+	 * @param invocation
+	 * @param validationAware
+	 * @throws java.lang.Exception
+	 */
+	protected void after(ActionInvocation invocation, ValidationAware validationAware) throws Exception {
+<span class="nc" id="L123">		Result result = invocation.getResult();</span>
+<span class="nc bnc" id="L124" title="All 8 branches missed.">		if (result != null &amp;&amp; (result instanceof ServletRedirectResult || result instanceof ServletActionRedirectResult || result instanceof FrontServletActionRedirectResult)) {</span>
+<span class="nc" id="L125">			HttpServletRequest request = (HttpServletRequest) invocation.getInvocationContext().get(ServletActionContext.HTTP_REQUEST);</span>
+<span class="nc" id="L126">			HttpSession session = request.getSession();</span>
+			
+<span class="nc" id="L128">			Collection&lt;String&gt; actionErrors = validationAware.getActionErrors();</span>
+<span class="nc bnc" id="L129" title="All 4 branches missed.">			if (actionErrors != null &amp;&amp; actionErrors.size() &gt; 0) {</span>
+<span class="nc" id="L130">				session.setAttribute(ACTION_ERRORS_KEY, actionErrors);</span>
+			}
+<span class="nc" id="L132">			Collection&lt;String&gt; actionMessages = validationAware.getActionMessages();</span>
+<span class="nc bnc" id="L133" title="All 4 branches missed.">			if (actionMessages != null &amp;&amp; actionMessages.size() &gt; 0) {</span>
+<span class="nc" id="L134">				session.setAttribute(ACTION_MESSAGES_KEY, actionMessages);</span>
+			}
+<span class="nc" id="L136">			Map&lt;String, List&lt;String&gt;&gt; fieldErrors = validationAware.getFieldErrors();</span>
+<span class="nc bnc" id="L137" title="All 4 branches missed.">			if (fieldErrors != null &amp;&amp; fieldErrors.size() &gt; 0) {</span>
+<span class="nc" id="L138">				session.setAttribute(FIELD_ERRORS_KEY, fieldErrors);</span>
+			}
+		}
+<span class="nc" id="L141">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

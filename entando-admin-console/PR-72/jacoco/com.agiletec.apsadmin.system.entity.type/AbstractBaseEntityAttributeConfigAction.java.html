@@ -1,0 +1,660 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractBaseEntityAttributeConfigAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Administration Console</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.apsadmin.system.entity.type</a> &gt; <span class="el_source">AbstractBaseEntityAttributeConfigAction.java</span></div><h1>AbstractBaseEntityAttributeConfigAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.apsadmin.system.entity.type;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.common.entity.model.attribute.DateAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.EnumeratorAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.NumberAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.util.DateAttributeValidationRules;
+import com.agiletec.aps.system.common.entity.model.attribute.util.EnumeratorAttributeItemsExtractor;
+import com.agiletec.aps.system.common.entity.model.attribute.util.IAttributeValidationRules;
+import com.agiletec.aps.system.common.entity.model.attribute.util.NumberAttributeValidationRules;
+import com.agiletec.aps.system.common.entity.model.attribute.util.OgnlValidationRule;
+import com.agiletec.aps.system.common.entity.model.attribute.util.TextAttributeValidationRules;
+import com.agiletec.aps.system.common.searchengine.IndexableAttributeInterface;
+import com.agiletec.apsadmin.system.BaseAction;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.common.entity.model.attribute.util.EnumeratorMapAttributeItemsExtractor;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.ListableBeanFactory;
+
+/**
+ * Base action for Configure Entity Attributes.
+ * @author E.Santoboni
+ */
+<span class="fc" id="L50">public class AbstractBaseEntityAttributeConfigAction extends BaseAction implements BeanFactoryAware {</span>
+
+<span class="fc" id="L52">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AbstractBaseEntityAttributeConfigAction.class);</span>
+	
+	/**
+	 * Fill form fields.
+	 * @param attribute 
+	 */
+	protected void valueFormFields(AttributeInterface attribute) {
+<span class="fc" id="L59">		this.setAttributeName(attribute.getName());</span>
+<span class="pc bpc" id="L60" title="3 of 4 branches missed.">		if (null != attribute.getDescription() &amp;&amp; attribute.getDescription().trim().length() &gt; 0) {</span>
+<span class="nc" id="L61">			this.setAttributeDescription(attribute.getDescription());</span>
+		}
+<span class="fc" id="L63">		this.setAttributeTypeCode(attribute.getType());</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">		if (null != attribute.getRoles()) {</span>
+<span class="fc" id="L65">			this.setAttributeRoles(Arrays.asList(attribute.getRoles()));</span>
+		}
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">		if (null != attribute.getDisablingCodes()) {</span>
+<span class="nc" id="L68">			this.setDisablingCodes(Arrays.asList(attribute.getDisablingCodes()));</span>
+		}
+<span class="fc" id="L70">		IAttributeValidationRules valRule = attribute.getValidationRules();</span>
+<span class="fc" id="L71">		this.setRequired(valRule.isRequired());</span>
+<span class="fc" id="L72">		this.setOgnlValidationRule(valRule.getOgnlValidationRule());</span>
+<span class="fc" id="L73">		this.setSearchable(attribute.isSearchable());</span>
+<span class="fc" id="L74">		String indexingType = attribute.getIndexingType();</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">		if (null != indexingType) {</span>
+<span class="fc" id="L76">			this.setIndexable(indexingType.equalsIgnoreCase(IndexableAttributeInterface.INDEXING_TYPE_TEXT));</span>
+		}
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (attribute.isTextAttribute()) {</span>
+<span class="fc" id="L79">			TextAttributeValidationRules textValRule = (TextAttributeValidationRules) valRule;</span>
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">			if (null != textValRule.getMaxLength() &amp;&amp; textValRule.getMaxLength() &gt; -1) {</span>
+<span class="fc" id="L81">				this.setMaxLength(textValRule.getMaxLength());</span>
+			}
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">			if (null != textValRule.getMinLength() &amp;&amp; textValRule.getMinLength() &gt; -1) {</span>
+<span class="fc" id="L84">				this.setMinLength(textValRule.getMinLength());</span>
+			}
+<span class="fc" id="L86">			this.setRegexp(textValRule.getRegexp());</span>
+<span class="fc" id="L87">			this.setRangeEndString((String) textValRule.getRangeEnd());</span>
+<span class="fc" id="L88">			this.setRangeStartString((String) textValRule.getRangeStart());</span>
+<span class="fc" id="L89">			this.setEqualString((String) textValRule.getValue());</span>
+<span class="fc" id="L90">			this.setRangeEndStringAttribute(textValRule.getRangeEndAttribute());</span>
+<span class="fc" id="L91">			this.setRangeStartStringAttribute(textValRule.getRangeStartAttribute());</span>
+<span class="fc" id="L92">			this.setEqualStringAttribute(textValRule.getValueAttribute());</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			if (attribute instanceof EnumeratorAttribute) {</span>
+<span class="fc" id="L94">				EnumeratorAttribute enumeratorAttribute = (EnumeratorAttribute) attribute;</span>
+<span class="fc" id="L95">				this.setEnumeratorStaticItems(enumeratorAttribute.getStaticItems());</span>
+<span class="fc" id="L96">				this.setEnumeratorStaticItemsSeparator(enumeratorAttribute.getCustomSeparator());</span>
+<span class="fc" id="L97">				this.setEnumeratorExtractorBean(enumeratorAttribute.getExtractorBeanName());</span>
+			}
+		}
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (attribute instanceof DateAttribute) {</span>
+<span class="fc" id="L101">			DateAttributeValidationRules dateValRule = (DateAttributeValidationRules) valRule;</span>
+<span class="fc" id="L102">			this.setRangeEndDate((Date) dateValRule.getRangeEnd());</span>
+<span class="fc" id="L103">			this.setRangeStartDate((Date) dateValRule.getRangeStart());</span>
+<span class="fc" id="L104">			this.setEqualDate((Date) dateValRule.getValue());</span>
+<span class="fc" id="L105">			this.setRangeEndDateAttribute(dateValRule.getRangeEndAttribute());</span>
+<span class="fc" id="L106">			this.setRangeStartDateAttribute(dateValRule.getRangeStartAttribute());</span>
+<span class="fc" id="L107">			this.setEqualDateAttribute(dateValRule.getValueAttribute());</span>
+		}
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (attribute instanceof NumberAttribute) {</span>
+<span class="fc" id="L110">			NumberAttributeValidationRules nulValRule = (NumberAttributeValidationRules) valRule;</span>
+<span class="fc" id="L111">			this.setRangeEndNumber((Integer) nulValRule.getRangeEnd());</span>
+<span class="fc" id="L112">			this.setRangeStartNumber((Integer) nulValRule.getRangeStart());</span>
+<span class="fc" id="L113">			this.setEqualNumber((Integer) nulValRule.getValue());</span>
+<span class="fc" id="L114">			this.setRangeEndNumberAttribute(nulValRule.getRangeEndAttribute());</span>
+<span class="fc" id="L115">			this.setRangeStartNumberAttribute(nulValRule.getRangeStartAttribute());</span>
+<span class="fc" id="L116">			this.setEqualNumberAttribute(nulValRule.getValueAttribute());</span>
+		}
+<span class="fc" id="L118">	}</span>
+	
+	/**
+	 * Fill attribute fields.
+	 * @param attribute The attribute to edit with the form values.
+	 * @return A customized return code in the attribute needs a extra configuration, else null.
+	 */
+	protected String fillAttributeFields(AttributeInterface attribute) {
+<span class="pc bpc" id="L126" title="3 of 4 branches missed.">		if (null != this.getAttributeDescription() &amp;&amp; this.getAttributeDescription().trim().length() &gt; 0) {</span>
+<span class="nc" id="L127">			attribute.setDescription(this.getAttributeDescription().trim());</span>
+		} else {
+<span class="fc" id="L129">			attribute.setDescription(null);</span>
+		}
+<span class="fc" id="L131">		attribute.setRoles(this.createStringArray(this.getAttributeRoles()));</span>
+<span class="fc" id="L132">		attribute.setDisablingCodes(this.createStringArray(this.getDisablingCodes()));</span>
+<span class="pc bpc" id="L133" title="3 of 4 branches missed.">		attribute.setSearchable(null != this.getSearchable() &amp;&amp; this.getSearchable());</span>
+<span class="fc" id="L134">		String indexingType = IndexableAttributeInterface.INDEXING_TYPE_NONE;</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">		if (null != this.getIndexable()) {</span>
+<span class="nc" id="L136">			indexingType = IndexableAttributeInterface.INDEXING_TYPE_TEXT;</span>
+		}
+<span class="fc" id="L138">		attribute.setIndexingType(indexingType);</span>
+<span class="fc" id="L139">		IAttributeValidationRules valCond = attribute.getValidationRules();</span>
+<span class="pc bpc" id="L140" title="3 of 4 branches missed.">		valCond.setRequired(null != this.getRequired() &amp;&amp; this.getRequired());</span>
+<span class="fc" id="L141">		valCond.setOgnlValidationRule(this.getOgnlValidationRule());</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">		if (attribute.isTextAttribute()) {</span>
+<span class="fc" id="L143">			TextAttributeValidationRules valRule = (TextAttributeValidationRules) valCond;</span>
+<span class="fc" id="L144">			valRule.setMaxLength(this.getMaxLength());</span>
+<span class="fc" id="L145">			valRule.setMinLength(this.getMinLength());</span>
+<span class="fc" id="L146">			valRule.setRegexp(this.getRegexp());</span>
+<span class="fc" id="L147">			valRule.setRangeEnd(this.getRangeEndString());</span>
+<span class="fc" id="L148">			valRule.setRangeStart(this.getRangeStartString());</span>
+<span class="fc" id="L149">			valRule.setValue(this.getEqualString());</span>
+<span class="fc" id="L150">			valRule.setRangeEndAttribute(this.getRangeEndStringAttribute());</span>
+<span class="fc" id="L151">			valRule.setRangeStartAttribute(this.getRangeStartStringAttribute());</span>
+<span class="fc" id="L152">			valRule.setValueAttribute(this.getEqualStringAttribute());</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">			if (attribute instanceof EnumeratorAttribute) {</span>
+<span class="nc" id="L154">				EnumeratorAttribute enumeratorAttribute = (EnumeratorAttribute) attribute;</span>
+<span class="nc" id="L155">				enumeratorAttribute.setStaticItems(this.getEnumeratorStaticItems());</span>
+<span class="nc bnc" id="L156" title="All 4 branches missed.">				if (null != this.getEnumeratorStaticItemsSeparator() &amp;&amp; this.getEnumeratorStaticItemsSeparator().length()&gt;0) {</span>
+<span class="nc" id="L157">					enumeratorAttribute.setCustomSeparator(this.getEnumeratorStaticItemsSeparator());</span>
+				}
+<span class="nc bnc" id="L159" title="All 4 branches missed.">				if (null != this.getEnumeratorExtractorBean() &amp;&amp; this.getEnumeratorExtractorBean().trim().length() &gt; 0) {</span>
+<span class="nc" id="L160">					enumeratorAttribute.setExtractorBeanName(this.getEnumeratorExtractorBean());</span>
+				} else {
+<span class="nc" id="L162">					enumeratorAttribute.setExtractorBeanName(null);</span>
+				}
+			}
+		}
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">		if (attribute instanceof DateAttribute) {</span>
+<span class="nc" id="L167">			DateAttributeValidationRules dateValRule = (DateAttributeValidationRules) valCond;</span>
+<span class="nc" id="L168">			dateValRule.setRangeEnd(this.getRangeEndDate());</span>
+<span class="nc" id="L169">			dateValRule.setRangeStart(this.getRangeStartDate());</span>
+<span class="nc" id="L170">			dateValRule.setValue(this.getEqualDate());</span>
+<span class="nc" id="L171">			dateValRule.setRangeEndAttribute(this.getRangeEndDateAttribute());</span>
+<span class="nc" id="L172">			dateValRule.setRangeStartAttribute(this.getRangeStartDateAttribute());</span>
+<span class="nc" id="L173">			dateValRule.setValueAttribute(this.getEqualDateAttribute());</span>
+		}
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">		if (attribute instanceof NumberAttribute) {</span>
+<span class="nc" id="L176">			NumberAttributeValidationRules nulValRule = (NumberAttributeValidationRules) valCond;</span>
+<span class="nc" id="L177">			nulValRule.setRangeEnd(this.getRangeEndNumber());</span>
+<span class="nc" id="L178">			nulValRule.setRangeStart(this.getRangeStartNumber());</span>
+<span class="nc" id="L179">			nulValRule.setValue(this.getEqualNumber());</span>
+<span class="nc" id="L180">			nulValRule.setRangeEndAttribute(this.getRangeEndNumberAttribute());</span>
+<span class="nc" id="L181">			nulValRule.setRangeStartAttribute(this.getRangeStartNumberAttribute());</span>
+<span class="nc" id="L182">			nulValRule.setValueAttribute(this.getEqualNumberAttribute());</span>
+		}
+<span class="fc" id="L184">		return null;</span>
+	}
+	
+	private String[] createStringArray(List&lt;String&gt; list) {
+<span class="pc bpc" id="L188" title="3 of 4 branches missed.">		if (null == list || list.isEmpty()) {</span>
+<span class="fc" id="L189">			return null;</span>
+		}
+<span class="nc" id="L191">		String[] array = new String[list.size()];</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">		for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="nc" id="L193">			array[i] = list.get(i);</span>
+		}
+<span class="nc" id="L195">		return array;</span>
+	}
+	
+	/**
+	 * Return the current entity type on edit.
+	 * @return The current entity type.
+	 */
+	public IApsEntity getEntityType() {
+<span class="fc" id="L203">		return (IApsEntity) this.getRequest().getSession().getAttribute(IEntityTypeConfigAction.ENTITY_TYPE_ON_EDIT_SESSION_PARAM);</span>
+	}
+	
+	/**
+	 * Return the entity manager name that manages the current entity on edit.
+	 * @return The entity manager name.
+	 */
+	public String getEntityManagerName() {
+<span class="fc" id="L211">		return (String) this.getRequest().getSession().getAttribute(IEntityTypeConfigAction.ENTITY_TYPE_MANAGER_SESSION_PARAM);</span>
+	}
+	
+	/**
+	 * Return the entity manager that manages the current entity on edit.
+	 * @return The entity manager.
+	 */
+	protected IEntityManager getEntityManager() {
+<span class="fc" id="L219">		String entityManagerName = this.getEntityManagerName();</span>
+<span class="fc" id="L220">		return (IEntityManager) this.getBeanFactory().getBean(entityManagerName);</span>
+	}
+	
+	/**
+	 * Return the namespace prefix specific for the current entity manager.
+	 * The prefix will extract by the object {@link EntityTypeNamespaceInfoBean} associated to the current entity manager.
+	 * @return The namespace prefix specific for the current entity manager.
+	 */
+	public String getEntityTypeManagementNamespacePrefix() {
+		try {
+<span class="nc" id="L230">			EntityTypeNamespaceInfoBean infoBean = (EntityTypeNamespaceInfoBean) this.getBeanFactory().getBean(this.getEntityManagerName()+&quot;NamespaceInfoBean&quot;);</span>
+<span class="nc" id="L231">			return infoBean.getNamespacePrefix();</span>
+<span class="nc" id="L232">		} catch (Throwable t) {</span>
+			//nothing to do
+		}
+<span class="nc" id="L235">		return &quot;&quot;;</span>
+	}
+	
+	/**
+	 * Indicates whether the current entity manager is a Search Engine user or not.
+	 * @return True if the current entity manager is a Search Engine user, false otherwise.
+	 */
+	public boolean isEntityManagerSearchEngineUser() {
+<span class="nc" id="L243">		return this.getEntityManager().isSearchEngineUser();</span>
+	}
+	
+	public boolean isIndexableOptionSupported(String attributeTypeCode) {
+		try {
+<span class="nc" id="L248">			AttributeInterface attribute = this.getAttributePrototype(attributeTypeCode);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">			return (null == attribute.getIndexingType());</span>
+<span class="nc" id="L250">		} catch (Throwable t) {</span>
+<span class="nc" id="L251">			_logger.error(&quot;error in isIndexableOptionSupported&quot;, t);</span>
+		}
+<span class="nc" id="L253">		return false;</span>
+	}
+	
+	public boolean isSearchableOptionSupported(String attributeTypeCode) {
+		try {
+<span class="nc" id="L258">			AttributeInterface attribute = this.getAttributePrototype(attributeTypeCode);</span>
+<span class="nc" id="L259">			return attribute.isSearchableOptionSupported();</span>
+<span class="nc" id="L260">		} catch (Throwable t) {</span>
+<span class="nc" id="L261">			_logger.error(&quot;error in isSearchableOptionSupported&quot;, t);</span>
+		}
+<span class="nc" id="L263">		return false;</span>
+	}
+	
+	public AttributeInterface getAttributePrototype(String typeCode) {
+<span class="fc" id="L267">		IEntityManager entityManager = this.getEntityManager();</span>
+<span class="fc" id="L268">		Map&lt;String, AttributeInterface&gt; attributeTypes = entityManager.getEntityAttributePrototypes();</span>
+<span class="fc" id="L269">		return attributeTypes.get(typeCode);</span>
+	}
+	
+	/**
+	 * Return the list of the other entity attributes of the same type of the current on edit.
+	 * @return The list of the other entity attributes of the same type.
+	 */
+	public List&lt;AttributeInterface&gt; getSameAttributes() {
+<span class="nc" id="L277">		AttributeInterface attributePrototype = this.getAttributePrototype(this.getAttributeTypeCode());</span>
+<span class="nc" id="L278">		List&lt;AttributeInterface&gt; attributes = new ArrayList&lt;AttributeInterface&gt;();</span>
+<span class="nc" id="L279">		List&lt;AttributeInterface&gt; currentEntityAttributes = this.getEntityType().getAttributeList();</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">		for (int i = 0; i &lt; currentEntityAttributes.size(); i++) {</span>
+<span class="nc" id="L281">			AttributeInterface attribute = currentEntityAttributes.get(i);</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">			if (attribute.getClass().isInstance(attributePrototype) </span>
+<span class="nc bnc" id="L283" title="All 4 branches missed.">					&amp;&amp; (null == this.getAttributeName() || !attribute.getName().equals(this.getAttributeName()))) {</span>
+<span class="nc" id="L284">				attributes.add(attribute);</span>
+			}
+		}
+<span class="nc" id="L287">		return attributes;</span>
+	}
+	
+	/**
+	 * Return the list of the attribute role not in use on the entity type on edit.
+	 * @return The list of the free attribute roles.
+	 */
+	public List&lt;AttributeRole&gt; getFreeAttributeRoleNames() {
+<span class="nc" id="L295">		List&lt;AttributeRole&gt; freeRoles = new ArrayList&lt;AttributeRole&gt;();</span>
+<span class="nc" id="L296">		List&lt;AttributeRole&gt; roles = this.getAttributeRoles(this.getAttributeTypeCode());</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">		if (null == roles) {</span>
+<span class="nc" id="L298">			return freeRoles;</span>
+		}
+<span class="nc bnc" id="L300" title="All 2 branches missed.">		for (int i = 0; i &lt; roles.size(); i++) {</span>
+<span class="nc" id="L301">			AttributeRole role = roles.get(i);</span>
+<span class="nc" id="L302">			AttributeInterface utilizer = this.getEntityType().getAttributeByRole(role.getName());</span>
+<span class="nc bnc" id="L303" title="All 4 branches missed.">			if (null == utilizer || utilizer.getName().equals(this.getAttributeName())) {</span>
+<span class="nc" id="L304">				freeRoles.add(role);</span>
+			}
+		}
+<span class="nc" id="L307">		return freeRoles;</span>
+	}
+	
+	protected List&lt;AttributeRole&gt; getAttributeRoles(String attributeTypeCode) {
+<span class="nc" id="L311">		List&lt;AttributeRole&gt; rolesByType = new ArrayList&lt;AttributeRole&gt;();</span>
+<span class="nc" id="L312">		List&lt;AttributeRole&gt; roles = this.getEntityManager().getAttributeRoles();</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">		if (null == roles) {</span>
+<span class="nc" id="L314">			return rolesByType;</span>
+		}
+<span class="nc bnc" id="L316" title="All 2 branches missed.">		for (int i = 0; i &lt; roles.size(); i++) {</span>
+<span class="nc" id="L317">			AttributeRole role = roles.get(i);</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">			if (role.getAllowedAttributeTypes().contains(attributeTypeCode)) {</span>
+<span class="nc" id="L319">				rolesByType.add(role);</span>
+			}
+		}
+<span class="nc" id="L322">		return rolesByType;</span>
+	}
+	
+	/**
+	 * Return an attribute role.
+	 * @param roleName The name of the tole to return.
+	 * @return The required role.
+	 */
+	public AttributeRole getAttributeRole(String roleName) {
+<span class="nc" id="L331">		return this.getEntityManager().getAttributeRole(roleName);</span>
+	}
+	
+	public Map&lt;String, String&gt; getAttributeDisablingCodes() {
+<span class="nc" id="L335">		return this.getEntityManager().getAttributeDisablingCodes();</span>
+	}
+	
+	public List&lt;String&gt; getEnumeratorExtractorBeans() {
+<span class="nc" id="L339">		return this.getEnumeratorExtractorBeans(EnumeratorAttributeItemsExtractor.class);</span>
+	}
+	
+	public List&lt;String&gt; getEnumeratorMapExtractorBeans() {
+<span class="nc" id="L343">		return this.getEnumeratorExtractorBeans(EnumeratorMapAttributeItemsExtractor.class);</span>
+	}
+	
+	protected List&lt;String&gt; getEnumeratorExtractorBeans(Class type) {
+<span class="nc" id="L347">		List&lt;String&gt; extractors = null;</span>
+		try {
+<span class="nc" id="L349">			ListableBeanFactory factory = (ListableBeanFactory) this.getBeanFactory();</span>
+<span class="nc" id="L350">			String[] defNames = factory.getBeanNamesForType(type);</span>
+<span class="nc" id="L351">			extractors = Arrays.asList(defNames);</span>
+<span class="nc" id="L352">		} catch (Throwable t) {</span>
+<span class="nc" id="L353">			_logger.error(&quot;Error while extracting enumerator extractor beans&quot;, t);</span>
+<span class="nc" id="L354">			throw new RuntimeException(&quot;Error while extracting enumerator extractor beans&quot;, t);</span>
+<span class="nc" id="L355">		}</span>
+<span class="nc" id="L356">		return extractors;</span>
+	}
+	
+	public int getStrutsAction() {
+<span class="fc" id="L360">		return _strutsAction;</span>
+	}
+	public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L363">		this._strutsAction = strutsAction;</span>
+<span class="fc" id="L364">	}</span>
+	
+	public String getAttributeName() {
+<span class="fc" id="L367">		return _attributeName;</span>
+	}
+	public void setAttributeName(String attributeName) {
+<span class="fc" id="L370">		this._attributeName = attributeName;</span>
+<span class="fc" id="L371">	}</span>
+	
+	public String getAttributeDescription() {
+<span class="fc" id="L374">		return _attributeDescription;</span>
+	}
+	public void setAttributeDescription(String attributeDescription) {
+<span class="nc" id="L377">		this._attributeDescription = attributeDescription;</span>
+<span class="nc" id="L378">	}</span>
+	
+	public String getAttributeTypeCode() {
+<span class="fc" id="L381">		return _attributeTypeCode;</span>
+	}
+	public void setAttributeTypeCode(String attributeTypeCode) {
+<span class="fc" id="L384">		this._attributeTypeCode = attributeTypeCode;</span>
+<span class="fc" id="L385">	}</span>
+	
+	@Deprecated
+	public Boolean getSearcheable() {
+<span class="nc" id="L389">		return this.getSearchable();</span>
+	}
+	@Deprecated
+	public void setSearcheable(Boolean searchable) {
+<span class="nc" id="L393">		this.setSearchable(searchable);</span>
+<span class="nc" id="L394">	}</span>
+	
+	public Boolean getSearchable() {
+<span class="fc" id="L397">		return _searchable;</span>
+	}
+	public void setSearchable(Boolean searchable) {
+<span class="fc" id="L400">		this._searchable = searchable;</span>
+<span class="fc" id="L401">	}</span>
+	
+	public Boolean getIndexable() {
+<span class="fc" id="L404">		return _indexable;</span>
+	}
+	public void setIndexable(Boolean indexable) {
+<span class="fc" id="L407">		this._indexable = indexable;</span>
+<span class="fc" id="L408">	}</span>
+	
+	public List&lt;String&gt; getAttributeRoles() {
+<span class="fc" id="L411">		return _attributeRoles;</span>
+	}
+	public void setAttributeRoles(List&lt;String&gt; attributeRoles) {
+<span class="fc" id="L414">		this._attributeRoles = attributeRoles;</span>
+<span class="fc" id="L415">	}</span>
+	
+	public List&lt;String&gt; getDisablingCodes() {
+<span class="fc" id="L418">		return _disablingCodes;</span>
+	}
+	public void setDisablingCodes(List&lt;String&gt; disablingCodes) {
+<span class="nc" id="L421">		this._disablingCodes = disablingCodes;</span>
+<span class="nc" id="L422">	}</span>
+	
+	public Boolean getRequired() {
+<span class="fc" id="L425">		return _required;</span>
+	}
+	public void setRequired(Boolean required) {
+<span class="fc" id="L428">		this._required = required;</span>
+<span class="fc" id="L429">	}</span>
+	
+	public OgnlValidationRule getOgnlValidationRule() {
+<span class="fc" id="L432">		return _ognlValidationRule;</span>
+	}
+	public void setOgnlValidationRule(OgnlValidationRule ognlValidationRule) {
+<span class="fc" id="L435">		this._ognlValidationRule = ognlValidationRule;</span>
+<span class="fc" id="L436">	}</span>
+	
+	public Integer getMinLength() {
+<span class="fc" id="L439">		return _minLength;</span>
+	}
+	public void setMinLength(Integer minLength) {
+<span class="fc" id="L442">		this._minLength = minLength;</span>
+<span class="fc" id="L443">	}</span>
+	
+	public Integer getMaxLength() {
+<span class="fc" id="L446">		return _maxLength;</span>
+	}
+	public void setMaxLength(Integer maxLength) {
+<span class="fc" id="L449">		this._maxLength = maxLength;</span>
+<span class="fc" id="L450">	}</span>
+	
+	public String getRegexp() {
+<span class="fc" id="L453">		return _regexp;</span>
+	}
+	public void setRegexp(String regexp) {
+<span class="fc" id="L456">		this._regexp = regexp;</span>
+<span class="fc" id="L457">	}</span>
+	
+	public String getRangeStartString() {
+<span class="fc" id="L460">		return _rangeStartString;</span>
+	}
+	public void setRangeStartString(String rangeStartString) {
+<span class="fc" id="L463">		this._rangeStartString = rangeStartString;</span>
+<span class="fc" id="L464">	}</span>
+	
+	public String getRangeEndString() {
+<span class="fc" id="L467">		return _rangeEndString;</span>
+	}
+	public void setRangeEndString(String rangeEndString) {
+<span class="fc" id="L470">		this._rangeEndString = rangeEndString;</span>
+<span class="fc" id="L471">	}</span>
+	
+	public String getRangeStartStringAttribute() {
+<span class="fc" id="L474">		return _rangeStartStringAttribute;</span>
+	}
+	public void setRangeStartStringAttribute(String rangeStartStringAttribute) {
+<span class="fc" id="L477">		this._rangeStartStringAttribute = rangeStartStringAttribute;</span>
+<span class="fc" id="L478">	}</span>
+	
+	public String getRangeEndStringAttribute() {
+<span class="fc" id="L481">		return _rangeEndStringAttribute;</span>
+	}
+	public void setRangeEndStringAttribute(String rangeEndStringAttribute) {
+<span class="fc" id="L484">		this._rangeEndStringAttribute = rangeEndStringAttribute;</span>
+<span class="fc" id="L485">	}</span>
+	
+	public String getEqualString() {
+<span class="fc" id="L488">		return _equalString;</span>
+	}
+	public void setEqualString(String equalString) {
+<span class="fc" id="L491">		this._equalString = equalString;</span>
+<span class="fc" id="L492">	}</span>
+	
+	public String getEqualStringAttribute() {
+<span class="fc" id="L495">		return _equalStringAttribute;</span>
+	}
+	public void setEqualStringAttribute(String equalStringAttribute) {
+<span class="fc" id="L498">		this._equalStringAttribute = equalStringAttribute;</span>
+<span class="fc" id="L499">	}</span>
+	
+	public Date getRangeStartDate() {
+<span class="fc" id="L502">		return _rangeStartDate;</span>
+	}
+	public void setRangeStartDate(Date rangeStartDate) {
+<span class="fc" id="L505">		this._rangeStartDate = rangeStartDate;</span>
+<span class="fc" id="L506">	}</span>
+	
+	public Date getRangeEndDate() {
+<span class="fc" id="L509">		return _rangeEndDate;</span>
+	}
+	public void setRangeEndDate(Date rangeEndDate) {
+<span class="fc" id="L512">		this._rangeEndDate = rangeEndDate;</span>
+<span class="fc" id="L513">	}</span>
+	
+	public String getRangeStartDateAttribute() {
+<span class="fc" id="L516">		return _rangeStartDateAttribute;</span>
+	}
+	public void setRangeStartDateAttribute(String rangeStartDateAttribute) {
+<span class="fc" id="L519">		this._rangeStartDateAttribute = rangeStartDateAttribute;</span>
+<span class="fc" id="L520">	}</span>
+	
+	public String getRangeEndDateAttribute() {
+<span class="fc" id="L523">		return _rangeEndDateAttribute;</span>
+	}
+	public void setRangeEndDateAttribute(String rangeEndDateAttribute) {
+<span class="fc" id="L526">		this._rangeEndDateAttribute = rangeEndDateAttribute;</span>
+<span class="fc" id="L527">	}</span>
+	
+	public Date getEqualDate() {
+<span class="nc" id="L530">		return _equalDate;</span>
+	}
+	public void setEqualDate(Date equalDate) {
+<span class="fc" id="L533">		this._equalDate = equalDate;</span>
+<span class="fc" id="L534">	}</span>
+	
+	public String getEqualDateAttribute() {
+<span class="nc" id="L537">		return _equalDateAttribute;</span>
+	}
+	public void setEqualDateAttribute(String equalDateAttribute) {
+<span class="fc" id="L540">		this._equalDateAttribute = equalDateAttribute;</span>
+<span class="fc" id="L541">	}</span>
+	
+	public Integer getRangeStartNumber() {
+<span class="fc" id="L544">		return _rangeStartNumber;</span>
+	}
+	public void setRangeStartNumber(Integer rangeStartNumber) {
+<span class="fc" id="L547">		this._rangeStartNumber = rangeStartNumber;</span>
+<span class="fc" id="L548">	}</span>
+	
+	public String getRangeStartNumberAttribute() {
+<span class="fc" id="L551">		return _rangeStartNumberAttribute;</span>
+	}
+	public void setRangeStartNumberAttribute(String rangeStartNumberAttribute) {
+<span class="fc" id="L554">		this._rangeStartNumberAttribute = rangeStartNumberAttribute;</span>
+<span class="fc" id="L555">	}</span>
+	
+	public Integer getRangeEndNumber() {
+<span class="fc" id="L558">		return _rangeEndNumber;</span>
+	}
+	public void setRangeEndNumber(Integer rangeEndNumber) {
+<span class="fc" id="L561">		this._rangeEndNumber = rangeEndNumber;</span>
+<span class="fc" id="L562">	}</span>
+	
+	public String getRangeEndNumberAttribute() {
+<span class="fc" id="L565">		return _rangeEndNumberAttribute;</span>
+	}
+	public void setRangeEndNumberAttribute(String rangeEndNumberAttribute) {
+<span class="fc" id="L568">		this._rangeEndNumberAttribute = rangeEndNumberAttribute;</span>
+<span class="fc" id="L569">	}</span>
+	
+	public Integer getEqualNumber() {
+<span class="nc" id="L572">		return _equalNumber;</span>
+	}
+	public void setEqualNumber(Integer equalNumber) {
+<span class="fc" id="L575">		this._equalNumber = equalNumber;</span>
+<span class="fc" id="L576">	}</span>
+	
+	public String getEqualNumberAttribute() {
+<span class="nc" id="L579">		return _equalNumberAttribute;</span>
+	}
+	public void setEqualNumberAttribute(String equalNumberAttribute) {
+<span class="fc" id="L582">		this._equalNumberAttribute = equalNumberAttribute;</span>
+<span class="fc" id="L583">	}</span>
+	
+	public String getEnumeratorStaticItems() {
+<span class="nc" id="L586">		return _enumeratorStaticItems;</span>
+	}
+	public void setEnumeratorStaticItems(String enumeratorStaticItems) {
+<span class="fc" id="L589">		this._enumeratorStaticItems = enumeratorStaticItems;</span>
+<span class="fc" id="L590">	}</span>
+	
+	public String getEnumeratorStaticItemsSeparator() {
+<span class="nc" id="L593">		return _enumeratorStaticItemsSeparator;</span>
+	}
+	public void setEnumeratorStaticItemsSeparator(String enumeratorStaticItemsSeparator) {
+<span class="fc" id="L596">		this._enumeratorStaticItemsSeparator = enumeratorStaticItemsSeparator;</span>
+<span class="fc" id="L597">	}</span>
+	
+	public String getEnumeratorExtractorBean() {
+<span class="nc" id="L600">		return _enumeratorExtractorBean;</span>
+	}
+	public void setEnumeratorExtractorBean(String enumeratorExtractorBean) {
+<span class="fc" id="L603">		this._enumeratorExtractorBean = enumeratorExtractorBean;</span>
+<span class="fc" id="L604">	}</span>
+	
+	protected BeanFactory getBeanFactory() {
+<span class="fc" id="L607">		return _beanFactory;</span>
+	}
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+<span class="fc" id="L611">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L612">	}</span>
+	
+	private int _strutsAction;
+	
+	private String _attributeName;
+	private String _attributeDescription;
+	private String _attributeTypeCode;
+	private Boolean _searchable;
+	private Boolean _indexable;
+	private List&lt;String&gt; _attributeRoles;
+	private List&lt;String&gt; _disablingCodes;
+	
+	private Boolean _required;
+	
+	private OgnlValidationRule _ognlValidationRule;
+	
+	private Integer _minLength;
+	private Integer _maxLength;
+	private String _regexp;
+	
+	private String _rangeStartString;
+	private String _rangeEndString;
+	private String _rangeStartStringAttribute;
+	private String _rangeEndStringAttribute;
+	private String _equalString;
+	private String _equalStringAttribute;
+	
+	private Date _rangeStartDate;
+	private Date _rangeEndDate;
+	private String _rangeStartDateAttribute;
+	private String _rangeEndDateAttribute;
+	private Date _equalDate;
+	private String _equalDateAttribute;
+	
+	private Integer _rangeStartNumber;
+	private String _rangeStartNumberAttribute;
+	private Integer _rangeEndNumber;
+	private String _rangeEndNumberAttribute;
+	private Integer _equalNumber;
+	private String _equalNumberAttribute;
+	
+	private String _enumeratorStaticItems;
+	private String _enumeratorStaticItemsSeparator;
+	private String _enumeratorExtractorBean;
+	
+	private BeanFactory _beanFactory;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
