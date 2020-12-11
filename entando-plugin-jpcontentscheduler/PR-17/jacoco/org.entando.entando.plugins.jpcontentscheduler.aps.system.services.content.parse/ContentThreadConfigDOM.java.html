@@ -1,0 +1,539 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentThreadConfigDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: Content Scheduler</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.parse</a> &gt; <span class="el_source">ContentThreadConfigDOM.java</span></div><h1>ContentThreadConfigDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.parse;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentThreadConfig;
+import org.entando.entando.plugins.jpcontentscheduler.aps.system.services.content.model.ContentTypeElem;
+import org.jdom.Attribute;
+import org.jdom.CDATA;
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.JDOMException;
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.XMLOutputter;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.exception.ApsSystemException;
+
+/**
+ * Classe DOM delegata alle operazioni di lettura/scrittura della configurazione
+ * del thread di pubblicazione/sospensione dei contenuti.
+ */
+<span class="fc" id="L52">public class ContentThreadConfigDOM {</span>
+
+	/**
+	 * Estrae la configurazione
+	 *
+	 * @param xml
+	 * The xml containing the configuration.
+	 * @return The contentthread configuration.
+	 * @throws ApsSystemException
+	 * In case of parsing errors.
+	 */
+	public ContentThreadConfig extractConfig(String xml) throws ApsSystemException {
+<span class="fc" id="L64">		ContentThreadConfig config = new ContentThreadConfig();</span>
+<span class="fc" id="L65">		config.setGroupsContentType(new HashMap&lt;String, List&lt;String&gt;&gt;());</span>
+<span class="fc" id="L66">		config.setUsersContentType(new HashMap&lt;String, List&lt;String&gt;&gt;());</span>
+<span class="fc" id="L67">		Element root = this.getRootElement(xml);</span>
+<span class="fc" id="L68">		this.setSitecode(root, config);</span>
+<span class="fc" id="L69">		this.extractScheduler(root, config);</span>
+<span class="fc" id="L70">		this.extractGloabalCat(root, config);</span>
+<span class="fc" id="L71">		this.extractContentReplace(root, config);</span>
+<span class="fc" id="L72">		this.extractTypes(root, config);</span>
+		// this.extractGroups(root, config);
+<span class="fc" id="L74">		this.extractUsers(root, config);</span>
+<span class="fc" id="L75">		this.extractMailConfig(root, config);</span>
+<span class="fc" id="L76">		return config;</span>
+	}
+
+	/**
+	 * Se l'elemento contentThreadConfig ha un attributo sitecode, che specifica
+	 * il codice del sito abilitato all'invio, lo setta all'interno dell'oggetto
+	 * {@link NewsletterConfig}
+	 *
+	 * @param root
+	 * l'elemento contentThreadConfig
+	 * @param contentThreadConfig
+	 * l'oggetto contenitore della configurazione
+	 */
+	private void setSitecode(Element root, ContentThreadConfig contentThreadConfig) {
+<span class="fc" id="L90">		Attribute sitecodeAttr = root.getAttribute(SITECODE);</span>
+<span class="pc bpc" id="L91" title="2 of 4 branches missed.">		if (null != sitecodeAttr &amp;&amp; sitecodeAttr.getValue().trim().length() &gt; 0) {</span>
+<span class="fc" id="L92">			String sitecode = sitecodeAttr.getValue();</span>
+<span class="fc" id="L93">			contentThreadConfig.setSitecode(sitecode);</span>
+		}
+<span class="fc" id="L95">	}</span>
+
+	/**
+	 * Create an xml containing the newsletter configuration.
+	 *
+	 * @param config
+	 * The contentThread configuration.
+	 * @return The xml containing the configuration.
+	 * @throws ApsSystemException
+	 * In case of errors.
+	 */
+	public String createConfigXml(ContentThreadConfig config) throws ApsSystemException {
+<span class="nc" id="L107">		Element root = this.createConfigElement(config);</span>
+<span class="nc" id="L108">		Document doc = new Document(root);</span>
+<span class="nc" id="L109">		String xml = new XMLOutputter().outputString(doc);</span>
+<span class="nc" id="L110">		return xml;</span>
+	}
+
+	private void extractScheduler(Element root, ContentThreadConfig config) {
+<span class="fc" id="L114">		Element schedulerElement = root.getChild(SCHEDULER_ELEM);</span>
+
+<span class="fc" id="L116">		String active = schedulerElement.getAttributeValue(SCHEDULER_ACTIVE_ATTR);</span>
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">		config.setActive(active == null || active.equalsIgnoreCase(&quot;true&quot;));</span>
+<span class="fc" id="L118">	}</span>
+
+	private void extractGloabalCat(Element root, ContentThreadConfig config) {
+<span class="fc" id="L121">		Element gloabalCatElement = root.getChild(GLOBALCAT_ELEM);</span>
+<span class="fc" id="L122">		String globalcat = null;</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">		if (gloabalCatElement != null) {</span>
+<span class="fc" id="L124">			globalcat = gloabalCatElement.getAttributeValue(GLOBALCAT_CODE_ATTR);</span>
+		}
+<span class="fc" id="L126">		config.setGlobalCat(globalcat);</span>
+<span class="fc" id="L127">	}</span>
+
+	private void extractContentReplace(Element root, ContentThreadConfig config) {
+<span class="fc" id="L130">		Element contentReplaceElement = root.getChild(CONTENTREPL_ELEM);</span>
+<span class="fc" id="L131">		String contentRepModel = null;</span>
+<span class="fc" id="L132">		String contentRepId = null;</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">		if (contentReplaceElement != null) {</span>
+<span class="fc" id="L134">			contentRepId = contentReplaceElement.getAttributeValue(CONTENTREPL_CODE_ATTR);</span>
+<span class="fc" id="L135">			contentRepModel = contentReplaceElement.getAttributeValue(CONTENTREPL_MODEL_ATTR);</span>
+		}
+<span class="fc" id="L137">		config.setContentIdRepl(contentRepId);</span>
+<span class="fc" id="L138">		config.setContentModelRepl(contentRepModel);</span>
+<span class="fc" id="L139">	}</span>
+
+	private List&lt;String&gt; getContentTypes(String s) {
+<span class="fc" id="L142">		List&lt;String&gt; ans = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L143">		String[] ss = s.split(&quot;,&quot;);</span>
+<span class="fc" id="L144">		ans = Arrays.asList(ss);</span>
+<span class="fc" id="L145">		return ans;</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private void extractUsers(Element root, ContentThreadConfig config) {
+<span class="fc" id="L150">		Element usersElem = root.getChild(USERS_ELEM);</span>
+<span class="fc" id="L151">		List usersList = usersElem.getChildren();</span>
+
+<span class="fc" id="L153">		Iterator i = usersList.iterator();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		while (i.hasNext()) {</span>
+<span class="fc" id="L155">			Element currElem = (Element) i.next();</span>
+<span class="fc" id="L156">			config.getUsersContentType().put(currElem.getAttributeValue(USER_USERNAME_ATTR),</span>
+<span class="fc" id="L157">					getContentTypes(currElem.getAttributeValue(USER_CONTENTTYPE_ATTR)));</span>
+<span class="fc" id="L158">		}</span>
+<span class="fc" id="L159">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private void extractTypes(Element root, ContentThreadConfig config) {
+<span class="fc" id="L163">		Element ctsElem = root.getChild(CONTENTTYPES_ELEM);</span>
+<span class="fc" id="L164">		List&lt;String&gt; listCats = null;</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">		if (ctsElem != null) {</span>
+<span class="fc" id="L166">			List ctsList = ctsElem.getChildren();</span>
+
+<span class="fc" id="L168">			Iterator i = ctsList.iterator();</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">			while (i.hasNext()) {</span>
+<span class="fc" id="L170">				Element currElem = (Element) i.next();</span>
+				// obtain categories from typecode
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">				if (currElem != null) {</span>
+<span class="fc" id="L173">					List catList = currElem.getChildren();</span>
+<span class="fc" id="L174">					Iterator i2 = catList.iterator();</span>
+<span class="fc" id="L175">					listCats = new ArrayList&lt;String&gt;();</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">					while (i2.hasNext()) {</span>
+<span class="nc" id="L177">						Element catElem = (Element) i2.next();</span>
+<span class="nc" id="L178">						listCats.add(catElem.getAttributeValue(CODE_ATTR));</span>
+<span class="nc" id="L179">					}</span>
+				}
+<span class="fc" id="L181">				String fieldNameIdContentReplace = null;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">				if (currElem.getAttributeValue(ID_CONTENT_REPLACE_ATTR) != null) {</span>
+<span class="fc" id="L183">					fieldNameIdContentReplace = currElem.getAttributeValue(ID_CONTENT_REPLACE_ATTR);</span>
+				}
+<span class="fc" id="L185">				String fieldNameModelIdContentReplace = null;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">				if (currElem.getAttributeValue(MODEL_ID_CONTENT_REPLACE_ATTR) != null) {</span>
+<span class="fc" id="L187">					fieldNameModelIdContentReplace = currElem.getAttributeValue(MODEL_ID_CONTENT_REPLACE_ATTR);</span>
+				}
+<span class="fc" id="L189">				String suspend = null;</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">				if (currElem.getAttributeValue(SUSPEND_ATTR) != null</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">						&amp;&amp; (currElem.getAttributeValue(SUSPEND_ATTR).equalsIgnoreCase(&quot;true&quot;) || currElem.getAttributeValue(SUSPEND_ATTR)</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">								.equalsIgnoreCase(&quot;false&quot;))) {</span>
+<span class="fc" id="L193">					suspend = currElem.getAttributeValue(SUSPEND_ATTR);</span>
+				} else {
+<span class="nc" id="L195">					suspend = &quot;&quot;;</span>
+				}
+<span class="fc" id="L197">				config.getTypesList().add(</span>
+<span class="fc" id="L198">						new ContentTypeElem(currElem.getAttributeValue(TYPE_ATTR), currElem.getAttributeValue(START_DATE_ATTR), currElem</span>
+<span class="fc" id="L199">								.getAttributeValue(END_DATE_ATTR), fieldNameIdContentReplace, suspend, listCats,</span>
+								fieldNameModelIdContentReplace));
+<span class="fc" id="L201">				listCats = null;</span>
+<span class="fc" id="L202">			}</span>
+		}
+<span class="fc" id="L204">	}</span>
+
+	/**
+	 * Estrae la parte di configurazione relativa alla mail.
+	 * 
+	 * @param root
+	 * L'elemento radice contenente il sottoelemento relativo alle mail.
+	 * @param config
+	 * La configurazione del servizio contentThread.
+	 */
+	private void extractMailConfig(Element root, ContentThreadConfig config) {
+<span class="fc" id="L215">		Element mailElem = root.getChild(MAIL_ELEM);</span>
+
+<span class="fc" id="L217">		String alsoHtml = mailElem.getAttributeValue(MAIL_ALSOHTML_ATTR);</span>
+<span class="pc bpc" id="L218" title="2 of 4 branches missed.">		config.setAlsoHtml(alsoHtml != null &amp;&amp; &quot;true&quot;.equalsIgnoreCase(alsoHtml));</span>
+
+<span class="fc" id="L220">		String senderCode = mailElem.getAttributeValue(MAIL_SENDERCODE_ATTR);</span>
+<span class="fc" id="L221">		config.setSenderCode(senderCode);</span>
+
+<span class="fc" id="L223">		String mailAttrName = mailElem.getAttributeValue(MAIL_MAILATTRNAME_ATTR);</span>
+<span class="fc" id="L224">		config.setMailAttrName(mailAttrName);</span>
+
+<span class="fc" id="L226">		config.setSubject(mailElem.getChildText(MAIL_SUBJECT_CHILD));</span>
+
+<span class="fc" id="L228">		config.setHtmlHeader(mailElem.getChildText(MAIL_HTML_HEADER_CHILD));</span>
+<span class="fc" id="L229">		config.setHtmlFooter(mailElem.getChildText(MAIL_HTML_FOOTER_CHILD));</span>
+<span class="fc" id="L230">		config.setHtmlSeparator(mailElem.getChildText(MAIL_HTML_SEPARATOR_CHILD));</span>
+
+<span class="fc" id="L232">		config.setTextHeader(mailElem.getChildText(MAIL_TEXT_HEADER_CHILD));</span>
+<span class="fc" id="L233">		config.setTextFooter(mailElem.getChildText(MAIL_TEXT_FOOTER_CHILD));</span>
+<span class="fc" id="L234">		config.setTextSeparator(mailElem.getChildText(MAIL_TEXT_SEPARATOR_CHILD));</span>
+
+<span class="fc" id="L236">		config.setHtmlHeaderMove(mailElem.getChildText(MAIL_HTML_HEADER_CHILD_MOVE));</span>
+<span class="fc" id="L237">		config.setHtmlFooterMove(mailElem.getChildText(MAIL_HTML_FOOTER_CHILD_MOVE));</span>
+<span class="fc" id="L238">		config.setHtmlSeparatorMove(mailElem.getChildText(MAIL_HTML_SEPARATOR_CHILD_MOVE));</span>
+
+<span class="fc" id="L240">		config.setTextHeaderMove(mailElem.getChildText(MAIL_TEXT_HEADER_CHILD_MOVE));</span>
+<span class="fc" id="L241">		config.setTextFooterMove(mailElem.getChildText(MAIL_TEXT_FOOTER_CHILD_MOVE));</span>
+<span class="fc" id="L242">		config.setTextSeparatorMove(mailElem.getChildText(MAIL_TEXT_SEPARATOR_CHILD_MOVE));</span>
+<span class="fc" id="L243">	}</span>
+
+	/**
+	 * Crea l'elemento della configurazione del servizio di contentThread.
+	 * 
+	 * @param config
+	 * La configurazione del servizio contentThread.
+	 * @return L'elemento della configurazione del servizio di contentThread.
+	 */
+	private Element createConfigElement(ContentThreadConfig config) {
+<span class="nc" id="L253">		Element configElem = new Element(ROOT);</span>
+<span class="nc" id="L254">		configElem.setAttribute(SITECODE, config.getSitecode());</span>
+
+<span class="nc" id="L256">		Element schedulerElem = this.createSchedulerElement(config);</span>
+<span class="nc" id="L257">		configElem.addContent(schedulerElem);</span>
+
+<span class="nc" id="L259">		Element globalCatElem = this.createGlobalCatElement(config);</span>
+<span class="nc" id="L260">		configElem.addContent(globalCatElem);</span>
+
+<span class="nc" id="L262">		Element contentReplaceElem = this.createContentReplaceElement(config);</span>
+<span class="nc" id="L263">		configElem.addContent(contentReplaceElem);</span>
+
+		// Element groupsElem = this.createGroupsElement(config);
+		// configElem.addContent(groupsElem);
+
+<span class="nc" id="L268">		Element usersElem = this.createUsersElement(config);</span>
+<span class="nc" id="L269">		configElem.addContent(usersElem);</span>
+
+<span class="nc" id="L271">		Element contentTypesElem = this.createContentTypesElement(config);</span>
+<span class="nc" id="L272">		configElem.addContent(contentTypesElem);</span>
+
+<span class="nc" id="L274">		Element mailElem = this.createMailElement(config);</span>
+<span class="nc" id="L275">		configElem.addContent(mailElem);</span>
+
+<span class="nc" id="L277">		return configElem;</span>
+	}
+
+	private Element createSchedulerElement(ContentThreadConfig config) {
+<span class="nc" id="L281">		Element schedulerElement = new Element(SCHEDULER_ELEM);</span>
+<span class="nc" id="L282">		schedulerElement.setAttribute(SCHEDULER_ACTIVE_ATTR, String.valueOf(config.isActive()));</span>
+<span class="nc" id="L283">		return schedulerElement;</span>
+	}
+
+	private Element createGlobalCatElement(ContentThreadConfig config) {
+<span class="nc" id="L287">		Element gloabalCatElement = new Element(GLOBALCAT_ELEM);</span>
+<span class="nc" id="L288">		gloabalCatElement.setAttribute(GLOBALCAT_CODE_ATTR, config.getGlobalCat());</span>
+<span class="nc" id="L289">		return gloabalCatElement;</span>
+	}
+
+	// private String setContentTypes(List&lt;String&gt; list) {
+	// StringBuilder ans = new StringBuilder(&quot;&quot;);
+	// for (Iterator&lt;String&gt; i = list.iterator(); i.hasNext();) {
+	// String curr = i.next();
+	// ans.append(curr);
+	// if (i.hasNext()) {
+	// ans.append(&quot;,&quot;);
+	// }
+	// }
+	// return ans.toString();
+	// }
+
+	private Element createContentReplaceElement(ContentThreadConfig config) {
+<span class="nc" id="L305">		Element contentReplaceElement = new Element(CONTENTREPL_ELEM);</span>
+<span class="nc" id="L306">		String contentId = config.getContentIdRepl();</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">		if (StringUtils.isNotBlank(contentId)) {</span>
+<span class="nc" id="L308">			contentReplaceElement.setAttribute(CONTENTREPL_CODE_ATTR, contentId);</span>
+		}
+<span class="nc" id="L310">		String modelId = config.getContentModelRepl();</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">		if (StringUtils.isNotBlank(modelId)) {</span>
+<span class="nc" id="L312">			contentReplaceElement.setAttribute(CONTENTREPL_MODEL_ATTR, modelId);</span>
+		}
+<span class="nc" id="L314">		return contentReplaceElement;</span>
+	}
+
+	private Element createGroupsElement(ContentThreadConfig config) {
+<span class="nc" id="L318">		Element groupsElement = new Element(GROUPS_ELEM);</span>
+<span class="nc" id="L319">		Map&lt;String, List&lt;String&gt;&gt; groupsMap = config.getGroupsContentType();</span>
+<span class="nc" id="L320">		Set&lt;String&gt; keys = groupsMap.keySet();</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">		for (Iterator&lt;String&gt; i = keys.iterator(); i.hasNext();) {</span>
+<span class="nc" id="L322">			String key = i.next();</span>
+			// String contentTypes = StringUtils.join(groupsMap.get(key), &quot;,&quot;);
+<span class="nc" id="L324">			Element groupElem = new Element(GROUP_ELEM);</span>
+<span class="nc" id="L325">			groupElem.setAttribute(GROUP_ID_ATTR, key);</span>
+
+<span class="nc" id="L327">			groupsElement.addContent(groupElem);</span>
+<span class="nc" id="L328">		}</span>
+<span class="nc" id="L329">		return groupsElement;</span>
+	}
+
+	private Element createUsersElement(ContentThreadConfig config) {
+<span class="nc" id="L333">		Element usersElement = new Element(USERS_ELEM);</span>
+<span class="nc" id="L334">		Map&lt;String, List&lt;String&gt;&gt; usersMap = config.getUsersContentType();</span>
+<span class="nc" id="L335">		Set&lt;String&gt; keys = usersMap.keySet();</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">		for (Iterator&lt;String&gt; i = keys.iterator(); i.hasNext();) {</span>
+<span class="nc" id="L337">			String key = i.next();</span>
+<span class="nc" id="L338">			String contentTypes = StringUtils.join(usersMap.get(key), &quot;,&quot;);</span>
+
+<span class="nc" id="L340">			Element userElem = new Element(USER_ELEM);</span>
+<span class="nc" id="L341">			userElem.setAttribute(USER_USERNAME_ATTR, key);</span>
+<span class="nc" id="L342">			userElem.setAttribute(USER_CONTENTTYPE_ATTR, contentTypes);</span>
+<span class="nc" id="L343">			usersElement.addContent(userElem);</span>
+<span class="nc" id="L344">		}</span>
+<span class="nc" id="L345">		return usersElement;</span>
+	}
+
+	private Element createContentTypesElement(ContentThreadConfig config) {
+<span class="nc" id="L349">		Element ctsElement = new Element(CONTENTTYPES_ELEM);</span>
+<span class="nc" id="L350">		List&lt;ContentTypeElem&gt; ctsList = config.getTypesList();</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">		for (Iterator&lt;ContentTypeElem&gt; i = ctsList.iterator(); i.hasNext();) {</span>
+<span class="nc" id="L352">			ContentTypeElem elem = i.next();</span>
+<span class="nc" id="L353">			Element ctElem = new Element(CONTENTTYPE_ELEM);</span>
+<span class="nc" id="L354">			this.safeSetAttr(ctElem, TYPE_ATTR, elem.getContentType());</span>
+<span class="nc" id="L355">			this.safeSetAttr(ctElem, START_DATE_ATTR, elem.getStartDateAttr());</span>
+<span class="nc" id="L356">			this.safeSetAttr(ctElem, END_DATE_ATTR, elem.getEndDateAttro());</span>
+<span class="nc" id="L357">			this.safeSetAttr(ctElem, ID_CONTENT_REPLACE_ATTR, elem.getIdContentReplace());</span>
+<span class="nc" id="L358">			this.safeSetAttr(ctElem, MODEL_ID_CONTENT_REPLACE_ATTR, elem.getModelIdContentReplace());</span>
+<span class="nc" id="L359">			this.safeSetAttr(ctElem, SUSPEND_ATTR, elem.getSuspend());</span>
+
+<span class="nc" id="L361">			List&lt;String&gt; catList = elem.getIdsCategories();</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">			if (null != catList) {</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">				for (Iterator&lt;String&gt; i2 = catList.iterator(); i2.hasNext();) {</span>
+<span class="nc" id="L364">					String cat = i2.next();</span>
+<span class="nc" id="L365">					Element catElem = new Element(CATEGORY_ELEM);</span>
+<span class="nc" id="L366">					this.safeSetAttr(catElem, CODE_ATTR, cat);</span>
+<span class="nc" id="L367">					ctElem.addContent(catElem);</span>
+<span class="nc" id="L368">				}</span>
+			}
+<span class="nc" id="L370">			ctsElement.addContent(ctElem);</span>
+<span class="nc" id="L371">		}</span>
+<span class="nc" id="L372">		return ctsElement;</span>
+	}
+
+	private void safeSetAttr(Element element, String attrName, String attrValue) {
+<span class="nc bnc" id="L376" title="All 2 branches missed.">		if (null != attrValue) {</span>
+<span class="nc" id="L377">			element.setAttribute(attrName, attrValue);</span>
+		}
+<span class="nc" id="L379">	}</span>
+
+	/**
+	 * Crea l'elemento della configurazione relativa alle mail.
+	 * 
+	 * @param config
+	 * La configurazione del servizio contentThread.
+	 * @return L'elemento di configurazione relativo alle mail.
+	 */
+	private Element createMailElement(ContentThreadConfig config) {
+<span class="nc" id="L389">		Element mailElem = new Element(MAIL_ELEM);</span>
+
+<span class="nc" id="L391">		mailElem.setAttribute(MAIL_ALSOHTML_ATTR, String.valueOf(config.isAlsoHtml()));</span>
+<span class="nc" id="L392">		mailElem.setAttribute(MAIL_SENDERCODE_ATTR, config.getSenderCode());</span>
+<span class="nc" id="L393">		mailElem.setAttribute(MAIL_MAILATTRNAME_ATTR, config.getMailAttrName());</span>
+
+<span class="nc" id="L395">		Element subject = new Element(MAIL_SUBJECT_CHILD);</span>
+<span class="nc" id="L396">		subject.addContent(new CDATA(config.getSubject()));</span>
+<span class="nc" id="L397">		mailElem.addContent(subject);</span>
+
+		//
+
+<span class="nc" id="L401">		Element htmlHeader = new Element(MAIL_HTML_HEADER_CHILD);</span>
+<span class="nc" id="L402">		htmlHeader.addContent(new CDATA(config.getHtmlHeader()));</span>
+<span class="nc" id="L403">		mailElem.addContent(htmlHeader);</span>
+
+<span class="nc" id="L405">		Element htmlFooter = new Element(MAIL_HTML_FOOTER_CHILD);</span>
+<span class="nc" id="L406">		htmlFooter.addContent(new CDATA(config.getHtmlFooter()));</span>
+<span class="nc" id="L407">		mailElem.addContent(htmlFooter);</span>
+
+<span class="nc" id="L409">		Element htmlSeparator = new Element(MAIL_HTML_SEPARATOR_CHILD);</span>
+<span class="nc" id="L410">		htmlSeparator.addContent(new CDATA(config.getHtmlSeparator()));</span>
+<span class="nc" id="L411">		mailElem.addContent(htmlSeparator);</span>
+
+		//
+
+<span class="nc" id="L415">		Element textHeader = new Element(MAIL_TEXT_HEADER_CHILD);</span>
+<span class="nc" id="L416">		textHeader.addContent(new CDATA(config.getTextHeader()));</span>
+<span class="nc" id="L417">		mailElem.addContent(textHeader);</span>
+
+<span class="nc" id="L419">		Element textFooter = new Element(MAIL_TEXT_FOOTER_CHILD);</span>
+<span class="nc" id="L420">		textFooter.addContent(new CDATA(config.getTextFooter()));</span>
+<span class="nc" id="L421">		mailElem.addContent(textFooter);</span>
+
+<span class="nc" id="L423">		Element textSeparator = new Element(MAIL_TEXT_SEPARATOR_CHILD);</span>
+<span class="nc" id="L424">		textSeparator.addContent(new CDATA(config.getTextSeparator()));</span>
+<span class="nc" id="L425">		mailElem.addContent(textSeparator);</span>
+
+		//
+
+<span class="nc" id="L429">		Element htmlHeaderM = new Element(MAIL_HTML_HEADER_CHILD_MOVE);</span>
+<span class="nc" id="L430">		htmlHeaderM.addContent(new CDATA(config.getHtmlHeaderMove()));</span>
+<span class="nc" id="L431">		mailElem.addContent(htmlHeaderM);</span>
+
+<span class="nc" id="L433">		Element htmlFooterM = new Element(MAIL_HTML_FOOTER_CHILD_MOVE);</span>
+<span class="nc" id="L434">		htmlFooterM.addContent(new CDATA(config.getHtmlFooterMove()));</span>
+<span class="nc" id="L435">		mailElem.addContent(htmlFooterM);</span>
+
+<span class="nc" id="L437">		Element htmlSeparatorM = new Element(MAIL_HTML_SEPARATOR_CHILD_MOVE);</span>
+<span class="nc" id="L438">		htmlSeparatorM.addContent(new CDATA(config.getHtmlSeparatorMove()));</span>
+<span class="nc" id="L439">		mailElem.addContent(htmlSeparatorM);</span>
+
+		//
+
+<span class="nc" id="L443">		Element textHeaderM = new Element(MAIL_TEXT_HEADER_CHILD_MOVE);</span>
+<span class="nc" id="L444">		textHeaderM.addContent(new CDATA(config.getTextHeaderMove()));</span>
+<span class="nc" id="L445">		mailElem.addContent(textHeaderM);</span>
+
+<span class="nc" id="L447">		Element textFooterM = new Element(MAIL_TEXT_FOOTER_CHILD_MOVE);</span>
+<span class="nc" id="L448">		textFooterM.addContent(new CDATA(config.getTextFooterMove()));</span>
+<span class="nc" id="L449">		mailElem.addContent(textFooterM);</span>
+
+<span class="nc" id="L451">		Element textSeparatorM = new Element(MAIL_TEXT_SEPARATOR_CHILD_MOVE);</span>
+<span class="nc" id="L452">		textSeparatorM.addContent(new CDATA(config.getTextSeparatorMove()));</span>
+<span class="nc" id="L453">		mailElem.addContent(textSeparatorM);</span>
+
+<span class="nc" id="L455">		return mailElem;</span>
+	}
+
+	/**
+	 * Returns the Xml element from a given text.
+	 * 
+	 * @param xmlText
+	 * The text containing an Xml.
+	 * @return The Xml element from a given text.
+	 * @throws ApsSystemException
+	 * In case of parsing exceptions.
+	 */
+	private Element getRootElement(String xmlText) throws ApsSystemException {
+<span class="fc" id="L468">		SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L469">		builder.setValidation(false);</span>
+<span class="fc" id="L470">		StringReader reader = new StringReader(xmlText);</span>
+<span class="fc" id="L471">		Element root = null;</span>
+		try {
+<span class="fc" id="L473">			Document doc = builder.build(reader);</span>
+<span class="fc" id="L474">			root = doc.getRootElement();</span>
+<span class="nc" id="L475">		} catch (JDOMException t) {</span>
+<span class="nc" id="L476">			ApsSystemUtils.getLogger().error(&quot;Error parsing xml: &quot; + t.getMessage());</span>
+<span class="nc" id="L477">			throw new ApsSystemException(&quot;Error parsing xml&quot;, t);</span>
+<span class="nc" id="L478">		} catch (IOException t) {</span>
+<span class="nc" id="L479">			ApsSystemUtils.getLogger().error(&quot;Error parsing xml: &quot; + t.getMessage());</span>
+<span class="nc" id="L480">			throw new ApsSystemException(&quot;Error parsing xml&quot;, t);</span>
+<span class="fc" id="L481">		}</span>
+<span class="fc" id="L482">		return root;</span>
+	}
+
+	private static final String ROOT = &quot;contentThreadconfig&quot;;
+	private static final String SITECODE = &quot;sitecode&quot;;
+
+	private static final String SCHEDULER_ELEM = &quot;scheduler&quot;;
+	private static final String SCHEDULER_ACTIVE_ATTR = &quot;active&quot;;
+
+	private static final String GLOBALCAT_ELEM = &quot;globalcat&quot;;
+	private static final String GLOBALCAT_CODE_ATTR = &quot;code&quot;;
+
+	private static final String CONTENTREPL_ELEM = &quot;contentReplace&quot;;
+	private static final String CONTENTREPL_CODE_ATTR = &quot;contentId&quot;;
+	private static final String CONTENTREPL_MODEL_ATTR = &quot;modelId&quot;;
+
+	private static final String GROUPS_ELEM = &quot;groups&quot;;
+	private static final String GROUP_ELEM = &quot;group&quot;;
+	private static final String GROUP_ID_ATTR = &quot;id&quot;;
+	// private static final String GROUP_CONTENTTYPE_ATTR = &quot;contentType&quot;;
+
+	private static final String CONTENTTYPES_ELEM = &quot;contentTypes&quot;;
+	private static final String CONTENTTYPE_ELEM = &quot;contentType&quot;;
+	private static final String CATEGORY_ELEM = &quot;category&quot;;
+	private static final String TYPE_ATTR = &quot;type&quot;;
+	private static final String CODE_ATTR = &quot;code&quot;;
+	private static final String START_DATE_ATTR = &quot;startAttr&quot;;
+	private static final String END_DATE_ATTR = &quot;endAttr&quot;;
+	private static final String ID_CONTENT_REPLACE_ATTR = &quot;idContentReplace&quot;;
+	private static final String MODEL_ID_CONTENT_REPLACE_ATTR = &quot;modelIdContentReplace&quot;;
+	private static final String SUSPEND_ATTR = &quot;suspend&quot;;
+
+	private static final String USERS_ELEM = &quot;users&quot;;
+	private static final String USER_ELEM = &quot;user&quot;;
+	private static final String USER_USERNAME_ATTR = &quot;username&quot;;
+	private static final String USER_CONTENTTYPE_ATTR = &quot;contentType&quot;;
+
+	private static final String MAIL_ELEM = &quot;mail&quot;;
+	private static final String MAIL_ALSOHTML_ATTR = &quot;alsoHtml&quot;;
+	private static final String MAIL_SENDERCODE_ATTR = &quot;senderCode&quot;;
+	private static final String MAIL_MAILATTRNAME_ATTR = &quot;mailAttrName&quot;;
+	private static final String MAIL_SUBJECT_CHILD = &quot;subject&quot;;
+	private static final String MAIL_HTML_HEADER_CHILD = &quot;htmlHeader&quot;;
+	private static final String MAIL_HTML_FOOTER_CHILD = &quot;htmlFooter&quot;;
+	private static final String MAIL_HTML_SEPARATOR_CHILD = &quot;htmlSeparator&quot;;
+	private static final String MAIL_TEXT_HEADER_CHILD = &quot;textHeader&quot;;
+	private static final String MAIL_TEXT_FOOTER_CHILD = &quot;textFooter&quot;;
+	private static final String MAIL_TEXT_SEPARATOR_CHILD = &quot;textSeparator&quot;;
+
+	private static final String MAIL_HTML_HEADER_CHILD_MOVE = &quot;htmlHeaderMove&quot;;
+	private static final String MAIL_HTML_FOOTER_CHILD_MOVE = &quot;htmlFooterMove&quot;;
+	private static final String MAIL_HTML_SEPARATOR_CHILD_MOVE = &quot;htmlSeparatorMove&quot;;
+	private static final String MAIL_TEXT_HEADER_CHILD_MOVE = &quot;textHeaderMove&quot;;
+	private static final String MAIL_TEXT_FOOTER_CHILD_MOVE = &quot;textFooterMove&quot;;
+	private static final String MAIL_TEXT_SEPARATOR_CHILD_MOVE = &quot;textSeparatorMove&quot;;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
