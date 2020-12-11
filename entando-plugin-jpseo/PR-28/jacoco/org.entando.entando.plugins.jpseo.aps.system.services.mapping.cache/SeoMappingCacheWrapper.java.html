@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SeoMappingCacheWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: SEO</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jpseo.aps.system.services.mapping.cache</a> &gt; <span class="el_source">SeoMappingCacheWrapper.java</span></div><h1>SeoMappingCacheWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+package org.entando.entando.plugins.jpseo.aps.system.services.mapping.cache;
+
+import com.agiletec.aps.system.common.AbstractCacheWrapper;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.PageMetadata;
+import org.entando.entando.ent.exception.EntException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ContentFriendlyCode;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.FriendlyCodeVO;
+import org.entando.entando.plugins.jpseo.aps.system.services.mapping.ISeoMappingDAO;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.plugins.jpseo.aps.system.services.page.SeoPageMetadata;
+import org.springframework.cache.Cache;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L46">public class SeoMappingCacheWrapper extends AbstractCacheWrapper implements ISeoMappingCacheWrapper {</span>
+
+<span class="fc" id="L48">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(SeoMappingCacheWrapper.class);</span>
+
+    @Override
+    public void release() {
+<span class="fc" id="L52">        Cache cache = this.getCache();</span>
+<span class="fc" id="L53">        this.releaseCachedObjects(cache, MAPPING_BY_CODE_CACHE_KEY, MAPPING_BY_CODE_CACHE_KEY_PREFIX);</span>
+<span class="fc" id="L54">        this.releaseCachedObjects(cache, MAPPING_BY_PAGE_CACHE_KEY, MAPPING_BY_PAGE_CACHE_KEY_PREFIX);</span>
+<span class="fc" id="L55">        this.releaseCachedObjects(cache, MAPPING_BY_CONTENT_CACHE_KEY, MAPPING_BY_CONTENT_CACHE_KEY_PREFIX);</span>
+<span class="fc" id="L56">        cache.evict(DRAFT_PAGES_MAPPING);</span>
+<span class="fc" id="L57">    }</span>
+
+	@Override
+	public void initCache(IPageManager pageManager, ISeoMappingDAO seoMappingDAO, boolean initDraftPageMapping) throws EntException {
+		try {
+<span class="fc" id="L62">            Map&lt;String, FriendlyCodeVO&gt; mapping = seoMappingDAO.loadMapping();</span>
+<span class="fc" id="L63">			Map&lt;String, FriendlyCodeVO&gt; pageFriendlyCodes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L64">			Map&lt;String, ContentFriendlyCode&gt; contentFriendlyCodes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L65">			Iterator&lt;FriendlyCodeVO&gt; codesIter = mapping.values().iterator();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">			while (codesIter.hasNext()) {</span>
+<span class="fc" id="L67">				FriendlyCodeVO currentCode = codesIter.next();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">				if (currentCode.getPageCode()!=null) {</span>
+<span class="fc" id="L69">					pageFriendlyCodes.put(currentCode.getPageCode(), currentCode);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">				} else if (currentCode.getContentId()!=null) {</span>
+<span class="fc" id="L71">					String contentId = currentCode.getContentId();</span>
+<span class="fc" id="L72">					ContentFriendlyCode content = contentFriendlyCodes.get(contentId);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">					if (content==null) {</span>
+<span class="fc" id="L74">						content = new ContentFriendlyCode();</span>
+<span class="fc" id="L75">						content.setContentId(contentId);</span>
+<span class="fc" id="L76">						contentFriendlyCodes.put(contentId, content);</span>
+					}
+<span class="fc" id="L78">					content.addFriendlyCode(currentCode.getLangCode(), currentCode.getFriendlyCode());</span>
+				}
+<span class="fc" id="L80">			}</span>
+<span class="fc" id="L81">            Cache cache = this.getCache();</span>
+<span class="fc" id="L82">            this.insertAndCleanVoObjectsOnCache(cache, mapping, MAPPING_BY_CODE_CACHE_KEY, MAPPING_BY_CODE_CACHE_KEY_PREFIX);</span>
+<span class="fc" id="L83">            this.insertAndCleanVoObjectsOnCache(cache, pageFriendlyCodes, MAPPING_BY_PAGE_CACHE_KEY, MAPPING_BY_PAGE_CACHE_KEY_PREFIX);</span>
+<span class="fc" id="L84">			this.insertAndCleanVoObjectsOnCache(cache, contentFriendlyCodes, MAPPING_BY_CONTENT_CACHE_KEY, MAPPING_BY_CONTENT_CACHE_KEY_PREFIX);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (initDraftPageMapping) {</span>
+<span class="fc" id="L86">                this.createDraftPagesMapping(pageManager, cache);</span>
+            }
+<span class="nc" id="L88">		} catch (Throwable t) {</span>
+<span class="nc" id="L89">			_logger.error(&quot;Error loading seo mapper&quot;, t);</span>
+<span class="nc" id="L90">			throw new EntException(&quot;Error loading seo mapper&quot;, t);</span>
+<span class="fc" id="L91">		}</span>
+<span class="fc" id="L92">	}</span>
+    
+    protected Map&lt;String, String&gt; createDraftPagesMapping(IPageManager pageManager, Cache cache) {
+<span class="fc" id="L95">        Map&lt;String, String&gt; mapping = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L96">        this.createDraftPagesMapping(pageManager, pageManager.getDraftRoot(), mapping);</span>
+<span class="fc" id="L97">        cache.put(DRAFT_PAGES_MAPPING, mapping);</span>
+<span class="fc" id="L98">        return mapping;</span>
+    }
+    
+    protected void createDraftPagesMapping(IPageManager pageManager, IPage current, Map&lt;String, String&gt; mapping) {
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        if (null == current) {</span>
+<span class="nc" id="L103">            return;</span>
+        }
+<span class="fc" id="L105">        PageMetadata metadata = current.getMetadata();</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        String friendlyCode = (metadata instanceof SeoPageMetadata) ? ((SeoPageMetadata) metadata).getFriendlyCode() : null;</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (!StringUtils.isBlank(friendlyCode)) {</span>
+<span class="nc" id="L108">            mapping.put(friendlyCode, current.getCode());</span>
+        }
+<span class="fc" id="L110">        String[] children = current.getChildrenCodes();</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (null != children) {</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="fc" id="L113">                this.createDraftPagesMapping(pageManager, pageManager.getDraftPage(children[i]), mapping);</span>
+            }
+        }
+<span class="fc" id="L116">    }</span>
+    
+    protected void releaseCachedObjects(Cache cache, String listKey, String prefixKey) {
+<span class="fc" id="L119">		List&lt;String&gt; codes = (List&lt;String&gt;) this.get(cache, listKey, List.class);</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">		if (null != codes) {</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			for (String code : codes) {</span>
+<span class="fc" id="L122">				cache.evict(prefixKey + code);</span>
+<span class="fc" id="L123">			}</span>
+<span class="fc" id="L124">			cache.evict(listKey);</span>
+		}
+<span class="fc" id="L126">	}</span>
+    
+    protected void insertAndCleanVoObjectsOnCache(Cache cache, Map&lt;String, ?&gt; objects, String listKey, String cacheKeyPrefix) {
+<span class="fc" id="L129">        List&lt;String&gt; oldCodes = (List&lt;String&gt;) this.get(cache, listKey, List.class);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        List&lt;String&gt; oldCodesClone = (null != oldCodes) ? new ArrayList&lt;&gt;(oldCodes) : null;</span>
+<span class="fc" id="L131">        List&lt;String&gt; codes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L132">        Iterator&lt;String&gt; iter = objects.keySet().iterator();</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L134">            String key = iter.next();</span>
+<span class="fc" id="L135">            cache.put(cacheKeyPrefix + key, objects.get(key));</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (null != oldCodesClone) {</span>
+<span class="fc" id="L137">                oldCodesClone.remove(key);</span>
+            }
+<span class="fc" id="L139">            codes.add(key);</span>
+<span class="fc" id="L140">        }</span>
+<span class="fc" id="L141">        cache.put(listKey, codes);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        if (null != oldCodesClone) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            for (String code : oldCodesClone) {</span>
+<span class="fc" id="L144">                cache.evict(cacheKeyPrefix + code);</span>
+<span class="fc" id="L145">            }</span>
+        }
+<span class="fc" id="L147">    }</span>
+    
+	@Override
+	public FriendlyCodeVO getMappingByFriendlyCode(String friendlyCode) {
+<span class="fc" id="L151">        return this.get(this.getCache(), MAPPING_BY_CODE_CACHE_KEY_PREFIX + friendlyCode, FriendlyCodeVO.class);</span>
+	}
+
+    @Override
+    public FriendlyCodeVO getMappingByPageCode(String pageCode) {
+<span class="nc" id="L156">        return this.get(this.getCache(), MAPPING_BY_PAGE_CACHE_KEY_PREFIX+ pageCode, FriendlyCodeVO.class);</span>
+	}
+    
+    @Override
+    public ContentFriendlyCode getMappingByContentId(String contentId) {
+<span class="fc" id="L161">        return this.get(this.getCache(), MAPPING_BY_CONTENT_CACHE_KEY_PREFIX + contentId, ContentFriendlyCode.class);</span>
+	}
+
+    @Override
+    public String getDraftPageReference(String friendlyCode) {
+<span class="fc" id="L166">        Cache cache = this.getCache();</span>
+<span class="fc" id="L167">        Map&lt;String,String&gt; mapping = this.get(cache, DRAFT_PAGES_MAPPING, Map.class);</span>
+<span class="fc" id="L168">        return mapping.get(friendlyCode);</span>
+    }
+
+    @Override
+    public void updateDraftPageReference(String friendlyCode, String pageCode) {
+<span class="fc" id="L173">        Cache cache = this.getCache();</span>
+<span class="fc" id="L174">        Map&lt;String,String&gt; mapping = this.get(cache, DRAFT_PAGES_MAPPING, Map.class);</span>
+<span class="fc" id="L175">        mapping.entrySet().removeIf(e -&gt; e.getValue().equals(pageCode));</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        if (!StringUtils.isBlank(friendlyCode)) {</span>
+<span class="fc" id="L177">            mapping.put(friendlyCode, pageCode);</span>
+        }
+<span class="fc" id="L179">        cache.put(DRAFT_PAGES_MAPPING, mapping);</span>
+<span class="fc" id="L180">    }</span>
+
+    @Override
+    protected String getCacheName() {
+<span class="fc" id="L184">        return ISeoMappingCacheWrapper.SEO_MAPPER_CACHE_NAME;</span>
+    }
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
