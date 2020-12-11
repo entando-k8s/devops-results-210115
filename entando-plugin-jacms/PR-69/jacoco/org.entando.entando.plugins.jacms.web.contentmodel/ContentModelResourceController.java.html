@@ -19,6 +19,8 @@ import java.util.Collections;
 import java.util.Map;
 import javax.validation.Valid;
 import org.entando.entando.aps.system.services.dataobjectmodel.model.IEntityModelDictionary;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
 import org.entando.entando.plugins.jacms.aps.system.services.ContentModelService;
 import org.entando.entando.plugins.jacms.web.contentmodel.model.ContentModelReferenceDTO;
 import org.entando.entando.plugins.jacms.web.contentmodel.validator.ContentModelReferencesValidator;
@@ -32,17 +34,18 @@ import org.entando.entando.web.common.model.RestListRequest;
 import org.entando.entando.web.common.model.SimpleRestResponse;
 import org.entando.entando.web.component.ComponentUsage;
 import org.entando.entando.web.component.ComponentUsageEntity;
-import org.entando.entando.ent.util.EntLogging.EntLogger;
-import org.entando.entando.ent.util.EntLogging.EntLogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,7 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping(value = &quot;/plugins/cms/contentmodels&quot;)
 public class ContentModelResourceController implements ContentModelResource {
 
-<span class="fc" id="L53">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+<span class="fc" id="L56">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
 
     private final ContentModelService contentModelService;
     private final ContentModelValidator contentModelValidator;
@@ -60,110 +63,112 @@ public class ContentModelResourceController implements ContentModelResource {
     @Autowired
     public ContentModelResourceController(ContentModelService contentModelService,
             ContentModelReferencesValidator contentModelReferencesValidator,
-<span class="fc" id="L63">            ContentModelUsageDetailsValidator contentModelUsageDetailsValidator) {</span>
-<span class="fc" id="L64">        this.contentModelService = contentModelService;</span>
-<span class="fc" id="L65">        this.contentModelReferencesValidator = contentModelReferencesValidator;</span>
-<span class="fc" id="L66">        this.contentModelUsageDetailsValidator = contentModelUsageDetailsValidator;</span>
-<span class="fc" id="L67">        this.contentModelValidator = new ContentModelValidator();</span>
-<span class="fc" id="L68">    }</span>
+<span class="fc" id="L66">            ContentModelUsageDetailsValidator contentModelUsageDetailsValidator) {</span>
+<span class="fc" id="L67">        this.contentModelService = contentModelService;</span>
+<span class="fc" id="L68">        this.contentModelReferencesValidator = contentModelReferencesValidator;</span>
+<span class="fc" id="L69">        this.contentModelUsageDetailsValidator = contentModelUsageDetailsValidator;</span>
+<span class="fc" id="L70">        this.contentModelValidator = new ContentModelValidator();</span>
+<span class="fc" id="L71">    }</span>
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
-    public ResponseEntity&lt;PagedRestResponse&lt;ContentModelDto&gt;&gt; getContentModels(RestListRequest requestList) {
-<span class="fc" id="L74">        this.contentModelValidator.validateRestListRequest(requestList, ContentModelDto.class);</span>
-<span class="fc" id="L75">        PagedMetadata&lt;ContentModelDto&gt; result = contentModelService.findMany(requestList);</span>
-<span class="fc" id="L76">        this.contentModelValidator.validateRestListResult(requestList, result);</span>
-<span class="fc" id="L77">        logger.debug(&quot;loading contentModel list -&gt; {}&quot;, result);</span>
-<span class="fc" id="L78">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(result));</span>
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ContentModelDto&gt;&gt; getContentModels(RestListRequest requestList,
+            BindingResult bindingResult) {
+<span class="fc" id="L78">        this.contentModelValidator.validateRestListRequest(requestList, ContentModelDto.class);</span>
+<span class="fc" id="L79">        this.contentModelValidator.validateIdFilter(bindingResult, requestList.getFilters());</span>
+<span class="fc" id="L80">        PagedMetadata&lt;ContentModelDto&gt; result = contentModelService.findMany(requestList);</span>
+<span class="fc" id="L81">        this.contentModelValidator.validateRestListResult(requestList, result);</span>
+<span class="fc" id="L82">        logger.debug(&quot;loading contentModel list -&gt; {}&quot;, result);</span>
+<span class="fc" id="L83">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(result));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
+    @GetMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; getContentModel(@PathVariable Long modelId) {
-<span class="fc" id="L85">        logger.debug(&quot;loading contentModel {}&quot;, modelId);</span>
-<span class="fc" id="L86">        ContentModelDto contentModel = contentModelService.getContentModel(modelId);</span>
-<span class="fc" id="L87">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(contentModel));</span>
+<span class="fc" id="L90">        logger.debug(&quot;loading contentModel {}&quot;, modelId);</span>
+<span class="fc" id="L91">        ContentModelDto contentModel = contentModelService.getContentModel(modelId);</span>
+<span class="fc" id="L92">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(contentModel));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.POST)
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; addContentModel(@Valid @RequestBody ContentModelDto contentModel, BindingResult bindingResult) {
-<span class="fc" id="L94">        logger.debug(&quot;adding content model&quot;);</span>
-<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
-<span class="fc" id="L96">            throw new ValidationGenericException(bindingResult);</span>
+<span class="fc" id="L99">        logger.debug(&quot;adding content model&quot;);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L101">            throw new ValidationGenericException(bindingResult);</span>
         }
-<span class="fc" id="L98">        ContentModelDto dto = contentModelService.create(contentModel);</span>
-<span class="fc" id="L99">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dto));</span>
+<span class="fc" id="L103">        ContentModelDto dto = contentModelService.create(contentModel);</span>
+<span class="fc" id="L104">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dto));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.PUT)
+    @PutMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; updateContentModel(@PathVariable Long modelId, @Valid @RequestBody ContentModelDto contentModel, BindingResult bindingResult) {
-<span class="fc" id="L106">        logger.debug(&quot;updating contentModel {}&quot;, modelId);</span>
+<span class="fc" id="L111">        logger.debug(&quot;updating contentModel {}&quot;, modelId);</span>
 
         // field validations
-<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
-<span class="fc" id="L110">            throw new ValidationGenericException(bindingResult);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L115">            throw new ValidationGenericException(bindingResult);</span>
         }
-<span class="fc" id="L112">        this.contentModelValidator.validateBodyName(modelId, contentModel, bindingResult);</span>
-<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
-<span class="nc" id="L114">            throw new ValidationGenericException(bindingResult);</span>
+<span class="fc" id="L117">        this.contentModelValidator.validateBodyName(modelId, contentModel, bindingResult);</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L119">            throw new ValidationGenericException(bindingResult);</span>
         }
 
-<span class="fc" id="L117">        ContentModelDto updatedContentModel = contentModelService.update(contentModel);</span>
-<span class="fc" id="L118">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(updatedContentModel));</span>
+<span class="fc" id="L122">        ContentModelDto updatedContentModel = contentModelService.update(contentModel);</span>
+<span class="fc" id="L123">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(updatedContentModel));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.DELETE)
+    @DeleteMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; deleteContentModel(@PathVariable Long modelId) {
-<span class="fc" id="L125">        logger.info(&quot;deleting content model {}&quot;, modelId);</span>
-<span class="fc" id="L126">        contentModelService.delete(modelId);</span>
-<span class="fc" id="L127">        Map&lt;String, String&gt; result = Collections.singletonMap(&quot;modelId&quot;, String.valueOf(modelId));</span>
-<span class="fc" id="L128">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
+<span class="fc" id="L130">        logger.info(&quot;deleting content model {}&quot;, modelId);</span>
+<span class="fc" id="L131">        contentModelService.delete(modelId);</span>
+<span class="fc" id="L132">        Map&lt;String, String&gt; result = Collections.singletonMap(&quot;modelId&quot;, String.valueOf(modelId));</span>
+<span class="fc" id="L133">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}/pagereferences&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
+    @GetMapping(value = &quot;/{modelId}/pagereferences&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;PagedRestResponse&lt;ContentModelReferenceDTO&gt;&gt; getReferences(@PathVariable Long modelId,RestListRequest requestList) {
-<span class="fc" id="L135">        logger.debug(&quot;loading contentModel references for model {}&quot;, modelId);</span>
-<span class="fc" id="L136">        this.contentModelReferencesValidator.validateRestListRequest(requestList, ContentModelReferenceDTO.class);</span>
-<span class="fc" id="L137">        PagedMetadata&lt;ContentModelReferenceDTO&gt; references = contentModelService.getContentModelReferences(modelId,requestList);</span>
-<span class="fc" id="L138">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(references));</span>
+<span class="fc" id="L140">        logger.debug(&quot;loading contentModel references for model {}&quot;, modelId);</span>
+<span class="fc" id="L141">        this.contentModelReferencesValidator.validateRestListRequest(requestList, ContentModelReferenceDTO.class);</span>
+<span class="fc" id="L142">        PagedMetadata&lt;ContentModelReferenceDTO&gt; references = contentModelService.getContentModelReferences(modelId,requestList);</span>
+<span class="fc" id="L143">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(references));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}/usage&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
+    @GetMapping(value = &quot;/{modelId}/usage&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;ComponentUsage&gt;&gt; getComponentUsage(@PathVariable Long modelId) {
-<span class="fc" id="L145">        logger.debug(&quot;loading contentModel usage for model {}&quot;, modelId);</span>
-<span class="fc" id="L146">        final ComponentUsage componentUsage = contentModelService.getComponentUsage(modelId);</span>
-<span class="fc" id="L147">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(componentUsage));</span>
+<span class="fc" id="L150">        logger.debug(&quot;loading contentModel usage for model {}&quot;, modelId);</span>
+<span class="fc" id="L151">        final ComponentUsage componentUsage = contentModelService.getComponentUsage(modelId);</span>
+<span class="fc" id="L152">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(componentUsage));</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/{modelId}/usage/details&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
+    @GetMapping(value = &quot;/{modelId}/usage/details&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;PagedRestResponse&lt;ComponentUsageEntity&gt;&gt; getComponentUsageDetails(@PathVariable Long modelId, RestListRequest restListRequest) {
-<span class="fc" id="L154">        logger.debug(&quot;get contentModel usage details for model {}&quot;, modelId);</span>
-<span class="fc" id="L155">        contentModelUsageDetailsValidator.validateRestListRequest(restListRequest, ComponentUsageEntity.class);</span>
-<span class="fc" id="L156">        PagedMetadata&lt;ComponentUsageEntity&gt; result = this.contentModelService.getComponentUsageDetails(modelId, restListRequest);</span>
-<span class="fc" id="L157">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+<span class="fc" id="L159">        logger.debug(&quot;get contentModel usage details for model {}&quot;, modelId);</span>
+<span class="fc" id="L160">        contentModelUsageDetailsValidator.validateRestListRequest(restListRequest, ComponentUsageEntity.class);</span>
+<span class="fc" id="L161">        PagedMetadata&lt;ComponentUsageEntity&gt; result = this.contentModelService.getComponentUsageDetails(modelId, restListRequest);</span>
+<span class="fc" id="L162">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
     }
 
     @Override
     @RestAccessControl(permission = Permission.SUPERUSER)
-    @RequestMapping(value = &quot;/dictionary&quot;, produces = MediaType.APPLICATION_JSON_VALUE, method = RequestMethod.GET)
+    @GetMapping(value = &quot;/dictionary&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity&lt;SimpleRestResponse&lt;IEntityModelDictionary&gt;&gt; getDictionary(@RequestParam(value = &quot;typeCode&quot;, required = false) String typeCode) {
-<span class="fc" id="L164">        logger.debug(&quot;loading contentModel dictionary for type {}&quot;, typeCode);</span>
-<span class="fc" id="L165">        IEntityModelDictionary dictionary = contentModelService.getContentModelDictionary(typeCode);</span>
-<span class="fc" id="L166">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dictionary));</span>
+<span class="fc" id="L169">        logger.debug(&quot;loading contentModel dictionary for type {}&quot;, typeCode);</span>
+<span class="fc" id="L170">        IEntityModelDictionary dictionary = contentModelService.getContentModelDictionary(typeCode);</span>
+<span class="fc" id="L171">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dictionary));</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
