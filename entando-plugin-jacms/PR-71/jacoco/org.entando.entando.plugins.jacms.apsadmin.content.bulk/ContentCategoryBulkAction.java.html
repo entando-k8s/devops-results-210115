@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentCategoryBulkAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.bulk</a> &gt; <span class="el_source">ContentCategoryBulkAction.java</span></div><h1>ContentCategoryBulkAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.bulk;
+
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.entando.entando.aps.system.common.command.report.BulkCommandReport;
+import org.entando.entando.aps.system.common.command.tracer.DefaultBulkCommandTracer;
+import org.entando.entando.aps.system.services.command.IBulkCommandManager;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.category.JoinCategoryBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.category.RemoveCategoryBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.BaseContentPropertyBulkCommand;
+import org.entando.entando.plugins.jacms.aps.system.services.content.command.common.ContentPropertyBulkCommandContext;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.ContentBulkActionSummary;
+import org.entando.entando.plugins.jacms.apsadmin.content.bulk.util.IContentBulkActionHelper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+import com.agiletec.apsadmin.system.AbstractTreeAction;
+import com.agiletec.apsadmin.system.ApsAdminSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.opensymphony.xwork2.Action;
+
+<span class="fc" id="L41">public class ContentCategoryBulkAction extends AbstractTreeAction {</span>
+
+<span class="fc" id="L43">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentCategoryBulkAction.class);</span>
+
+	public String entry() {
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">		return this.checkAllowedContents() ? this.buildTree() : &quot;list&quot;;</span>
+	}
+
+	public String join() {
+		try {
+<span class="fc" id="L51">			String categoryCode = this.getCategoryCode();</span>
+<span class="fc" id="L52">			Category category = this.getCategoryManager().getCategory(categoryCode);</span>
+<span class="pc bpc" id="L53" title="2 of 4 branches missed.">			if (null != category &amp;&amp; !category.isRoot()) {</span>
+<span class="fc" id="L54">				this.getCategoryCodes().add(categoryCode);</span>
+			}
+<span class="nc" id="L56">		} catch (Throwable t) {</span>
+<span class="nc" id="L57">			_logger.error(&quot;Error joining category for bulk action&quot;, t);</span>
+<span class="nc" id="L58">			return FAILURE;</span>
+<span class="fc" id="L59">		}</span>
+<span class="fc" id="L60">		return SUCCESS;</span>
+	}
+
+	public String disjoin() {
+		try {
+<span class="fc" id="L65">			this.getCategoryCodes().remove(this.getCategoryCode());</span>
+<span class="nc" id="L66">		} catch (Throwable t) {</span>
+<span class="nc" id="L67">			_logger.error(&quot;Error removing category from bulk action&quot;, t);</span>
+<span class="nc" id="L68">			return FAILURE;</span>
+<span class="fc" id="L69">		}</span>
+<span class="fc" id="L70">		return SUCCESS;</span>
+	}
+
+	public String checkApply() {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">		return this.checkCategories() ? SUCCESS : INPUT;</span>
+	}
+
+	public String apply() {
+		try {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">			if (!this.checkAllowedContents()) {</span>
+<span class="nc" id="L80">				return &quot;list&quot;;</span>
+			} else {
+<span class="fc" id="L82">				List&lt;Category&gt; categories = this.getBulkActionHelper().getCategoriesToManage(this.getCategoryCodes(), this, this);</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">				if (categories == null) {</span>
+<span class="nc" id="L84">					return INPUT;</span>
+				} else {
+<span class="fc" id="L86">					BaseContentPropertyBulkCommand&lt;Category&gt; command = this.initBulkCommand(categories);</span>
+<span class="fc" id="L87">					BulkCommandReport&lt;String&gt; report = this.getBulkCommandManager().addCommand(IContentBulkActionHelper.BULK_COMMAND_OWNER, command);</span>
+<span class="fc" id="L88">					this.setCommandId(report.getCommandId());</span>
+				}
+			}
+<span class="nc" id="L91">		} catch (Throwable t) {</span>
+<span class="nc" id="L92">			_logger.error(&quot;Error occurred applying categories (add/remove)&quot;, t);</span>
+<span class="nc" id="L93">			return FAILURE;</span>
+<span class="fc" id="L94">		}</span>
+<span class="fc" id="L95">		return SUCCESS;</span>
+	}
+
+	private BaseContentPropertyBulkCommand&lt;Category&gt; initBulkCommand(List&lt;Category&gt; categories) {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		String commandBeanName = ApsAdminSystemConstants.DELETE == this.getStrutsAction() ? </span>
+<span class="fc" id="L100">				RemoveCategoryBulkCommand.BEAN_NAME : JoinCategoryBulkCommand.BEAN_NAME;</span>
+<span class="fc" id="L101">		WebApplicationContext applicationContext = ApsWebApplicationUtils.getWebApplicationContext(this.getRequest());</span>
+<span class="fc" id="L102">		BaseContentPropertyBulkCommand&lt;Category&gt; command = (BaseContentPropertyBulkCommand&lt;Category&gt;) applicationContext.getBean(commandBeanName);</span>
+<span class="fc" id="L103">		ContentPropertyBulkCommandContext&lt;Category&gt; context = new ContentPropertyBulkCommandContext&lt;Category&gt;(this.getSelectedIds(), </span>
+<span class="fc" id="L104">				categories, this.getCurrentUser(), new DefaultBulkCommandTracer&lt;String&gt;());</span>
+<span class="fc" id="L105">		command.init(context);</span>
+<span class="fc" id="L106">		return command;</span>
+	}
+
+	public ContentBulkActionSummary getSummary() {
+<span class="nc" id="L110">		return this.getBulkActionHelper().getSummary(this.getSelectedIds());</span>
+	}
+
+	protected boolean checkAllowedContents() {
+<span class="fc" id="L114">		return this.getBulkActionHelper().checkAllowedContents(this.getSelectedIds(), this, this);</span>
+	}
+
+	protected boolean checkCategories() {
+<span class="fc" id="L118">		return this.getBulkActionHelper().checkCategories(this.getCategoryCodes(), this, this);</span>
+	}
+
+	public Category getCategory(String categoryCode) {
+<span class="nc" id="L122">		return this.getCategoryManager().getCategory(categoryCode);</span>
+	}
+
+	public Category getCategoryRoot() {
+<span class="nc" id="L126">		return (Category) this.getCategoryManager().getRoot();</span>
+	}
+
+	@Override
+	public String buildTree() {
+		try {
+<span class="fc" id="L132">			String result = super.buildTree();</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">			if (!result.equals(Action.SUCCESS)) return result;</span>
+<span class="fc" id="L134">			Set&lt;String&gt; targets = this.getTreeNodesToOpen();</span>
+<span class="fc" id="L135">			String marker = this.getTreeNodeActionMarkerCode();</span>
+<span class="pc bpc" id="L136" title="4 of 6 branches missed.">			if (null == marker &amp;&amp; null != this.getCategoryCode() &amp;&amp; !targets.contains(this.getCategoryCode())) {</span>
+<span class="nc" id="L137">				targets.add(this.getCategoryCode());</span>
+			}
+<span class="nc" id="L139">		} catch (Throwable t) {</span>
+<span class="nc" id="L140">			_logger.error(&quot;error in buildTree&quot;, t);</span>
+<span class="nc" id="L141">			return FAILURE;</span>
+<span class="fc" id="L142">		}</span>
+<span class="fc" id="L143">		return SUCCESS;</span>
+	}
+
+	public Set&lt;String&gt; getSelectedIds() {
+<span class="fc" id="L147">		return _selectedIds;</span>
+	}
+	public void setSelectedIds(Set&lt;String&gt; selectedIds) {
+<span class="fc" id="L150">		this._selectedIds = selectedIds;</span>
+<span class="fc" id="L151">	}</span>
+
+	public int getStrutsAction() {
+<span class="fc" id="L154">		return _strutsAction;</span>
+	}
+	public void setStrutsAction(int strutsAction) {
+<span class="fc" id="L157">		this._strutsAction = strutsAction;</span>
+<span class="fc" id="L158">	}</span>
+
+	public String getCommandId() {
+<span class="fc" id="L161">		return _commandId;</span>
+	}
+	public void setCommandId(String commandId) {
+<span class="fc" id="L164">		this._commandId = commandId;</span>
+<span class="fc" id="L165">	}</span>
+
+	public Set&lt;String&gt; getCategoryCodes() {
+<span class="fc" id="L168">		return _categoryCodes;</span>
+	}
+	public void setCategoryCodes(Set&lt;String&gt; categoryCodes) {
+<span class="fc" id="L171">		this._categoryCodes = categoryCodes;</span>
+<span class="fc" id="L172">	}</span>
+
+	public String getCategoryCode() {
+<span class="fc" id="L175">		return _categoryCode;</span>
+	}
+	public void setCategoryCode(String categoryCode) {
+<span class="fc" id="L178">		this._categoryCode = categoryCode;</span>
+<span class="fc" id="L179">	}</span>
+
+	protected ICategoryManager getCategoryManager() {
+<span class="fc" id="L182">		return _categoryManager;</span>
+	}
+	public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="fc" id="L185">		this._categoryManager = categoryManager;</span>
+<span class="fc" id="L186">	}</span>
+
+	protected IBulkCommandManager getBulkCommandManager() {
+<span class="fc" id="L189">		return _bulkCommandManager;</span>
+	}
+	public void setBulkCommandManager(IBulkCommandManager bulkCommandManager) {
+<span class="fc" id="L192">		this._bulkCommandManager = bulkCommandManager;</span>
+<span class="fc" id="L193">	}</span>
+
+	protected IContentManager getContentManager() {
+<span class="nc" id="L196">		return _contentManager;</span>
+	}
+	public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L199">		this._contentManager = contentManager;</span>
+<span class="fc" id="L200">	}</span>
+
+	protected IContentBulkActionHelper getBulkActionHelper() {
+<span class="fc" id="L203">		return _bulkActionHelper;</span>
+	}
+	public void setBulkActionHelper(IContentBulkActionHelper bulkActionHelper) {
+<span class="fc" id="L206">		this._bulkActionHelper = bulkActionHelper;</span>
+<span class="fc" id="L207">	}</span>
+
+	private Set&lt;String&gt; _selectedIds;
+
+	private int _strutsAction;
+	private String _commandId;
+
+<span class="fc" id="L214">	private Set&lt;String&gt; _categoryCodes = new TreeSet&lt;String&gt;();</span>
+	private String _categoryCode;
+	private ICategoryManager _categoryManager;
+
+	private IBulkCommandManager _bulkCommandManager;
+	private IContentManager _contentManager;
+	private IContentBulkActionHelper _bulkActionHelper;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

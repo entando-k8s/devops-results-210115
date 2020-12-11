@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceFinderAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.apsadmin.resource</a> &gt; <span class="el_source">ResourceFinderAction.java</span></div><h1>ResourceFinderAction.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.apsadmin.resource;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.category.Category;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.apsadmin.tags.util.AdminPagerTagHelper;
+import com.agiletec.plugins.jacms.aps.system.services.resource.IResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.ImageResourceDimension;
+import com.agiletec.plugins.jacms.aps.system.services.resource.model.util.IImageDimensionReader;
+import com.agiletec.plugins.jacms.apsadmin.util.ResourceIconUtil;
+
+import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Classe Action delegata alla gestione delle operazioni di ricerca risorse.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L45">public class ResourceFinderAction extends AbstractResourceAction {</span>
+
+<span class="fc" id="L47">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ResourceFinderAction.class);</span>
+
+    private String text;
+    private String fileName;
+    private String ownerGroupName;
+    private String categoryCode;
+    private ResourceIconUtil resourceIconUtil;
+    private IImageDimensionReader imageDimensionManager;
+<span class="fc" id="L55">    private boolean openCollapsed = false;</span>
+
+    private String lastOrder;
+    private String order;
+    private String lastGroupBy;
+    private String groupBy;
+    
+    public List&lt;String&gt; getResources() throws Throwable {
+<span class="fc" id="L63">        List&lt;String&gt; resourceIds = null;</span>
+        try {
+<span class="fc" id="L65">            List&lt;String&gt; userGroups = this.getGroupCodesForSearch();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            List&lt;String&gt; groupCodesForSearch = (userGroups.contains(Group.ADMINS_GROUP_NAME)) ? null : userGroups;</span>
+<span class="fc" id="L67">            resourceIds = this.getResourceManager().searchResourcesId(this.createSearchFilters(), this.getCategoryCode(), groupCodesForSearch);</span>
+<span class="nc" id="L68">        } catch (Throwable t) {</span>
+<span class="nc" id="L69">            logger.error(&quot;error in getResources&quot;, t);</span>
+<span class="nc" id="L70">            throw t;</span>
+<span class="fc" id="L71">        }</span>
+<span class="fc" id="L72">        return resourceIds;</span>
+    }
+    
+    public SearcherDaoPaginatedResult&lt;String&gt; getPaginatedResourcesId(Integer limit) {
+<span class="nc" id="L76">        SearcherDaoPaginatedResult&lt;String&gt; result = null;</span>
+        try {
+<span class="nc" id="L78">            List&lt;String&gt; userGroups = this.getGroupCodesForSearch();</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            List&lt;String&gt; groupCodesForSearch = (userGroups.contains(Group.ADMINS_GROUP_NAME)) ? null : userGroups;</span>
+<span class="nc" id="L80">            FieldSearchFilter[] filters = this.createSearchFilters();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (null != limit) {</span>
+<span class="nc" id="L82">                filters = ArrayUtils.add(filters, this.getPagerFilter(limit));</span>
+            }
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            List&lt;String&gt; categories = (StringUtils.isBlank(this.getCategoryCode())) ? null : Arrays.asList(this.getCategoryCode());</span>
+<span class="nc" id="L85">            result = this.getResourceManager().getPaginatedResourcesId(filters, categories, groupCodesForSearch);</span>
+<span class="nc" id="L86">        } catch (Throwable t) {</span>
+<span class="nc" id="L87">            logger.error(&quot;error in getPaginateResourcesId&quot;, t);</span>
+<span class="nc" id="L88">            throw new RuntimeException(&quot;error in getPaginateResourcesId&quot;, t);</span>
+<span class="nc" id="L89">        }</span>
+<span class="nc" id="L90">        return result;</span>
+    }
+    
+    protected EntitySearchFilter getPagerFilter(Integer limit) {
+<span class="nc" id="L94">        int pagerItem = new AdminPagerTagHelper().getItemNumber(this.getPagerId(), this.getRequest());</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        int item = (pagerItem &gt; 0) ? pagerItem : 1;</span>
+<span class="nc bnc" id="L96" title="All 4 branches missed.">        int realLimit = (null != limit &amp;&amp; limit &gt; 0) ? limit : 10;</span>
+<span class="nc" id="L97">        int offset = (item - 1) * realLimit;</span>
+<span class="nc" id="L98">        return new EntitySearchFilter(realLimit, offset);</span>
+    }
+    
+    public String getPagerId() {
+<span class="nc" id="L102">        return this.getClass().getSimpleName();</span>
+    }
+
+    protected FieldSearchFilter[] createSearchFilters() {
+        FieldSearchFilter typeCodeFilter;
+<span class="fc" id="L107">        FieldSearchFilter[] filters = new FieldSearchFilter[] {};</span>
+        
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(this.getResourceTypeCode())) {</span>
+<span class="fc" id="L110">            typeCodeFilter = new FieldSearchFilter(IResourceManager.RESOURCE_TYPE_FILTER_KEY, this.getResourceTypeCode(), false);</span>
+<span class="fc" id="L111">            filters = new FieldSearchFilter[] {typeCodeFilter};</span>
+        } 
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (StringUtils.isNotBlank(this.getOwnerGroupName())) {</span>
+<span class="fc" id="L114">            FieldSearchFilter groupFilter = new FieldSearchFilter(IResourceManager.RESOURCE_MAIN_GROUP_FILTER_KEY, this.getOwnerGroupName(), false);</span>
+<span class="fc" id="L115">            filters = ArrayUtils.add(filters, groupFilter);</span>
+        }
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (StringUtils.isNotBlank(this.getText())) {</span>
+<span class="fc" id="L118">            FieldSearchFilter textFilter = new FieldSearchFilter(IResourceManager.RESOURCE_DESCR_FILTER_KEY, this.getText(), true);</span>
+<span class="fc" id="L119">            filters = ArrayUtils.add(filters, textFilter);</span>
+        }
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (StringUtils.isNotBlank(this.getFileName())) {</span>
+<span class="fc" id="L122">            FieldSearchFilter filenameFilter = new FieldSearchFilter(IResourceManager.RESOURCE_FILENAME_FILTER_KEY, this.getFileName(), true);</span>
+<span class="fc" id="L123">            filters = ArrayUtils.add(filters, filenameFilter);</span>
+        }
+<span class="fc" id="L125">        filters = ArrayUtils.add(filters, this.getOrderFilter());</span>
+<span class="fc" id="L126">        return filters;</span>
+    }
+
+    protected EntitySearchFilter getOrderFilter() {
+<span class="fc" id="L130">        String groupBy = this.getGroupBy();</span>
+<span class="fc" id="L131">        String order = this.getOrder();</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (!StringUtils.isBlank(this.getLastGroupBy())</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">                &amp;&amp; this.getLastGroupBy().equals(this.getGroupBy())</span>
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">                &amp;&amp; !StringUtils.isBlank(this.getLastOrder())) {</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">            order = (this.getLastOrder().equals(&quot;ASC&quot;)) ? &quot;DESC&quot; : &quot;ASC&quot;;</span>
+        }
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        if (null == order) {</span>
+<span class="fc" id="L138">            order = &quot;ASC&quot;;</span>
+        }
+<span class="fc" id="L140">        String key = null;</span>
+<span class="fc bfc" id="L141" title="All 4 branches covered.">        if (StringUtils.isBlank(groupBy) || groupBy.equals(&quot;descr&quot;)) {</span>
+<span class="fc" id="L142">            key = IResourceManager.RESOURCE_DESCR_FILTER_KEY;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        } else if (groupBy.equals(&quot;lastModified&quot;)) {</span>
+<span class="fc" id="L144">            key = IResourceManager.RESOURCE_MODIFY_DATE_FILTER_KEY;</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        } else if (groupBy.equals(&quot;created&quot;)) {</span>
+<span class="fc" id="L146">            key = IResourceManager.RESOURCE_CREATION_DATE_FILTER_KEY;</span>
+        } else {
+<span class="nc" id="L148">            key = IResourceManager.RESOURCE_DESCR_FILTER_KEY;</span>
+        }
+<span class="fc" id="L150">        this.setOrder(order);</span>
+<span class="fc" id="L151">        this.setLastOrder(order);</span>
+<span class="fc" id="L152">        this.setLastGroupBy(groupBy);</span>
+<span class="fc" id="L153">        EntitySearchFilter filter = new EntitySearchFilter(key, false);</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (StringUtils.isBlank(order)) {</span>
+<span class="nc" id="L155">            filter.setOrder(EntitySearchFilter.ASC_ORDER);</span>
+        } else {
+<span class="fc" id="L157">            filter.setOrder(order);</span>
+        }
+<span class="fc" id="L159">        return filter;</span>
+    }
+
+    public String changeOrder() throws Exception {
+        try {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (null == this.getGroupBy()) {</span>
+<span class="nc" id="L165">                return SUCCESS;</span>
+            }
+<span class="nc bnc" id="L167" title="All 2 branches missed.">            if (this.getGroupBy().equals(this.getLastGroupBy())) {</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                boolean condition = (null == this.getLastOrder()</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                        || this.getLastOrder().equals(EntitySearchFilter.ASC_ORDER));</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                String order = (condition ? EntitySearchFilter.DESC_ORDER : EntitySearchFilter.ASC_ORDER);</span>
+<span class="nc" id="L171">                this.setLastOrder(order);</span>
+<span class="nc" id="L172">            } else {</span>
+<span class="nc" id="L173">                this.setLastOrder(EntitySearchFilter.DESC_ORDER);</span>
+            }
+<span class="nc" id="L175">            this.setLastGroupBy(this.getGroupBy());</span>
+<span class="nc" id="L176">        } catch (Throwable t) {</span>
+<span class="nc" id="L177">            logger.error(&quot;error in changeOrder&quot;, t);</span>
+<span class="nc" id="L178">            throw new RuntimeException(&quot;error in changeOrder&quot;, t);</span>
+<span class="nc" id="L179">        }</span>
+<span class="nc" id="L180">        return this.execute();</span>
+    }
+
+    public String getIconFile(String filename) {
+<span class="nc" id="L184">        String extension = this.getFileExtension(filename);</span>
+<span class="nc" id="L185">        return this.getResourceIconUtil().getIconByExtension(extension);</span>
+    }
+
+    public String getFileExtension(String filename) {
+<span class="nc" id="L189">        return filename.substring(filename.lastIndexOf('.') + 1).trim();</span>
+    }
+
+    public String getMimetype(String filename) {
+<span class="nc" id="L193">        return URLConnection.guessContentTypeFromName(filename);</span>
+    }
+
+    public List&lt;ImageResourceDimension&gt; getImageDimensions() {
+<span class="nc" id="L197">        Map&lt;Integer, ImageResourceDimension&gt; master = this.getImageDimensionManager().getImageDimensions();</span>
+<span class="nc" id="L198">        List&lt;ImageResourceDimension&gt; dimensions = new ArrayList&lt;ImageResourceDimension&gt;(master.values());</span>
+<span class="nc" id="L199">        BeanComparator comparator = new BeanComparator(&quot;dimx&quot;);</span>
+<span class="nc" id="L200">        Collections.sort(dimensions, comparator);</span>
+<span class="nc" id="L201">        return dimensions;</span>
+    }
+
+    public String getText() {
+<span class="fc" id="L205">        return text;</span>
+    }
+
+    public void setText(String text) {
+<span class="fc" id="L209">        this.text = text;</span>
+<span class="fc" id="L210">    }</span>
+
+    public String getFileName() {
+<span class="fc" id="L213">        return fileName;</span>
+    }
+
+    public void setFileName(String fileName) {
+<span class="fc" id="L217">        this.fileName = fileName;</span>
+<span class="fc" id="L218">    }</span>
+
+    public String getOwnerGroupName() {
+<span class="fc" id="L221">        return ownerGroupName;</span>
+    }
+
+    public void setOwnerGroupName(String ownerGroupName) {
+<span class="fc" id="L225">        this.ownerGroupName = ownerGroupName;</span>
+<span class="fc" id="L226">    }</span>
+
+    public String getCategoryCode() {
+<span class="pc bpc" id="L229" title="1 of 4 branches missed.">        if (this.categoryCode != null &amp;&amp; this.getCategoryManager().getRoot().getCode().equals(this.categoryCode)) {</span>
+<span class="nc" id="L230">            this.categoryCode = null;</span>
+        }
+<span class="fc" id="L232">        return categoryCode;</span>
+    }
+
+    public void setCategoryCode(String categoryCode) {
+<span class="fc" id="L236">        this.categoryCode = categoryCode;</span>
+<span class="fc" id="L237">    }</span>
+
+    protected ResourceIconUtil getResourceIconUtil() {
+<span class="nc" id="L240">        return resourceIconUtil;</span>
+    }
+
+    public void setResourceIconUtil(ResourceIconUtil resourceIconUtil) {
+<span class="fc" id="L244">        this.resourceIconUtil = resourceIconUtil;</span>
+<span class="fc" id="L245">    }</span>
+
+    protected IImageDimensionReader getImageDimensionManager() {
+<span class="nc" id="L248">        return imageDimensionManager;</span>
+    }
+
+    public void setImageDimensionManager(IImageDimensionReader imageDimensionManager) {
+<span class="fc" id="L252">        this.imageDimensionManager = imageDimensionManager;</span>
+<span class="fc" id="L253">    }</span>
+
+    public boolean isOpenCollapsed() {
+<span class="nc" id="L256">        boolean hasFilterByCat = false;</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (null != this.getCategoryCode()) {</span>
+<span class="nc" id="L258">            Category category = this.getCategoryManager().getCategory(this.getCategoryCode());</span>
+<span class="nc bnc" id="L259" title="All 4 branches missed.">            hasFilterByCat = (null != category &amp;&amp; !category.isRoot());</span>
+        }
+<span class="nc bnc" id="L261" title="All 4 branches missed.">        return (this.openCollapsed || hasFilterByCat</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">                || !StringUtils.isBlank(this.getFileName())</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                || !StringUtils.isBlank(this.getOwnerGroupName()));</span>
+    }
+
+    public void setOpenCollapsed(boolean openCollapsed) {
+<span class="nc" id="L267">        this.openCollapsed = openCollapsed;</span>
+<span class="nc" id="L268">    }</span>
+
+    protected List&lt;String&gt; getGroupCodesForSearch() {
+<span class="fc" id="L271">        return super.getActualAllowedGroupCodes();</span>
+    }
+
+    public String getLastOrder() {
+<span class="fc" id="L275">        return lastOrder;</span>
+    }
+
+    public void setLastOrder(String order) {
+<span class="fc" id="L279">        this.lastOrder = order;</span>
+<span class="fc" id="L280">    }</span>
+
+    public String getOrder() {
+<span class="fc" id="L283">        return order;</span>
+    }
+
+    public void setOrder(String order) {
+<span class="fc" id="L287">        this.order = order;</span>
+<span class="fc" id="L288">    }</span>
+
+    public String getLastGroupBy() {
+<span class="fc" id="L291">        return lastGroupBy;</span>
+    }
+
+    public void setLastGroupBy(String lastGroupBy) {
+<span class="fc" id="L295">        this.lastGroupBy = lastGroupBy;</span>
+<span class="fc" id="L296">    }</span>
+
+    public String getGroupBy() {
+<span class="fc" id="L299">        return groupBy;</span>
+    }
+
+    public void setGroupBy(String groupBy) {
+<span class="fc" id="L303">        this.groupBy = groupBy;</span>
+<span class="fc" id="L304">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
