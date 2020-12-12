@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoResourceObserver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller Coordinator</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.coordinator</a> &gt; <span class="el_source">EntandoResourceObserver.java</span></div><h1>EntandoResourceObserver.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.coordinator;
+
+import static java.lang.String.format;
+
+import io.fabric8.kubernetes.client.CustomResourceList;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import io.fabric8.kubernetes.client.Watcher;
+import io.fabric8.kubernetes.client.dsl.internal.CustomResourceOperationsImpl;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.entando.kubernetes.model.DoneableEntandoCustomResource;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentPhase;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeApp;
+
+public class EntandoResourceObserver&lt;
+        R extends EntandoBaseCustomResource,
+        L extends CustomResourceList&lt;R&gt;,
+        D extends DoneableEntandoCustomResource&lt;D, R&gt;&gt; implements Watcher&lt;R&gt; {
+
+<span class="fc" id="L43">    private static final Logger LOGGER = Logger.getLogger(EntandoResourceObserver.class.getName());</span>
+<span class="fc" id="L44">    private final Map&lt;String, R&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+    private final BiConsumer&lt;Action, R&gt; callback;
+    private final CustomResourceOperationsImpl&lt;R, L, D&gt; operations;
+<span class="fc" id="L47">    private Executor executor = Executors.newSingleThreadExecutor();</span>
+
+<span class="fc" id="L49">    public EntandoResourceObserver(CustomResourceOperationsImpl&lt;R, L, D&gt; operations, BiConsumer&lt;Action, R&gt; callback) {</span>
+<span class="fc" id="L50">        this.callback = callback;</span>
+<span class="fc" id="L51">        this.operations = operations;</span>
+
+<span class="fc" id="L53">        processExistingRequestedEntandoResources(operations);</span>
+<span class="fc" id="L54">        operations.watch(this);</span>
+<span class="fc" id="L55">    }</span>
+
+    private void processExistingRequestedEntandoResources(CustomResourceOperationsImpl&lt;R, L, D&gt; operations) {
+<span class="fc" id="L58">        List&lt;R&gt; items = operations.list().getItems();</span>
+<span class="fc" id="L59">        EntandoDeploymentPhaseWatcher&lt;R, L, D&gt; entandoDeploymentPhaseWatcher = new EntandoDeploymentPhaseWatcher&lt;&gt;(operations);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (R item : items) {</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (item.getStatus().getEntandoDeploymentPhase() == EntandoDeploymentPhase.REQUESTED) {</span>
+<span class="fc" id="L62">                eventReceived(Action.ADDED, item);</span>
+<span class="fc" id="L63">                entandoDeploymentPhaseWatcher.waitToBeProcessed(item);</span>
+            }
+<span class="fc" id="L65">            cache.put(item.getMetadata().getUid(), item);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">    }</span>
+
+    @Override
+    public void eventReceived(Action action, R resource) {
+        try {
+<span class="pc bpc" id="L72" title="2 of 6 branches missed.">            if (isNewEvent(resource) &amp;&amp; isNotOwnedByCompositeApp(resource) &amp;&amp; EntandoOperatorMatcher.matchesThisOperator(resource)) {</span>
+<span class="fc" id="L73">                performCallback(action, resource);</span>
+            }
+<span class="nc" id="L75">        } catch (Exception e) {</span>
+<span class="nc" id="L76">            LOGGER.log(Level.SEVERE, e, () -&gt; format(&quot;Could not process the %s %s/%s&quot;, resource.getKind(),</span>
+<span class="nc" id="L77">                    resource.getMetadata().getNamespace(), resource.getMetadata().getName()));</span>
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">    }</span>
+
+    private boolean isNotOwnedByCompositeApp(R resource) {
+<span class="pc" id="L82">        return resource.getMetadata().getOwnerReferences().stream().noneMatch(ownerReference -&gt; ownerReference.getKind().equals(</span>
+<span class="nc" id="L83">                EntandoCompositeApp.class.getSimpleName()));</span>
+    }
+
+    @Override
+    public void onClose(KubernetesClientException cause) {
+<span class="nc bnc" id="L88" title="All 4 branches missed.">        if (cause.getMessage().contains(&quot;resourceVersion&quot;) &amp;&amp; cause.getMessage().contains(&quot;too old&quot;)) {</span>
+<span class="nc" id="L89">            LOGGER.log(Level.WARNING, () -&gt; &quot;EntandoResourceObserver closed due to out of date resourceVersion. Reconnecting ... &quot;);</span>
+<span class="nc" id="L90">            operations.watch(this);</span>
+        } else {
+<span class="nc" id="L92">            LOGGER.log(Level.WARNING, cause, () -&gt; &quot;EntandoResourceObserver closed&quot;);</span>
+        }
+<span class="nc" id="L94">    }</span>
+
+    protected void performCallback(Action action, R resource) {
+<span class="fc" id="L97">        logAction(Level.INFO, &quot;Received %s for resource %s %s/%s&quot;, action, resource);</span>
+<span class="pc bpc" id="L98" title="3 of 4 branches missed.">        if (action == Action.ADDED || action == Action.MODIFIED) {</span>
+<span class="fc" id="L99">            cache.put(resource.getMetadata().getUid(), resource);</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (resource.getStatus().getEntandoDeploymentPhase() == EntandoDeploymentPhase.REQUESTED) {</span>
+<span class="fc" id="L101">                executor.execute(() -&gt; callback.accept(action, resource));</span>
+            }
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        } else if (action == Action.DELETED) {</span>
+<span class="nc" id="L104">            cache.remove(resource.getMetadata().getUid());</span>
+        } else {
+<span class="nc" id="L106">            logAction(Level.WARNING, &quot;EntandoResourceObserver could not process the %s action on the %s %s/%s&quot;, action, resource);</span>
+        }
+<span class="fc" id="L108">    }</span>
+
+    private void logAction(Level info, String format, Action action, R resource) {
+<span class="fc" id="L111">        LOGGER.log(info,</span>
+<span class="fc" id="L112">                () -&gt; format(format, action.name(), resource.getKind(), resource.getMetadata().getNamespace(),</span>
+<span class="fc" id="L113">                        resource.getMetadata().getName()));</span>
+<span class="fc" id="L114">    }</span>
+
+    protected boolean isNewEvent(R newResource) {
+<span class="fc" id="L117">        boolean isNewEvent = true;</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (cache.containsKey(newResource.getMetadata().getUid())) {</span>
+<span class="fc" id="L119">            R oldResource = cache.get(newResource.getMetadata().getUid());</span>
+<span class="fc" id="L120">            int knownResourceVersion = Integer.parseInt(oldResource.getMetadata().getResourceVersion());</span>
+<span class="fc" id="L121">            int receivedResourceVersion = Integer.parseInt(newResource.getMetadata().getResourceVersion());</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">            if (knownResourceVersion &gt; receivedResourceVersion) {</span>
+<span class="fc" id="L123">                isNewEvent = false;</span>
+            }
+        }
+<span class="fc" id="L126">        return isNewEvent;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
