@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoResourceOperationsRegistry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Kubernetes Custom Model</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model</a> &gt; <span class="el_source">EntandoResourceOperationsRegistry.java</span></div><h1>EntandoResourceOperationsRegistry.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.model;
+
+import io.fabric8.kubernetes.client.CustomResourceList;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.internal.CustomResourceOperationsImpl;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.entando.kubernetes.model.app.EntandoApp;
+import org.entando.kubernetes.model.app.EntandoAppOperationFactory;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeApp;
+import org.entando.kubernetes.model.compositeapp.EntandoCompositeAppOperationFactory;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.debundle.EntandoDeBundleOperationFactory;
+import org.entando.kubernetes.model.externaldatabase.EntandoDatabaseService;
+import org.entando.kubernetes.model.externaldatabase.EntandoDatabaseServiceOperationFactory;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructure;
+import org.entando.kubernetes.model.infrastructure.EntandoClusterInfrastructureOperationFactory;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServer;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServerOperationFactory;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.link.EntandoAppPluginLinkOperationFactory;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.model.plugin.EntandoPluginOperationFactory;
+
+public class EntandoResourceOperationsRegistry {
+
+<span class="fc" id="L44">    private static final Map&lt;Class&lt;? extends EntandoBaseCustomResource&gt;, OperationsSupplier&gt; OPERATION_SUPPLIERS = getOperationSuppliers();</span>
+    private final KubernetesClient client;
+<span class="fc" id="L46">    @SuppressWarnings(&quot;unchecked&quot;)</span>
+    private final Map&lt;Class, CustomResourceOperationsImpl&gt; customResourceOperations =
+            new ConcurrentHashMap&lt;&gt;();
+
+<span class="fc" id="L50">    public EntandoResourceOperationsRegistry(KubernetesClient client) {</span>
+<span class="fc" id="L51">        this.client = client;</span>
+<span class="fc" id="L52">    }</span>
+
+    private static Map&lt;Class&lt;? extends EntandoBaseCustomResource&gt;, OperationsSupplier&gt; getOperationSuppliers() {
+<span class="fc" id="L55">        Map&lt;Class&lt;? extends EntandoBaseCustomResource&gt;, OperationsSupplier&gt; operationSuppliers = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L56">        operationSuppliers.put(EntandoKeycloakServer.class, EntandoKeycloakServerOperationFactory::produceAllEntandoKeycloakServers);</span>
+<span class="fc" id="L57">        operationSuppliers.put(EntandoClusterInfrastructure.class,</span>
+                EntandoClusterInfrastructureOperationFactory::produceAllEntandoClusterInfrastructures);
+<span class="fc" id="L59">        operationSuppliers.put(EntandoApp.class, EntandoAppOperationFactory::produceAllEntandoApps);</span>
+<span class="fc" id="L60">        operationSuppliers.put(EntandoPlugin.class, EntandoPluginOperationFactory::produceAllEntandoPlugins);</span>
+<span class="fc" id="L61">        operationSuppliers.put(EntandoAppPluginLink.class, EntandoAppPluginLinkOperationFactory::produceAllEntandoAppPluginLinks);</span>
+<span class="fc" id="L62">        operationSuppliers.put(EntandoDatabaseService.class, EntandoDatabaseServiceOperationFactory::produceAllEntandoDatabaseServices);</span>
+<span class="fc" id="L63">        operationSuppliers.put(EntandoCompositeApp.class, EntandoCompositeAppOperationFactory::produceAllEntandoCompositeApps);</span>
+<span class="fc" id="L64">        operationSuppliers.put(EntandoDeBundle.class, EntandoDeBundleOperationFactory::produceAllEntandoDeBundles);</span>
+<span class="fc" id="L65">        return Collections.unmodifiableMap(operationSuppliers);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T extends EntandoCustomResource, D extends DoneableEntandoCustomResource&lt;D, T&gt;&gt; CustomResourceOperationsImpl&lt;T,
+            CustomResourceList&lt;T&gt;, D&gt; getOperations(Class&lt;T&gt; c) {
+<span class="fc" id="L71">        return this.customResourceOperations.computeIfAbsent(c, aClass -&gt; OPERATION_SUPPLIERS.get(aClass).get(client));</span>
+    }
+
+    private interface OperationsSupplier {
+
+        CustomResourceOperationsImpl get(KubernetesClient client);
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
