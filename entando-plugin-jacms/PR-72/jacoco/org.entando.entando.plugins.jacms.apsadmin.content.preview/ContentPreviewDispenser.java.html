@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentPreviewDispenser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.apsadmin.content.preview</a> &gt; <span class="el_source">ContentPreviewDispenser.java</span></div><h1>ContentPreviewDispenser.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.apsadmin.content.preview;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeRole;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.PublicContentAuthorizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.Content;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.BaseContentDispenser;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.ContentRenderizationInfo;
+import com.agiletec.plugins.jacms.apsadmin.content.ContentActionConstants;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class ContentPreviewDispenser extends BaseContentDispenser {</span>
+
+<span class="fc" id="L41">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ContentPreviewDispenser.class);</span>
+
+    private ILangManager langManager;
+
+    public ContentRenderizationInfo getRenderizationInfoForPreview(String contentId, long modelId, String langCode, RequestContext reqCtx) {
+<span class="nc" id="L46">        PublicContentAuthorizationInfo authInfo = null;</span>
+        try {
+<span class="nc" id="L48">            Content content = this.extractContentOnSession(reqCtx);</span>
+<span class="nc" id="L49">            authInfo = new PublicContentAuthorizationInfo(content, this.getLangManager().getLangs());</span>
+<span class="nc" id="L50">        } catch (Throwable t) {</span>
+<span class="nc" id="L51">            _logger.error(&quot;error in getAuthorizationInfo for content {}&quot;, contentId, t);</span>
+<span class="nc" id="L52">        }</span>
+<span class="nc" id="L53">        return this.getRenderizationInfo(authInfo, contentId, modelId, langCode, reqCtx);</span>
+    }
+
+    @Override
+    public ContentRenderizationInfo getBaseRenderizationInfo(PublicContentAuthorizationInfo authInfo,
+            String contentId, long modelId, String langCode, UserDetails currentUser, RequestContext reqCtx) {
+<span class="nc" id="L59">        ContentRenderizationInfo renderInfo = null;</span>
+        try {
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            List&lt;Group&gt; userGroups = (null != currentUser) ? this.getAuthorizationManager().getUserGroups(currentUser) : new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            if (authInfo.isUserAllowed(userGroups)) {</span>
+<span class="nc" id="L63">                Content contentOnSession = this.extractContentOnSession(reqCtx);</span>
+<span class="nc" id="L64">                String renderedContent = this.buildRenderedContent(contentOnSession, modelId, langCode, reqCtx);</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">                if (null != renderedContent &amp;&amp; renderedContent.trim().length() &gt; 0) {</span>
+<span class="nc" id="L66">                    List&lt;AttributeRole&gt; roles = this.getContentManager().getAttributeRoles();</span>
+<span class="nc" id="L67">                    renderInfo = new ContentRenderizationInfo(contentOnSession, renderedContent, modelId, langCode, roles);</span>
+                }
+            }
+<span class="nc" id="L70">        } catch (Throwable t) {</span>
+<span class="nc" id="L71">            _logger.error(&quot;Error while rendering content {}&quot;, contentId, t);</span>
+<span class="nc" id="L72">            return null;</span>
+<span class="nc" id="L73">        }</span>
+<span class="nc" id="L74">        return renderInfo;</span>
+    }
+
+    private Content extractContentOnSession(RequestContext reqCtx) {
+<span class="nc" id="L78">        HttpServletRequest request = reqCtx.getRequest();</span>
+<span class="nc" id="L79">        String contentOnSessionMarker = (String) request.getAttribute(&quot;contentOnSessionMarker&quot;);</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">        if (null == contentOnSessionMarker || contentOnSessionMarker.trim().length() == 0) {</span>
+<span class="nc" id="L81">            contentOnSessionMarker = request.getParameter(&quot;contentOnSessionMarker&quot;);</span>
+        }
+<span class="nc" id="L83">        return (Content) request.getSession()</span>
+<span class="nc" id="L84">                .getAttribute(ContentActionConstants.SESSION_PARAM_NAME_CURRENT_CONTENT_PREXIX + contentOnSessionMarker);</span>
+    }
+
+    protected ILangManager getLangManager() {
+<span class="nc" id="L88">        return langManager;</span>
+    }
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L91">        this.langManager = langManager;</span>
+<span class="fc" id="L92">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
