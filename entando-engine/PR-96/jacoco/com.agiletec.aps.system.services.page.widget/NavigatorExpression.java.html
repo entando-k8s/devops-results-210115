@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NavigatorExpression.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.page.widget</a> &gt; <span class="el_source">NavigatorExpression.java</span></div><h1>NavigatorExpression.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.page.widget;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Oggetto di utilità per la configurazione dei widget navigatore.
+ * Ogni espressione in forma di stringa ha la forma:&lt;br&gt;
+ * &lt;code&gt;page_spec&lt;/code&gt;&lt;br&gt;
+ * oppure:&lt;br&gt;
+ * &lt;code&gt;page_spec.operator&lt;/code&gt;&lt;br&gt;
+ * dove &lt;code&gt;page_spec&lt;/code&gt; è una funzione di selezione di una singola pagina e
+ * &lt;code&gt;.operator&lt;/code&gt; è un operatore che seleziona un sottoinsieme di pagine correlate alla
+ * pagina cui è applicato.&lt;br&gt;&lt;br&gt;
+ * Gli specificatori di pagina sono:&lt;ul&gt; 
+ * &lt;li&gt;&lt;code&gt;current&lt;/code&gt;&amp;nbsp;(pagina corrente)&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;parent&lt;/code&gt;&lt;br&gt;&amp;nbsp;(nodo di cui la pagina corrente è figlia)&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;super(n)&lt;/code&gt;&amp;nbsp;(nodo progenitore della pagina corrente a distanza n; 
+ * super(1) equivale a parent)&lt;/li&gt; 
+ * &lt;li&gt;&lt;code&gt;abs(n)&lt;/code&gt;&amp;nbsp;(nodo progenitore della pagina corrente a distanza n dalla
+ * pagina radice)&lt;/li&gt;  
+ * &lt;li&gt;&lt;code&gt;code(s)&lt;/code&gt;&amp;nbsp;(la pagina che ha codice s; s è una stringa senza virgolette)&lt;/li&gt;
+ * &lt;/ul&gt;&lt;br&gt;
+ * Gli operatori sono:&lt;ul&gt; 
+ * &lt;li&gt;&lt;code&gt;.children&lt;/code&gt;&amp;nbsp;(tutti i nodi figli della pagina cui è applicato)&lt;/li&gt; 
+ * &lt;li&gt;&lt;code&gt;.path&lt;/code&gt;&amp;nbsp;(tutti i nodi del percorso dalla pagina radice alla pagina 
+ * cui è applicato)&lt;/li&gt; 
+ * &lt;li&gt;&lt;code&gt;.subtree(n)&lt;/code&gt;&amp;nbsp;(sottoalbero a partire dalla pagina cui è applicato
+ * e fino a gli n livelli sottostanti; subtree(0) comprende la sola pagina cui è applicato)&lt;/li&gt;
+ * &lt;/ul&gt;&lt;br&gt;
+ * @author M.Diana - E.Santoboni
+ */
+public class NavigatorExpression {
+
+	/**
+	 * Costruttore base.
+	 */
+<span class="fc" id="L51">	public NavigatorExpression() {}</span>
+
+	/**
+	 * Costruttore interpretatore dei una espressione.
+	 * Consente l'interpretazione della struttura della singola espressione (componente 
+	 * la stringa che identifica la totalità delle pagine da erogare nel menù).
+	 * @param expression La espressione da interpretare.
+	 */
+<span class="fc" id="L59">	public NavigatorExpression(String expression) {</span>
+<span class="fc" id="L60">		String[] components = expression.split(&quot;\\.&quot;);</span>
+<span class="fc" id="L61">		this.buildPageSpecFields(components);</span>
+<span class="fc" id="L62">		this.buildOperatorsFields(components);</span>
+<span class="fc" id="L63">	}</span>
+	
+	protected void buildPageSpecFields(String[] components) {
+<span class="fc" id="L66">		String pageSpec = components[0].trim();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">		if (pageSpec.startsWith(SPEC_CURRENT_PAGE_CODE)) {</span>
+<span class="fc" id="L68">			this.setSpecId(SPEC_CURRENT_PAGE_ID);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">		} else if (pageSpec.startsWith(SPEC_PARENT_PAGE_CODE)) {</span>
+<span class="fc" id="L70">			this.setSpecId(SPEC_PARENT_PAGE_ID);</span>
+		} else {
+<span class="fc" id="L72">			String param = this.extractParam(pageSpec);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">			if (pageSpec.startsWith(SPEC_SUPER_CODE)) {</span>
+<span class="fc" id="L74">				this.setSpecId(SPEC_SUPER_ID);</span>
+<span class="fc" id="L75">				this.setSpecSuperLevel(Integer.parseInt(param));</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">			} else if (pageSpec.startsWith(SPEC_ABS_CODE)) {</span>
+<span class="fc" id="L77">				this.setSpecId(SPEC_ABS_ID);</span>
+<span class="fc" id="L78">				this.setSpecAbsLevel(Integer.parseInt(param));</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">			} else if (pageSpec.startsWith(SPEC_PAGE_CODE)) {</span>
+<span class="fc" id="L80">				this.setSpecId(SPEC_PAGE_ID);</span>
+<span class="fc" id="L81">				this.setSpecCode(param);</span>
+			} else {
+<span class="fc" id="L83">				throw new RuntimeException(&quot;Unknown page specification:&quot; + pageSpec);</span>
+			}
+		}
+<span class="fc" id="L86">	}</span>
+	
+	protected void buildOperatorsFields(String[] components) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">		if (components.length &gt; 1) {</span>
+<span class="fc" id="L90">			String operator = components[1].trim();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			if (operator.startsWith(OPERATOR_CHILDREN_CODE)) {</span>
+<span class="fc" id="L92">				this.setOperatorId(OPERATOR_CHILDREN_ID);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			} else if (operator.startsWith(OPERATOR_PATH_CODE)) {</span>
+<span class="fc" id="L94">				this.setOperatorId(OPERATOR_PATH_ID);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">			} else if (operator.startsWith(OPERATOR_SUBTREE_CODE)) {</span>
+<span class="fc" id="L96">				this.setOperatorId(OPERATOR_SUBTREE_ID);</span>
+<span class="fc" id="L97">				String param = this.extractParam(operator);</span>
+<span class="fc" id="L98">				this.setOperatorSubtreeLevel(Integer.parseInt(param));</span>
+<span class="fc" id="L99">			} else {</span>
+<span class="fc" id="L100">				throw new RuntimeException(&quot;Unknown operator: &quot; + operator);</span>
+			}
+		}
+<span class="fc" id="L103">	}</span>
+	
+	private String extractParam(String pageSpec){
+<span class="fc" id="L106">		String param = null;</span>
+<span class="fc" id="L107">		int p1 = pageSpec.indexOf('(');</span>
+<span class="fc" id="L108">		int p2 = pageSpec.indexOf(')');</span>
+<span class="pc bpc" id="L109" title="1 of 4 branches missed.">		if(p1 &gt;= 0 &amp;&amp; p2 &gt; p1) {</span>
+<span class="fc" id="L110">			param = pageSpec.substring(p1 + 1, p2);</span>
+		}
+<span class="fc" id="L112">		return param;</span>
+	}
+	
+	/**
+	 * Crea la stringa rappresentazione dell'espressione. 
+	 */
+	public String toString() {
+<span class="fc" id="L119">		StringBuffer buffer = new StringBuffer();</span>
+<span class="fc" id="L120">		this.createSpecSection(buffer);</span>
+<span class="fc" id="L121">		this.createOperatorSection(buffer);</span>
+<span class="fc" id="L122">		return buffer.toString();</span>
+	}
+
+	/**
+	 * Crea la porzione di espressione relativa allo specificatore.
+	 * @param buffer Il buffer iniziale.
+	 */
+	protected void createSpecSection(StringBuffer buffer) {
+<span class="fc" id="L130">		int specId = this.getSpecId();</span>
+<span class="pc bpc" id="L131" title="1 of 6 branches missed.">		switch (specId) {</span>
+		case SPEC_CURRENT_PAGE_ID:
+<span class="fc" id="L133">			buffer.append(SPEC_CURRENT_PAGE_CODE);</span>
+<span class="fc" id="L134">			break;</span>
+		case SPEC_PARENT_PAGE_ID:
+<span class="nc" id="L136">			buffer.append(SPEC_PARENT_PAGE_CODE);</span>
+<span class="nc" id="L137">			break;</span>
+		case NavigatorExpression.SPEC_ABS_ID:
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">			if (this.getSpecAbsLevel()&lt;0) throw new RuntimeException(&quot;level 'ABS' not specified&quot;);</span>
+<span class="fc" id="L140">			buffer.append(SPEC_ABS_CODE).append(&quot;(&quot;).append(this.getSpecAbsLevel()).append(&quot;)&quot;);</span>
+<span class="fc" id="L141">			break;</span>
+		case NavigatorExpression.SPEC_SUPER_ID:
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">			if (this.getSpecSuperLevel()&lt;0) throw new RuntimeException(&quot; Level 'SUPER' not specified&quot;);</span>
+<span class="fc" id="L144">			buffer.append(SPEC_SUPER_CODE).append(&quot;(&quot;).append(this.getSpecSuperLevel()).append(&quot;)&quot;);</span>
+<span class="fc" id="L145">			break;</span>
+		case NavigatorExpression.SPEC_PAGE_ID:
+<span class="fc bfc" id="L147" title="All 2 branches covered.">			if (null == this.getSpecCode()) throw new RuntimeException(&quot;Page Code not specified&quot;);</span>
+<span class="fc" id="L148">			buffer.append(SPEC_PAGE_CODE).append(&quot;(&quot;).append(this.getSpecCode()).append(&quot;)&quot;);</span>
+<span class="fc" id="L149">			break;</span>
+		default:
+<span class="fc" id="L151">			throw new RuntimeException(&quot;Specification identifier '&quot; + specId+&quot;' not recognized&quot;);</span>
+		}
+<span class="fc" id="L153">	}</span>
+	
+	/**
+	 * Crea la porzione di espressione relativa all'operatore.
+	 * @param buffer Il buffer iniziale.
+	 */
+	protected void createOperatorSection(StringBuffer buffer) {
+<span class="fc" id="L160">		int operId = this.getOperatorId();</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		if (operId &gt; 0) {</span>
+<span class="fc" id="L162">			buffer.append(&quot;.&quot;);</span>
+<span class="pc bpc" id="L163" title="1 of 4 branches missed.">			switch (operId) {</span>
+			case OPERATOR_CHILDREN_ID:
+<span class="fc" id="L165">				buffer.append(OPERATOR_CHILDREN_CODE);</span>
+<span class="fc" id="L166">				break;</span>
+			case OPERATOR_PATH_ID:
+<span class="fc" id="L168">				buffer.append(OPERATOR_PATH_CODE);</span>
+<span class="fc" id="L169">				break;</span>
+			case OPERATOR_SUBTREE_ID:
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">				if (this.getOperatorSubtreeLevel()&lt;0) throw new RuntimeException(&quot;Livello Operatore 'SUBTREE' non Specificato&quot;);</span>
+<span class="fc" id="L172">				buffer.append(OPERATOR_SUBTREE_CODE).append(&quot;(&quot;).append(this.getOperatorSubtreeLevel()).append(&quot;)&quot;);</span>
+<span class="fc" id="L173">				break;</span>
+			default:
+<span class="nc" id="L175">				throw new RuntimeException(&quot;Operator Identifier not recognized: id &quot; + operId);</span>
+			}
+		}
+<span class="fc" id="L178">	}</span>
+
+	public int getOperatorId() {
+<span class="fc" id="L181">		return _operatorId;</span>
+	}
+	public void setOperatorId(int operatorId) {
+<span class="fc" id="L184">		this._operatorId = operatorId;</span>
+<span class="fc" id="L185">	}</span>
+
+	public int getSpecId() {
+<span class="fc" id="L188">		return _specId;</span>
+	}
+	public void setSpecId(int specId) {
+<span class="fc" id="L191">		this._specId = specId;</span>
+<span class="fc" id="L192">	}</span>
+
+	public int getSpecAbsLevel() {
+<span class="fc" id="L195">		return _specAbsLevel;</span>
+	}
+	public void setSpecAbsLevel(int specAbsLevel) {
+<span class="fc" id="L198">		this._specAbsLevel = specAbsLevel;</span>
+<span class="fc" id="L199">	}</span>
+
+	public String getSpecCode() {
+<span class="fc" id="L202">		return _specCode;</span>
+	}
+	public void setSpecCode(String specCode) {
+<span class="fc" id="L205">		this._specCode = specCode;</span>
+<span class="fc" id="L206">	}</span>
+
+	public int getSpecSuperLevel() {
+<span class="fc" id="L209">		return _specSuperLevel;</span>
+	}
+	public void setSpecSuperLevel(int specSuperLevel) {
+<span class="fc" id="L212">		this._specSuperLevel = specSuperLevel;</span>
+<span class="fc" id="L213">	}</span>
+
+	public int getOperatorSubtreeLevel() {
+<span class="fc" id="L216">		return _operatorSubtreeLevel;</span>
+	}
+	public void setOperatorSubtreeLevel(int operatorSubtreeLevel) {
+<span class="fc" id="L219">		this._operatorSubtreeLevel = operatorSubtreeLevel;</span>
+<span class="fc" id="L220">	}</span>
+
+	/**
+	 * Identificativo specificatore pagina: 
+	 * pagina corrente.
+	 */
+	public static final int SPEC_CURRENT_PAGE_ID = 1;
+
+	public static final String SPEC_CURRENT_PAGE_CODE = &quot;current&quot;;
+
+	/**
+	 * Identificativo specificatore pagina: 
+	 * nodo di cui la pagina corrente è figlia.
+	 */
+	public static final int SPEC_PARENT_PAGE_ID = 2;
+
+	public static final String SPEC_PARENT_PAGE_CODE = &quot;parent&quot;;
+
+	/**
+	 * Identificativo specificatore pagina: 
+	 * nodo progenitore della pagina corrente a distanza n.
+	 */
+	public static final int SPEC_SUPER_ID = 3;
+
+	public static final String SPEC_SUPER_CODE = &quot;super&quot;;
+
+	/**
+	 * Identificativo specificatore pagina: 
+	 * nodo progenitore della pagina corrente a distanza n dalla pagina radice.
+	 */
+	public static final int SPEC_ABS_ID = 4;
+
+	public static final String SPEC_ABS_CODE = &quot;abs&quot;;
+
+	/**
+	 * Identificativo specificatore pagina: 
+	 * una pagina di cui viene specificato il codice.
+	 */
+	public static final int SPEC_PAGE_ID = 5;
+
+	public static final String SPEC_PAGE_CODE = &quot;code&quot;;
+
+	/**
+	 * Identificativo operatore: 
+	 * tutti i nodi figli della pagina cui è applicato.
+	 */
+	public static final int OPERATOR_CHILDREN_ID = 1;
+
+	public static final String OPERATOR_CHILDREN_CODE = &quot;children&quot;;
+
+	/**
+	 * Identificativo operatore: 
+	 * tutti i nodi del percorso dalla pagina radice 
+	 * alla pagina cui è applicato.
+	 */
+	public static final int OPERATOR_PATH_ID = 2;
+
+	public static final String OPERATOR_PATH_CODE = &quot;path&quot;;
+
+	/**
+	 * Identificativo operatore: 
+	 * sottoalbero a partire dalla pagina cui è applicato 
+	 * e fino a gli n livelli sottostanti.
+	 */
+	public static final int OPERATOR_SUBTREE_ID = 3;
+
+	public static final String OPERATOR_SUBTREE_CODE = &quot;subtree&quot;;
+
+    public static Map&lt;Integer, String&gt; getOperators() {
+<span class="fc" id="L289">        Map&lt;Integer, String&gt; map = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L290">        map.put(OPERATOR_CHILDREN_ID, OPERATOR_CHILDREN_CODE);</span>
+<span class="fc" id="L291">        map.put(OPERATOR_PATH_ID, OPERATOR_PATH_CODE);</span>
+<span class="fc" id="L292">        map.put(OPERATOR_SUBTREE_ID, OPERATOR_SUBTREE_CODE);</span>
+<span class="fc" id="L293">        return map;</span>
+    }
+    
+	public static Map&lt;Integer, String&gt; getSpecifications() {
+<span class="fc" id="L297">        Map&lt;Integer, String&gt; map = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L298">        map.put(SPEC_ABS_ID, SPEC_ABS_CODE);</span>
+<span class="fc" id="L299">        map.put(SPEC_CURRENT_PAGE_ID, SPEC_CURRENT_PAGE_CODE);</span>
+<span class="fc" id="L300">        map.put(SPEC_PAGE_ID, SPEC_PAGE_CODE);</span>
+<span class="fc" id="L301">        map.put(SPEC_PARENT_PAGE_ID, SPEC_PARENT_PAGE_CODE);</span>
+<span class="fc" id="L302">        map.put(SPEC_SUPER_ID, SPEC_SUPER_CODE);</span>
+<span class="fc" id="L303">        return map;</span>
+    }
+    
+	private int _specId;
+<span class="fc" id="L307">	private int _specSuperLevel = -1;</span>
+<span class="fc" id="L308">	private int _specAbsLevel = -1;</span>
+	private String _specCode;
+
+<span class="fc" id="L311">	private int _operatorId = -1;</span>
+<span class="fc" id="L312">	private int _operatorSubtreeLevel = -1;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

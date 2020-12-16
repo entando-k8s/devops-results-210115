@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectViewerHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject.widget</a> &gt; <span class="el_source">DataObjectViewerHelper.java</span></div><h1>DataObjectViewerHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobject.widget;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.tags.util.HeadInfoContainer;
+import com.agiletec.aps.util.ApsProperties;
+import org.entando.entando.aps.system.services.dataobject.helper.PublicDataTypeAuthorizationInfo;
+import org.entando.entando.aps.system.services.dataobjectmodel.DataObjectModel;
+import org.entando.entando.aps.system.services.dataobjectdispenser.DataObjectRenderizationInfo;
+import org.entando.entando.aps.system.services.dataobjectmodel.IDataObjectModelManager;
+import org.entando.entando.aps.system.services.dataobject.helper.IDataAuthorizationHelper;
+import org.entando.entando.aps.system.services.dataobjectdispenser.IDataObjectDispenser;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+
+/**
+ * Classe helper per i Widget di erogazione dataobject singoli.
+ *
+ * @author E.Santoboni
+ */
+<span class="fc" id="L40">public class DataObjectViewerHelper implements IDataObjectViewerHelper {</span>
+
+<span class="fc" id="L42">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DataObjectViewerHelper.class);</span>
+
+    @Override
+    public String getRenderedDataObject(String dataobjectId, String modelId, RequestContext reqCtx) throws EntException {
+<span class="fc" id="L46">        return this.getRenderedDataObject(dataobjectId, modelId, false, reqCtx);</span>
+    }
+
+    /**
+     * Restituisce il dataObject da visualizzare nel widget.
+     *
+     * @param dataobjectId L'identificativo del dataObject ricavato dal tag.
+     * @param modelId Il modello del dataObject ricavato dal tag.
+     * @param publishExtraTitle
+     * @param reqCtx Il contesto della richiesta.
+     * @return Il dataObject da visualizzare nella widget.
+     * @throws EntException In caso di errore.
+     */
+    @Override
+    public String getRenderedDataObject(String dataobjectId, String modelId, boolean publishExtraTitle, RequestContext reqCtx)
+            throws EntException {
+<span class="fc" id="L62">        String renderedDataObject = null;</span>
+<span class="fc" id="L63">        DataObjectRenderizationInfo renderInfo = this.getRenderizationInfo(dataobjectId, modelId, publishExtraTitle, reqCtx);</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (null != renderInfo) {</span>
+<span class="fc" id="L65">            renderedDataObject = renderInfo.getRenderedDataobject();</span>
+        }
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (null == renderedDataObject) {</span>
+<span class="fc" id="L68">            renderedDataObject = &quot;&quot;;</span>
+        }
+<span class="fc" id="L70">        return renderedDataObject;</span>
+    }
+
+    @Override
+    public DataObjectRenderizationInfo getRenderizationInfo(String dataobjectId, String modelId, boolean publishExtraTitle, RequestContext reqCtx)
+            throws EntException {
+<span class="fc" id="L76">        DataObjectRenderizationInfo renderizationInfo = null;</span>
+        try {
+<span class="fc" id="L78">            Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="fc" id="L79">            String langCode = currentLang.getCode();</span>
+<span class="fc" id="L80">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="fc" id="L81">            ApsProperties widgetConfig = widget.getConfig();</span>
+<span class="fc" id="L82">            dataobjectId = this.extractDataId(dataobjectId, widgetConfig, reqCtx);</span>
+<span class="fc" id="L83">            modelId = this.extractModelId(dataobjectId, modelId, widgetConfig, reqCtx);</span>
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">            if (dataobjectId != null &amp;&amp; modelId != null) {</span>
+<span class="fc" id="L85">                long longModelId = new Long(modelId).longValue();</span>
+<span class="fc" id="L86">                this.setStylesheet(longModelId, reqCtx);</span>
+<span class="fc" id="L87">                renderizationInfo = this.getDataObjectDispenser().getRenderizationInfo(dataobjectId, longModelId, langCode, reqCtx, true);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                if (null == renderizationInfo) {</span>
+<span class="fc" id="L89">                    _logger.info(&quot;Null Renderization informations: dataobject={}&quot;, dataobjectId);</span>
+<span class="fc" id="L90">                    return null;</span>
+                }
+<span class="fc" id="L92">                this.manageAttributeValues(renderizationInfo, publishExtraTitle, reqCtx);</span>
+<span class="fc" id="L93">            } else {</span>
+<span class="nc" id="L94">                _logger.warn(&quot;Parametri visualizzazione dataobject incompleti: dataobject={} modello={}&quot;, dataobjectId, modelId);</span>
+            }
+<span class="nc" id="L96">        } catch (Throwable t) {</span>
+<span class="nc" id="L97">            _logger.error(&quot;Error extracting renderization info&quot;, t);</span>
+<span class="nc" id="L98">            throw new EntException(&quot;Error extracting renderization info&quot;, t);</span>
+<span class="fc" id="L99">        }</span>
+<span class="fc" id="L100">        return renderizationInfo;</span>
+    }
+
+    @Override
+    public PublicDataTypeAuthorizationInfo getAuthorizationInfo(String dataobjectId, RequestContext reqCtx) throws EntException {
+<span class="nc" id="L105">        PublicDataTypeAuthorizationInfo authInfo = null;</span>
+        try {
+<span class="nc" id="L107">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L108">            dataobjectId = this.extractDataId(dataobjectId, widget.getConfig(), reqCtx);</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            if (null == dataobjectId) {</span>
+<span class="nc" id="L110">                _logger.info(&quot;Null dataobjectId&quot;);</span>
+<span class="nc" id="L111">                return null;</span>
+            }
+<span class="nc" id="L113">            authInfo = this.getDataAuthorizationHelper().getAuthorizationInfo(dataobjectId, true);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">            if (null == authInfo) {</span>
+<span class="nc" id="L115">                _logger.info(&quot;Null authorization info by dataobject {}&quot;, dataobjectId);</span>
+            }
+<span class="nc" id="L117">        } catch (Throwable t) {</span>
+<span class="nc" id="L118">            _logger.error(&quot;Error extracting dataobject authorization info by dataobject {}&quot;, dataobjectId, t);</span>
+<span class="nc" id="L119">            throw new EntException(&quot;Error extracting dataobject authorization info by dataobject '&quot; + dataobjectId + &quot;'&quot;, t);</span>
+<span class="nc" id="L120">        }</span>
+<span class="nc" id="L121">        return authInfo;</span>
+    }
+
+    protected void manageAttributeValues(DataObjectRenderizationInfo renderInfo, boolean publishExtraTitle, RequestContext reqCtx) {
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (!publishExtraTitle) {</span>
+<span class="fc" id="L126">            return;</span>
+        }
+<span class="nc" id="L128">        IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if (!page.isUseExtraTitles()) {</span>
+<span class="nc" id="L130">            return;</span>
+        }
+<span class="nc" id="L132">        Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc bnc" id="L133" title="All 4 branches missed.">        if (currentFrame == page.getMetadata().getModel().getMainFrame() &amp;&amp; null != renderInfo) {</span>
+<span class="nc" id="L134">            Object extraTitle = renderInfo.getAttributeValues().get(SystemConstants.DATA_TYPE_ATTRIBUTE_ROLE_TITLE);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">            if (null != extraTitle) {</span>
+<span class="nc" id="L136">                reqCtx.addExtraParam(SystemConstants.EXTRAPAR_EXTRA_PAGE_TITLES, extraTitle);</span>
+            }
+        }
+<span class="nc" id="L139">    }</span>
+
+    /**
+     * Metodo che determina con che ordine viene ricercato l'identificativo del
+     * dataobject. L'ordine con cui viene cercato è questo: 1) Nel parametro
+     * specificato all'interno del tag. 2) Tra i parametri di configurazione del
+     * widget 3) Nella Request.
+     *
+     * @param dataobjectId L'identificativo del dataobject specificato nel tag.
+     * Può essere null o una Stringa alfanumerica.
+     * @param widgetConfig I parametri di configurazione del widget corrente.
+     * @param reqCtx Il contesto della richiesta.
+     * @return L'identificativo del dataobject da erogare.
+     */
+    protected String extractDataId(String dataobjectId, ApsProperties widgetConfig, RequestContext reqCtx) {
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (null == dataobjectId) {</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if (null != widgetConfig) {</span>
+<span class="nc" id="L156">                dataobjectId = (String) widgetConfig.get(&quot;dataId&quot;);</span>
+            }
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            if (null == dataobjectId) {</span>
+<span class="nc" id="L159">                dataobjectId = reqCtx.getRequest().getParameter(SystemConstants.K_DATAOBJECT_ID_PARAM);</span>
+            }
+        }
+<span class="pc bpc" id="L162" title="2 of 4 branches missed.">        if (null != dataobjectId &amp;&amp; dataobjectId.trim().length() == 0) {</span>
+<span class="nc" id="L163">            dataobjectId = null;</span>
+        }
+<span class="fc" id="L165">        return dataobjectId;</span>
+    }
+
+    /**
+     * Restituisce l'identificativo del modello con il quale renderizzare il
+     * dataobject. Metodo che determina con che ordine viene ricercato
+     * l'identificativo del modello di dataobject. L'ordine con cui viene
+     * cercato è questo: 1) Nel parametro specificato all'interno del tag. 2)
+     * Tra i parametri di configurazione del widget Nel caso non venga trovato
+     * nessun identificativo, viene restituito l'identificativo del modello di
+     * default specificato nella configurazione del tipo di dataobject.
+     *
+     * @param dataobjectId L'identificativo del dataobject da erogare. Può
+     * essere null, un numero in forma di stringa, o un'identificativo della
+     * tipologia del modello 'list' (in tal caso viene restituito il modello per
+     * le liste definito nella configurazione del tipo di dataobject) o
+     * 'default' (in tal caso viene restituito il modello di default definito
+     * nella configurazione del tipo di dataobject).
+     * @param modelId L'identificativo del modello specificato nel tag. Può
+     * essere null.
+     * @param widgetConfig La configurazione del widget corrente nel qual è
+     * inserito il tag erogatore del dataobject.
+     * @param reqCtx Il contesto della richiesta.
+     * @return L'identificativo del modello con il quale renderizzare il
+     * dataobject.
+     */
+    protected String extractModelId(String dataobjectId, String modelId, ApsProperties widgetConfig, RequestContext reqCtx) {
+<span class="fc" id="L192">        modelId = this.extractConfiguredModelId(dataobjectId, modelId, widgetConfig);</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">        if (null == modelId) {</span>
+<span class="nc" id="L194">            modelId = reqCtx.getRequest().getParameter(&quot;modelId&quot;);</span>
+        }
+<span class="pc bpc" id="L196" title="3 of 4 branches missed.">        if (null == modelId &amp;&amp; null != dataobjectId) {</span>
+<span class="nc" id="L197">            modelId = this.getDataObjectManager().getDefaultModel(dataobjectId);</span>
+        }
+<span class="fc" id="L199">        return modelId;</span>
+    }
+
+    protected String extractModelId(String dataobjectId, String modelId, ApsProperties widgetConfig) {
+<span class="nc" id="L203">        modelId = this.extractConfiguredModelId(dataobjectId, modelId, widgetConfig);</span>
+<span class="nc bnc" id="L204" title="All 4 branches missed.">        if (null == modelId &amp;&amp; null != dataobjectId) {</span>
+<span class="nc" id="L205">            modelId = this.getDataObjectManager().getDefaultModel(dataobjectId);</span>
+        }
+<span class="nc" id="L207">        return modelId;</span>
+    }
+
+    private String extractConfiguredModelId(String dataobjectId, String modelId, ApsProperties widgetConfig) {
+<span class="pc bpc" id="L211" title="2 of 4 branches missed.">        if (null != modelId &amp;&amp; null != dataobjectId) {</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">            if (modelId.equals(&quot;list&quot;)) {</span>
+<span class="nc" id="L213">                modelId = this.getDataObjectManager().getListModel(dataobjectId);</span>
+            }
+<span class="pc bpc" id="L215" title="2 of 4 branches missed.">            if (null != modelId &amp;&amp; modelId.equals(&quot;default&quot;)) {</span>
+<span class="nc" id="L216">                modelId = this.getDataObjectManager().getDefaultModel(dataobjectId);</span>
+            }
+        }
+<span class="pc bpc" id="L219" title="3 of 4 branches missed.">        if (null == modelId &amp;&amp; null != widgetConfig) {</span>
+<span class="nc" id="L220">            modelId = (String) widgetConfig.get(&quot;modelId&quot;);</span>
+        }
+<span class="fc" id="L222">        return modelId;</span>
+    }
+
+    protected void setStylesheet(long modelId, RequestContext reqCtx) {
+<span class="fc" id="L226">        DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">        if (model != null) {</span>
+<span class="fc" id="L228">            String stylesheet = model.getStylesheet();</span>
+<span class="pc bpc" id="L229" title="3 of 4 branches missed.">            if (null != stylesheet &amp;&amp; stylesheet.trim().length() &gt; 0) {</span>
+<span class="nc" id="L230">                HeadInfoContainer headInfo = (HeadInfoContainer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_HEAD_INFO_CONTAINER);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">                if (headInfo != null) {</span>
+<span class="nc" id="L232">                    headInfo.addInfo(&quot;CSS&quot;, stylesheet);</span>
+                }
+            }
+        }
+<span class="fc" id="L236">    }</span>
+
+    public IDataObjectModelManager getDataObjectModelManager() {
+<span class="fc" id="L239">        return _dataObjectModelManager;</span>
+    }
+
+    public void setDataObjectModelManager(IDataObjectModelManager dataObjectModelManager) {
+<span class="fc" id="L243">        this._dataObjectModelManager = dataObjectModelManager;</span>
+<span class="fc" id="L244">    }</span>
+
+    public IDataObjectManager getDataObjectManager() {
+<span class="nc" id="L247">        return _dataObjectManager;</span>
+    }
+
+    public void setDataObjectManager(IDataObjectManager dataObjectManager) {
+<span class="fc" id="L251">        this._dataObjectManager = dataObjectManager;</span>
+<span class="fc" id="L252">    }</span>
+
+    public IDataObjectDispenser getDataObjectDispenser() {
+<span class="fc" id="L255">        return _dataObjectDispenser;</span>
+    }
+
+    public void setDataObjectDispenser(IDataObjectDispenser dataObjectDispenser) {
+<span class="fc" id="L259">        this._dataObjectDispenser = dataObjectDispenser;</span>
+<span class="fc" id="L260">    }</span>
+
+    public IDataAuthorizationHelper getDataAuthorizationHelper() {
+<span class="nc" id="L263">        return _dataAuthorizationHelper;</span>
+    }
+
+    public void setDataAuthorizationHelper(IDataAuthorizationHelper dataAuthorizationHelper) {
+<span class="fc" id="L267">        this._dataAuthorizationHelper = dataAuthorizationHelper;</span>
+<span class="fc" id="L268">    }</span>
+
+    private IDataObjectModelManager _dataObjectModelManager;
+    private IDataObjectManager _dataObjectManager;
+    private IDataObjectDispenser _dataObjectDispenser;
+
+    private IDataAuthorizationHelper _dataAuthorizationHelper;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

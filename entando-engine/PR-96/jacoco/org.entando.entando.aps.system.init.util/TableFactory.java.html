@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TableFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init.util</a> &gt; <span class="el_source">TableFactory.java</span></div><h1>TableFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init.util;
+
+import java.lang.reflect.Method;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.sql.DataSource;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import org.entando.entando.aps.system.init.IDatabaseManager;
+import org.entando.entando.aps.system.init.model.DataSourceInstallationReport;
+import org.entando.entando.aps.system.init.model.ExtendedColumnDefinition;
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import org.entando.entando.ent.exception.EntException;
+import com.j256.ormlite.dao.Dao;
+import com.j256.ormlite.dao.DaoManager;
+import com.j256.ormlite.db.MysqlDatabaseType;
+import com.j256.ormlite.db.PostgresDatabaseType;
+import com.j256.ormlite.db.SqlServerDatabaseType;
+import com.j256.ormlite.jdbc.JdbcConnectionSource;
+import com.j256.ormlite.support.ConnectionSource;
+import com.j256.ormlite.table.DatabaseTable;
+import com.j256.ormlite.table.TableUtils;
+
+/**
+ * @author E.Santoboni
+ */
+public class TableFactory {
+
+<span class="fc" id="L47">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(TableFactory.class);</span>
+	
+<span class="fc" id="L49">	public TableFactory(String databaseName, DataSource dataSource, IDatabaseManager.DatabaseType type) {</span>
+<span class="fc" id="L50">		this.setDataSource(dataSource);</span>
+<span class="fc" id="L51">		this.setDatabaseName(databaseName);</span>
+<span class="fc" id="L52">		this.setType(type);</span>
+<span class="fc" id="L53">	}</span>
+	
+	public void createTables(List&lt;String&gt; tableClassNames, DataSourceInstallationReport schemaReport) throws EntException {
+<span class="fc" id="L56">		ConnectionSource connectionSource = null;</span>
+		try {
+<span class="fc" id="L58">			connectionSource = this.createConnectionSource();</span>
+<span class="fc" id="L59">			this.createTables(tableClassNames, connectionSource, schemaReport);</span>
+<span class="nc" id="L60">		} catch (Throwable t) {</span>
+<span class="nc" id="L61">			_logger.error(&quot;Error creating tables to db {}&quot;, this.getDatabaseName(), t);</span>
+<span class="nc" id="L62">			throw new EntException(&quot;Error creating tables to db &quot; + this.getDatabaseName(), t);</span>
+		} finally {
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">			if (connectionSource != null) {</span>
+				try {
+<span class="fc" id="L66">					connectionSource.close();</span>
+<span class="pc" id="L67">				} catch (SQLException ex) {}</span>
+			}
+		}
+<span class="fc" id="L70">	}</span>
+	
+	public void dropTables(List&lt;String&gt; tableClassNames) throws EntException {
+<span class="nc" id="L73">		ConnectionSource connectionSource = null;</span>
+		try {
+<span class="nc" id="L75">			connectionSource = this.createConnectionSource();</span>
+<span class="nc" id="L76">			this.dropTables(tableClassNames, connectionSource);</span>
+<span class="nc" id="L77">		} catch (Throwable t) {</span>
+<span class="nc" id="L78">			_logger.error(&quot;Error dropping tables to db {}&quot;, this.getDatabaseName(), t);</span>
+<span class="nc" id="L79">			throw new EntException(&quot;Error dropping tables to db &quot; + this.getDatabaseName(), t);</span>
+		} finally {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">			if (connectionSource != null) {</span>
+				try {
+<span class="nc" id="L83">					connectionSource.close();</span>
+<span class="nc" id="L84">				} catch (SQLException ex) {}</span>
+			}
+		}
+<span class="nc" id="L87">	}</span>
+
+	private ConnectionSource createConnectionSource() throws EntException {
+<span class="fc" id="L90">		ConnectionSource connectionSource = null;</span>
+		try {
+<span class="fc" id="L92">			DataSource dataSource = this.getDataSource();</span>
+<span class="fc" id="L93">			IDatabaseManager.DatabaseType type = this.getType();</span>
+<span class="fc" id="L94">			String url = this.invokeGetMethod(&quot;getUrl&quot;, dataSource);</span>
+<span class="fc" id="L95">			String username = this.invokeGetMethod(&quot;getUsername&quot;, dataSource);</span>
+<span class="fc" id="L96">			String password = this.invokeGetMethod(&quot;getPassword&quot;, dataSource);</span>
+<span class="fc" id="L97">			com.j256.ormlite.db.DatabaseType dataType = null;</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">			if (type.equals(IDatabaseManager.DatabaseType.DERBY)) {</span>
+<span class="fc" id="L99">				dataType = new ApsDerbyEmbeddedDatabaseType();</span>
+<span class="fc" id="L100">				url = url + &quot;;user=&quot; + username + &quot;;password=&quot; + password;</span>
+<span class="fc" id="L101">				connectionSource = new JdbcConnectionSource(url, dataType);</span>
+			} else {
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				if (type.equals(IDatabaseManager.DatabaseType.POSTGRESQL)) {</span>
+<span class="nc" id="L104">					dataType = new PostgresDatabaseType();</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">				} else if (type.equals(IDatabaseManager.DatabaseType.MYSQL)) {</span>
+<span class="nc" id="L106">					dataType = new MysqlDatabaseType();</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">				} else if (type.equals(IDatabaseManager.DatabaseType.ORACLE)) {</span>
+<span class="nc" id="L108">					dataType = new ApsOracleDatabaseType();</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">				} else if (type.equals(IDatabaseManager.DatabaseType.SQLSERVER)) {</span>
+<span class="nc" id="L110">					dataType = new SqlServerDatabaseType();</span>
+				}
+<span class="nc" id="L112">				connectionSource = new JdbcConnectionSource(url, username, password, dataType);</span>
+			}
+<span class="nc" id="L114">		} catch (Throwable t) {</span>
+<span class="nc" id="L115">			_logger.error(&quot;Error creating connectionSource to db {}&quot;, this.getDatabaseName(), t);</span>
+<span class="nc" id="L116">			throw new EntException(&quot;Error creating connectionSource to db &quot; + this.getDatabaseName(), t);</span>
+<span class="fc" id="L117">		}</span>
+<span class="fc" id="L118">		return connectionSource;</span>
+	}
+
+	private String invokeGetMethod(String methodName, DataSource dataSource) throws Throwable {
+<span class="fc" id="L122">		Method method = dataSource.getClass().getDeclaredMethod(methodName);</span>
+<span class="fc" id="L123">		return (String) method.invoke(dataSource);</span>
+	}
+	
+	private void createTables(List&lt;String&gt; tableClassNames,
+			ConnectionSource connectionSource, DataSourceInstallationReport schemaReport) throws EntException {
+		try {
+<span class="fc" id="L129">			List&lt;String&gt; tables = schemaReport.getDataSourceTables().get(this.getDatabaseName());</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">			if (null == tables) {</span>
+<span class="fc" id="L131">				tables = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L132">				schemaReport.getDataSourceTables().put(this.getDatabaseName(), tables);</span>
+			}
+<span class="fc bfc" id="L134" title="All 2 branches covered.">			for (int i = 0; i &lt; tableClassNames.size(); i++) {</span>
+<span class="fc" id="L135">				String tableClassName = tableClassNames.get(i);</span>
+<span class="fc" id="L136">				Class tableClass = Class.forName(tableClassName, true, Thread.currentThread().getContextClassLoader());</span>
+<span class="fc" id="L137">				String tableName = getTableName(tableClass);</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">				if (tables.contains(tableName)) {</span>
+<span class="nc" id="L139">					continue;</span>
+				}
+				try {
+<span class="fc" id="L142">					ApsSystemUtils.directStdoutTrace(&quot;|   ( ok )  &quot; + this.getDatabaseName() + &quot;.&quot; + tableName);</span>
+<span class="fc" id="L143">					this.createTable(tableClass, connectionSource);</span>
+<span class="fc" id="L144">					tables.add(tableName);</span>
+<span class="nc" id="L145">				} catch (Throwable t) {</span>
+<span class="nc" id="L146">					schemaReport.getDatabaseStatus().put(this.getDatabaseName(), SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L147">					String message = &quot;Error creating table &quot; + this.getDatabaseName() + &quot;/&quot; + tableClassName + &quot; - &quot; + t.getMessage();</span>
+<span class="nc" id="L148">					_logger.error(&quot;Error creating table {}/{}&quot;,this.getDatabaseName(), tableClassName, t);</span>
+<span class="nc" id="L149">					throw new EntException(message, t);</span>
+<span class="fc" id="L150">				}</span>
+			}
+<span class="nc" id="L152">		} catch (Throwable t) {</span>
+<span class="nc" id="L153">			schemaReport.getDatabaseStatus().put(this.getDatabaseName(), SystemInstallationReport.Status.INCOMPLETE);</span>
+<span class="nc" id="L154">			_logger.error(&quot;Error on setup Database - {}&quot;, this.getDatabaseName(), t);</span>
+<span class="nc" id="L155">			throw new EntException(&quot;Error on setup Database&quot;, t);</span>
+<span class="fc" id="L156">		}</span>
+<span class="fc" id="L157">	}</span>
+
+	private void createTable(Class tableClass, ConnectionSource connectionSource) throws Throwable {
+<span class="fc" id="L160">		int result = 0;</span>
+<span class="fc" id="L161">		String logTableName = this.getDatabaseName() + &quot;/&quot; + getTableName(tableClass);</span>
+		try {
+<span class="fc" id="L163">			result = ApsTableUtils.createTable(connectionSource, tableClass);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">			if (result &gt; 0) {</span>
+<span class="fc" id="L165">				_logger.info(&quot;Created table - {}&quot;, logTableName);</span>
+<span class="fc" id="L166">				Object tableModel = tableClass.newInstance();</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">				if (tableModel instanceof ExtendedColumnDefinition) {</span>
+<span class="fc" id="L168">					String[] extensions = ((ExtendedColumnDefinition) tableModel).extensions(this.getType());</span>
+<span class="pc bpc" id="L169" title="2 of 4 branches missed.">					if (null != extensions &amp;&amp; extensions.length &gt; 0) {</span>
+<span class="fc" id="L170">						Dao dao = DaoManager.createDao(connectionSource, tableClass);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">						for (int i = 0; i &lt; extensions.length; i++) {</span>
+<span class="fc" id="L172">							String query = extensions[i];</span>
+<span class="fc" id="L173">							dao.executeRaw(query);</span>
+						}
+					}
+				}
+<span class="fc" id="L177">			} else {</span>
+<span class="nc" id="L178">				throw new RuntimeException(&quot;Error creating table from class &quot; + logTableName);</span>
+			}
+<span class="nc" id="L180">		} catch (Throwable t) {</span>
+<span class="nc" id="L181">			_logger.error(&quot;Error creating table {}&quot;, logTableName, t);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">			if (result &gt; 0) {</span>
+<span class="nc" id="L183">				TableUtils.dropTable(connectionSource, tableClass, true);</span>
+			}
+<span class="nc" id="L185">			throw new EntException(&quot;Error creating table &quot; + logTableName, t);</span>
+<span class="fc" id="L186">		}</span>
+<span class="fc" id="L187">	}</span>
+	
+	private void dropTables(List&lt;String&gt; tableClassNames,
+			ConnectionSource connectionSource) throws EntException {
+		try {
+<span class="nc bnc" id="L192" title="All 2 branches missed.">			for (int i = 0; i &lt; tableClassNames.size(); i++) {</span>
+<span class="nc" id="L193">				String tableClassName = tableClassNames.get(i);</span>
+<span class="nc" id="L194">				Class tableClass = Class.forName(tableClassName, true, Thread.currentThread().getContextClassLoader());</span>
+				try {
+<span class="nc" id="L196">					TableUtils.dropTable(connectionSource, tableClass, true);</span>
+<span class="nc" id="L197">				} catch (Throwable t) {</span>
+<span class="nc" id="L198">					String message = &quot;Error dropping table &quot; + this.getDatabaseName() + &quot;/&quot; + tableClassName + &quot; - &quot; + t.getMessage();</span>
+<span class="nc" id="L199">					_logger.error(&quot;Error dropping table {}/{}&quot;,this.getDatabaseName(), tableClassName, t);</span>
+<span class="nc" id="L200">					throw new EntException(message, t);</span>
+<span class="nc" id="L201">				}</span>
+			}
+<span class="nc" id="L203">		} catch (Throwable t) {</span>
+<span class="nc" id="L204">			_logger.error(&quot;Error on setup Database - {}&quot;, this.getDatabaseName(), t);</span>
+<span class="nc" id="L205">			throw new EntException(&quot;Error on setup Database&quot;, t);</span>
+<span class="nc" id="L206">		}</span>
+<span class="nc" id="L207">	}</span>
+
+	public static String getTableName(Class tableClass) {
+<span class="fc" id="L210">		DatabaseTable tableAnnotation = (DatabaseTable) tableClass.getAnnotation(DatabaseTable.class);</span>
+<span class="fc" id="L211">		return tableAnnotation.tableName();</span>
+	}
+
+	protected DataSource getDataSource() {
+<span class="fc" id="L215">		return _dataSource;</span>
+	}
+	protected void setDataSource(DataSource dataSource) {
+<span class="fc" id="L218">		this._dataSource = dataSource;</span>
+<span class="fc" id="L219">	}</span>
+
+	protected String getDatabaseName() {
+<span class="fc" id="L222">		return _databaseName;</span>
+	}
+	protected void setDatabaseName(String databaseName) {
+<span class="fc" id="L225">		this._databaseName = databaseName;</span>
+<span class="fc" id="L226">	}</span>
+
+	protected IDatabaseManager.DatabaseType getType() {
+<span class="fc" id="L229">		return _type;</span>
+	}
+	protected void setType(IDatabaseManager.DatabaseType type) {
+<span class="fc" id="L232">		this._type = type;</span>
+<span class="fc" id="L233">	}</span>
+	
+	private String _databaseName;
+	private DataSource _dataSource;
+	private IDatabaseManager.DatabaseType _type;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

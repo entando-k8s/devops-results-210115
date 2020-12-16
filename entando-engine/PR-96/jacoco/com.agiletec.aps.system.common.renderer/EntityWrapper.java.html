@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.renderer</a> &gt; <span class="el_source">EntityWrapper.java</span></div><h1>EntityWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.renderer;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.beans.factory.BeanFactory;
+
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AbstractComplexAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.services.category.Category;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * This class represents an entity suitable for the rendering process. This class extends
+ * the HashMap object to make the access to the entity objects easier.
+ * @author M.Diana - W.Ambu - E.Santoboni
+ */
+public class EntityWrapper implements Map {
+	
+<span class="fc" id="L38">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(EntityWrapper.class);</span>
+	
+	/**
+	 * Wrapper initialization.
+	 * @param entity The entity to pass to the rendering service.
+	 */
+<span class="fc" id="L44">	public EntityWrapper(IApsEntity entity) {</span>
+<span class="fc" id="L45">		this._entity = entity;</span>
+<span class="fc" id="L46">		this._attributeMap = _entity.getAttributeMap();</span>
+<span class="fc" id="L47">	}</span>
+	
+	public EntityWrapper(IApsEntity entity, BeanFactory beanFactory) {
+<span class="fc" id="L50">		this(entity);</span>
+<span class="fc" id="L51">		this.setBeanFactory(beanFactory);</span>
+<span class="fc" id="L52">	}</span>
+	
+	/**
+	 * Return the informations needed for the renderization. In presence of simple attributes,
+	 * it return the attributes; for complex ones it returns a structure suitable for
+	 * the renderization - for instance, a list is returned to render a monolist.
+	 * @param key The name of the attribute.
+	 * @return An attribute or a List Attribute.
+	 * @see java.util.Map#get(java.lang.Object)
+	 */
+	@Override
+	public Object get(Object key) {
+<span class="fc" id="L64">		AttributeInterface attribute = this._attributeMap.get(key);</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">		if (null == attribute) {</span>
+<span class="nc" id="L66">			_logger.debug(&quot;Required null attribute {}&quot;, key);</span>
+<span class="nc" id="L67">			return null;</span>
+		}
+<span class="fc bfc" id="L69" title="All 2 branches covered.">		if (attribute.isSimple()) {</span>
+<span class="fc" id="L70">			return attribute;</span>
+		} else {
+<span class="fc" id="L72">			AbstractComplexAttribute complexAttr = (AbstractComplexAttribute) attribute;</span>
+<span class="fc" id="L73">			return complexAttr.getRenderingAttributes();</span>
+		}
+	}
+	
+	/**
+	 * Return the categories list of the entity.
+	 * @return The list of categories.
+	 */
+	public List&lt;Category&gt; getCategories() {
+<span class="nc" id="L82">		List&lt;Category&gt; categories = new ArrayList&lt;Category&gt;();</span>
+<span class="nc" id="L83">		List&lt;Category&gt; contentCategories = this._entity.getCategories();</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">		for (int i=0; i&lt;contentCategories.size(); i++) {</span>
+<span class="nc" id="L85">			Category cat = contentCategories.get(i);</span>
+<span class="nc" id="L86">			Category clone = cat.getCloneForWrapper();</span>
+<span class="nc" id="L87">			clone.setRenderingLang(this._renderingLang);</span>
+<span class="nc" id="L88">			categories.add(clone);</span>
+		}
+<span class="nc" id="L90">		return categories;</span>
+	}
+	
+	/**
+	 * Return the ID of the entity.
+	 * @return The ID of the entity.
+	 */
+	public String getId() {
+<span class="fc" id="L98">		return _entity.getId();</span>
+	}
+	
+	/**
+	 * Set up the code of the rendering language.
+	 * @param langCode The code of the rendering language.
+	 */
+	public void setRenderingLang(String langCode) {
+<span class="fc" id="L106">		this._renderingLang = langCode;</span>
+<span class="fc" id="L107">		this._entity.setRenderingLang(this._renderingLang);</span>
+<span class="fc" id="L108">	}</span>
+	
+	@Override
+	public int size() {
+<span class="nc" id="L112">		return _attributeMap.size();</span>
+	}
+	
+	@Override
+	public boolean isEmpty() {
+<span class="nc" id="L117">		return _attributeMap.isEmpty();</span>
+	}
+	
+	@Override
+	public boolean containsKey(Object key) {
+<span class="nc" id="L122">		return _attributeMap.containsKey(key);</span>
+	}
+	
+	@Override
+	public boolean containsValue(Object value) {
+<span class="nc" id="L127">		return _attributeMap.containsValue(value);</span>
+	}
+	
+	@Override
+	public Set keySet() {
+<span class="nc" id="L132">		return _attributeMap.keySet();</span>
+	}
+	
+	@Override
+	public Collection values() {
+<span class="nc" id="L137">		return _attributeMap.values();</span>
+	}
+	
+	@Override
+	public Set entrySet() {
+<span class="nc" id="L142">		return _attributeMap.entrySet();</span>
+	}	
+	
+	@Override
+	public boolean equals(Object o) {
+<span class="nc" id="L147">		return false;</span>
+	}
+	
+	@Override
+	public int hashCode() {
+<span class="nc" id="L152">		return _attributeMap.hashCode();</span>
+	}
+	
+	@Override
+	public Object put(Object key, Object value) {
+<span class="nc" id="L157">		throw new UnsupportedOperationException(&quot;Operation not permitted&quot;);</span>
+	}
+	
+	@Override
+	public Object remove(Object key) {
+<span class="nc" id="L162">		throw new UnsupportedOperationException(&quot;Operation not permitted&quot;);</span>
+	}
+	
+	@Override
+	public void putAll(Map t) {
+<span class="nc" id="L167">		throw new UnsupportedOperationException(&quot;Operation not permitted&quot;);</span>
+	}
+	
+	@Override
+	public void clear() {
+<span class="nc" id="L172">		throw new UnsupportedOperationException(&quot;Operation not permitted&quot;);</span>
+	}
+	
+	protected IApsEntity getEntity() {
+<span class="nc" id="L176">		return _entity;</span>
+	}
+	
+	protected Map&lt;String, AttributeInterface&gt; getAttributeMap() {
+<span class="nc" id="L180">		return _attributeMap;</span>
+	}
+	
+	protected String getRenderingLang() {
+<span class="nc" id="L184">		return _renderingLang;</span>
+	}
+	
+	protected BeanFactory getBeanFactory() {
+<span class="nc" id="L188">		return this._beanFactory;</span>
+	}
+	protected void setBeanFactory(BeanFactory beanFactory) {
+<span class="fc" id="L191">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L192">	}</span>
+	
+	private IApsEntity _entity;
+	private Map&lt;String, AttributeInterface&gt; _attributeMap;
+	private String _renderingLang;
+	
+	private BeanFactory _beanFactory;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
