@@ -1,0 +1,551 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntitySearchFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.entity.model</a> &gt; <span class="el_source">EntitySearchFilter.java</span></div><h1>EntitySearchFilter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.entity.model;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.BooleanAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.DateAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.NumberAttribute;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.DateConverter;
+
+/**
+ * This class implements a filter to search among entities.
+ * @author E.Santoboni
+ */
+public class EntitySearchFilter&lt;T&gt; extends FieldSearchFilter implements Serializable {
+
+<span class="fc" id="L44">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(EntitySearchFilter.class);</span>
+	
+<span class="fc" id="L46">	protected EntitySearchFilter() {}</span>
+    
+    public EntitySearchFilter(Integer limit, Integer offset) {
+<span class="nc" id="L49">        super(limit, offset);</span>
+<span class="nc" id="L50">    }</span>
+	
+	/**
+	 * Filter constructor.
+	 * This constructor is used when checking the presence of a value contained
+	 * either in the attribute field or in the entity metadata.
+	 * @param key The key of the filtering element; it may be a content attribute of type {@link AttributeInterface}
+	 * or the ID of metadata).
+	 * @param isAttributeFilter Decide whether the filter is applied to an Entity Attribute (true) or
+	 * to a metadata (false).
+	 */
+	public EntitySearchFilter(String key, boolean isAttributeFilter) {
+<span class="fc" id="L62">		super(key);</span>
+<span class="fc" id="L63">		this.setAttributeFilter(isAttributeFilter);</span>
+<span class="fc" id="L64">	}</span>
+	
+	/**
+	 * Filter constructor.
+	 * This constructor must be used to filter the attribute values or entity metadata
+	 * looking for a specific value.
+	 * @param key The key of the filtering element; it may be a content attribute of type {@link AttributeInterface}
+	 * or the ID of metadata).
+	 * @param isAttributeFilter Decide whether the filter is applied to an Entity Attribute (true) or
+	 * to a metadata (false).
+	 * @param value The value to look for. If null, the filter checks if the attribute (or metadata)
+	 * has been valued.
+	 * @param useLikeOption When true the database search will be performed using the &quot;LIKE&quot; clause.
+	 * This option can be used to filter by the value of a string attribute (or metadata). It can be
+	 * used only with string and with not null values.
+	 */
+	public EntitySearchFilter(String key, boolean isAttributeFilter, T value, boolean useLikeOption) {
+<span class="fc" id="L81">		this(key, isAttributeFilter);</span>
+<span class="pc bpc" id="L82" title="4 of 6 branches missed.">		if (null != value &amp;&amp; value instanceof Collection &amp;&amp; ((Collection) value).size() &gt; 0) {</span>
+<span class="nc" id="L83">			List&lt;T&gt; allowedValues = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L84">			allowedValues.addAll((Collection) value);</span>
+<span class="nc" id="L85">			this.setAllowedValues(allowedValues);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if (allowedValues.get(0) instanceof String) {</span>
+<span class="nc" id="L87">				this.setLikeOption(useLikeOption);			</span>
+			}
+<span class="nc" id="L89">		} else {</span>
+<span class="fc" id="L90">			this.setValue(value);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			if (value instanceof String) {			</span>
+<span class="fc" id="L92">				this.setLikeOption(useLikeOption);</span>
+			}
+		}
+<span class="fc" id="L95">	}</span>
+	
+	public EntitySearchFilter(String key, boolean isAttributeFilter, T value, boolean useLikeOption, LikeOptionType likeOptionType) {
+<span class="fc" id="L98">		this(key, isAttributeFilter, value, useLikeOption);</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">		if (this.isLikeOption()) {</span>
+<span class="fc" id="L100">			this.setLikeOptionType(likeOptionType);</span>
+		}
+<span class="fc" id="L102">	}</span>
+	
+	/**
+	 * Filter constructor.
+	 * This constructor is used when filtering by a range of values; this can applied to both
+	 * Entity Attributes and metadata).
+	 * @param key The key of the filtering element; it may be a content attribute of type {@link AttributeInterface}
+	 * or the ID of metadata).
+	 * @param isAttributeFilter Decide whether the filter is applied to an Entity Attribute (true) or
+	 * to a metadata (false).
+	 * @param start The starting value of the interval. It can be an object of type
+	 * &quot;String&quot;, &quot;Date&quot;, &quot;BigDecimal&quot;, &quot;Boolean&quot; o null.
+	 * @param end The ending value of the interval. It can be an object of type 
+	 * &quot;String&quot;, &quot;Date&quot;, &quot;BigDecimal&quot;, &quot;Boolean&quot; o null.
+	 */
+	public EntitySearchFilter(String key, boolean isAttributeFilter, T start, T end) {
+<span class="fc" id="L118">		this(key, isAttributeFilter);</span>
+<span class="pc bpc" id="L119" title="1 of 6 branches missed.">		if (start != null &amp;&amp; end != null &amp;&amp; !start.getClass().equals(end.getClass())) {</span>
+<span class="nc" id="L120">			throw new RuntimeException(&quot;Error: 'start' and 'end' types have to be equals&quot;);</span>
+		}
+<span class="fc" id="L122">		this.setStart(start);</span>
+<span class="fc" id="L123">		this.setEnd(end);</span>
+<span class="fc" id="L124">	}</span>
+	
+	/**
+	 * Filter constructor.
+	 * This constructor is used when filtering by a collection of allowed values; this can applied to both
+	 * Entity Attributes and metadata).
+	 * @param key The key of the filtering element; it may be a content attribute of type {@link AttributeInterface}
+	 * or the ID of metadata).
+	 * @param isAttributeFilter Decide whether the filter is applied to an Entity Attribute (true) or
+	 * to a metadata (false).
+	 * @param allowedValues The allowed values to look for. If null, the filter checks 
+	 * if the attribute (or metadata) has been valued.
+	 * @param useLikeOption When true the database search will be performed using the &quot;LIKE&quot; clause.
+	 * This option can be used to filter by the value of a string attribute (or metadata). It can be
+	 * used only with string and with allowed values not null.
+	 */
+	public EntitySearchFilter(String key, boolean isAttributeFilter, List&lt;T&gt; allowedValues, boolean useLikeOption) {
+<span class="fc" id="L141">		this(key, isAttributeFilter);</span>
+<span class="fc" id="L142">		this.setAllowedValues(allowedValues);</span>
+<span class="fc" id="L143">		this.setLikeOption(useLikeOption);</span>
+<span class="fc" id="L144">	}</span>
+	
+	public EntitySearchFilter(String key, boolean isAttributeFilter, List&lt;T&gt; allowedValues, boolean useLikeOption, LikeOptionType likeOptionType) {
+<span class="nc" id="L147">		this(key, isAttributeFilter, allowedValues, useLikeOption);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">		if (this.isLikeOption()) {</span>
+<span class="nc" id="L149">			this.setLikeOptionType(likeOptionType);</span>
+		}
+<span class="nc" id="L151">	}</span>
+	
+	public static EntitySearchFilter createRoleFilter(String roleName) {
+<span class="fc" id="L154">		EntitySearchFilter filter = new EntitySearchFilter();</span>
+<span class="fc" id="L155">		filter.setAttributeFilter(true);</span>
+<span class="fc" id="L156">		filter.setRoleName(roleName);</span>
+<span class="fc" id="L157">		return filter;</span>
+	}
+	
+	public static &lt;T&gt; EntitySearchFilter createRoleFilter(String roleName, T value, boolean useLikeOption) {
+<span class="fc" id="L161">		EntitySearchFilter filter = new EntitySearchFilter();</span>
+<span class="fc" id="L162">		filter.setAttributeFilter(true);</span>
+<span class="fc" id="L163">		filter.setRoleName(roleName);</span>
+<span class="pc bpc" id="L164" title="4 of 6 branches missed.">		if (null != value &amp;&amp; value instanceof Collection &amp;&amp; ((Collection) value).size() &gt; 0) {</span>
+<span class="nc" id="L165">			List&lt;T&gt; allowedValues = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L166">			allowedValues.addAll((Collection) value);</span>
+<span class="nc" id="L167">			filter.setAllowedValues(allowedValues);</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">			if (allowedValues.get(0) instanceof String) {</span>
+<span class="nc" id="L169">				filter.setLikeOption(useLikeOption);			</span>
+			}
+<span class="nc" id="L171">		} else {</span>
+<span class="fc" id="L172">			filter.setValue(value);</span>
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">			if (value instanceof String) {			</span>
+<span class="fc" id="L174">				filter.setLikeOption(useLikeOption);</span>
+			}
+		}
+<span class="fc" id="L177">		return filter;</span>
+	}
+	
+	public static &lt;T&gt; EntitySearchFilter createRoleFilter(String roleName, T value, boolean useLikeOption, LikeOptionType likeOptionType) {
+<span class="nc" id="L181">		EntitySearchFilter filter = EntitySearchFilter.createRoleFilter(roleName, value, useLikeOption);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">		if (filter.isLikeOption()) {</span>
+<span class="nc" id="L183">			filter.setLikeOptionType(likeOptionType);</span>
+		}
+<span class="nc" id="L185">		return filter;</span>
+	}
+	
+	public static &lt;T&gt; EntitySearchFilter createRoleFilter(String roleName, T start, T end) {
+<span class="fc" id="L189">		EntitySearchFilter filter = new EntitySearchFilter();</span>
+<span class="fc" id="L190">		filter.setAttributeFilter(true);</span>
+<span class="fc" id="L191">		filter.setRoleName(roleName);</span>
+<span class="pc bpc" id="L192" title="3 of 6 branches missed.">		if (start != null &amp;&amp; end != null &amp;&amp; !start.getClass().equals(end.getClass())) {</span>
+<span class="nc" id="L193">			throw new RuntimeException(&quot;Error: 'start' and 'end' types have to be equals&quot;);</span>
+		}
+<span class="fc" id="L195">		filter.setStart(start);</span>
+<span class="fc" id="L196">		filter.setEnd(end);</span>
+<span class="fc" id="L197">		return filter;</span>
+	}
+	
+	public static &lt;T&gt; EntitySearchFilter createRoleFilter(String roleName, List&lt;T&gt; allowedValues, boolean useLikeOption) {
+<span class="fc" id="L201">		EntitySearchFilter filter = new EntitySearchFilter();</span>
+<span class="fc" id="L202">		filter.setAttributeFilter(true);</span>
+<span class="fc" id="L203">		filter.setRoleName(roleName);</span>
+<span class="fc" id="L204">		filter.setAllowedValues(allowedValues);</span>
+<span class="fc" id="L205">		filter.setLikeOption(useLikeOption);</span>
+<span class="fc" id="L206">		return filter;</span>
+	}
+	
+	public static &lt;T&gt; EntitySearchFilter createRoleFilter(String roleName, List&lt;T&gt; allowedValues, boolean useLikeOption, LikeOptionType likeOptionType) {
+<span class="nc" id="L210">		EntitySearchFilter filter = EntitySearchFilter.createRoleFilter(roleName, allowedValues, useLikeOption);</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">		if (filter.isLikeOption()) {</span>
+<span class="nc" id="L212">			filter.setLikeOptionType(likeOptionType);</span>
+		}
+<span class="nc" id="L214">		return filter;</span>
+	}
+	
+	/**
+	 * This method shows if the filter must be applied on a Entity Attribute or
+	 * a metadata.
+	 * @return true if the filter is to be applied to an attribute entity or a 
+	 * to a metadata of the an entity.
+	 */
+	public boolean isAttributeFilter() {
+<span class="fc" id="L224">		return _attributeFilter;</span>
+	}
+	protected void setAttributeFilter(boolean attributeFilter) {
+<span class="fc" id="L227">		this._attributeFilter = attributeFilter;</span>
+<span class="fc" id="L228">	}</span>
+	
+	public String getRoleName() {
+<span class="fc" id="L231">		return _roleName;</span>
+	}
+	protected void setRoleName(String roleName) {
+<span class="fc" id="L234">		this._roleName = roleName;</span>
+<span class="fc" id="L235">	}</span>
+	
+	public String getLangCode() {
+<span class="fc" id="L238">		return this._langCode;</span>
+	}
+	
+	public void setLangCode(String langCode) {
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		if (null == langCode) {</span>
+<span class="fc" id="L243">			return;</span>
+		}
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">		if (!this.isAttributeFilter()) {</span>
+<span class="nc" id="L246">			throw new RuntimeException(&quot;Error: The language can be only specified on attribute filters&quot;);</span>
+		}
+<span class="pc bpc" id="L248" title="1 of 4 branches missed.">		if ((null != this.getValue() &amp;&amp; !(this.getValue() instanceof String)) </span>
+<span class="pc bpc" id="L249" title="1 of 4 branches missed.">				|| (null != this.getStart() &amp;&amp;  !(this.getStart() instanceof String)) </span>
+<span class="pc bpc" id="L250" title="1 of 4 branches missed.">				|| (null != this.getEnd() &amp;&amp;  !(this.getEnd() instanceof String)) </span>
+<span class="pc bpc" id="L251" title="2 of 6 branches missed.">				|| (this.getAllowedValues() != null &amp;&amp; !this.getAllowedValues().isEmpty() &amp;&amp; !(this.getAllowedValues().get(0) instanceof String))) {</span>
+<span class="nc" id="L252">			throw new RuntimeException(&quot;Error: The language can be only specified on a null value of type string&quot;);</span>
+		}
+<span class="fc" id="L254">		this._langCode = langCode;</span>
+<span class="fc" id="L255">	}</span>
+	
+	@Override
+	public void setNullOption(boolean nullOption) {
+<span class="pc bpc" id="L259" title="3 of 4 branches missed.">		if (null == this.getKey() &amp;&amp; null != this.getRoleName()) {</span>
+<span class="nc" id="L260">			throw new RuntimeException(&quot;Error: the NULL cluase may be used only in conjunction with not null key&quot;);</span>
+		}
+<span class="fc" id="L262">		super.setNullOption(nullOption);</span>
+<span class="fc" id="L263">	}</span>
+	
+	@Override
+	public String toString() {
+<span class="nc" id="L267">		StringBuffer param = new StringBuffer();</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">		if (null != this.getKey()) {</span>
+<span class="nc" id="L269">			param.append(KEY_PARAM).append(&quot;=&quot;).append(this.getKey()).append(SEPARATOR);</span>
+		}
+<span class="nc" id="L271">		this.appendParamValue(param, this.getRoleName(), ROLE_PARAM);</span>
+<span class="nc" id="L272">		param.append(FILTER_TYPE_PARAM).append(&quot;=&quot;).append(Boolean.toString(this.isAttributeFilter()));</span>
+<span class="nc" id="L273">		this.appendParamValue(param, this.getValue(), VALUE_PARAM);</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">		if (this.getValue() instanceof String) {</span>
+<span class="nc" id="L275">			this.appendParamValue(param, this.isLikeOption(), LIKE_OPTION_PARAM);</span>
+		}
+<span class="nc bnc" id="L277" title="All 4 branches missed.">		if (null != this.getAllowedValues() &amp;&amp; !this.getAllowedValues().isEmpty()) {</span>
+<span class="nc" id="L278">			this.appendParamValue(param, this.getAllowedValues(), ALLOWED_VALUES_PARAM);</span>
+		}
+<span class="nc" id="L280">		this.appendParamValue(param, this.getLangCode(), LANG_PARAM);</span>
+<span class="nc" id="L281">		this.appendParamValue(param, this.getStart(), START_PARAM);</span>
+<span class="nc" id="L282">		this.appendParamValue(param, this.getEnd(), END_PARAM);</span>
+<span class="nc" id="L283">		this.appendParamValue(param, this.getOrder(), ORDER_PARAM);</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">		if (null != this.getValueDateDelay()){</span>
+<span class="nc" id="L285">			this.appendParamValue(param, this.getValueDateDelay(), VALUE_DATE_DELAY_PARAM);</span>
+		}
+<span class="nc bnc" id="L287" title="All 2 branches missed.">		if (null != this.getStartDateDelay()){</span>
+<span class="nc" id="L288">			this.appendParamValue(param, this.getStartDateDelay(), START_DATE_DELAY_PARAM);</span>
+		}
+<span class="nc bnc" id="L290" title="All 2 branches missed.">		if (null != this.getEndDateDelay()){</span>
+<span class="nc" id="L291">			this.appendParamValue(param, this.getEndDateDelay(), END_DATE_DELAY_PARAM);</span>
+		}
+<span class="nc bnc" id="L293" title="All 2 branches missed.">		if (this.isNullOption()) {</span>
+<span class="nc" id="L294">			this.appendParamValue(param, this.isNullOption(), NULL_VALUE_PARAM);</span>
+		}
+<span class="nc" id="L296">		return param.toString();</span>
+	}
+	
+	private void appendParamValue(StringBuffer param, Object value, String paramValue) {
+<span class="nc bnc" id="L300" title="All 2 branches missed.">		if (null != value) {</span>
+<span class="nc" id="L301">			param.append(SEPARATOR).append(paramValue).append(&quot;=&quot;);</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">			if (value instanceof List) {</span>
+<span class="nc" id="L303">				List&lt;Object&gt; values = (List&lt;Object&gt;) value;</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">				for (int i = 0; i &lt; values.size() ; i++) {</span>
+<span class="nc bnc" id="L305" title="All 2 branches missed.">					if (i&gt;0) {</span>
+<span class="nc" id="L306">						param.append(ALLOWED_VALUES_SEPARATOR);</span>
+					}
+<span class="nc" id="L308">					param.append(values.get(i));</span>
+				}
+<span class="nc" id="L310">			} else {</span>
+<span class="nc" id="L311">				param.append(this.getToStringValue(value));</span>
+			}
+		}
+<span class="nc" id="L314">	}</span>
+	
+	private String getToStringValue(Object value) {
+<span class="nc bnc" id="L317" title="All 2 branches missed.">		if (value instanceof String) {</span>
+<span class="nc" id="L318">			return value.toString();</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">		} else if (value instanceof Date) {</span>
+<span class="nc" id="L320">			return DateConverter.getFormattedDate((Date)value, DATE_PATTERN);</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">		} else if (value instanceof BigDecimal) {</span>
+<span class="nc" id="L322">			value = ((BigDecimal)value).toString();</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">		} else if (value instanceof Boolean) {</span>
+<span class="nc" id="L324">			value = ((Boolean)value).toString();</span>
+		}
+<span class="nc" id="L326">		return value.toString();</span>
+	}
+	
+	@Deprecated
+	public static EntitySearchFilter getInstance(IApsEntity prototype, String toStringFilter) {
+<span class="nc" id="L331">		return getInstance(prototype, getProperties(toStringFilter));</span>
+	}
+	
+	@Deprecated
+	public static Properties getProperties(String toStringFilter) {
+<span class="nc" id="L336">		Properties props = new Properties();</span>
+<span class="nc" id="L337">		String[] params = toStringFilter.split(SEPARATOR);</span>
+<span class="nc bnc" id="L338" title="All 2 branches missed.">		for (int i=0; i&lt;params.length; i++) {</span>
+<span class="nc" id="L339">			String[] elements = params[i].split(&quot;=&quot;);</span>
+<span class="nc bnc" id="L340" title="All 2 branches missed.">			if (elements.length != 2) {</span>
+<span class="nc" id="L341">				continue;</span>
+			}
+<span class="nc" id="L343">			props.setProperty(elements[0], elements[1]);</span>
+		}
+<span class="nc" id="L345">		return props;</span>
+	}
+	
+	public static EntitySearchFilter getInstance(IApsEntity prototype, Properties props) {
+<span class="fc" id="L349">		EntitySearchFilter filter = null;</span>
+		try {
+<span class="fc" id="L351">			String key = props.getProperty(KEY_PARAM);</span>
+<span class="fc" id="L352">			String roleName = props.getProperty(ROLE_PARAM);</span>
+<span class="pc bpc" id="L353" title="3 of 4 branches missed.">			if (null == key &amp;&amp; null == roleName) {</span>
+<span class="nc" id="L354">				return null;</span>
+			}
+<span class="fc" id="L356">			boolean isAttributeFilter = Boolean.parseBoolean(props.getProperty(FILTER_TYPE_PARAM));</span>
+<span class="fc" id="L357">			filter = new EntitySearchFilter();</span>
+<span class="fc" id="L358">			boolean isDateAttribute = false;</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">            if (!isAttributeFilter) {</span>
+<span class="fc" id="L360">				filter.setKey(key);</span>
+<span class="fc" id="L361">				String dataType = props.getProperty(DATA_TYPE_PARAM);</span>
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">				if (null == dataType) {</span>
+<span class="fc" id="L363">					dataType = DATA_TYPE_STRING;</span>
+				}
+<span class="fc" id="L365">				setValues(filter, props, dataType);</span>
+<span class="fc" id="L366">			} else {</span>
+<span class="fc" id="L367">				AttributeInterface attr = null;</span>
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">				if (null != key) {</span>
+<span class="fc" id="L369">					attr = (AttributeInterface) prototype.getAttribute(key);</span>
+<span class="fc" id="L370">					filter.setKey(key);</span>
+				} else {
+<span class="nc" id="L372">					attr = (AttributeInterface) prototype.getAttributeByRole(roleName);</span>
+<span class="nc" id="L373">					filter.setRoleName(roleName);</span>
+				}
+<span class="fc" id="L375">				filter.setAttributeFilter(true);</span>
+<span class="pc bpc" id="L376" title="1 of 2 branches missed.">				if (null != attr) {</span>
+<span class="fc" id="L377">					String dataType = null;</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">					if (attr instanceof DateAttribute) {</span>
+<span class="fc" id="L379">						dataType = DATA_TYPE_DATE;</span>
+<span class="fc" id="L380">                        isDateAttribute = true;</span>
+<span class="pc bpc" id="L381" title="3 of 4 branches missed.">					} else if (attr instanceof ITextAttribute || attr instanceof BooleanAttribute) {</span>
+<span class="fc" id="L382">						dataType = DATA_TYPE_STRING;</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">					} else if (attr instanceof NumberAttribute) {</span>
+<span class="nc" id="L384">						dataType = DATA_TYPE_NUMBER;</span>
+					}
+<span class="fc" id="L386">					setValues(filter, props, dataType);</span>
+<span class="pc" id="L387">				} else throw new EntException(&quot;ERROR: Entity type '&quot; + prototype.getTypeCode()</span>
+						+ &quot;' and attribute '&quot; + key + &quot;' not recognized&quot;);
+			}
+<span class="fc bfc" id="L390" title="All 2 branches covered.">			if (isDateAttribute) {</span>
+<span class="fc" id="L391">				String valueDateDelay = props.getProperty(EntitySearchFilter.VALUE_DATE_DELAY_PARAM);</span>
+<span class="pc bpc" id="L392" title="1 of 2 branches missed.">				filter.setValueDateDelay(null != valueDateDelay ? Integer.valueOf(valueDateDelay) : null);</span>
+				
+<span class="fc" id="L394">				String endDateDelay = props.getProperty(EntitySearchFilter.END_DATE_DELAY_PARAM);</span>
+<span class="pc bpc" id="L395" title="1 of 2 branches missed.">				filter.setEndDateDelay(null != endDateDelay ? Integer.valueOf(endDateDelay) : null);</span>
+				
+<span class="fc" id="L397">				String startDateDelay = props.getProperty(EntitySearchFilter.START_DATE_DELAY_PARAM);</span>
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">				filter.setStartDateDelay(null != startDateDelay ? Integer.valueOf(startDateDelay) : null);</span>
+			}
+<span class="fc" id="L400">			String order = props.getProperty(EntitySearchFilter.ORDER_PARAM);</span>
+<span class="fc" id="L401">			filter.setOrder(order);</span>
+<span class="nc" id="L402">		} catch (EntException | NumberFormatException t) {</span>
+<span class="nc" id="L403">			_logger.error(&quot;Error on creation of filter instance&quot;, t);</span>
+<span class="nc" id="L404">			throw new RuntimeException(&quot;Error on creation of filter instance&quot;, t);</span>
+<span class="fc" id="L405">		}</span>
+<span class="fc" id="L406">		return filter;</span>
+	}
+	
+	private static void setValues(EntitySearchFilter filter, Properties props, String dataType) {
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">		if (null == dataType) {</span>
+<span class="nc" id="L411">			return;</span>
+		}
+<span class="fc" id="L413">		String value = props.getProperty(VALUE_PARAM);</span>
+<span class="fc" id="L414">		String allowedValues = props.getProperty(ALLOWED_VALUES_PARAM);</span>
+<span class="fc" id="L415">		String start = props.getProperty(START_PARAM);</span>
+<span class="fc" id="L416">		String end = props.getProperty(END_PARAM);</span>
+<span class="fc" id="L417">		Object objectValue = getDataObject(value, dataType);</span>
+<span class="fc" id="L418">		List&lt;Object&gt; objectAllowedValues = buildAllowedValues(allowedValues, dataType);</span>
+<span class="fc" id="L419">		Object objectStart = getDataObject(start, dataType);</span>
+<span class="fc" id="L420">		Object objectEnd = getDataObject(end, dataType);</span>
+<span class="fc" id="L421">		String likeOptionString = props.getProperty(LIKE_OPTION_PARAM);</span>
+<span class="pc bpc" id="L422" title="1 of 2 branches missed.">		boolean likeOption = (null != likeOptionString) ? Boolean.parseBoolean(likeOptionString) : false;</span>
+<span class="fc" id="L423">		String likeOptionTypeString = props.getProperty(LIKE_OPTION_TYPE_PARAM);</span>
+<span class="fc" id="L424">		LikeOptionType likeOptionType = LikeOptionType.COMPLETE;</span>
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">		if (null != likeOptionTypeString) {</span>
+			try {
+<span class="nc" id="L427">				likeOptionType = Enum.valueOf(LikeOptionType.class, likeOptionTypeString.trim().toUpperCase());</span>
+<span class="nc" id="L428">			} catch (Throwable t) {</span>
+<span class="nc" id="L429">				_logger.error(&quot;Error parsing 'like option type' parameter&quot;, t);</span>
+<span class="nc" id="L430">			}</span>
+		}
+<span class="fc bfc" id="L432" title="All 2 branches covered.">		if (objectValue != null) {</span>
+<span class="fc" id="L433">			filter.setValue(objectValue);</span>
+<span class="fc" id="L434">			filter.setLikeOption(likeOption);</span>
+<span class="pc bpc" id="L435" title="1 of 2 branches missed.">			if (filter.isLikeOption()) {</span>
+<span class="nc" id="L436">				filter.setLikeOptionType(likeOptionType);</span>
+			}
+<span class="pc bpc" id="L438" title="1 of 2 branches missed.">		} else if (objectAllowedValues != null) {</span>
+<span class="nc" id="L439">			filter.setAllowedValues(objectAllowedValues);</span>
+<span class="nc" id="L440">			filter.setLikeOption(likeOption);</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">			if (filter.isLikeOption()) {</span>
+<span class="nc" id="L442">				filter.setLikeOptionType(likeOptionType);</span>
+			}
+<span class="pc bpc" id="L444" title="1 of 4 branches missed.">		} else if ((null != objectStart) || (null != objectEnd)) {</span>
+<span class="fc" id="L445">			filter.setStart(objectStart);</span>
+<span class="fc" id="L446">			filter.setEnd(objectEnd);</span>
+		} else {
+<span class="fc" id="L448">			String nullValue = props.getProperty(NULL_VALUE_PARAM);</span>
+<span class="pc bpc" id="L449" title="3 of 4 branches missed.">			boolean nullOption = (null != nullValue &amp;&amp; nullValue.equalsIgnoreCase(&quot;true&quot;));</span>
+<span class="fc" id="L450">			filter.setNullOption(nullOption);</span>
+		}
+<span class="fc" id="L452">		String langCode = props.getProperty(LANG_PARAM);</span>
+<span class="fc" id="L453">		filter.setLangCode(langCode);</span>
+<span class="fc" id="L454">	}</span>
+	
+	private static List&lt;Object&gt; buildAllowedValues(String allowedValues, String dataType) {
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">		if (null == allowedValues) {</span>
+<span class="fc" id="L458">			return null;</span>
+		}
+<span class="nc" id="L460">		List&lt;Object&gt; values = null;</span>
+<span class="nc" id="L461">		String[] stringValues = allowedValues.split(ALLOWED_VALUES_SEPARATOR);</span>
+<span class="nc bnc" id="L462" title="All 4 branches missed.">		if (null != stringValues &amp;&amp; stringValues.length &gt; 0) {</span>
+<span class="nc" id="L463">			values = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">			for (int i = 0; i &lt; stringValues.length; i++) {</span>
+<span class="nc" id="L465">				String stringValue = stringValues[i];</span>
+<span class="nc" id="L466">				Object object = getDataObject(stringValue, dataType);</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">				if (null != object) {</span>
+<span class="nc" id="L468">					values.add(object);</span>
+				}
+			}
+		}
+<span class="nc bnc" id="L472" title="All 4 branches missed.">		if (null == values || values.isEmpty()) {</span>
+<span class="nc" id="L473">			return null;</span>
+		}
+<span class="nc" id="L475">		return values;</span>
+	}
+	
+	private static Object getDataObject(String stringValue, String dataType) {
+<span class="fc bfc" id="L479" title="All 2 branches covered.">		if (null == stringValue) {</span>
+<span class="fc" id="L480">			return null;</span>
+		}
+<span class="fc" id="L482">		Object object = null;</span>
+<span class="fc bfc" id="L483" title="All 2 branches covered.">		if (dataType.equals(DATA_TYPE_DATE)) {</span>
+<span class="fc" id="L484">			object = buildDate(stringValue);</span>
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">		} else if (dataType.equals(DATA_TYPE_STRING)) {</span>
+<span class="fc" id="L486">			object = stringValue;</span>
+<span class="nc bnc" id="L487" title="All 2 branches missed.">		} else if (dataType.equals(DATA_TYPE_NUMBER)) {</span>
+<span class="nc" id="L488">			object = buildNumber(stringValue);</span>
+		}
+<span class="fc" id="L490">		return object;</span>
+	}
+	
+	private static Date buildDate(String dateString) {
+<span class="fc" id="L494">		String today = &quot;today, oggi, odierna&quot;;</span>
+<span class="fc" id="L495">		Date data = null;</span>
+		try {
+<span class="pc bpc" id="L497" title="1 of 2 branches missed.">			if (today.contains(dateString)) {</span>
+<span class="nc" id="L498">				data = new java.util.Date();</span>
+			} else {
+<span class="fc" id="L500">				SimpleDateFormat dataF = new SimpleDateFormat(EntitySearchFilter.DATE_PATTERN);</span>
+<span class="fc" id="L501">				data = dataF.parse(dateString);</span>
+			}
+<span class="nc" id="L503">		} catch (ParseException ex) {</span>
+<span class="nc" id="L504">			_logger.error(&quot;Invalid string - '{}'&quot;, dateString);</span>
+<span class="fc" id="L505">		}</span>
+<span class="fc" id="L506">		return data;</span>
+	}
+	
+	private static BigDecimal buildNumber(String numberString) {
+<span class="nc" id="L510">		BigDecimal number = null;</span>
+		try {
+<span class="nc" id="L512">			number = new BigDecimal(numberString);</span>
+<span class="nc" id="L513">		} catch (NumberFormatException e) {</span>
+<span class="nc" id="L514">			_logger.error(&quot;Invalid string - '{}'&quot;, numberString);</span>
+<span class="nc" id="L515">		}</span>
+<span class="nc" id="L516">		return number;</span>
+	}
+	
+	private boolean _attributeFilter;
+	
+	private String _langCode;
+	private String _roleName;
+	
+	public static final String SEPARATOR = &quot;;&quot;;
+	public static final String KEY_PARAM = &quot;key&quot;;
+	public static final String ROLE_PARAM = &quot;role&quot;;
+	public static final String FILTER_TYPE_PARAM = &quot;attributeFilter&quot;;
+	public static final String VALUE_PARAM = &quot;value&quot;;
+	public static final String ALLOWED_VALUES_PARAM = &quot;allowedValues&quot;;
+	public static final String ALLOWED_VALUES_SEPARATOR = &quot;,&quot;;
+	public static final String LIKE_OPTION_PARAM = &quot;likeOption&quot;;
+	public static final String LIKE_OPTION_TYPE_PARAM = &quot;likeOptionType&quot;;
+	public static final String LANG_PARAM = &quot;lang&quot;;
+	public static final String START_PARAM = &quot;start&quot;;
+	public static final String END_PARAM = &quot;end&quot;;
+	public static final String ORDER_PARAM = &quot;order&quot;;
+	public static final String DATA_TYPE_PARAM = &quot;dataType&quot;;
+    public static final String NULL_VALUE_PARAM = &quot;nullValue&quot;;
+	
+	public static final String DATA_TYPE_STRING = &quot;string&quot;;
+	public static final String DATA_TYPE_DATE = &quot;date&quot;;
+	public static final String DATA_TYPE_NUMBER = &quot;number&quot;;
+	
+	public static final String DATE_PATTERN = &quot;dd/MM/yyyy&quot;;
+	
+	public static final String START_DATE_DELAY_PARAM = &quot;startDateDelay&quot;;
+	public static final String END_DATE_DELAY_PARAM = &quot;endDateDelay&quot;;
+	public static final String VALUE_DATE_DELAY_PARAM = &quot;valueDateDelay&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

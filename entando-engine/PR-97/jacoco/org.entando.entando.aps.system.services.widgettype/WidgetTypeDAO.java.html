@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetTypeDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.widgettype</a> &gt; <span class="el_source">WidgetTypeDAO.java</span></div><h1>WidgetTypeDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.widgettype;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.util.ApsProperties;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+
+import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Data Access Object per i tipi di widget (WidgetType).
+ *
+ * @author M.Diana - E.Santoboni
+ */
+<span class="fc" id="L34">public class WidgetTypeDAO extends AbstractDAO implements IWidgetTypeDAO {</span>
+
+<span class="fc" id="L36">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(WidgetTypeDAO.class);</span>
+
+    private ILangManager langManager;
+
+    private static final String ALL_WIDGET_TYPES
+            = &quot;SELECT code, titles, parameters, plugincode, parenttypecode, defaultconfig, locked, maingroup, configui, bundleid, readonlypagewidgetconfig, widgetcategory FROM widgetcatalog&quot;;
+
+    private static final String ADD_WIDGET_TYPE
+            = &quot;INSERT INTO widgetcatalog (code, titles, parameters, plugincode, parenttypecode, defaultconfig, locked, maingroup, configui, bundleid, readonlypagewidgetconfig, widgetcategory) &quot;
+            + &quot;VALUES (? , ? , ? , ? , ? , ? , ? , ?, ?, ?, ?, ?)&quot;;
+
+    private static final String DELETE_WIDGET_TYPE
+            = &quot;DELETE FROM widgetcatalog WHERE code = ? AND locked = ? &quot;;
+
+    private static final String UPDATE_WIDGET_TYPE
+            = &quot;UPDATE widgetcatalog SET titles = ? , defaultconfig = ? , maingroup = ?, configui = ?, bundleid = ?, readonlypagewidgetconfig = ?, widgetcategory = ? WHERE code = ? &quot;;
+
+    private static final String GET_WIDGET_TYPE
+            = &quot;SELECT code, titles, parameters, plugincode, parenttypecode, defaultconfig, locked, maingroup, configui, bundleid, readonlypagewidgetconfig, widgetcategory FROM widgetcatalog WHERE code = ?&quot;;
+
+    @Override
+    public Map&lt;String, WidgetType&gt; loadWidgetTypes() {
+<span class="fc" id="L58">        Connection conn = null;</span>
+<span class="fc" id="L59">        Statement stat = null;</span>
+<span class="fc" id="L60">        ResultSet res = null;</span>
+<span class="fc" id="L61">        Map&lt;String, WidgetType&gt; widgetTypes = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L63">            conn = this.getConnection();</span>
+<span class="fc" id="L64">            stat = conn.createStatement();</span>
+<span class="fc" id="L65">            res = stat.executeQuery(ALL_WIDGET_TYPES);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L67">                WidgetType widgetType = this.createWidgetTypeFromResultSet(res);</span>
+<span class="fc" id="L68">                widgetTypes.put(widgetType.getCode(), widgetType);</span>
+<span class="fc" id="L69">            }</span>
+<span class="nc" id="L70">        } catch (Throwable t) {</span>
+<span class="nc" id="L71">            logger.error(&quot;Error loading widgets&quot;, t);</span>
+<span class="nc" id="L72">            throw new RuntimeException(&quot;Error loading widgets&quot;, t);</span>
+        } finally {
+<span class="fc" id="L74">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L76">        return widgetTypes;</span>
+    }
+
+    @Override
+    public WidgetType getWidgetType(String widgetTypeCode) throws EntException{
+<span class="fc" id="L81">        Connection conn = null;</span>
+<span class="fc" id="L82">        PreparedStatement stat = null;</span>
+<span class="fc" id="L83">        ResultSet res = null;</span>
+<span class="fc" id="L84">        WidgetType widgetType = null;</span>
+        try {
+<span class="fc" id="L86">            conn = this.getConnection();</span>
+<span class="fc" id="L87">            stat = conn.prepareStatement(GET_WIDGET_TYPE);</span>
+<span class="fc" id="L88">            stat.setString(1, widgetTypeCode);</span>
+
+<span class="fc" id="L90">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            while (res.next()) {</span>
+<span class="fc" id="L92">                widgetType = this.createWidgetTypeFromResultSet(res);</span>
+            }
+<span class="nc" id="L94">        } catch (EntException | SQLException e) {</span>
+<span class="nc" id="L95">            String msg =&quot;Error loading the widget type&quot;;</span>
+<span class="nc" id="L96">            logger.error(msg, e);</span>
+<span class="nc" id="L97">            throw new EntException(String.format(&quot;%s %s&quot;, msg, e));</span>
+        } finally {
+<span class="fc" id="L99">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L101">        return widgetType;</span>
+    }
+
+    protected WidgetType createWidgetTypeFromResultSet(ResultSet res) throws EntException {
+<span class="fc" id="L105">        WidgetType widgetType = new WidgetType();</span>
+<span class="fc" id="L106">        String code = null;</span>
+        try {
+<span class="fc" id="L108">            code = res.getString(1);</span>
+<span class="fc" id="L109">            widgetType.setCode(code);</span>
+<span class="fc" id="L110">            String xmlTitles = res.getString(2);</span>
+<span class="fc" id="L111">            ApsProperties titles = new ApsProperties();</span>
+<span class="fc" id="L112">            titles.loadFromXml(xmlTitles);</span>
+<span class="fc" id="L113">            widgetType.setTitles(titles);</span>
+<span class="fc" id="L114">            String xml = res.getString(3);</span>
+<span class="pc bpc" id="L115" title="1 of 4 branches missed.">            if (null != xml &amp;&amp; xml.trim().length() &gt; 0) {</span>
+<span class="fc" id="L116">                WidgetTypeDOM showletTypeDom = new WidgetTypeDOM(xml, this.getLangManager().getLangs());</span>
+<span class="fc" id="L117">                widgetType.setTypeParameters(showletTypeDom.getParameters());</span>
+<span class="fc" id="L118">                widgetType.setAction(showletTypeDom.getAction());</span>
+            }
+<span class="fc" id="L120">            widgetType.setPluginCode(res.getString(4));</span>
+<span class="fc" id="L121">            widgetType.setParentTypeCode(res.getString(5));</span>
+<span class="fc" id="L122">            String config = res.getString(6);</span>
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">            if (null != config &amp;&amp; config.trim().length() &gt; 0) {</span>
+<span class="fc" id="L124">                ApsProperties defaultConfig = new ApsProperties();</span>
+<span class="fc" id="L125">                defaultConfig.loadFromXml(config);</span>
+<span class="fc" id="L126">                widgetType.setConfig(defaultConfig);</span>
+            }
+
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">            if ((null != widgetType.getConfig() &amp;&amp; null == widgetType.getParentTypeCode())) {</span>
+<span class="nc" id="L130">                throw new EntException(&quot;Default configuration found in the type '&quot;</span>
+                        + code + &quot;' with no parent type assigned&quot;);
+            }
+<span class="fc" id="L133">            int isLocked = res.getInt(7);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            widgetType.setLocked(isLocked == 1);</span>
+<span class="fc" id="L135">            String mainGroup = res.getString(8);</span>
+<span class="pc bpc" id="L136" title="1 of 4 branches missed.">            if (null != mainGroup &amp;&amp; mainGroup.trim().length() &gt; 0) {</span>
+<span class="fc" id="L137">                widgetType.setMainGroup(mainGroup.trim());</span>
+            }
+<span class="fc" id="L139">            String configUi = res.getString(9);</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            if (StringUtils.isNotEmpty(configUi)) {</span>
+<span class="nc" id="L141">                widgetType.setConfigUi(configUi);</span>
+            }
+<span class="fc" id="L143">            String bundleId = res.getString(10);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">            if (StringUtils.isNotEmpty(bundleId)) {</span>
+<span class="nc" id="L145">                widgetType.setBundleId(bundleId);</span>
+            }
+<span class="fc" id="L147">            int isReadonlyPageWidgetConfig = res.getInt(11);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            widgetType.setReadonlyPageWidgetConfig(isReadonlyPageWidgetConfig == 1);</span>
+<span class="fc" id="L149">            String widgetCategory = res.getString(12);</span>
+<span class="fc" id="L150">            widgetType.setWidgetCategory(widgetCategory);</span>
+<span class="nc" id="L151">        } catch (Throwable t) {</span>
+<span class="nc" id="L152">            logger.error(&quot;Error parsing the Widget Type '{}'&quot;, code, t);</span>
+<span class="nc" id="L153">            throw new EntException(&quot;Error in the parsing in the Widget Type '&quot; + code + &quot;'&quot;, t);</span>
+<span class="fc" id="L154">        }</span>
+<span class="fc" id="L155">        return widgetType;</span>
+    }
+
+    @Override
+    public void addWidgetType(WidgetType widgetType) {
+<span class="fc" id="L160">        Connection conn = null;</span>
+<span class="fc" id="L161">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L163">            conn = this.getConnection();</span>
+<span class="fc" id="L164">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L165">            stat = conn.prepareStatement(ADD_WIDGET_TYPE);</span>
+            //(code, titles, parameters, plugincode, parenttypecode, defaultconfig, locked, readonlydefaulconfig, widgetcategory)
+<span class="fc" id="L167">            stat.setString(1, widgetType.getCode());</span>
+<span class="fc" id="L168">            stat.setString(2, widgetType.getTitles().toXml());</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            if (null != widgetType.getTypeParameters()) {</span>
+<span class="fc" id="L170">                WidgetTypeDOM showletTypeDom = new WidgetTypeDOM(widgetType.getTypeParameters(), widgetType.getAction());</span>
+<span class="fc" id="L171">                stat.setString(3, showletTypeDom.getXMLDocument());</span>
+<span class="fc" id="L172">            } else {</span>
+<span class="fc" id="L173">                stat.setNull(3, Types.VARCHAR);</span>
+            }
+<span class="fc" id="L175">            stat.setString(4, widgetType.getPluginCode());</span>
+<span class="fc" id="L176">            stat.setString(5, widgetType.getParentTypeCode());</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">            if (null != widgetType.getConfig()) {</span>
+<span class="fc" id="L178">                stat.setString(6, widgetType.getConfig().toXml());</span>
+            } else {
+<span class="fc" id="L180">                stat.setNull(6, Types.VARCHAR);</span>
+            }
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if (widgetType.isLocked()) {</span>
+<span class="fc" id="L183">                stat.setInt(7, 1);</span>
+            } else {
+<span class="fc" id="L185">                stat.setInt(7, 0);</span>
+            }
+<span class="fc" id="L187">            stat.setString(8, widgetType.getMainGroup());</span>
+<span class="fc" id="L188">            stat.setString(9, widgetType.getConfigUi());</span>
+<span class="fc" id="L189">            stat.setString(10, widgetType.getBundleId());</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">            if (widgetType.isReadonlyPageWidgetConfig()) {</span>
+<span class="fc" id="L191">                stat.setInt(11, 1);</span>
+            } else {
+<span class="fc" id="L193">                stat.setInt(11, 0);</span>
+            }
+<span class="fc" id="L195">            stat.setString(12, widgetType.getWidgetCategory());</span>
+<span class="fc" id="L196">            stat.executeUpdate();</span>
+<span class="fc" id="L197">            conn.commit();</span>
+<span class="nc" id="L198">        } catch (Throwable t) {</span>
+<span class="nc" id="L199">            this.executeRollback(conn);</span>
+<span class="nc" id="L200">            logger.error(&quot;Error while adding a new widget type&quot;, t);</span>
+<span class="nc" id="L201">            throw new RuntimeException(&quot;Error while adding a new widget type&quot;, t);</span>
+        } finally {
+<span class="fc" id="L203">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L205">    }</span>
+
+    @Override
+    public void deleteWidgetType(String widgetTypeCode) {
+<span class="fc" id="L209">        Connection conn = null;</span>
+<span class="fc" id="L210">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L212">            conn = this.getConnection();</span>
+<span class="fc" id="L213">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L214">            stat = conn.prepareStatement(DELETE_WIDGET_TYPE);</span>
+<span class="fc" id="L215">            stat.setString(1, widgetTypeCode);</span>
+<span class="fc" id="L216">            stat.setInt(2, 0);</span>
+<span class="fc" id="L217">            stat.executeUpdate();</span>
+<span class="fc" id="L218">            conn.commit();</span>
+<span class="nc" id="L219">        } catch (Throwable t) {</span>
+<span class="nc" id="L220">            this.executeRollback(conn);</span>
+<span class="nc" id="L221">            logger.error(&quot;Error deleting widget type '{}'&quot;, widgetTypeCode, t);</span>
+<span class="nc" id="L222">            throw new RuntimeException(&quot;Error deleting widget type&quot;, t);</span>
+        } finally {
+<span class="fc" id="L224">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L226">    }</span>
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    @Override
+    public void updateWidgetType(String widgetTypeCode, ApsProperties titles, ApsProperties defaultConfig, String mainGroup,
+                                 String configUi, String bundleId, Boolean readonlyPageWidgetConfig) {
+        String widgetCategory;
+
+        try {
+<span class="nc" id="L238">            widgetCategory = getWidgetType(widgetTypeCode).getWidgetCategory();</span>
+<span class="nc" id="L239">        } catch (EntException | RuntimeException e) {</span>
+<span class="nc" id="L240">            throw new EntRuntimeException(&quot;Error updating widget type&quot;, e);</span>
+<span class="nc" id="L241">        }</span>
+
+<span class="nc" id="L243">        updateWidgetType(widgetTypeCode, titles, defaultConfig, mainGroup,</span>
+                configUi,  bundleId, readonlyPageWidgetConfig , widgetCategory);
+<span class="nc" id="L245">    }</span>
+
+    @Override
+    public void updateWidgetType(String widgetTypeCode, ApsProperties titles, ApsProperties defaultConfig, String mainGroup,
+                                 String configUi, String bundleId, Boolean readonlyPageWidgetConfig, String widgetCategory) {
+<span class="fc" id="L250">        Connection conn = null;</span>
+<span class="fc" id="L251">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L253">            conn = this.getConnection();</span>
+<span class="fc" id="L254">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L255">            stat = conn.prepareStatement(UPDATE_WIDGET_TYPE);</span>
+<span class="fc" id="L256">            stat.setString(1, titles.toXml());</span>
+<span class="fc bfc" id="L257" title="All 4 branches covered.">            if (null == defaultConfig || defaultConfig.isEmpty()) {</span>
+<span class="fc" id="L258">                stat.setNull(2, Types.VARCHAR);</span>
+            } else {
+<span class="fc" id="L260">                stat.setString(2, defaultConfig.toXml());</span>
+            }
+<span class="fc" id="L262">            stat.setString(3, mainGroup);</span>
+<span class="fc" id="L263">            stat.setString(4, configUi);</span>
+<span class="fc" id="L264">            stat.setString(5, bundleId);</span>
+
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            if (Boolean.TRUE.equals(readonlyPageWidgetConfig)) {</span>
+<span class="fc" id="L267">                stat.setInt(6, 1);</span>
+            } else {
+<span class="fc" id="L269">                stat.setInt(6, 0);</span>
+            }
+
+<span class="fc" id="L272">            stat.setString(7, widgetCategory);</span>
+<span class="fc" id="L273">            stat.setString(8, widgetTypeCode);</span>
+
+<span class="fc" id="L275">            stat.executeUpdate();</span>
+<span class="fc" id="L276">            conn.commit();</span>
+<span class="nc" id="L277">        } catch (Throwable t) {</span>
+<span class="nc" id="L278">            this.executeRollback(conn);</span>
+<span class="nc" id="L279">            logger.error(&quot;Error updating widget type {}&quot;, widgetTypeCode, t);</span>
+<span class="nc" id="L280">            throw new RuntimeException(&quot;Error updating widget type&quot;, t);</span>
+        } finally {
+<span class="fc" id="L282">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L284">    }</span>
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L287">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L291">        this.langManager = langManager;</span>
+<span class="fc" id="L292">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

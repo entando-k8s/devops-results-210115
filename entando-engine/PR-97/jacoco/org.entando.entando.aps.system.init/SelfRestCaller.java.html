@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SelfRestCaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">SelfRestCaller.java</span></div><h1>SelfRestCaller.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.Properties;
+
+import javax.ws.rs.core.Response;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Marshaller;
+
+import org.entando.entando.aps.system.init.model.IPostProcess;
+import org.entando.entando.aps.system.init.model.InvalidPostProcessResultException;
+import org.entando.entando.aps.system.init.model.SelfRestCallPostProcess;
+import org.entando.entando.aps.system.services.api.UnmarshalUtils;
+import org.entando.entando.aps.system.services.api.model.AbstractApiResponse;
+import org.entando.entando.aps.system.services.api.model.ApiError;
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.StringApiResponse;
+import org.entando.entando.aps.system.services.api.server.IResponseBuilder;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.system.services.user.IAuthenticationProviderManager;
+import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.aps.util.FileTextReader;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L51">public class SelfRestCaller implements IPostProcessor, BeanFactoryAware {</span>
+
+<span class="fc" id="L53">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(SelfRestCaller.class);</span>
+	
+	@Override
+	public int executePostProcess(IPostProcess postProcess) throws InvalidPostProcessResultException, EntException {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">		if (!(postProcess instanceof SelfRestCallPostProcess)) {</span>
+<span class="nc" id="L58">			return 0;</span>
+		}
+<span class="nc" id="L60">		SelfRestCallPostProcess selfRestCall = (SelfRestCallPostProcess) postProcess;</span>
+<span class="nc" id="L61">		IResponseBuilder responseBuilder = this.getResponseBuilder();</span>
+        try {
+<span class="nc" id="L63">			Object result = null;</span>
+<span class="nc" id="L64">			ApiMethod method = responseBuilder.extractApiMethod(selfRestCall.getMethod(), selfRestCall.getNamespace(), selfRestCall.getResourceName());</span>
+<span class="nc" id="L65">			Properties properties = this.extractParameters(selfRestCall);</span>
+<span class="nc bnc" id="L66" title="All 4 branches missed.">			if (method.getHttpMethod().equals(ApiMethod.HttpMethod.GET) || method.getHttpMethod().equals(ApiMethod.HttpMethod.DELETE)) {</span>
+<span class="nc" id="L67">				result = responseBuilder.createResponse(method, properties);</span>
+			} else {
+<span class="nc" id="L69">				String contentBody = this.getContentBody(selfRestCall);</span>
+<span class="nc" id="L70">				Object bodyObject = UnmarshalUtils.unmarshal(method, contentBody, selfRestCall.getContentType());</span>
+<span class="nc" id="L71">				result = responseBuilder.createResponse(method, bodyObject, properties);</span>
+			}
+<span class="nc" id="L73">			Response.Status responseStatus = this.extractResponseStatusCode(result);</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">			if (selfRestCall.isPrintResponse()) {</span>
+<span class="nc" id="L75">				this.printResponse(selfRestCall, result, responseStatus, method, properties);</span>
+			}
+<span class="nc" id="L77">        } catch (InvalidPostProcessResultException t) {</span>
+<span class="nc" id="L78">        	_logger.error(&quot;error in executePostProcess&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;executePostProcess&quot;, t.getMessage());
+<span class="nc" id="L80">			throw t;</span>
+<span class="nc" id="L81">		} catch (Throwable t) {</span>
+<span class="nc" id="L82">			_logger.error(&quot;Error invoking api method&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;executePostProcess&quot;, &quot;Error invoking api method&quot;);
+<span class="nc" id="L84">			throw new EntException(&quot;Error invoking api method&quot;, t);</span>
+<span class="nc" id="L85">        }</span>
+<span class="nc" id="L86">		return 1;</span>
+	}
+	
+	protected Properties extractParameters(SelfRestCallPostProcess selfRestCall) throws EntException {
+<span class="nc" id="L90">		Properties properties = new Properties();</span>
+		try {
+<span class="nc" id="L92">			ILangManager langManager = this.getLangManager();</span>
+<span class="nc" id="L93">			String langCode = selfRestCall.getLangCode();</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">			if (null == langCode || null == langManager.getLang(langCode)) {</span>
+<span class="nc" id="L95">				langCode = langManager.getDefaultLang().getCode();</span>
+			}
+<span class="nc bnc" id="L97" title="All 2 branches missed.">			if (null != selfRestCall.getQueryParameters()) {</span>
+<span class="nc" id="L98">				properties.putAll(selfRestCall.getQueryParameters());</span>
+			}
+<span class="nc" id="L100">            properties.put(SystemConstants.API_LANG_CODE_PARAMETER, langCode);</span>
+<span class="nc" id="L101">            UserDetails user = this.getAuthenticationProvider().getUser(SystemConstants.ADMIN_USER_NAME);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            if (null != user) {</span>
+<span class="nc" id="L103">                properties.put(SystemConstants.API_USER_PARAMETER, user);</span>
+            } else {
+<span class="nc" id="L105">				_logger.error(&quot;Admin user missing&quot;);</span>
+			}
+<span class="nc" id="L107">		} catch (Throwable t) {</span>
+<span class="nc" id="L108">			_logger.error(&quot;Error extracting parameters&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;extractParameters&quot;, &quot;Error extracting parameters&quot;);
+<span class="nc" id="L110">			throw new EntException(&quot;Error extracting parameters&quot;, t);</span>
+<span class="nc" id="L111">		}</span>
+<span class="nc" id="L112">		return properties;</span>
+	}
+	
+	private String getContentBody(SelfRestCallPostProcess selfRestCall) throws Throwable {
+<span class="nc" id="L116">		String contentBody = selfRestCall.getContentBody();</span>
+<span class="nc bnc" id="L117" title="All 6 branches missed.">		if ((null == contentBody || contentBody.trim().length() == 0) &amp;&amp; null != selfRestCall.getContentBodyPath()) {</span>
+<span class="nc" id="L118">			String path = selfRestCall.getContentBodyPath();</span>
+<span class="nc" id="L119">			InputStream is = null;</span>
+<span class="nc" id="L120">			PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();</span>
+<span class="nc" id="L121">			Resource resource = resolver.getResource(path);</span>
+			try {
+<span class="nc" id="L123">				is = resource.getInputStream();</span>
+<span class="nc" id="L124">				contentBody = FileTextReader.getText(is);</span>
+<span class="nc" id="L125">			} catch (Throwable t) {</span>
+<span class="nc" id="L126">				_logger.error(&quot;Error loading contentBody from file '{}'&quot;, path, t);</span>
+				//ApsSystemUtils.logThrowable(t, this, &quot;getContentBody&quot;, &quot;Error loading contentBody from file '&quot; + path + &quot;'&quot;);
+<span class="nc" id="L128">				throw t;</span>
+			} finally {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">				if (null != is) {</span>
+<span class="nc" id="L131">					is.close();</span>
+				}
+			}
+		}
+<span class="nc" id="L135">		return contentBody;</span>
+	}
+	
+	private void printResponse(SelfRestCallPostProcess selfRestCall, Object result, 
+			Response.Status responseStatus, ApiMethod method, Properties properties) throws InvalidPostProcessResultException, Throwable {
+<span class="nc" id="L140">		String responseClassName = method.getResponseClassName();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">		Class responseClass = (null != responseClassName) ? Class.forName(responseClassName) : StringApiResponse.class;</span>
+<span class="nc" id="L142">		JAXBContext context = JAXBContext.newInstance(responseClass);</span>
+<span class="nc" id="L143">		Marshaller marshaller = context.createMarshaller();</span>
+<span class="nc" id="L144">		marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">		boolean validResponse = (responseStatus.getStatusCode() == selfRestCall.getExpectedResult());</span>
+<span class="nc" id="L146">		StringBuilder path = new StringBuilder();	</span>
+<span class="nc" id="L147">		path.append(&quot;/api/rs/&quot;);</span>
+<span class="nc" id="L148">		path.append(properties.get(SystemConstants.API_LANG_CODE_PARAMETER)).append(&quot;/&quot;);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">		if (null != method.getNamespace()) {</span>
+<span class="nc" id="L150">			path.append(method.getNamespace()).append(&quot;/&quot;);</span>
+		}
+<span class="nc" id="L152">		path.append(method.getResourceName());</span>
+<span class="nc" id="L153">		StringBuilder log = new StringBuilder();</span>
+<span class="nc" id="L154">		StringWriter writer = new StringWriter();</span>
+        try {
+<span class="nc" id="L156">            marshaller.marshal(result, writer);</span>
+<span class="nc" id="L157">        } catch (Exception e) {</span>
+<span class="nc" id="L158">            _logger.info(&quot;Error extracting body response : &quot; + e.getMessage());</span>
+<span class="nc" id="L159">            writer.append(&quot;.......&quot;);</span>
+<span class="nc" id="L160">        }</span>
+<span class="nc" id="L161">		log.append(&quot;*************** Self Rest Call - response ***************\n&quot;);</span>
+<span class="nc" id="L162">		log.append(method.getHttpMethod().toString()).append(&quot; &quot;);</span>
+<span class="nc" id="L163">		log.append(path.toString()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L164">		log.append(&quot;Result   &quot;).append(responseStatus.getStatusCode()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L165">		log.append(&quot;Expected &quot;).append(selfRestCall.getExpectedResult()).append(&quot;\n&quot;);</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">		if (!validResponse) {</span>
+<span class="nc" id="L167">			log.append(&quot;******** INVALID RESPONSE STATUS ********\n&quot;);</span>
+		}
+<span class="nc" id="L169">		log.append(&quot;---------------------------------------------------------\n&quot;);</span>
+<span class="nc" id="L170">		log.append(writer.toString()).append(&quot;\n&quot;);</span>
+<span class="nc" id="L171">		log.append(&quot;*********************************************************\n&quot;);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">		if (!validResponse) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">			if (!selfRestCall.isFailOnError()) {</span>
+<span class="nc" id="L174">				log.append(&quot;failonerror was set to false: continuing anyway.\n&quot;);</span>
+			} else {
+<span class="nc" id="L176">				log.append(&quot;the post processes will be stopped.\n&quot;);</span>
+			}
+		}
+<span class="nc" id="L179">		_logger.info(log.toString());</span>
+<span class="nc bnc" id="L180" title="All 4 branches missed.">		if (!validResponse &amp;&amp; selfRestCall.isFailOnError()) {</span>
+<span class="nc" id="L181">			throw new InvalidPostProcessResultException(responseStatus.getStatusCode(), </span>
+<span class="nc" id="L182">					selfRestCall.getExpectedResult(), path.toString(), method.getHttpMethod());</span>
+		}
+<span class="nc" id="L184">	}</span>
+	
+	protected Response.Status extractResponseStatusCode(Object responseObject) {
+<span class="nc bnc" id="L187" title="All 2 branches missed.">		if (responseObject instanceof AbstractApiResponse) {</span>
+<span class="nc" id="L188">			Response.Status status = Response.Status.OK;</span>
+<span class="nc" id="L189">			AbstractApiResponse mainResponse = (AbstractApiResponse) responseObject;</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">			if (null != mainResponse.getErrors()) {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">				for (int i = 0; i &lt; mainResponse.getErrors().size(); i++) {</span>
+<span class="nc" id="L192">					ApiError error = mainResponse.getErrors().get(i);</span>
+<span class="nc" id="L193">					Response.Status errorStatus = error.getStatus();</span>
+<span class="nc bnc" id="L194" title="All 4 branches missed.">					if (null != errorStatus &amp;&amp; status.getStatusCode() &lt; errorStatus.getStatusCode()) {</span>
+<span class="nc" id="L195">						status = errorStatus;</span>
+					}
+				}
+			}
+<span class="nc" id="L199">			return status;</span>
+		} else {
+<span class="nc" id="L201">			return Response.Status.OK;</span>
+		}
+	}
+    
+	protected IResponseBuilder getResponseBuilder() {
+<span class="nc" id="L206">		return (IResponseBuilder) this.getBeanFactory().getBean(SystemConstants.API_RESPONSE_BUILDER);</span>
+	}
+	
+	protected ILangManager getLangManager() {
+<span class="nc" id="L210">		return (ILangManager) this.getBeanFactory().getBean(SystemConstants.LANGUAGE_MANAGER);</span>
+	}
+	
+	protected IAuthenticationProviderManager getAuthenticationProvider() {
+<span class="nc" id="L214">		return (IAuthenticationProviderManager) this.getBeanFactory().getBean(SystemConstants.AUTHENTICATION_PROVIDER_MANAGER);</span>
+	}
+	
+	protected BeanFactory getBeanFactory() {
+<span class="nc" id="L218">		return _beanFactory;</span>
+	}
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+<span class="fc" id="L222">		this._beanFactory = beanFactory;</span>
+<span class="fc" id="L223">	}</span>
+	
+	private BeanFactory _beanFactory;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

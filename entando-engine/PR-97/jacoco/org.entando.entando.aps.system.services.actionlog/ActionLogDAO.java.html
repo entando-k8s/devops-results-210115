@@ -1,0 +1,552 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActionLogDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.actionlog</a> &gt; <span class="el_source">ActionLogDAO.java</span></div><h1>ActionLogDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.actionlog;
+
+import java.sql.BatchUpdateException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.agiletec.aps.system.common.AbstractSearcherDAO;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.services.group.Group;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecord;
+import org.entando.entando.aps.system.services.actionlog.model.ActionLogRecordApiSearchBean;
+import org.entando.entando.aps.system.services.actionlog.model.ActivityStreamInfo;
+import org.entando.entando.aps.system.services.actionlog.model.IActionLogRecordSearchBean;
+import org.entando.entando.aps.system.services.actionlog.model.IActivityStreamSearchBean;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L50">public class ActionLogDAO extends AbstractSearcherDAO implements IActionLogDAO {</span>
+
+<span class="fc" id="L52">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private static final String ADD_ACTION_RECORD
+            = &quot;INSERT INTO actionlogrecords ( id, username, actiondate, namespace, actionname, parameters, activitystreaminfo, updatedate) &quot;
+            + &quot;VALUES ( ? , ? , ? , ? , ? , ? , ? , ? )&quot;;
+
+    private static final String GET_ACTION_RECORD
+            = &quot;SELECT username, actiondate, updatedate, namespace, actionname, parameters, activitystreaminfo FROM actionlogrecords WHERE id = ?&quot;;
+
+    private static final String SELECT_LAST_UPDATE_MAIN_BLOCK = &quot;SELECT MAX(updatedate) FROM actionlogrecords &quot;;
+    
+    private static final String DELETE_LOG_RECORD
+            = &quot;DELETE from actionlogrecords where id = ?&quot;;
+
+    private static final String DELETE_LOG_RECORD_RELATIONS
+            = &quot;DELETE from actionlogrelations where recordid = ?&quot;;
+
+    private static final String DELETE_LOG_RECORD_LIKES
+            = &quot;DELETE from actionloglikerecords where recordid = ?&quot;;
+
+    private static final String DELETE_LOG_RECORD_COMMENTS
+            = &quot;DELETE from actionlogcommentrecords where recordid = ?&quot;;
+
+<span class="fc" id="L75">    private final String ADD_LOG_RECORD_RELATION</span>
+            = &quot;INSERT INTO actionlogrelations (recordid, refgroup) VALUES ( ? , ? )&quot;;
+
+    private static final String GET_GROUP_OCCURRENCES
+            = &quot;SELECT refgroup, count(refgroup) FROM actionlogrelations GROUP BY refgroup&quot;;
+
+    private static final String UPDATE_UPDATEDATE_ACTION_RECORD
+            = &quot;UPDATE actionlogrecords SET updatedate = ? WHERE id = ?&quot;;
+
+    @Override
+    public int countActionLogRecords(IActionLogRecordSearchBean searchBean) {
+<span class="fc" id="L86">        Integer groups = null;</span>
+        try {
+<span class="fc" id="L88">            groups = super.countId(this.createFilters(searchBean));</span>
+<span class="nc" id="L89">        } catch (Throwable t) {</span>
+<span class="nc" id="L90">            logger.error(&quot;error in count ActionLog Records&quot;, t);</span>
+<span class="nc" id="L91">            throw new RuntimeException(&quot;error in count ActionLog Records&quot;, t);</span>
+<span class="fc" id="L92">        }</span>
+<span class="fc" id="L93">        return groups;</span>
+    }
+
+    @Override
+    public void addActionRecord(ActionLogRecord actionRecord) {
+<span class="fc" id="L98">        Connection conn = null;</span>
+<span class="fc" id="L99">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L101">            conn = this.getConnection();</span>
+<span class="fc" id="L102">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L103">            stat = conn.prepareStatement(ADD_ACTION_RECORD);</span>
+<span class="fc" id="L104">            stat.setInt(1, actionRecord.getId());</span>
+<span class="fc" id="L105">            stat.setString(2, actionRecord.getUsername());</span>
+<span class="fc" id="L106">            Timestamp timestamp = new Timestamp(actionRecord.getActionDate().getTime());</span>
+<span class="fc" id="L107">            stat.setTimestamp(3, timestamp);</span>
+<span class="fc" id="L108">            stat.setString(4, actionRecord.getNamespace());</span>
+<span class="fc" id="L109">            stat.setString(5, actionRecord.getActionName());</span>
+<span class="fc" id="L110">            stat.setString(6, actionRecord.getParameters());</span>
+<span class="fc" id="L111">            ActivityStreamInfo asi = actionRecord.getActivityStreamInfo();</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            if (null != asi) {</span>
+<span class="nc" id="L113">                stat.setString(7, ActivityStreamInfoDOM.marshalInfo(asi));</span>
+            } else {
+<span class="fc" id="L115">                stat.setNull(7, Types.VARCHAR);</span>
+            }
+<span class="fc" id="L117">            stat.setTimestamp(8, timestamp);</span>
+<span class="fc" id="L118">            stat.executeUpdate();</span>
+<span class="fc" id="L119">            this.addLogRecordRelations(actionRecord.getId(), asi, conn);</span>
+<span class="fc" id="L120">            conn.commit();</span>
+<span class="nc" id="L121">        } catch (Throwable t) {</span>
+<span class="nc" id="L122">            this.executeRollback(conn);</span>
+<span class="nc" id="L123">            logger.error(&quot;Error on insert actionlogger record&quot;, t);</span>
+<span class="nc" id="L124">            throw new RuntimeException(&quot;Error on insert actionlogger record&quot;, t);</span>
+        } finally {
+<span class="fc" id="L126">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L128">    }</span>
+
+    private void addLogRecordRelations(int recordId, ActivityStreamInfo asi, Connection conn) {
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">        if (asi == null) {</span>
+<span class="fc" id="L132">            return;</span>
+        }
+<span class="nc" id="L134">        List&lt;String&gt; groups = asi.getGroups();</span>
+<span class="nc bnc" id="L135" title="All 4 branches missed.">        if (null == groups || groups.isEmpty()) {</span>
+<span class="nc" id="L136">            return;</span>
+        }
+<span class="nc" id="L138">        Set&lt;String&gt; codes = new HashSet&lt;&gt;(groups);</span>
+<span class="nc" id="L139">        Iterator&lt;String&gt; iterator = codes.iterator();</span>
+<span class="nc" id="L140">        PreparedStatement stat = null;</span>
+        try {
+<span class="nc" id="L142">            stat = conn.prepareStatement(ADD_LOG_RECORD_RELATION);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">            while (iterator.hasNext()) {</span>
+<span class="nc" id="L144">                String groupCode = iterator.next();</span>
+<span class="nc" id="L145">                stat.setInt(1, recordId);</span>
+<span class="nc" id="L146">                stat.setString(2, groupCode);</span>
+<span class="nc" id="L147">                stat.addBatch();</span>
+<span class="nc" id="L148">                stat.clearParameters();</span>
+<span class="nc" id="L149">            }</span>
+<span class="nc" id="L150">            stat.executeBatch();</span>
+<span class="nc" id="L151">        } catch (BatchUpdateException e) {</span>
+<span class="nc" id="L152">            logger.error(&quot;Error adding relation for record {}&quot;, recordId, e);</span>
+<span class="nc" id="L153">            throw new RuntimeException(&quot;Error adding relation for record - &quot; + recordId, e.getNextException());</span>
+<span class="nc" id="L154">        } catch (Throwable t) {</span>
+<span class="nc" id="L155">            logger.error(&quot;Error adding relations for record {}&quot;, recordId, t);</span>
+<span class="nc" id="L156">            throw new RuntimeException(&quot;Error adding relations for record - &quot; + recordId, t);</span>
+        } finally {
+<span class="nc" id="L158">            closeDaoResources(null, stat);</span>
+        }
+<span class="nc" id="L160">    }</span>
+
+    @Override
+    public List&lt;Integer&gt; getActionRecords(IActionLogRecordSearchBean searchBean) {
+<span class="fc" id="L164">        FieldSearchFilter[] filters = this.createFilters(searchBean);</span>
+<span class="pc bpc" id="L165" title="1 of 6 branches missed.">        if (searchBean != null &amp;&amp; searchBean.getUserGroupCodes() != null &amp;&amp; !searchBean.getUserGroupCodes().isEmpty()) {</span>
+<span class="fc" id="L166">            return this.getActionRecords(filters, searchBean.getUserGroupCodes());</span>
+        }
+<span class="fc" id="L168">        return this.getActionRecords(filters);</span>
+    }
+
+    @Override
+    public Date getLastUpdate(IActionLogRecordSearchBean searchBean) {
+<span class="nc" id="L173">        FieldSearchFilter[] filters = this.createFilters(searchBean);</span>
+<span class="nc bnc" id="L174" title="All 4 branches missed.">        List&lt;String&gt; codes = (searchBean != null &amp;&amp; searchBean.getUserGroupCodes() != null) ? searchBean.getUserGroupCodes() : null;</span>
+<span class="nc" id="L175">        return this.getLastUpdate(filters, codes);</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActivityStreamRecords(IActivityStreamSearchBean searchBean) {
+<span class="nc" id="L180">        return getActionRecords(searchBean);</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActionRecords(FieldSearchFilter[] filters, List&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L185">        Connection conn = null;</span>
+<span class="fc" id="L186">        List&lt;Integer&gt; idList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L187">        PreparedStatement stat = null;</span>
+<span class="fc" id="L188">        ResultSet result = null;</span>
+        try {
+<span class="fc" id="L190">            conn = this.getConnection();</span>
+<span class="pc bpc" id="L191" title="2 of 4 branches missed.">            List&lt;String&gt; groupCodes = (null != userGroupCodes &amp;&amp; userGroupCodes.contains(Group.ADMINS_GROUP_NAME)) ? null : userGroupCodes;</span>
+<span class="fc" id="L192">            stat = this.buildStatement(filters, groupCodes, false, conn);</span>
+<span class="fc" id="L193">            result = stat.executeQuery();</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">            while (result.next()) {</span>
+<span class="fc" id="L195">                idList.add(result.getInt(1));</span>
+            }
+<span class="nc" id="L197">        } catch (Throwable t) {</span>
+<span class="nc" id="L198">            logger.error(&quot;Error loading actionlogger records&quot;, t);</span>
+<span class="nc" id="L199">            throw new RuntimeException(&quot;Error loading actionlogger records&quot;, t);</span>
+        } finally {
+<span class="fc" id="L201">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="fc" id="L203">        return idList;</span>
+    }
+
+    @Override
+    public List&lt;Integer&gt; getActionRecords(FieldSearchFilter[] filters) {
+<span class="fc" id="L208">        List&lt;Integer&gt; actionRecords = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L209">        List&lt;String&gt; ids = super.searchId(filters);</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (null != ids) {</span>
+<span class="fc" id="L211">            actionRecords = ids.stream().map(id -&gt; Integer.parseInt(id)).collect(Collectors.toList());</span>
+        }
+<span class="fc" id="L213">        return actionRecords;</span>
+    }
+    
+    @Override
+    public Date getLastUpdate(FieldSearchFilter[] filters, List&lt;String&gt; userGroupCodes) {
+<span class="nc" id="L218">        Connection conn = null;</span>
+<span class="nc" id="L219">        Date date = new Date();</span>
+<span class="nc" id="L220">        PreparedStatement stat = null;</span>
+<span class="nc" id="L221">        ResultSet result = null;</span>
+        try {
+<span class="nc" id="L223">            conn = this.getConnection();</span>
+<span class="nc bnc" id="L224" title="All 4 branches missed.">            List&lt;String&gt; groupCodes = (null != userGroupCodes &amp;&amp; userGroupCodes.contains(Group.ADMINS_GROUP_NAME)) ? null : userGroupCodes;</span>
+<span class="nc" id="L225">            stat = this.buildStatement(filters, groupCodes, true, conn);</span>
+<span class="nc" id="L226">            result = stat.executeQuery();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">            if (result.next()) {</span>
+<span class="nc" id="L228">                Timestamp updateDate = result.getTimestamp(1);</span>
+<span class="nc" id="L229">                date = new Date(updateDate.getTime());</span>
+            }
+<span class="nc" id="L231">        } catch (Throwable t) {</span>
+<span class="nc" id="L232">            logger.error(&quot;Error loading last update date&quot;, t);</span>
+<span class="nc" id="L233">            throw new RuntimeException(&quot;Error loading last update date&quot;, t);</span>
+        } finally {
+<span class="nc" id="L235">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="nc" id="L237">        return date;</span>
+    }
+    
+    private PreparedStatement buildStatement(FieldSearchFilter[] filters, Collection&lt;String&gt; groupCodes, boolean isSelectMax, Connection conn) {
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">        String query = (isSelectMax) ? this.createQueryStringForSelectMax(filters, groupCodes): this.createQueryString(filters, groupCodes);</span>
+<span class="fc" id="L242">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L244">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L245">            int index = 0;</span>
+<span class="fc" id="L246">            index = this.addMetadataFieldFilterStatementBlock(filters, index, stat);</span>
+<span class="fc" id="L247">            index = this.addGroupStatementBlock(groupCodes, index, stat);</span>
+<span class="nc" id="L248">        } catch (Throwable t) {</span>
+<span class="nc" id="L249">            logger.error(&quot;Error creating the statement&quot;, t);</span>
+<span class="nc" id="L250">            throw new RuntimeException(&quot;Error creating the statement&quot;, t);</span>
+<span class="fc" id="L251">        }</span>
+<span class="fc" id="L252">        return stat;</span>
+    }
+
+    protected String createQueryString(FieldSearchFilter[] filters, Collection&lt;String&gt; groupCodes) {
+<span class="fc" id="L256">        StringBuffer query = this.createBaseQueryBlock(filters, false, false);</span>
+<span class="fc" id="L257">        this.appendMiddleBlocks(query, filters, groupCodes);</span>
+<span class="fc" id="L258">        boolean ordered = appendOrderQueryBlocks(filters, query, false);</span>
+<span class="fc" id="L259">        super.appendLimitQueryBlock(filters, query);</span>
+<span class="fc" id="L260">        return query.toString();</span>
+    }
+
+    protected String createQueryStringForSelectMax(FieldSearchFilter[] filters, Collection&lt;String&gt; groupCodes) {
+<span class="nc" id="L264">        StringBuffer query = new StringBuffer(SELECT_LAST_UPDATE_MAIN_BLOCK);</span>
+<span class="nc" id="L265">        this.appendMiddleBlocks(query, filters, groupCodes);</span>
+<span class="nc" id="L266">        return query.toString();</span>
+    }
+
+    private void appendMiddleBlocks(StringBuffer query, FieldSearchFilter[] filters, Collection&lt;String&gt; groupCodes) {
+<span class="fc" id="L270">        this.appendJoinTableRefQueryBlock(query, groupCodes);</span>
+<span class="fc" id="L271">        boolean hasAppendWhereClause = this.appendMetadataFieldFilterQueryBlocks(filters, query, false);</span>
+<span class="pc bpc" id="L272" title="3 of 4 branches missed.">        if (null != groupCodes &amp;&amp; !groupCodes.isEmpty()) {</span>
+<span class="nc" id="L273">            hasAppendWhereClause = this.verifyWhereClauseAppend(query, hasAppendWhereClause);</span>
+<span class="nc" id="L274">            query.append(&quot; ( &quot;);</span>
+<span class="nc" id="L275">            int size = groupCodes.size();</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">                if (i != 0) {</span>
+<span class="nc" id="L278">                    query.append(&quot;OR &quot;);</span>
+                }
+<span class="nc" id="L280">                query.append(&quot;actionlogrelations.refgroup = ? &quot;);</span>
+            }
+<span class="nc" id="L282">            query.append(&quot;) &quot;);</span>
+        }
+<span class="fc" id="L284">    }</span>
+
+    private void appendJoinTableRefQueryBlock(StringBuffer query, Collection&lt;String&gt; groupCodes) {
+<span class="pc bpc" id="L287" title="3 of 4 branches missed.">        if (null == groupCodes || groupCodes.isEmpty()) {</span>
+<span class="fc" id="L288">            return;</span>
+        }
+<span class="nc" id="L290">        String masterTableName = this.getMasterTableName();</span>
+<span class="nc" id="L291">        String masterTableIdFieldName = this.getMasterTableIdFieldName();</span>
+<span class="nc" id="L292">        query.append(&quot;INNER JOIN &quot;);</span>
+<span class="nc" id="L293">        query.append(&quot;actionlogrelations&quot;).append(&quot; ON &quot;)</span>
+<span class="nc" id="L294">                .append(masterTableName).append(&quot;.&quot;).append(masterTableIdFieldName).append(&quot; = &quot;)</span>
+<span class="nc" id="L295">                .append(&quot;actionlogrelations&quot;).append(&quot;.&quot;).append(&quot;recordid&quot;).append(&quot; &quot;);</span>
+<span class="nc" id="L296">    }</span>
+
+    protected int addGroupStatementBlock(Collection&lt;String&gt; groupCodes, int index, PreparedStatement stat) throws Throwable {
+<span class="pc bpc" id="L299" title="3 of 4 branches missed.">        if (null != groupCodes &amp;&amp; !groupCodes.isEmpty()) {</span>
+<span class="nc" id="L300">            Iterator&lt;String&gt; groupIter = groupCodes.iterator();</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            while (groupIter.hasNext()) {</span>
+<span class="nc" id="L302">                String groupName = groupIter.next();</span>
+<span class="nc" id="L303">                stat.setString(++index, groupName);</span>
+<span class="nc" id="L304">            }</span>
+        }
+<span class="fc" id="L306">        return index;</span>
+    }
+
+    protected FieldSearchFilter[] createFilters(IActionLogRecordSearchBean searchBean) {
+<span class="fc" id="L310">        FieldSearchFilter[] filters = new FieldSearchFilter[0];</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        if (null != searchBean) {</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">            if (searchBean instanceof ActionLogRecordApiSearchBean) {</span>
+<span class="fc" id="L313">                ActionLogRecordApiSearchBean apiSearchBean = (ActionLogRecordApiSearchBean) searchBean;</span>
+<span class="fc" id="L314">                String sort = apiSearchBean.getOrderBy();</span>
+<span class="pc bpc" id="L315" title="1 of 2 branches missed.">                if (!StringUtils.isEmpty(sort)) {</span>
+<span class="fc" id="L316">                    FieldSearchFilter filter = new FieldSearchFilter(sort);</span>
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">                    if (null != apiSearchBean.getDirection()) {</span>
+<span class="fc" id="L318">                        filter.setOrder(apiSearchBean.getDirection());</span>
+                    }
+<span class="fc" id="L320">                    filters = super.addFilter(filters, filter);</span>
+                }
+<span class="fc" id="L322">                Integer offset = apiSearchBean.getOffset();</span>
+<span class="fc" id="L323">                Integer pageSize = apiSearchBean.getPageSize();</span>
+<span class="pc bpc" id="L324" title="2 of 4 branches missed.">                if (null != pageSize &amp;&amp; pageSize &gt; 0) {</span>
+<span class="fc" id="L325">                    FieldSearchFilter pageFilter = new FieldSearchFilter(pageSize, offset);</span>
+<span class="fc" id="L326">                    filters = super.addFilter(filters, pageFilter);</span>
+                }
+            }
+<span class="fc" id="L329">            String username = searchBean.getUsername();</span>
+<span class="pc bpc" id="L330" title="1 of 4 branches missed.">            if (null != username &amp;&amp; username.trim().length() &gt; 0) {</span>
+<span class="fc" id="L331">                FieldSearchFilter filter = new FieldSearchFilter(&quot;username&quot;, this.extractSearchValues(username), true);</span>
+<span class="fc" id="L332">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="fc" id="L334">            String namespace = searchBean.getNamespace();</span>
+<span class="pc bpc" id="L335" title="1 of 4 branches missed.">            if (null != namespace &amp;&amp; namespace.trim().length() &gt; 0) {</span>
+<span class="fc" id="L336">                FieldSearchFilter filter = new FieldSearchFilter(&quot;namespace&quot;, this.extractSearchValues(namespace), true);</span>
+<span class="fc" id="L337">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="fc" id="L339">            String actionName = searchBean.getActionName();</span>
+<span class="pc bpc" id="L340" title="1 of 4 branches missed.">            if (null != actionName &amp;&amp; actionName.trim().length() &gt; 0) {</span>
+<span class="fc" id="L341">                FieldSearchFilter filter = new FieldSearchFilter(&quot;actionname&quot;, this.extractSearchValues(actionName), true);</span>
+<span class="fc" id="L342">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="fc" id="L344">            String parameters = searchBean.getParams();</span>
+<span class="pc bpc" id="L345" title="1 of 4 branches missed.">            if (null != parameters &amp;&amp; parameters.trim().length() &gt; 0) {</span>
+<span class="fc" id="L346">                FieldSearchFilter filter = new FieldSearchFilter(&quot;parameters&quot;, this.extractSearchValues(parameters), true);</span>
+<span class="fc" id="L347">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="fc" id="L349">            Date startCreation = searchBean.getStartCreation();</span>
+<span class="fc" id="L350">            Date endCreation = searchBean.getEndCreation();</span>
+<span class="fc bfc" id="L351" title="All 4 branches covered.">            if (null != startCreation || null != endCreation) {</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">                Timestamp tsStart = (null != startCreation) ? new Timestamp(startCreation.getTime()) : null;</span>
+<span class="fc bfc" id="L353" title="All 2 branches covered.">                Timestamp tsEnd = (null != endCreation) ? new Timestamp(endCreation.getTime()) : null;</span>
+<span class="fc" id="L354">                FieldSearchFilter filter = new FieldSearchFilter(&quot;actiondate&quot;, tsStart, tsEnd);</span>
+<span class="fc" id="L355">                filter.setOrder(FieldSearchFilter.Order.DESC);</span>
+<span class="fc" id="L356">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="fc" id="L358">            Date startUpdate = searchBean.getStartUpdate();</span>
+<span class="fc" id="L359">            Date endUpdate = searchBean.getEndUpdate();</span>
+<span class="pc bpc" id="L360" title="2 of 4 branches missed.">            if (null != startUpdate || null != endUpdate) {</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">                Timestamp tsStart = (null != startUpdate) ? new Timestamp(startUpdate.getTime()) : null;</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">                Timestamp tsEnd = (null != endUpdate) ? new Timestamp(endUpdate.getTime()) : null;</span>
+<span class="nc" id="L363">                FieldSearchFilter filter = new FieldSearchFilter(&quot;updatedate&quot;, tsStart, tsEnd);</span>
+<span class="nc" id="L364">                filter.setOrder(FieldSearchFilter.Order.DESC);</span>
+<span class="nc" id="L365">                filters = super.addFilter(filters, filter);</span>
+            }
+<span class="pc bpc" id="L367" title="1 of 2 branches missed.">            if (searchBean instanceof IActivityStreamSearchBean) {</span>
+<span class="nc" id="L368">                FieldSearchFilter filter = new FieldSearchFilter(&quot;activitystreaminfo&quot;);</span>
+<span class="nc" id="L369">                filters = super.addFilter(filters, filter);</span>
+            }
+        }
+<span class="fc" id="L372">        return filters;</span>
+    }
+
+    protected List&lt;String&gt; extractSearchValues(String text) {
+<span class="fc" id="L376">        String[] titleSplit = text.trim().split(&quot; &quot;);</span>
+<span class="fc" id="L377">        return (List&lt;String&gt;) Arrays.asList(titleSplit);</span>
+    }
+
+    @Override
+    public ActionLogRecord getActionRecord(int id) {
+<span class="fc" id="L382">        Connection conn = null;</span>
+<span class="fc" id="L383">        PreparedStatement stat = null;</span>
+<span class="fc" id="L384">        ResultSet res = null;</span>
+<span class="fc" id="L385">        ActionLogRecord actionRecord = null;</span>
+        try {
+<span class="fc" id="L387">            conn = this.getConnection();</span>
+<span class="fc" id="L388">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L389">            stat = conn.prepareStatement(GET_ACTION_RECORD);</span>
+<span class="fc" id="L390">            stat.setInt(1, id);</span>
+<span class="fc" id="L391">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L392" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L393">                actionRecord = new ActionLogRecord();</span>
+<span class="fc" id="L394">                actionRecord.setId(id);</span>
+<span class="fc" id="L395">                Timestamp actionDate = res.getTimestamp(&quot;actiondate&quot;);</span>
+<span class="fc" id="L396">                actionRecord.setActionDate(new Date(actionDate.getTime()));</span>
+<span class="fc" id="L397">                Timestamp updateDate = res.getTimestamp(&quot;updatedate&quot;);</span>
+<span class="fc" id="L398">                actionRecord.setUpdateDate(new Date(updateDate.getTime()));</span>
+<span class="fc" id="L399">                actionRecord.setActionName(res.getString(&quot;actionname&quot;));</span>
+<span class="fc" id="L400">                actionRecord.setNamespace(res.getString(&quot;namespace&quot;));</span>
+<span class="fc" id="L401">                actionRecord.setParameters(res.getString(&quot;parameters&quot;));</span>
+<span class="fc" id="L402">                actionRecord.setUsername(res.getString(&quot;username&quot;));</span>
+<span class="fc" id="L403">                String asiXml = res.getString(&quot;activitystreaminfo&quot;);</span>
+<span class="pc bpc" id="L404" title="3 of 4 branches missed.">                if (null != asiXml &amp;&amp; asiXml.trim().length() &gt; 0) {</span>
+<span class="nc" id="L405">                    ActivityStreamInfo asi = ActivityStreamInfoDOM.unmarshalInfo(asiXml);</span>
+<span class="nc" id="L406">                    actionRecord.setActivityStreamInfo(asi);</span>
+                }
+            }
+<span class="fc" id="L409">            conn.commit();</span>
+<span class="nc" id="L410">        } catch (Throwable t) {</span>
+<span class="nc" id="L411">            this.executeRollback(conn);</span>
+<span class="nc" id="L412">            logger.error(&quot;Error loading actionlogger record with id: {}&quot;, id, t);</span>
+<span class="nc" id="L413">            throw new RuntimeException(&quot;Error loading actionlogger record with id: &quot; + id, t);</span>
+        } finally {
+<span class="fc" id="L415">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L417">        return actionRecord;</span>
+    }
+
+    @Override
+    public void deleteActionRecord(int id) {
+<span class="fc" id="L422">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L424">            conn = this.getConnection();</span>
+<span class="fc" id="L425">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L426">            super.executeQueryWithoutResultset(conn, DELETE_LOG_RECORD_LIKES, id);</span>
+<span class="fc" id="L427">            super.executeQueryWithoutResultset(conn, DELETE_LOG_RECORD_COMMENTS, id);</span>
+<span class="fc" id="L428">            super.executeQueryWithoutResultset(conn, DELETE_LOG_RECORD_RELATIONS, id);</span>
+<span class="fc" id="L429">            super.executeQueryWithoutResultset(conn, DELETE_LOG_RECORD, id);</span>
+<span class="fc" id="L430">            conn.commit();</span>
+<span class="nc" id="L431">        } catch (Throwable t) {</span>
+<span class="nc" id="L432">            this.executeRollback(conn);</span>
+<span class="nc" id="L433">            logger.error(&quot;Error on delete record: {}&quot;, id, t);</span>
+<span class="nc" id="L434">            throw new RuntimeException(&quot;Error on delete record: &quot; + id, t);</span>
+        } finally {
+<span class="fc" id="L436">            closeConnection(conn);</span>
+        }
+<span class="fc" id="L438">    }</span>
+
+    @Override
+    public void updateRecordDate(int id) {
+<span class="fc" id="L442">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L444">            conn = this.getConnection();</span>
+<span class="fc" id="L445">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L446">            Timestamp timestamp = new Timestamp(new Date().getTime());</span>
+<span class="fc" id="L447">            super.executeQueryWithoutResultset(conn, UPDATE_UPDATEDATE_ACTION_RECORD, timestamp, id);</span>
+<span class="fc" id="L448">            conn.commit();</span>
+<span class="nc" id="L449">        } catch (Throwable t) {</span>
+<span class="nc" id="L450">            this.executeRollback(conn);</span>
+<span class="nc" id="L451">            logger.error(&quot;Error updating record date: {}&quot;, id, t);</span>
+<span class="nc" id="L452">            throw new RuntimeException(&quot;Error updating record date: id &quot; + id, t);</span>
+        } finally {
+<span class="fc" id="L454">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L456">    }</span>
+
+    @Override
+    protected String getMasterTableName() {
+<span class="fc" id="L460">        return &quot;actionlogrecords&quot;;</span>
+    }
+
+    @Override
+    protected String getMasterTableIdFieldName() {
+<span class="fc" id="L465">        return &quot;id&quot;;</span>
+    }
+
+    @Override
+    protected String getTableFieldName(String metadataFieldKey) {
+<span class="fc" id="L470">        return metadataFieldKey;</span>
+    }
+
+    @Override
+    public Set&lt;Integer&gt; extractOldRecords(Integer maxActivitySizeByGroup) {
+<span class="nc" id="L475">        Set&lt;Integer&gt; recordsToDelete = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L476">        Connection conn = null;</span>
+        try {
+<span class="nc" id="L478">            conn = this.getConnection();</span>
+<span class="nc" id="L479">            Map&lt;String, Integer&gt; occurrences = this.getOccurrences(maxActivitySizeByGroup, conn);</span>
+<span class="nc" id="L480">            Iterator&lt;String&gt; groupIter = occurrences.keySet().iterator();</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">            while (groupIter.hasNext()) {</span>
+<span class="nc" id="L482">                String groupName = groupIter.next();</span>
+<span class="nc" id="L483">                this.extractRecordToDelete(groupName, maxActivitySizeByGroup, recordsToDelete, conn);</span>
+<span class="nc" id="L484">            }</span>
+<span class="nc" id="L485">        } catch (Throwable t) {</span>
+<span class="nc" id="L486">            logger.error(&quot;Error extracting old Stream logs&quot;, t);</span>
+<span class="nc" id="L487">            throw new RuntimeException(&quot;Error cleaning old Stream logs&quot;, t);</span>
+        } finally {
+<span class="nc" id="L489">            this.closeConnection(conn);</span>
+        }
+<span class="nc" id="L491">        return recordsToDelete;</span>
+    }
+
+    private Map&lt;String, Integer&gt; getOccurrences(Integer maxActivitySizeByGroup, Connection conn) {
+<span class="nc" id="L495">        Map&lt;String, Integer&gt; occurrences = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L496">        Statement stat = null;</span>
+<span class="nc" id="L497">        ResultSet res = null;</span>
+        try {
+<span class="nc" id="L499">            stat = conn.createStatement();</span>
+<span class="nc" id="L500">            res = stat.executeQuery(GET_GROUP_OCCURRENCES);</span>
+<span class="nc bnc" id="L501" title="All 2 branches missed.">            while (res.next()) {</span>
+<span class="nc" id="L502">                String groupName = res.getString(1);</span>
+<span class="nc" id="L503">                Integer integer = res.getInt(2);</span>
+<span class="nc bnc" id="L504" title="All 4 branches missed.">                if (null != maxActivitySizeByGroup &amp;&amp; integer &gt; maxActivitySizeByGroup) {</span>
+<span class="nc" id="L505">                    occurrences.put(groupName, integer);</span>
+                }
+<span class="nc" id="L507">            }</span>
+<span class="nc" id="L508">        } catch (Throwable t) {</span>
+<span class="nc" id="L509">            logger.error(&quot;Error loading actionlogger occurrences&quot;, t);</span>
+<span class="nc" id="L510">            throw new RuntimeException(&quot;Error loading actionlogger occurrences&quot;, t);</span>
+        } finally {
+<span class="nc" id="L512">            closeDaoResources(res, stat);</span>
+        }
+<span class="nc" id="L514">        return occurrences;</span>
+    }
+
+    private void extractRecordToDelete(String groupName,
+            Integer maxActivitySizeByGroup, Set&lt;Integer&gt; recordIds, Connection conn) {
+<span class="nc" id="L519">        PreparedStatement stat = null;</span>
+<span class="nc" id="L520">        ResultSet result = null;</span>
+        try {
+<span class="nc" id="L522">            List&lt;Integer&gt; idList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L523">            FieldSearchFilter filter1 = new FieldSearchFilter(&quot;actiondate&quot;);</span>
+<span class="nc" id="L524">            filter1.setOrder(FieldSearchFilter.Order.DESC);</span>
+<span class="nc" id="L525">            FieldSearchFilter filter2 = new FieldSearchFilter(&quot;activitystreaminfo&quot;);</span>
+<span class="nc" id="L526">            FieldSearchFilter[] filters = {filter1, filter2};</span>
+<span class="nc" id="L527">            List&lt;String&gt; groupCodes = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L528">            groupCodes.add(groupName);</span>
+<span class="nc" id="L529">            stat = this.buildStatement(filters, groupCodes, false, conn);</span>
+<span class="nc" id="L530">            result = stat.executeQuery();</span>
+<span class="nc bnc" id="L531" title="All 2 branches missed.">            while (result.next()) {</span>
+<span class="nc" id="L532">                Integer id = result.getInt(1);</span>
+<span class="nc bnc" id="L533" title="All 2 branches missed.">                if (!idList.contains(id)) {</span>
+<span class="nc" id="L534">                    idList.add(id);</span>
+                }
+<span class="nc" id="L536">            }</span>
+<span class="nc bnc" id="L537" title="All 2 branches missed.">            if (idList.size() &gt; maxActivitySizeByGroup) {</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">                for (int i = maxActivitySizeByGroup; i &lt; idList.size(); i++) {</span>
+<span class="nc" id="L539">                    Integer id = idList.get(i);</span>
+<span class="nc" id="L540">                    recordIds.add(id);</span>
+                }
+            }
+<span class="nc" id="L543">        } catch (Throwable t) {</span>
+<span class="nc" id="L544">            logger.error(&quot;Error while loading activity stream records to delete : group {}&quot;, groupName, t);</span>
+<span class="nc" id="L545">            throw new RuntimeException(&quot;Error while loading activity stream records to delete : group '&quot; + groupName + &quot;'&quot;, t);</span>
+        } finally {
+<span class="nc" id="L547">            closeDaoResources(result, stat);</span>
+        }
+<span class="nc" id="L549">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

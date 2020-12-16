@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectMapperCacheWrapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectmapper.cache</a> &gt; <span class="el_source">DataObjectMapperCacheWrapper.java</span></div><h1>DataObjectMapperCacheWrapper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectmapper.cache;
+
+import com.agiletec.aps.system.common.AbstractCacheWrapper;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.util.ApsProperties;
+import org.entando.entando.aps.system.services.dataobjectmapper.DataObjectPageMapper;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L30">public class DataObjectMapperCacheWrapper extends AbstractCacheWrapper implements IDataObjectMapperCacheWrapper {</span>
+
+<span class="fc" id="L32">	private static final EntLogger logger = EntLogFactory.getSanitizedLogger(DataObjectMapperCacheWrapper.class);</span>
+    
+    @Override
+    public void release() {
+<span class="fc" id="L36">        this.getCache().evict(OBJECT_MAPPER_CACHE_KEY);</span>
+<span class="fc" id="L37">    }</span>
+
+	@Override
+	public void initCache(IPageManager pageManager) throws EntException {
+		try {
+<span class="fc" id="L42">			DataObjectPageMapper dataObjectPageMapper = new DataObjectPageMapper();</span>
+<span class="fc" id="L43">			IPage root = pageManager.getOnlineRoot();</span>
+<span class="fc" id="L44">			this.searchPublishedDataObjects(dataObjectPageMapper, root, pageManager);</span>
+<span class="fc" id="L45">			this.getCache().put(OBJECT_MAPPER_CACHE_KEY, dataObjectPageMapper);</span>
+<span class="fc" id="L46">		} catch (Throwable t) {</span>
+<span class="fc" id="L47">			logger.error(&quot;Error loading data object mapper&quot;, t);</span>
+<span class="fc" id="L48">			throw new EntException(&quot;Error loading data object mapper&quot;, t);</span>
+<span class="fc" id="L49">		}</span>
+<span class="fc" id="L50">	}</span>
+
+	private void searchPublishedDataObjects(DataObjectPageMapper dataObjectPageMapper, IPage page, IPageManager pageManager) {
+<span class="fc" id="L53">		PageModel pageModel = page.getModel();</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">		if (pageModel != null) {</span>
+<span class="fc" id="L55">			int mainFrame = pageModel.getMainFrame();</span>
+<span class="fc" id="L56">			Widget[] widgets = page.getWidgets();</span>
+<span class="fc" id="L57">			Widget widget = null;</span>
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">			if (null != widgets &amp;&amp; mainFrame != -1) {</span>
+<span class="fc" id="L59">				widget = widgets[mainFrame];</span>
+			}
+<span class="fc bfc" id="L61" title="All 2 branches covered.">			ApsProperties config = (null != widget) ? widget.getConfig() : null;</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">			String dataId = (null != config) ? config.getProperty(&quot;dataId&quot;) : null;</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">			if (null != dataId) {</span>
+<span class="fc" id="L64">				dataObjectPageMapper.add(dataId, page.getCode());</span>
+			}
+<span class="fc" id="L66">			String[] childCodes = page.getChildrenCodes();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">			for (String childCode : childCodes) {</span>
+<span class="fc" id="L68">				IPage child = pageManager.getOnlinePage(childCode);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">				if (null != child) {</span>
+<span class="fc" id="L70">					this.searchPublishedDataObjects(dataObjectPageMapper, child, pageManager);</span>
+				}
+			}
+		}
+<span class="fc" id="L74">	}</span>
+
+	@Override
+	public String getPageCode(String dataId) {
+<span class="fc" id="L78">		DataObjectPageMapper dataObjectPageMapper = this.get(OBJECT_MAPPER_CACHE_KEY, DataObjectPageMapper.class);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">		if (null != dataObjectPageMapper) {</span>
+<span class="fc" id="L80">			return dataObjectPageMapper.getPageCode(dataId);</span>
+		}
+<span class="nc" id="L82">		return null;</span>
+	}
+
+	@Override
+	protected String getCacheName() {
+<span class="fc" id="L87">		return IDataObjectMapperCacheWrapper.OBJECT_MAPPER_CACHE_NAME;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

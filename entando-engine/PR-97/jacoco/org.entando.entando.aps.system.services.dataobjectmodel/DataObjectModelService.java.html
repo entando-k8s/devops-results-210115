@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectModelService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobjectmodel</a> &gt; <span class="el_source">DataObjectModelService.java</span></div><h1>DataObjectModelService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobjectmodel;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.dataobject.IDataObjectManager;
+import org.entando.entando.aps.system.services.dataobjectmodel.dictionary.DataModelDictionaryProvider;
+import org.entando.entando.aps.system.services.dataobjectmodel.model.DataModelDto;
+import org.entando.entando.aps.system.services.dataobjectmodel.model.IEntityModelDictionary;
+import org.entando.entando.aps.system.services.jsonpatch.JsonPatchService;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.dataobjectmodel.model.DataObjectModelRequest;
+import org.entando.entando.web.dataobjectmodel.validator.DataObjectModelValidator;
+import org.entando.entando.web.guifragment.validator.GuiFragmentValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+<span class="fc" id="L46">public class DataObjectModelService implements IDataObjectModelService {</span>
+
+<span class="fc" id="L48">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+//    @Autowired
+//    JsonPatchPatchConverter jsonPatchPatchConverter;
+
+    @Autowired
+    private IDataObjectModelManager dataObjectModelManager;
+
+    //TODO fix this
+    @Autowired
+    private DataModelDictionaryProvider dictionaryProvider;
+
+    private IDataObjectManager dataObjectManager;
+
+    @Autowired
+    private IDtoBuilder&lt;DataObjectModel, DataModelDto&gt; dtoBuilder;
+
+    protected IDataObjectModelManager getDataObjectModelManager() {
+<span class="fc" id="L66">        return dataObjectModelManager;</span>
+    }
+
+<span class="fc" id="L69">    private JsonPatchService&lt;DataModelDto&gt; jsonPatchService = new JsonPatchService&lt;&gt;(DataModelDto.class);</span>
+
+    public void setDataObjectModelManager(IDataObjectModelManager dataObjectModelManager) {
+<span class="fc" id="L72">        this.dataObjectModelManager = dataObjectModelManager;</span>
+<span class="fc" id="L73">    }</span>
+
+    protected IDtoBuilder&lt;DataObjectModel, DataModelDto&gt; getDtoBuilder() {
+<span class="fc" id="L76">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;DataObjectModel, DataModelDto&gt; dtoBuilder) {
+<span class="fc" id="L80">        this.dtoBuilder = dtoBuilder;</span>
+<span class="fc" id="L81">    }</span>
+
+    protected IDataObjectManager getDataObjectManager() {
+<span class="fc" id="L84">        return dataObjectManager;</span>
+    }
+
+    public void setDataObjectManager(IDataObjectManager dataObjectManager) {
+<span class="fc" id="L88">        this.dataObjectManager = dataObjectManager;</span>
+<span class="fc" id="L89">    }</span>
+
+    protected DataModelDictionaryProvider getDictionaryProvider() {
+<span class="fc" id="L92">        return dictionaryProvider;</span>
+    }
+
+    public void setDictionaryProvider(DataModelDictionaryProvider dictionaryProvider) {
+<span class="fc" id="L96">        this.dictionaryProvider = dictionaryProvider;</span>
+<span class="fc" id="L97">    }</span>
+
+    @Override
+    public PagedMetadata&lt;DataModelDto&gt; getDataObjectModels(RestListRequest restListReq) {
+<span class="fc" id="L101">        PagedMetadata&lt;DataModelDto&gt; pagedMetadata = null;</span>
+        try {
+<span class="fc" id="L103">            List&lt;FieldSearchFilter&gt; filters = new ArrayList&lt;&gt;(restListReq.buildFieldSearchFilters());</span>
+            //transforms the filters by overriding the key specified in the request with the correct one known by the dto
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            filters.stream().filter(searchFilter -&gt; searchFilter.getKey() != null)</span>
+<span class="fc" id="L106">                    .forEach(searchFilter -&gt; {</span>
+<span class="fc" id="L107">                        searchFilter.setKey(DataModelDto.getEntityFieldName(searchFilter.getKey()));</span>
+<span class="pc bpc" id="L108" title="3 of 4 branches missed.">                        if (searchFilter.getKey().equals(&quot;modelid&quot;) &amp;&amp; null != searchFilter.getValue()) {</span>
+<span class="nc" id="L109">                            String stringValue = searchFilter.getValue().toString();</span>
+<span class="nc" id="L110">                            Long value = Long.parseLong(stringValue);</span>
+<span class="nc" id="L111">                            searchFilter = new FieldSearchFilter(&quot;modelid&quot;, value, true);</span>
+                        }
+<span class="fc" id="L113">                    });</span>
+<span class="fc" id="L114">            SearcherDaoPaginatedResult&lt;DataObjectModel&gt; models = this.getDataObjectModelManager().getDataObjectModels(filters);</span>
+<span class="fc" id="L115">            List&lt;DataModelDto&gt; dtoList = this.getDtoBuilder().convert(models.getList());</span>
+<span class="fc" id="L116">            pagedMetadata = new PagedMetadata&lt;&gt;(restListReq, models);</span>
+<span class="fc" id="L117">            pagedMetadata.setBody(dtoList);</span>
+<span class="nc" id="L118">        } catch (Throwable t) {</span>
+<span class="nc" id="L119">            logger.error(&quot;error in search data models&quot;, t);</span>
+<span class="nc" id="L120">            throw new RestServerError(&quot;error in search data models&quot;, t);</span>
+<span class="fc" id="L121">        }</span>
+<span class="fc" id="L122">        return pagedMetadata;</span>
+    }
+
+    @Override
+    public DataModelDto getDataObjectModel(Long dataModelId) {
+<span class="fc" id="L127">        DataObjectModel model = this.getDataObjectModelManager().getDataObjectModel(dataModelId);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        if (null == model) {</span>
+<span class="nc" id="L129">            logger.warn(&quot;no model found with code {}&quot;, dataModelId);</span>
+<span class="nc" id="L130">            throw new ResourceNotFoundException(&quot;dataModelId&quot;, String.valueOf(dataModelId));</span>
+        }
+<span class="fc" id="L132">        return this.getDtoBuilder().convert(model);</span>
+    }
+
+    @Override
+    public DataModelDto addDataObjectModel(DataObjectModelRequest dataObjectModelRequest) {
+        try {
+<span class="fc" id="L138">            DataObjectModel dataModel = this.createDataObjectModel(dataObjectModelRequest);</span>
+<span class="fc" id="L139">            this.getDataObjectModelManager().addDataObjectModel(dataModel);</span>
+<span class="fc" id="L140">            return this.getDtoBuilder().convert(dataModel);</span>
+<span class="nc" id="L141">        } catch (EntException e) {</span>
+<span class="nc" id="L142">            logger.error(&quot;Error adding DataObjectModel&quot;, e);</span>
+<span class="nc" id="L143">            throw new RestServerError(&quot;error add DataObjectModel&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public DataModelDto updateDataObjectModel(DataObjectModelRequest dataObjectModelRequest) {
+<span class="fc" id="L149">        String code = dataObjectModelRequest.getModelId();</span>
+        try {
+<span class="fc" id="L151">            Long modelId = Long.parseLong(code);</span>
+<span class="fc" id="L152">            DataObjectModel dataObjectModel = this.getDataObjectModelManager().getDataObjectModel(modelId);</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">            if (null == dataObjectModel) {</span>
+<span class="nc" id="L154">                throw new ResourceNotFoundException(&quot;dataObjectModel&quot;, code);</span>
+            }
+<span class="fc" id="L156">            dataObjectModel.setDataType(dataObjectModelRequest.getType());</span>
+<span class="fc" id="L157">            dataObjectModel.setDescription(dataObjectModelRequest.getDescr());</span>
+<span class="fc" id="L158">            dataObjectModel.setShape(dataObjectModelRequest.getModel());</span>
+<span class="fc" id="L159">            dataObjectModel.setStylesheet(dataObjectModelRequest.getStylesheet());</span>
+<span class="fc" id="L160">            this.getDataObjectModelManager().updateDataObjectModel(dataObjectModel);</span>
+<span class="fc" id="L161">            return this.getDtoBuilder().convert(dataObjectModel);</span>
+<span class="nc" id="L162">        } catch (ResourceNotFoundException e) {</span>
+<span class="nc" id="L163">            throw e;</span>
+<span class="nc" id="L164">        } catch (EntException e) {</span>
+<span class="nc" id="L165">            logger.error(&quot;Error updating DataObjectModel {}&quot;, code, e);</span>
+<span class="nc" id="L166">            throw new RestServerError(&quot;error in update DataObjectModel&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public DataModelDto getPatchedDataObjectModel(Long dataModelId, JsonNode jsonPatch) {
+<span class="fc" id="L172">        DataModelDto dataModelDto = this.getDataObjectModel(dataModelId);</span>
+<span class="fc" id="L173">        return this.jsonPatchService.applyPatch(jsonPatch, dataModelDto);</span>
+    }
+
+    @Override
+    public void removeDataObjectModel(Long dataModelId) {
+        try {
+<span class="fc" id="L179">            DataObjectModel dataObjectModel = this.getDataObjectModelManager().getDataObjectModel(dataModelId);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            if (null == dataObjectModel) {</span>
+<span class="nc" id="L181">                return;</span>
+            }
+<span class="fc" id="L183">            DataModelDto dto = this.getDtoBuilder().convert(dataObjectModel);</span>
+<span class="fc" id="L184">            BeanPropertyBindingResult validationResult = this.checkDataObjectModelForDelete(dataObjectModel, dto);</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L186">                throw new ValidationConflictException(validationResult);</span>
+            }
+<span class="fc" id="L188">            this.getDataObjectModelManager().removeDataObjectModel(dataObjectModel);</span>
+<span class="nc" id="L189">        } catch (EntException e) {</span>
+<span class="nc" id="L190">            logger.error(&quot;Error in delete DataObjectModel {}&quot;, dataModelId, e);</span>
+<span class="nc" id="L191">            throw new RestServerError(&quot;error in delete DataObjectModel&quot;, e);</span>
+<span class="fc" id="L192">        }</span>
+<span class="fc" id="L193">    }</span>
+
+    protected DataObjectModel createDataObjectModel(DataObjectModelRequest dataObjectModelRequest) {
+<span class="fc" id="L196">        DataObjectModel model = new DataObjectModel();</span>
+<span class="fc" id="L197">        model.setDataType(dataObjectModelRequest.getType());</span>
+<span class="fc" id="L198">        model.setDescription(dataObjectModelRequest.getDescr());</span>
+<span class="fc" id="L199">        model.setId(Long.parseLong(dataObjectModelRequest.getModelId()));</span>
+<span class="fc" id="L200">        model.setShape(dataObjectModelRequest.getModel());</span>
+<span class="fc" id="L201">        model.setStylesheet(dataObjectModelRequest.getStylesheet());</span>
+<span class="fc" id="L202">        return model;</span>
+    }
+
+    protected BeanPropertyBindingResult checkDataObjectModelForDelete(DataObjectModel model, DataModelDto dto) {
+<span class="fc" id="L206">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(model, &quot;dataObjectModel&quot;);</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (null == model) {</span>
+<span class="nc" id="L208">            return bindingResult;</span>
+        }
+<span class="fc" id="L210">        Map&lt;String, List&lt;IPage&gt;&gt; pages = this.getDataObjectModelManager().getReferencingPages(model.getId());</span>
+<span class="pc bpc" id="L211" title="1 of 4 branches missed.">        if (!bindingResult.hasErrors() &amp;&amp; !pages.isEmpty()) {</span>
+<span class="fc" id="L212">            bindingResult.reject(GuiFragmentValidator.ERRCODE_FRAGMENT_REFERENCES,</span>
+<span class="fc" id="L213">                    new Object[]{String.valueOf(model.getId())}, &quot;guifragment.cannot.delete.references&quot;);</span>
+        }
+<span class="fc" id="L215">        return bindingResult;</span>
+    }
+
+    @Override
+    public IEntityModelDictionary getDataModelDictionary(String typeCode) {
+<span class="fc bfc" id="L220" title="All 2 branches covered.">        if (StringUtils.isBlank(typeCode)) {</span>
+<span class="fc" id="L221">            return this.getDictionaryProvider().buildDictionary();</span>
+        }
+<span class="fc" id="L223">        IApsEntity prototype = this.getDataObjectManager().getEntityPrototype(typeCode);</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (null == prototype) {</span>
+<span class="fc" id="L225">            logger.warn(&quot;no model found with id {}&quot;, typeCode);</span>
+<span class="fc" id="L226">            throw new ResourceNotFoundException(DataObjectModelValidator.ERRCODE_CONTENTMODEL_TYPECODE_NOT_FOUND, &quot;dataObject&quot;, typeCode);</span>
+        }
+<span class="fc" id="L228">        return this.getDictionaryProvider().buildDictionary(prototype);</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

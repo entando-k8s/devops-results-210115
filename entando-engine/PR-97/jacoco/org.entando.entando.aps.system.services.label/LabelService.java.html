@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LabelService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.label</a> &gt; <span class="el_source">LabelService.java</span></div><h1>LabelService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.label;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.lang.Lang;
+import java.util.Map;
+import java.util.Optional;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.i18n.II18nManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.util.ApsProperties;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.label.model.LabelDto;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.label.LabelValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+<span class="fc" id="L40">public class LabelService implements ILabelService {</span>
+
+<span class="fc" id="L42">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private static final String BINDING_RESULT_LABEL_NAME = &quot;labelGroup&quot;;
+
+    private II18nManager i18nManager;
+    private ILangManager langManager;
+<span class="fc" id="L48">    private LabelDtoBuilder dtoBuilder = new LabelDtoBuilder();</span>
+
+    protected II18nManager getI18nManager() {
+<span class="fc" id="L51">        return i18nManager;</span>
+    }
+
+    public void setI18nManager(II18nManager i18nManager) {
+<span class="fc" id="L55">        this.i18nManager = i18nManager;</span>
+<span class="fc" id="L56">    }</span>
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L59">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L63">        this.langManager = langManager;</span>
+<span class="fc" id="L64">    }</span>
+
+    protected LabelDtoBuilder getDtoBuilder() {
+<span class="fc" id="L67">        return dtoBuilder;</span>
+    }
+
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    @Override
+    public PagedMetadata&lt;LabelDto&gt; getLabelGroups(final RestListRequest restRequest) {
+<span class="fc" id="L73">        final List&lt;LabelDto&gt; dtoList = this.getDtoBuilder().convert(this.i18nManager.getLabelGroups());</span>
+<span class="fc" id="L74">        final List&lt;LabelDto&gt; subList = new LabelRequestListProcessor(restRequest, dtoList).filterAndSort().toList();</span>
+<span class="fc" id="L75">        final SearcherDaoPaginatedResult&lt;LabelDto&gt; result = new SearcherDaoPaginatedResult(dtoList.size(), subList);</span>
+<span class="fc" id="L76">        final PagedMetadata&lt;LabelDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(restRequest, result);</span>
+<span class="fc" id="L77">        pagedMetadata.setBody(subList);</span>
+<span class="fc" id="L78">        pagedMetadata.imposeLimits();</span>
+<span class="fc" id="L79">        return pagedMetadata;</span>
+    }
+
+    @Override
+    public LabelDto getLabelGroup(String code) {
+        try {
+<span class="fc" id="L85">            ApsProperties labelGroup = this.getI18nManager().getLabelGroup(code);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            if (null == labelGroup) {</span>
+<span class="fc" id="L87">                logger.warn(&quot;no label found with key {}&quot;, code);</span>
+<span class="fc" id="L88">                throw mkLabelNotFoundException(code);</span>
+            }
+<span class="fc" id="L90">            return this.getDtoBuilder().convert(code, labelGroup);</span>
+<span class="nc" id="L91">        } catch (EntException t) {</span>
+<span class="nc" id="L92">            logger.error(&quot;error in get label group with code {}&quot;, code, t);</span>
+<span class="nc" id="L93">            throw new RestServerError(&quot;error in get label group&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public boolean exists(String code) throws EntException {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        return this.getI18nManager().getLabelGroup(code) != null;</span>
+    }
+
+    @Override
+    public LabelDto updateLabelGroup(LabelDto labelRequest) {
+        try {
+<span class="fc" id="L105">            String code = labelRequest.getKey();</span>
+<span class="fc" id="L106">            ApsProperties labelGroup = this.getI18nManager().getLabelGroup(code);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            if (null == labelGroup) {</span>
+<span class="fc" id="L108">                logger.warn(&quot;no label found with key {}&quot;, code);</span>
+<span class="fc" id="L109">                throw mkLabelNotFoundException(code);</span>
+            }
+<span class="fc" id="L111">            BeanPropertyBindingResult validationResult = this.validateUpdateLabelGroup(labelRequest);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L113">                throw new ValidationGenericException(validationResult);</span>
+            }
+<span class="fc" id="L115">            ApsProperties languages = new ApsProperties();</span>
+<span class="fc" id="L116">            languages.putAll(labelRequest.getTitles());</span>
+<span class="fc" id="L117">            this.getI18nManager().updateLabelGroup(code, languages);</span>
+<span class="fc" id="L118">            return labelRequest;</span>
+<span class="nc" id="L119">        } catch (EntException t) {</span>
+<span class="nc" id="L120">            logger.error(&quot;error in update label group with code {}&quot;, labelRequest.getKey(), t);</span>
+<span class="nc" id="L121">            throw new RestServerError(&quot;error in update label group&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public LabelDto addLabelGroup(LabelDto labelRequest) {
+
+<span class="fc" id="L128">        BeanPropertyBindingResult bindingResult = this.validateAddLabelGroupOrThrow(labelRequest);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L130">            throw new ValidationConflictException(bindingResult);</span>
+        }
+
+<span class="fc" id="L133">        return this.checkForExistenceOrThrowValidationConflictException(labelRequest)</span>
+<span class="fc" id="L134">                .map(this::saveLabelGroup)</span>
+<span class="fc" id="L135">                .orElse(labelRequest);</span>
+    }
+
+    /**
+     *
+     * @param labelDto
+     * @return
+     */
+    private LabelDto saveLabelGroup(LabelDto labelDto) {
+
+        try {
+<span class="fc" id="L146">            ApsProperties languages = new ApsProperties();</span>
+<span class="fc" id="L147">            languages.putAll(labelDto.getTitles());</span>
+<span class="fc" id="L148">            this.getI18nManager().addLabelGroup(labelDto.getKey(), languages);</span>
+<span class="fc" id="L149">            return labelDto;</span>
+<span class="nc" id="L150">        } catch (EntException e) {</span>
+<span class="nc" id="L151">            logger.error(&quot;error in add label group with code {}&quot;, labelDto.getKey(), e);</span>
+<span class="nc" id="L152">            throw new RestServerError(&quot;error in add label group&quot;, e);</span>
+        }
+    }
+
+
+    @Override
+    public void removeLabelGroup(String code) {
+        try {
+<span class="fc" id="L160">            ApsProperties labelGroup = this.getI18nManager().getLabelGroup(code);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">            if (null == labelGroup) {</span>
+<span class="nc" id="L162">                logger.warn(&quot;no label found with key {}&quot;, code);</span>
+<span class="nc" id="L163">                throw mkLabelNotFoundException(code);</span>
+            }
+<span class="fc" id="L165">            this.getI18nManager().deleteLabelGroup(code);</span>
+<span class="nc" id="L166">        } catch (EntException t) {</span>
+<span class="nc" id="L167">            logger.error(&quot;error in delete label group with code {}&quot;, code, t);</span>
+<span class="nc" id="L168">            throw new RestServerError(&quot;error in delete label group&quot;, t);</span>
+<span class="fc" id="L169">        }</span>
+<span class="fc" id="L170">    }</span>
+
+    protected BeanPropertyBindingResult validateUpdateLabelGroup(LabelDto labelDto) {
+        try {
+<span class="fc" id="L174">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(labelDto, BINDING_RESULT_LABEL_NAME);</span>
+<span class="fc" id="L175">            String defaultLang = this.getLangManager().getDefaultLang().getCode();</span>
+<span class="fc" id="L176">            boolean isDefaultLangValid = validateDefaultLang(labelDto, bindingResult, defaultLang);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">            if (!isDefaultLangValid) {</span>
+<span class="fc" id="L178">                return bindingResult;</span>
+            }
+<span class="fc" id="L180">            validateLabelEntry(labelDto, defaultLang, bindingResult);</span>
+<span class="fc" id="L181">            return bindingResult;</span>
+<span class="nc" id="L182">        } catch (EntException t) {</span>
+<span class="nc" id="L183">            logger.error(&quot;error in validate add label group with code {}&quot;, labelDto.getKey(), t);</span>
+<span class="nc" id="L184">            throw new RestServerError(&quot;error in validate add label group&quot;, t);</span>
+        }
+    }
+
+    /**
+     * check if the received label already exists
+     * if it exists with equal key but different values, it throws ValidationConflictException
+     * if it exists completely equal, it will return an empty optional that means that the label has NOT to be saved
+     *
+     * @param labelDto
+     * @return the optional of the dto resulting from the validation, if empty the label has NOT to be saved
+     */
+    protected Optional&lt;LabelDto&gt; checkForExistenceOrThrowValidationConflictException(LabelDto labelDto) {
+
+        try {
+<span class="fc" id="L199">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(labelDto, BINDING_RESULT_LABEL_NAME);</span>
+<span class="fc" id="L200">            ApsProperties labelGroup = this.getI18nManager().getLabelGroup(labelDto.getKey());</span>
+
+            // check for idempotemcy
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            if (null != labelGroup) {</span>
+
+<span class="fc" id="L205">                Map&lt;String, String&gt; titles = labelDto.getTitles();</span>
+
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">                if (! labelGroup.values().isEmpty()) {</span>
+                    // collect eventual different labels with same key
+<span class="fc" id="L209">                    List&lt;String&gt; conflictingLabels = labelGroup.keySet().stream()</span>
+<span class="pc bpc" id="L210" title="1 of 4 branches missed.">                            .filter(lang -&gt; null != titles.get(lang) &amp;&amp; !titles.get(lang).equals(labelGroup.get(lang)))</span>
+<span class="fc" id="L211">                            .map(o -&gt; (String)o)</span>
+<span class="fc" id="L212">                            .collect(Collectors.toList());</span>
+
+                    // if all values are equals =&gt; returns empty optional =&gt; the labels has NOT to be saved
+<span class="fc bfc" id="L215" title="All 4 branches covered.">                    if (conflictingLabels.isEmpty() &amp;&amp; labelGroup.keySet().size() == labelDto.getTitles().size()) {</span>
+<span class="fc" id="L216">                        return Optional.empty();</span>
+                    } else {
+<span class="fc" id="L218">                        bindingResult.reject(LabelValidator.ERRCODE_LABELGROUP_EXISTS, new String[]{labelDto.getKey()},</span>
+                                &quot;labelGroup.exists.conflict&quot;);
+<span class="fc" id="L220">                        throw new ValidationConflictException(bindingResult);</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L225">            return Optional.of(labelDto);</span>
+
+<span class="nc" id="L227">        } catch (EntException t) {</span>
+<span class="nc" id="L228">            logger.error(&quot;error in validate add label group with code {}&quot;, labelDto.getKey(), t);</span>
+<span class="nc" id="L229">            throw new RestServerError(&quot;error in validate add label group&quot;, t);</span>
+        }
+    }
+
+    /**
+     * apply validation to the received label, if it fails it throws runtimeexception
+     *
+     * @param labelDto
+     */
+    private BeanPropertyBindingResult validateAddLabelGroupOrThrow(LabelDto labelDto) {
+
+        try {
+
+<span class="fc" id="L242">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(labelDto, BINDING_RESULT_LABEL_NAME);</span>
+            // proceed with standard validation
+<span class="fc" id="L244">            String defaultLangCode = this.getLangManager().getDefaultLang().getCode();</span>
+<span class="fc" id="L245">            boolean isDefaultLangValid = this.validateDefaultLang(labelDto, bindingResult, defaultLangCode);</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">            if (isDefaultLangValid) {</span>
+<span class="fc" id="L247">                this.validateLabelEntry(labelDto, defaultLangCode, bindingResult);</span>
+            }
+
+<span class="fc" id="L250">            return bindingResult;</span>
+
+<span class="nc" id="L252">        } catch (EntException t) {</span>
+<span class="nc" id="L253">            logger.error(&quot;error in validate add label group with code {}&quot;, labelDto.getKey(), t);</span>
+<span class="nc" id="L254">            throw new RestServerError(&quot;error in validate add label group&quot;, t);</span>
+        }
+    }
+
+
+    protected void validateLabelEntry(LabelDto labelDto, String defaultLang, BeanPropertyBindingResult bindingResult)
+            throws EntException {
+<span class="fc" id="L261">        List&lt;String&gt; configuredLangs = this.getLangManager().getLangs().stream().map(Lang::getCode)</span>
+<span class="fc" id="L262">                .collect(Collectors.toList());</span>
+<span class="fc" id="L263">        List&lt;String&gt; systemLangs = this.getLangManager().getAssignableLangs().stream()</span>
+<span class="fc" id="L264">                .map(Lang::getCode).collect(Collectors.toList());</span>
+<span class="fc" id="L265">        labelDto.getTitles().entrySet()</span>
+<span class="fc" id="L266">                .forEach(i -&gt; validateLangEntry(i, systemLangs, configuredLangs, defaultLang, bindingResult));</span>
+<span class="fc" id="L267">    }</span>
+
+    protected boolean validateDefaultLang(LabelDto labelDto, BeanPropertyBindingResult bindingResult,
+            String defaultLang) {
+        String label =
+<span class="pc bpc" id="L272" title="2 of 4 branches missed.">                (null != labelDto &amp;&amp; null != labelDto.getTitles()) ? labelDto.getTitles().get(defaultLang) : null;</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (StringUtils.isEmpty(label)) {</span>
+<span class="fc" id="L274">            bindingResult</span>
+<span class="fc" id="L275">                    .reject(LabelValidator.ERRCODE_LABELGROUP_LANGS_DEFAULT_LANG_REQUIRED, new String[]{defaultLang},</span>
+                            &quot;labelGroup.langs.defaultLang.required&quot;);
+<span class="fc" id="L277">            return false;</span>
+        }
+<span class="fc" id="L279">        return true;</span>
+    }
+
+    private void validateLangEntry(Entry&lt;String, String&gt; entry, List&lt;String&gt; systemLangs, List&lt;String&gt; configuredLangs,
+            String defaultLangCode, BeanPropertyBindingResult bindingResult) {
+<span class="fc" id="L284">        String currentLangCode = entry.getKey();</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">        if (!systemLangs.contains(currentLangCode)) {</span>
+<span class="fc" id="L286">            bindingResult.reject(LabelValidator.ERRCODE_LABELGROUP_LANGS_INVALID_LANG, new String[]{currentLangCode},</span>
+                    &quot;labelGroup.langs.lang.invalid&quot;);
+<span class="fc" id="L288">            return;</span>
+        }
+<span class="fc bfc" id="L290" title="All 2 branches covered.">        if (!configuredLangs.contains(currentLangCode)) {</span>
+<span class="fc" id="L291">            bindingResult.reject(LabelValidator.ERRCODE_LABELGROUP_LANGS_NOT_ACTIVE_LANG, new String[]{currentLangCode},</span>
+                    &quot;labelGroup.langs.lang.notActive&quot;);
+        }
+<span class="pc bpc" id="L294" title="1 of 4 branches missed.">        if (currentLangCode.equals(defaultLangCode) &amp;&amp; StringUtils.isBlank(entry.getValue())) {</span>
+<span class="nc" id="L295">            bindingResult.reject(LabelValidator.ERRCODE_LABELGROUP_LANGS_TEXT_REQUIRED, new String[]{currentLangCode},</span>
+                    &quot;labelGroup.langs.defaultLang.textRequired&quot;);
+        }
+<span class="fc" id="L298">    }</span>
+
+    private ResourceNotFoundException mkLabelNotFoundException(String code) {
+<span class="fc" id="L301">        return new ResourceNotFoundException(LabelValidator.ERRCODE_LABELGROUP_NOT_FOUND, &quot;label&quot;, code);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
