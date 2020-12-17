@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiEntityTypeInterface.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.common.entity.api</a> &gt; <span class="el_source">ApiEntityTypeInterface.java</span></div><h1>ApiEntityTypeInterface.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.common.entity.api;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.entando.entando.aps.system.services.api.IApiErrorCodes;
+import org.entando.entando.aps.system.services.api.model.ApiException;
+import org.entando.entando.aps.system.services.api.model.StringApiResponse;
+import org.entando.entando.aps.system.services.api.model.StringListApiResponse;
+import org.entando.entando.aps.system.services.api.server.IResponseBuilder;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.IEntityTypesConfigurer;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import org.entando.entando.ent.exception.EntException;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L40">public abstract class ApiEntityTypeInterface {</span>
+
+<span class="fc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApiEntityTypeInterface.class);</span>
+	
+	public StringListApiResponse getEntityTypes(Properties properties) throws Throwable {
+<span class="nc" id="L45">		StringListApiResponse response = new StringListApiResponse();</span>
+		try {
+<span class="nc" id="L47">			IEntityManager manager = this.getEntityManager();</span>
+<span class="nc" id="L48">			Map&lt;String, IApsEntity&gt; prototypes = manager.getEntityPrototypes();</span>
+<span class="nc" id="L49">			List&lt;String&gt; codes = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L50">			codes.addAll(prototypes.keySet());</span>
+<span class="nc" id="L51">			Collections.sort(codes);</span>
+<span class="nc" id="L52">			response.setResult(codes, null);</span>
+<span class="nc" id="L53">		} catch (Throwable t) {</span>
+<span class="nc" id="L54">			_logger.error(&quot;Error extracting entity type codes&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getEntityTypes&quot;);
+<span class="nc" id="L56">			throw new EntException(&quot;Error extracting entity type codes&quot;, t);</span>
+<span class="nc" id="L57">		}</span>
+<span class="nc" id="L58">		return response;</span>
+	}
+
+	public JAXBEntityType getEntityType(Properties properties) throws Throwable {
+<span class="nc" id="L62">		JAXBEntityType jaxbEntityType = null;</span>
+		try {
+<span class="nc" id="L64">			IEntityManager manager = this.getEntityManager();</span>
+<span class="nc" id="L65">			String typeCode = properties.getProperty(this.getTypeCodeParamName());</span>
+<span class="nc" id="L66">			IApsEntity masterEntityType = manager.getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">			if (null == masterEntityType) {</span>
+<span class="nc" id="L68">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, this.getTypeLabel() + &quot; with code '&quot; + typeCode + &quot;' does not exist&quot;);</span>
+			}
+<span class="nc" id="L70">			jaxbEntityType = this.createJAXBEntityType(masterEntityType);</span>
+<span class="nc" id="L71">		} catch (ApiException ae) {</span>
+<span class="nc" id="L72">			throw ae;</span>
+<span class="nc" id="L73">		} catch (Throwable t) {</span>
+<span class="nc" id="L74">			_logger.error(&quot;Error extracting entity type&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getEntityType&quot;);
+<span class="nc" id="L76">			throw new EntException(&quot;Error extracting entity type&quot;, t);</span>
+<span class="nc" id="L77">		}</span>
+<span class="nc" id="L78">		return jaxbEntityType;</span>
+	}
+	
+	protected JAXBEntityType createJAXBEntityType(IApsEntity masterEntityType) {
+<span class="nc" id="L82">		return new JAXBEntityType(masterEntityType);</span>
+	}
+
+	public StringApiResponse addEntityType(JAXBEntityType jaxbEntityType) throws Throwable {
+<span class="nc" id="L86">		StringApiResponse response = new StringApiResponse();</span>
+		try {
+<span class="nc" id="L88">			IEntityManager manager = this.getEntityManager();</span>
+<span class="nc" id="L89">			String typeCode = jaxbEntityType.getTypeCode();</span>
+<span class="nc" id="L90">			IApsEntity masterEntityType = manager.getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			if (null != masterEntityType) {</span>
+<span class="nc" id="L92">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, this.getTypeLabel() + &quot; with code '&quot; + typeCode + &quot;' already exists&quot;);</span>
+			}
+<span class="nc bnc" id="L94" title="All 4 branches missed.">			if (typeCode == null || typeCode.length() != 3) {</span>
+<span class="nc" id="L95">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, &quot;Invalid type code - '&quot; + typeCode + &quot;'&quot;);</span>
+			}
+<span class="nc" id="L97">			Map&lt;String, AttributeInterface&gt; attributes = manager.getEntityAttributePrototypes();</span>
+<span class="nc" id="L98">			IApsEntity newEntityType = jaxbEntityType.buildEntityType(manager.getEntityClass(), attributes);</span>
+<span class="nc" id="L99">			this.checkNewEntityType(jaxbEntityType, newEntityType, response);</span>
+<span class="nc" id="L100">			((IEntityTypesConfigurer) manager).addEntityPrototype(newEntityType);</span>
+<span class="nc" id="L101">			response.setResult(IResponseBuilder.SUCCESS, null);</span>
+<span class="nc" id="L102">		} catch (ApiException ae) {</span>
+<span class="nc" id="L103">			response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L104">			response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L105">		} catch (Throwable t) {</span>
+<span class="nc" id="L106">			_logger.error(&quot;Error extracting entity type&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getEntityType&quot;);
+<span class="nc" id="L108">			throw new EntException(&quot;Error extracting entity type&quot;, t);</span>
+<span class="nc" id="L109">		}</span>
+<span class="nc" id="L110">		return response;</span>
+	}
+	
+	protected void checkNewEntityType(JAXBEntityType jaxbEntityType, 
+			IApsEntity newEntityType, StringApiResponse response) throws ApiException, Throwable {
+		//Nothing to do
+<span class="nc" id="L116">	}</span>
+	
+	public StringApiResponse updateEntityType(JAXBEntityType jaxbEntityType) throws Throwable {
+<span class="nc" id="L119">		StringApiResponse response = new StringApiResponse();</span>
+		try {
+<span class="nc" id="L121">			String typeCode = jaxbEntityType.getTypeCode();</span>
+<span class="nc" id="L122">			IApsEntity masterUserProfileType = this.getEntityManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			if (null == masterUserProfileType) {</span>
+<span class="nc" id="L124">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, this.getTypeLabel() + &quot; with code '&quot; + typeCode + &quot;' doesn't exist&quot;);</span>
+			}
+<span class="nc" id="L126">			Map&lt;String, AttributeInterface&gt; attributes = this.getEntityManager().getEntityAttributePrototypes();</span>
+<span class="nc" id="L127">			IApsEntity entityTypeToUpdate = jaxbEntityType.buildEntityType(this.getEntityManager().getEntityClass(), attributes);</span>
+<span class="nc" id="L128">			this.checkEntityTypeToUpdate(jaxbEntityType, entityTypeToUpdate, response);</span>
+<span class="nc" id="L129">			((IEntityTypesConfigurer) this.getEntityManager()).updateEntityPrototype(entityTypeToUpdate);</span>
+<span class="nc" id="L130">			response.setResult(IResponseBuilder.SUCCESS, null);</span>
+<span class="nc" id="L131">		} catch (ApiException ae) {</span>
+<span class="nc" id="L132">			response.addErrors(ae.getErrors());</span>
+<span class="nc" id="L133">			response.setResult(IResponseBuilder.FAILURE, null);</span>
+<span class="nc" id="L134">		} catch (Throwable t) {</span>
+<span class="nc" id="L135">			_logger.error(&quot;Error updating entity type&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;updateEntityType&quot;);
+<span class="nc" id="L137">			throw new EntException(&quot;Error updating entity type&quot;, t);</span>
+<span class="nc" id="L138">		}</span>
+<span class="nc" id="L139">		return response;</span>
+	}
+	
+	protected void checkEntityTypeToUpdate(JAXBEntityType jaxbEntityType, 
+			IApsEntity entityTypeToUpdate, StringApiResponse response) throws ApiException, Throwable {
+		//Nothing to do
+<span class="nc" id="L145">	}</span>
+	
+	public void deleteEntityType(Properties properties) throws Throwable {
+		try {
+<span class="nc" id="L149">			String typeCode = properties.getProperty(this.getTypeCodeParamName());</span>
+<span class="nc" id="L150">			IApsEntity masterEntityType = this.getEntityManager().getEntityPrototype(typeCode);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">			if (null == masterEntityType) {</span>
+<span class="nc" id="L152">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, this.getTypeLabel() + &quot; with code '&quot; + typeCode + &quot;' doesn't exist&quot;);</span>
+			}
+<span class="nc" id="L154">			EntitySearchFilter filter = new EntitySearchFilter(IEntityManager.ENTITY_TYPE_CODE_FILTER_KEY, false, typeCode, false);</span>
+<span class="nc" id="L155">			List&lt;String&gt; entityIds = this.getEntityManager().searchId(new EntitySearchFilter[]{filter});</span>
+<span class="nc bnc" id="L156" title="All 4 branches missed.">			if (null != entityIds &amp;&amp; !entityIds.isEmpty()) {</span>
+<span class="nc" id="L157">				throw new ApiException(IApiErrorCodes.API_VALIDATION_ERROR, this.getTypeLabel() + &quot; '&quot; + typeCode + &quot;' are used into &quot; + entityIds.size() + &quot; entities&quot;);</span>
+			}
+<span class="nc" id="L159">			this.checkEntityTypeToDelete(masterEntityType);</span>
+<span class="nc" id="L160">			((IEntityTypesConfigurer) this.getEntityManager()).removeEntityPrototype(typeCode);</span>
+<span class="nc" id="L161">		} catch (ApiException ae) {</span>
+<span class="nc" id="L162">			throw ae;</span>
+<span class="nc" id="L163">		} catch (Throwable t) {</span>
+<span class="nc" id="L164">			_logger.error(&quot;Error deleting Entity type&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;deleteEntityType&quot;);
+<span class="nc" id="L166">			throw new EntException(&quot;Error deleting Entity type&quot;, t);</span>
+<span class="nc" id="L167">		}</span>
+<span class="nc" id="L168">	}</span>
+	
+	protected void checkEntityTypeToDelete(IApsEntity entityTypeToDelete) throws ApiException, Throwable {
+		//Nothing to do
+<span class="nc" id="L172">	}</span>
+	
+	protected abstract IEntityManager getEntityManager();
+	
+	protected String getTypeLabel() {
+<span class="nc" id="L177">		return &quot;Entity type&quot;;</span>
+	}
+	
+	protected String getTypeCodeParamName() {
+<span class="nc" id="L181">		return &quot;typeCode&quot;;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

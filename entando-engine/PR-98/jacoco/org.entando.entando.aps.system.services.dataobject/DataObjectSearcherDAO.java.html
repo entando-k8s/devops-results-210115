@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectSearcherDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject</a> &gt; <span class="el_source">DataObjectSearcherDAO.java</span></div><h1>DataObjectSearcherDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.dataobject;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import com.agiletec.aps.system.services.group.Group;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L33">public class DataObjectSearcherDAO extends AbstractDataObjectSearcherDAO implements IDataObjectSearcherDAO {</span>
+
+<span class="fc" id="L35">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(DataObjectSearcherDAO.class);</span>
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String contentType, String[] categories, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L39">        return this.loadDataObjectsId(contentType, categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String contentType, String[] categories, boolean orClauseCategoryFilter,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">        if (contentType != null &amp;&amp; contentType.trim().length() &gt; 0) {</span>
+<span class="fc" id="L46">            EntitySearchFilter typeFilter = new EntitySearchFilter(IDataObjectManager.ENTITY_TYPE_CODE_FILTER_KEY, false, contentType, false);</span>
+<span class="fc" id="L47">            filters = this.addFilter(filters, typeFilter);</span>
+        }
+<span class="fc" id="L49">        return this.loadDataObjectsId(categories, orClauseCategoryFilter, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String[] categories,
+            EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="nc" id="L55">        return this.loadDataObjectsId(categories, false, filters, userGroupCodes);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; loadDataObjectsId(String[] categories,
+            boolean orClauseCategoryFilter, EntitySearchFilter[] filters, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L61">        Set&lt;String&gt; groupCodes = new HashSet&lt;String&gt;();</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (null != userGroupCodes) {</span>
+<span class="fc" id="L63">            groupCodes.addAll(userGroupCodes);</span>
+        }
+<span class="fc" id="L65">        groupCodes.add(Group.FREE_GROUP_NAME);</span>
+<span class="fc" id="L66">        EntitySearchFilter onLineFilter = new EntitySearchFilter(IDataObjectManager.DATA_OBJECT_ONLINE_FILTER_KEY, false);</span>
+<span class="fc" id="L67">        filters = this.addFilter(filters, onLineFilter);</span>
+<span class="fc" id="L68">        List&lt;String&gt; contentsId = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L69">        Connection conn = null;</span>
+<span class="fc" id="L70">        PreparedStatement stat = null;</span>
+<span class="fc" id="L71">        ResultSet result = null;</span>
+        try {
+<span class="fc" id="L73">            conn = this.getConnection();</span>
+<span class="fc" id="L74">            stat = this.buildStatement(filters, categories, orClauseCategoryFilter, groupCodes, false, conn);</span>
+<span class="fc" id="L75">            result = stat.executeQuery();</span>
+            //this.flowResult(contentsId, filters, result);
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            while (result.next()) {</span>
+<span class="fc" id="L79">                String id = result.getString(this.getMasterTableIdFieldName());</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">                if (!contentsId.contains(id)) {</span>
+<span class="fc" id="L81">                    contentsId.add(id);</span>
+                }
+<span class="fc" id="L83">            }</span>
+
+<span class="nc" id="L85">        } catch (Throwable t) {</span>
+<span class="nc" id="L86">            _logger.error(&quot;Error loading dataObject id list&quot;, t);</span>
+<span class="nc" id="L87">            throw new RuntimeException(&quot;Error loading dataObject id list&quot;, t);</span>
+            //processDaoException(t, &quot;Errore in caricamento lista id contenuti&quot;, &quot;loadContentsId&quot;);
+        } finally {
+<span class="fc" id="L90">            closeDaoResources(result, stat, conn);</span>
+        }
+<span class="fc" id="L92">        return contentsId;</span>
+    }
+
+    @Override
+    protected PreparedStatement buildStatement(EntitySearchFilter[] filters,
+            String[] categories, boolean orClauseCategoryFilter,
+            Collection&lt;String&gt; userGroupCodes, boolean selectAll, Connection conn) {
+<span class="fc" id="L99">        Collection&lt;String&gt; groupsForSelect = this.getGroupsForSelect(userGroupCodes);</span>
+<span class="fc" id="L100">        String query = this.createQueryString(filters, categories, orClauseCategoryFilter, groupsForSelect, selectAll);</span>
+<span class="fc" id="L101">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L103">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L104">            int index = 0;</span>
+<span class="fc" id="L105">            index = super.addAttributeFilterStatementBlock(filters, index, stat);</span>
+<span class="fc" id="L106">            index = this.addMetadataFieldFilterStatementBlock(filters, index, stat);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            if (groupsForSelect != null) {</span>
+<span class="fc" id="L108">                index = this.addGroupStatementBlock(groupsForSelect, index, stat);</span>
+            }
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (categories != null) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                for (int i = 0; i &lt; categories.length; i++) {</span>
+<span class="fc" id="L112">                    stat.setString(++index, categories[i]);</span>
+                }
+            }
+<span class="nc" id="L115">        } catch (Throwable t) {</span>
+<span class="nc" id="L116">            _logger.error(&quot;Error creating statement&quot;, t);</span>
+<span class="nc" id="L117">            throw new RuntimeException(&quot;Error creating statement&quot;, t);</span>
+            //processDaoException(t, &quot;Errore in fase di creazione statement&quot;, &quot;buildStatement&quot;);
+<span class="fc" id="L119">        }</span>
+<span class="fc" id="L120">        return stat;</span>
+    }
+
+    @Override
+    protected void addGroupsQueryBlock(StringBuffer query, Collection&lt;String&gt; userGroupCodes) {
+<span class="fc" id="L125">        query.append(&quot; ( &quot;);</span>
+<span class="fc" id="L126">        int size = userGroupCodes.size();</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L129">                query.append(&quot;OR &quot;);</span>
+            }
+<span class="fc" id="L131">            query.append(&quot;dataobjects.maingroup = ? &quot;);</span>
+        }
+<span class="fc" id="L133">        query.append(&quot; OR dataobjects.dataid IN ( SELECT dataid FROM &quot;)</span>
+<span class="fc" id="L134">                .append(this.getContentRelationsTableName()).append(&quot; WHERE &quot;);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L137">                query.append(&quot;OR &quot;);</span>
+            }
+<span class="fc" id="L139">            query.append(this.getContentRelationsTableName()).append(&quot;.refgroup = ? &quot;);</span>
+        }
+<span class="fc" id="L141">        query.append(&quot;) &quot;);</span>
+<span class="fc" id="L142">        query.append(&quot;) &quot;);</span>
+<span class="fc" id="L143">    }</span>
+
+    @Override
+    protected int addGroupStatementBlock(Collection&lt;String&gt; groupCodes, int index, PreparedStatement stat) throws Throwable {
+<span class="fc" id="L147">        List&lt;String&gt; groups = new ArrayList&lt;String&gt;(groupCodes);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        for (int i = 0; i &lt; groups.size(); i++) {</span>
+<span class="fc" id="L149">            String groupName = groups.get(i);</span>
+<span class="fc" id="L150">            stat.setString(++index, groupName);</span>
+        }
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        for (int i = 0; i &lt; groups.size(); i++) {</span>
+<span class="fc" id="L153">            String groupName = groups.get(i);</span>
+<span class="fc" id="L154">            stat.setString(++index, groupName);</span>
+        }
+<span class="fc" id="L156">        return index;</span>
+    }
+
+    @Override
+    protected String getEntitySearchTableName() {
+<span class="fc" id="L161">        return &quot;dataobjectsearch&quot;;</span>
+    }
+
+    @Override
+    protected String getEntitySearchTableIdFieldName() {
+<span class="fc" id="L166">        return &quot;dataid&quot;;</span>
+    }
+
+    @Override
+    protected String getContentRelationsTableName() {
+<span class="fc" id="L171">        return &quot;dataobjectrelations&quot;;</span>
+    }
+
+    @Override
+    protected String getEntityAttributeRoleTableName() {
+<span class="fc" id="L176">        return &quot;dataobjectattributeroles&quot;;</span>
+    }
+
+    @Override
+    protected String getEntityAttributeRoleTableIdFieldName() {
+<span class="fc" id="L181">        return &quot;dataid&quot;;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GuiFragmentManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.guifragment</a> &gt; <span class="el_source">GuiFragmentManager.java</span></div><h1>GuiFragmentManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.guifragment;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import org.entando.entando.ent.exception.EntException;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.cache.CacheInfoEvict;
+import org.entando.entando.aps.system.services.cache.CacheableInfo;
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+import org.entando.entando.aps.system.services.guifragment.event.GuiFragmentChangedEvent;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L42">public class GuiFragmentManager extends AbstractService implements IGuiFragmentManager, GuiFragmentUtilizer {</span>
+
+<span class="fc" id="L44">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(GuiFragmentManager.class);</span>
+
+    private IGuiFragmentDAO guiFragmentDAO;
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L50">        logger.debug(&quot;{} ready.&quot;, this.getClass().getName());</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_'.concat(#code)&quot;)
+    public GuiFragment getGuiFragment(String code) throws EntException {
+<span class="fc" id="L56">        GuiFragment guiFragment = null;</span>
+        try {
+<span class="fc" id="L58">            guiFragment = this.getGuiFragmentDAO().loadGuiFragment(code);</span>
+<span class="nc" id="L59">        } catch (Throwable t) {</span>
+<span class="nc" id="L60">            logger.error(&quot;Error loading guiFragment with code '{}'&quot;, code, t);</span>
+<span class="nc" id="L61">            throw new EntException(&quot;Error loading guiFragment with code: &quot; + code, t);</span>
+<span class="fc" id="L62">        }</span>
+<span class="fc" id="L63">        return guiFragment;</span>
+    }
+
+    @Override
+    public SearcherDaoPaginatedResult&lt;GuiFragment&gt; getGuiFragments(List&lt;FieldSearchFilter&gt; filters) throws EntException {
+<span class="fc" id="L68">        SearcherDaoPaginatedResult&lt;GuiFragment&gt; pagedResult = null;</span>
+        try {
+<span class="fc" id="L70">            List&lt;GuiFragment&gt; fragments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L71">            FieldSearchFilter[] filtersArray = filters.toArray(new FieldSearchFilter[filters.size()]);</span>
+<span class="fc" id="L72">            int count = this.getGuiFragmentDAO().countGuiFragments(filtersArray);</span>
+<span class="fc" id="L73">            List&lt;String&gt; codes = this.searchGuiFragments(filtersArray);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            for (String code : codes) {</span>
+<span class="fc" id="L75">                fragments.add(this.getGuiFragment(code));</span>
+<span class="fc" id="L76">            }</span>
+<span class="fc" id="L77">            pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(count, fragments);</span>
+<span class="nc" id="L78">        } catch (Throwable t) {</span>
+<span class="nc" id="L79">            logger.error(&quot;Error searching GuiFragments&quot;, t);</span>
+<span class="nc" id="L80">            throw new EntException(&quot;Error searching GuiFragments&quot;, t);</span>
+<span class="fc" id="L81">        }</span>
+<span class="fc" id="L82">        return pagedResult;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getGuiFragments() throws EntException {
+<span class="nc" id="L87">        return this.searchGuiFragments(null);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; searchGuiFragments(FieldSearchFilter[] filters) throws EntException {
+<span class="fc" id="L92">        List&lt;String&gt; guiFragments = null;</span>
+        try {
+<span class="fc" id="L94">            FieldSearchFilter filter = new FieldSearchFilter(&quot;code&quot;);</span>
+<span class="fc" id="L95">            filter.setOrder(FieldSearchFilter.Order.ASC);</span>
+<span class="fc" id="L96">            filters = this.addFilter(filters, filter);</span>
+<span class="fc" id="L97">            guiFragments = this.getGuiFragmentDAO().searchGuiFragments(filters);</span>
+<span class="nc" id="L98">        } catch (Throwable t) {</span>
+<span class="nc" id="L99">            logger.error(&quot;Error searching GuiFragments&quot;, t);</span>
+<span class="nc" id="L100">            throw new EntException(&quot;Error searching GuiFragments&quot;, t);</span>
+<span class="fc" id="L101">        }</span>
+<span class="fc" id="L102">        return guiFragments;</span>
+    }
+
+    protected FieldSearchFilter[] addFilter(FieldSearchFilter[] filters, FieldSearchFilter filterToAdd) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        int len = (null != filters) ? filters.length : 0;</span>
+<span class="fc" id="L107">        FieldSearchFilter[] newFilters = new FieldSearchFilter[len + 1];</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (null != filters) {</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L110">                newFilters[i] = filters[i];</span>
+            }
+        }
+<span class="fc" id="L113">        newFilters[len] = filterToAdd;</span>
+<span class="fc" id="L114">        return newFilters;</span>
+    }
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_'.concat(#guiFragment.code)&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, groups = &quot;'GuiFragment_uniqueByWidgetTypeGroup,GuiFragment_codesByWidgetTypeGroup'&quot;)//TODO improve group handling
+    public void addGuiFragment(GuiFragment guiFragment) throws EntException {
+        try {
+<span class="fc" id="L122">            this.getGuiFragmentDAO().insertGuiFragment(guiFragment);</span>
+<span class="fc" id="L123">            this.notifyGuiFragmentChangedEvent(guiFragment, GuiFragmentChangedEvent.INSERT_OPERATION_CODE);</span>
+<span class="nc" id="L124">        } catch (Throwable t) {</span>
+<span class="nc" id="L125">            logger.error(&quot;Error adding GuiFragment&quot;, t);</span>
+<span class="nc" id="L126">            throw new EntException(&quot;Error adding GuiFragment&quot;, t);</span>
+<span class="fc" id="L127">        }</span>
+<span class="fc" id="L128">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_'.concat(#guiFragment.code)&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, groups = &quot;'GuiFragment_uniqueByWidgetTypeGroup,GuiFragment_codesByWidgetTypeGroup'&quot;)//TODO improve group handling
+    public void updateGuiFragment(GuiFragment guiFragment) throws EntException {
+        try {
+<span class="fc" id="L135">            this.getGuiFragmentDAO().updateGuiFragment(guiFragment);</span>
+<span class="fc" id="L136">            this.notifyGuiFragmentChangedEvent(guiFragment, GuiFragmentChangedEvent.UPDATE_OPERATION_CODE);</span>
+<span class="nc" id="L137">        } catch (Throwable t) {</span>
+<span class="nc" id="L138">            logger.error(&quot;Error updating GuiFragment&quot;, t);</span>
+<span class="nc" id="L139">            throw new EntException(&quot;Error updating GuiFragment &quot; + guiFragment, t);</span>
+<span class="fc" id="L140">        }</span>
+<span class="fc" id="L141">    }</span>
+
+    @Override
+    @CacheEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_'.concat(#code)&quot;)
+    @CacheInfoEvict(value = ICacheInfoManager.DEFAULT_CACHE_NAME, groups = &quot;'GuiFragment_uniqueByWidgetTypeGroup,GuiFragment_codesByWidgetTypeGroup'&quot;)//TODO improve group handling
+    public void deleteGuiFragment(String code) throws EntException {
+        try {
+<span class="fc" id="L148">            GuiFragment guiFragment = this.getGuiFragment(code);</span>
+<span class="fc" id="L149">            this.getGuiFragmentDAO().removeGuiFragment(code);</span>
+<span class="fc" id="L150">            this.notifyGuiFragmentChangedEvent(guiFragment, GuiFragmentChangedEvent.REMOVE_OPERATION_CODE);</span>
+<span class="nc" id="L151">        } catch (Throwable t) {</span>
+<span class="nc" id="L152">            logger.error(&quot;Error deleting GuiFragment with code {}&quot;, code, t);</span>
+<span class="nc" id="L153">            throw new EntException(&quot;Error deleting GuiFragment with code:&quot; + code, t);</span>
+<span class="fc" id="L154">        }</span>
+<span class="fc" id="L155">    }</span>
+
+    private void notifyGuiFragmentChangedEvent(GuiFragment guiFragment, int operationCode) {
+<span class="fc" id="L158">        GuiFragmentChangedEvent event = new GuiFragmentChangedEvent();</span>
+<span class="fc" id="L159">        event.setGuiFragment(guiFragment);</span>
+<span class="fc" id="L160">        event.setOperationCode(operationCode);</span>
+<span class="fc" id="L161">        this.notifyEvent(event);</span>
+<span class="fc" id="L162">    }</span>
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_uniqueByWidgetType_'.concat(#widgetTypeCode)&quot;)
+    @CacheableInfo(groups = &quot;'GuiFragment_uniqueByWidgetTypeGroup'&quot;)//TODO improve group handling
+    public GuiFragment getUniqueGuiFragmentByWidgetType(String widgetTypeCode) throws EntException {
+<span class="fc" id="L168">        GuiFragment guiFragment = null;</span>
+        try {
+<span class="fc" id="L170">            List&lt;String&gt; fragmentCodes = this.getGuiFragmentCodesByWidgetType(widgetTypeCode);</span>
+<span class="pc bpc" id="L171" title="1 of 4 branches missed.">            if (null != fragmentCodes &amp;&amp; !fragmentCodes.isEmpty()) {</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">                if (fragmentCodes.size() &gt; 1) {</span>
+<span class="nc" id="L173">                    logger.warn(&quot;There are more then one fragment joined with widget '{}'&quot;, widgetTypeCode);</span>
+                }
+<span class="fc" id="L175">                guiFragment = this.getGuiFragment(fragmentCodes.get(0));</span>
+            }
+<span class="nc" id="L177">        } catch (Throwable t) {</span>
+<span class="nc" id="L178">            logger.error(&quot;Error loading guiFragment by widget '{}'&quot;, widgetTypeCode, t);</span>
+<span class="nc" id="L179">            throw new EntException(&quot;Error loading guiFragment by widget &quot; + widgetTypeCode, t);</span>
+<span class="fc" id="L180">        }</span>
+<span class="fc" id="L181">        return guiFragment;</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_codesByWidgetType_'.concat(#widgetTypeCode)&quot;)
+    @CacheableInfo(groups = &quot;'GuiFragment_codesByWidgetTypeGroup'&quot;)//TODO improve group handling
+    public List&lt;String&gt; getGuiFragmentCodesByWidgetType(String widgetTypeCode) throws EntException {
+<span class="fc" id="L188">        List&lt;String&gt; codes = null;</span>
+        try {
+<span class="fc" id="L190">            FieldSearchFilter filter = new FieldSearchFilter(&quot;widgettypecode&quot;, widgetTypeCode, false);</span>
+<span class="fc" id="L191">            filter.setOrder(FieldSearchFilter.Order.ASC);</span>
+<span class="fc" id="L192">            FieldSearchFilter[] filters = {filter};</span>
+<span class="fc" id="L193">            codes = this.searchGuiFragments(filters);</span>
+<span class="nc" id="L194">        } catch (Throwable t) {</span>
+<span class="nc" id="L195">            logger.error(&quot;Error loading fragments code by widget '{}'&quot;, widgetTypeCode, t);</span>
+<span class="nc" id="L196">            throw new EntException(&quot;Error loading fragment codes by widget &quot; + widgetTypeCode, t);</span>
+<span class="fc" id="L197">        }</span>
+<span class="fc" id="L198">        return codes;</span>
+    }
+
+    @Override
+    public List getGuiFragmentUtilizers(String guiFragmentCode) throws EntException {
+<span class="fc" id="L203">        List&lt;GuiFragment&gt; utilizers = new ArrayList&lt;GuiFragment&gt;();</span>
+        try {
+<span class="fc" id="L205">            String strToSearch = &quot;code=\&quot;&quot; + guiFragmentCode + &quot;\&quot;&quot;;</span>
+<span class="fc" id="L206">            Set&lt;String&gt; results = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L207">            results.addAll(this.searchFragments(strToSearch, &quot;gui&quot;));</span>
+<span class="fc" id="L208">            results.addAll(this.searchFragments(strToSearch, &quot;defaultgui&quot;));</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">            if (!results.isEmpty()) {</span>
+<span class="fc" id="L210">                Pattern pattern = Pattern.compile(&quot;&lt;@wp\\.fragment.*code=\&quot;&quot; + guiFragmentCode + &quot;\&quot;.*/&gt;&quot;, Pattern.MULTILINE);</span>
+<span class="fc" id="L211">                Iterator&lt;String&gt; it = results.iterator();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">                while (it.hasNext()) {</span>
+<span class="fc" id="L213">                    String fcode = it.next();</span>
+<span class="fc" id="L214">                    GuiFragment fragment = this.getGuiFragment(fcode);</span>
+<span class="pc bpc" id="L215" title="3 of 4 branches missed.">                    if (this.scanTemplate(pattern, fragment.getGui()) || this.scanTemplate(pattern, fragment.getDefaultGui())) {</span>
+<span class="fc" id="L216">                        utilizers.add(fragment);</span>
+                    }
+<span class="fc" id="L218">                }</span>
+            }
+<span class="nc" id="L220">        } catch (Throwable t) {</span>
+<span class="nc" id="L221">            logger.error(&quot;Error extracting utilizers&quot;, t);</span>
+<span class="nc" id="L222">            throw new EntException(&quot;Error extracting utilizers&quot;, t);</span>
+<span class="fc" id="L223">        }</span>
+<span class="fc" id="L224">        return utilizers;</span>
+    }
+
+    protected boolean scanTemplate(Pattern pattern, String template) {
+<span class="fc" id="L228">        boolean check = false;</span>
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(template)) {</span>
+<span class="fc" id="L230">            Matcher matcher = pattern.matcher(template);</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">            if (matcher.find()) {</span>
+<span class="fc" id="L232">                check = true;</span>
+            }
+        }
+<span class="fc" id="L235">        return check;</span>
+    }
+
+    protected Set&lt;String&gt; searchFragments(String strToSearch, String column) throws EntException {
+<span class="fc" id="L239">        FieldSearchFilter filterTag = new FieldSearchFilter(column, &quot;&lt;@wp.fragment&quot;, true);</span>
+<span class="fc" id="L240">        FieldSearchFilter[] filters1 = new FieldSearchFilter[]{filterTag};</span>
+<span class="fc" id="L241">        List&lt;String&gt; result1 = this.searchGuiFragments(filters1);</span>
+<span class="fc" id="L242">        FieldSearchFilter filterCode = new FieldSearchFilter(column, strToSearch, true);</span>
+<span class="fc" id="L243">        FieldSearchFilter[] filters2 = new FieldSearchFilter[]{filterCode};</span>
+<span class="fc" id="L244">        List&lt;String&gt; result2 = this.searchGuiFragments(filters2);</span>
+<span class="fc" id="L245">        Set&lt;String&gt; result = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L246">        result.addAll(result1);</span>
+<span class="fc" id="L247">        result.addAll(result2);</span>
+<span class="fc" id="L248">        return result;</span>
+    }
+
+    @Override
+    @Cacheable(value = ICacheInfoManager.DEFAULT_CACHE_NAME, key = &quot;'GuiFragment_pluginCodes'&quot;)
+    public List&lt;String&gt; loadGuiFragmentPluginCodes() throws EntException {
+<span class="fc" id="L254">        List&lt;String&gt; codes = null;</span>
+        try {
+<span class="fc" id="L256">            codes = this.getGuiFragmentDAO().loadGuiFragmentPluginCodes();</span>
+<span class="nc" id="L257">        } catch (Throwable t) {</span>
+<span class="nc" id="L258">            logger.error(&quot;Error loading guiFragment plugin codes&quot;, t);</span>
+<span class="nc" id="L259">            throw new EntException(&quot;Error loading guiFragment plugin codes&quot;, t);</span>
+<span class="fc" id="L260">        }</span>
+<span class="fc" id="L261">        return codes;</span>
+    }
+
+    public void setGuiFragmentDAO(IGuiFragmentDAO guiFragmentDAO) {
+<span class="fc" id="L265">        this.guiFragmentDAO = guiFragmentDAO;</span>
+<span class="fc" id="L266">    }</span>
+
+    protected IGuiFragmentDAO getGuiFragmentDAO() {
+<span class="fc" id="L269">        return guiFragmentDAO;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

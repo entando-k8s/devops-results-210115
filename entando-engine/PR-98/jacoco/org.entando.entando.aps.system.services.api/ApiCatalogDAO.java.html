@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiCatalogDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api</a> &gt; <span class="el_source">ApiCatalogDAO.java</span></div><h1>ApiCatalogDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiMethod.HttpMethod;
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.entando.entando.aps.system.services.api.model.ApiService;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class ApiCatalogDAO extends AbstractDAO implements IApiCatalogDAO {</span>
+	
+<span class="fc" id="L41">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ApiCatalogDAO.class);</span>
+	
+	@Override
+    public void loadApiStatus(Map&lt;String, ApiResource&gt; resources) {
+<span class="fc" id="L45">        Connection conn = null;</span>
+<span class="fc" id="L46">        PreparedStatement stat = null;</span>
+<span class="fc" id="L47">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L49">            conn = this.getConnection();</span>
+<span class="fc" id="L50">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L51">            stat = conn.prepareStatement(LOAD_API_STATUS);</span>
+            //resourcecode, httpmethod, isactive, authenticationrequired, authorizationrequired
+            //&quot;SELECT method, isactive FROM apicatalog_status&quot;;
+<span class="fc" id="L54">            res = stat.executeQuery();</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            while (res.next()) {</span>
+<span class="nc" id="L56">                String resourceCode = res.getString(&quot;resourcecode&quot;);</span>
+<span class="nc" id="L57">                String httpMethodString = res.getString(&quot;httpmethod&quot;);</span>
+<span class="nc" id="L58">                ApiMethod.HttpMethod httpMethod = Enum.valueOf(ApiMethod.HttpMethod.class, httpMethodString.toUpperCase());</span>
+<span class="nc" id="L59">                ApiMethod method = null;</span>
+<span class="nc" id="L60">                ApiResource resource = resources.get(resourceCode);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                if (null != resource) {</span>
+<span class="nc" id="L62">                    method = resource.getMethod(httpMethod);</span>
+                }
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                if (null == method) {</span>
+<span class="nc" id="L65">                    this.resetApiStatus(resourceCode, httpMethod, conn);</span>
+<span class="nc" id="L66">                    continue;</span>
+                }
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                boolean active = (res.getInt(&quot;isactive&quot;) == 1);</span>
+<span class="nc" id="L69">                method.setStatus(active);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                boolean authenticationRequired = (res.getInt(&quot;authenticationrequired&quot;) == 1);</span>
+<span class="nc" id="L71">                method.setRequiredAuth(authenticationRequired);</span>
+<span class="nc" id="L72">                String requiredPermission = res.getString(&quot;authorizationrequired&quot;);</span>
+<span class="nc bnc" id="L73" title="All 4 branches missed.">                if (null != requiredPermission &amp;&amp; requiredPermission.trim().length() &gt; 0) {</span>
+<span class="nc" id="L74">                    method.setRequiredPermission(requiredPermission);</span>
+                } else {
+<span class="nc" id="L76">                    method.setRequiredPermission(null);</span>
+                }
+<span class="nc bnc" id="L78" title="All 2 branches missed.">				boolean hidden = (res.getInt(&quot;ishidden&quot;) == 1);</span>
+<span class="nc" id="L79">                method.setHidden(hidden);</span>
+<span class="nc" id="L80">            }</span>
+<span class="fc" id="L81">            conn.commit();</span>
+<span class="nc" id="L82">        } catch (Throwable t) {</span>
+<span class="nc" id="L83">            this.executeRollback(conn);</span>
+<span class="nc" id="L84">            _logger.error(&quot;Error while loading api status&quot;,  t);</span>
+<span class="nc" id="L85">			throw new RuntimeException(&quot;Error while loading api status&quot;, t);</span>
+        } finally {
+<span class="fc" id="L87">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L89">    }</span>
+	
+    @Override
+    public void resetApiStatus(String resourceCode, HttpMethod httpMethod) {
+<span class="nc" id="L93">        Connection conn = null;</span>
+        try {
+<span class="nc" id="L95">            conn = this.getConnection();</span>
+<span class="nc" id="L96">            conn.setAutoCommit(false);</span>
+<span class="nc" id="L97">            this.resetApiStatus(resourceCode, httpMethod, conn);</span>
+<span class="nc" id="L98">            conn.commit();</span>
+<span class="nc" id="L99">        } catch (Throwable t) {</span>
+<span class="nc" id="L100">            this.executeRollback(conn);</span>
+<span class="nc" id="L101">            _logger.error(&quot;Error resetting status : resource '{}' method '{}'&quot;,resourceCode, httpMethod.toString(), t);</span>
+<span class="nc" id="L102">			throw new RuntimeException(&quot;Error resetting status : resource '&quot; + resourceCode + &quot;' method &quot; + httpMethod.toString(), t);</span>
+        } finally {
+<span class="nc" id="L104">            closeConnection(conn);</span>
+        }
+<span class="nc" id="L106">    }</span>
+	
+    protected void resetApiStatus(String resourceCode, HttpMethod httpMethod, Connection conn) {
+<span class="fc" id="L109">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L111">            stat = conn.prepareStatement(RESET_API_STATUS);</span>
+<span class="fc" id="L112">            stat.setString(1, resourceCode);</span>
+<span class="fc" id="L113">            stat.setString(2, httpMethod.toString());</span>
+<span class="fc" id="L114">            stat.executeUpdate();</span>
+<span class="nc" id="L115">        } catch (Throwable t) {</span>
+<span class="nc" id="L116">            _logger.error(&quot;Error resetting status : resource '{}' method '{}'&quot;,resourceCode, httpMethod.toString(), t);</span>
+<span class="nc" id="L117">			throw new RuntimeException(&quot;Error resetting status : resource '&quot; + resourceCode + &quot;' method &quot; + httpMethod.toString(), t);</span>
+        } finally {
+<span class="fc" id="L119">            closeDaoResources(null, stat);</span>
+        }
+<span class="fc" id="L121">    }</span>
+	
+    @Override
+    public void saveApiStatus(ApiMethod method) {
+<span class="fc" id="L125">        Connection conn = null;</span>
+<span class="fc" id="L126">        PreparedStatement stat = null;</span>
+        try {
+<span class="fc" id="L128">            conn = this.getConnection();</span>
+<span class="fc" id="L129">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L130">			String resourceCode = ApiResource.getCode(method.getNamespace(), method.getResourceName());</span>
+<span class="fc" id="L131">            this.resetApiStatus(resourceCode, method.getHttpMethod(), conn);</span>
+<span class="fc" id="L132">            stat = conn.prepareStatement(SAVE_API_STATUS);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            int isActive = (method.isActive()) ? 1 : 0;</span>
+<span class="fc" id="L134">            stat.setString(1, resourceCode);</span>
+<span class="fc" id="L135">            stat.setString(2, method.getHttpMethod().toString());</span>
+<span class="fc" id="L136">            stat.setInt(3, isActive);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            int authentication = (method.getRequiredAuth()) ? 1 : 0;</span>
+<span class="fc" id="L138">            stat.setInt(4, authentication);</span>
+<span class="pc bpc" id="L139" title="3 of 4 branches missed.">            if (null != method.getRequiredPermission() &amp;&amp; method.getRequiredPermission().trim().length() &gt; 0) {</span>
+<span class="nc" id="L140">				stat.setString(5, method.getRequiredPermission());</span>
+			} else {
+<span class="fc" id="L142">				stat.setNull(5, Types.VARCHAR);</span>
+			}
+<span class="pc bpc" id="L144" title="2 of 4 branches missed.">			int isHidden = (null != method.getHidden() &amp;&amp; method.getHidden()) ? 1 : 0;</span>
+<span class="fc" id="L145">			stat.setInt(6, isHidden);</span>
+<span class="fc" id="L146">            stat.executeUpdate();</span>
+<span class="fc" id="L147">            conn.commit();</span>
+<span class="nc" id="L148">        } catch (Throwable t) {</span>
+<span class="nc" id="L149">            this.executeRollback(conn);</span>
+<span class="nc" id="L150">            _logger.error(&quot;Error while saving api status&quot;,  t);</span>
+<span class="nc" id="L151">			throw new RuntimeException(&quot;Error while saving api status&quot;, t);</span>
+        } finally {
+<span class="fc" id="L153">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L155">    }</span>
+	
+    @Deprecated
+    @Override
+    public Map&lt;String, ApiService&gt; loadServices(Map&lt;String, ApiMethod&gt; methods) {
+<span class="nc" id="L160">        return this.loadServices(new ArrayList&lt;ApiMethod&gt;(methods.values()));</span>
+    }
+	
+    @Override
+    public Map&lt;String, ApiService&gt; loadServices(List&lt;ApiMethod&gt; methods) {
+<span class="fc" id="L165">        Map&lt;String, ApiMethod&gt; methodMap = new HashMap&lt;String, ApiMethod&gt;();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        for (int i = 0; i &lt; methods.size(); i++) {</span>
+<span class="fc" id="L167">            ApiMethod method = methods.get(i);</span>
+<span class="fc" id="L168">			String resourceCode = ApiResource.getCode(method.getNamespace(), method.getResourceName());</span>
+<span class="fc" id="L169">			methodMap.put(resourceCode, method);</span>
+        }
+<span class="fc" id="L171">        Map&lt;String, ApiService&gt; services = new HashMap&lt;String, ApiService&gt;();</span>
+<span class="fc" id="L172">        Connection conn = null;</span>
+<span class="fc" id="L173">        Statement stat = null;</span>
+<span class="fc" id="L174">        ResultSet res = null;</span>
+<span class="fc" id="L175">        List&lt;String&gt; invalidServices = new ArrayList&lt;String&gt;();</span>
+        try {
+<span class="fc" id="L177">            conn = this.getConnection();</span>
+<span class="fc" id="L178">            stat = conn.createStatement();</span>
+<span class="fc" id="L179">            res = stat.executeQuery(LOAD_SERVICES);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            while (res.next()) {</span>
+<span class="nc" id="L181">                this.buildService(methodMap, services, invalidServices, res);</span>
+            }
+<span class="nc" id="L183">        } catch (Throwable t) {</span>
+<span class="nc" id="L184">            _logger.error(&quot;Error while loading services&quot;, t);</span>
+<span class="nc" id="L185">			throw new RuntimeException(&quot;Error while loading services&quot;, t);</span>
+        } finally {
+<span class="fc" id="L187">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L189">        return services;</span>
+    }
+	
+    private void buildService(Map&lt;String, ApiMethod&gt; methods,
+            Map&lt;String, ApiService&gt; services, List&lt;String&gt; invalidServices, ResultSet res) {
+<span class="nc" id="L194">        String key = null;</span>
+        try {
+<span class="nc" id="L196">            key = res.getString(1);</span>
+<span class="nc" id="L197">            String parentCode = res.getString(2);</span>
+<span class="nc" id="L198">            ApiMethod masterMethod = methods.get(parentCode);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            if (null != masterMethod) {</span>
+<span class="nc" id="L200">                ApsProperties description = new ApsProperties();</span>
+<span class="nc" id="L201">                description.loadFromXml(res.getString(3));</span>
+<span class="nc" id="L202">                ApsProperties parameters = new ApsProperties();</span>
+<span class="nc" id="L203">                parameters.loadFromXml(res.getString(4));</span>
+<span class="nc" id="L204">                String tag = res.getString(5);</span>
+<span class="nc" id="L205">                String[] freeParameters = null;</span>
+<span class="nc" id="L206">                String freeParamString = res.getString(6);</span>
+<span class="nc bnc" id="L207" title="All 4 branches missed.">                if (null != freeParamString &amp;&amp; freeParamString.trim().length() &gt; 0) {</span>
+<span class="nc" id="L208">                    ServiceExtraConfigDOM dom = new ServiceExtraConfigDOM(freeParamString);</span>
+<span class="nc" id="L209">                    freeParameters = dom.extractFreeParameters();</span>
+                }
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                boolean isActive = (1 == res.getInt(7)) ? true : false;</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                boolean isHidden = (1 == res.getInt(8)) ? true : false;</span>
+                //boolean isMyEntando = (1 == res.getInt(9)) ? true : false;
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                ApiService apiService = new ApiService(key, description, masterMethod,</span>
+                        parameters, freeParameters, tag, !isHidden, isActive/*, isMyEntando*/);
+<span class="nc bnc" id="L216" title="All 2 branches missed.">				boolean authRequired = (1 == res.getInt(10)) ? true : false;</span>
+<span class="nc" id="L217">				apiService.setRequiredAuth(authRequired);</span>
+<span class="nc" id="L218">				String requiredPermission = res.getString(11);</span>
+<span class="nc bnc" id="L219" title="All 4 branches missed.">				if (null != requiredPermission &amp;&amp; requiredPermission.trim().length() &gt; 0) {</span>
+<span class="nc" id="L220">					apiService.setRequiredPermission(requiredPermission);</span>
+				}
+<span class="nc" id="L222">				String requiredGroup = res.getString(12);</span>
+<span class="nc bnc" id="L223" title="All 4 branches missed.">				if (null != requiredGroup &amp;&amp; requiredGroup.trim().length() &gt; 0) {</span>
+<span class="nc" id="L224">					apiService.setRequiredGroup(requiredGroup);</span>
+				}
+<span class="nc" id="L226">                services.put(key, apiService);</span>
+<span class="nc" id="L227">            } else {</span>
+<span class="nc" id="L228">                invalidServices.add(key);</span>
+            }
+<span class="nc" id="L230">        } catch (Throwable t) {</span>
+<span class="nc" id="L231">        	_logger.error(&quot;Error building service - key '{}'&quot;,key, t);</span>
+<span class="nc" id="L232">        }</span>
+<span class="nc" id="L233">    }</span>
+
+    @Override
+    public void addService(ApiService service) {
+<span class="nc" id="L237">        Connection conn = null;</span>
+<span class="nc" id="L238">        PreparedStatement stat = null;</span>
+        try {
+<span class="nc" id="L240">            conn = this.getConnection();</span>
+<span class="nc" id="L241">            conn.setAutoCommit(false);</span>
+<span class="nc" id="L242">            stat = conn.prepareStatement(ADD_SERVICE);</span>
+<span class="nc" id="L243">            stat.setString(1, service.getKey());</span>
+<span class="nc" id="L244">			this.valorizeStatement(service, stat, 1);</span>
+<span class="nc" id="L245">            stat.executeUpdate();</span>
+<span class="nc" id="L246">            conn.commit();</span>
+<span class="nc" id="L247">        } catch (Throwable t) {</span>
+<span class="nc" id="L248">            this.executeRollback(conn);</span>
+<span class="nc" id="L249">            _logger.error(&quot;Error while adding a service&quot;,  t);</span>
+<span class="nc" id="L250">			throw new RuntimeException(&quot;Error while adding a service&quot;, t);</span>
+        } finally {
+<span class="nc" id="L252">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="nc" id="L254">    }</span>
+
+    @Override
+    public void updateService(ApiService service) {
+<span class="nc" id="L258">        Connection conn = null;</span>
+<span class="nc" id="L259">        PreparedStatement stat = null;</span>
+        try {
+<span class="nc" id="L261">            conn = this.getConnection();</span>
+<span class="nc" id="L262">            conn.setAutoCommit(false);</span>
+<span class="nc" id="L263">            stat = conn.prepareStatement(UPDATE_SERVICE);</span>
+<span class="nc" id="L264">			int index = this.valorizeStatement(service, stat, 0);</span>
+<span class="nc" id="L265">            stat.setString(++index, service.getKey());</span>
+<span class="nc" id="L266">            stat.executeUpdate();</span>
+<span class="nc" id="L267">            conn.commit();</span>
+<span class="nc" id="L268">        } catch (Throwable t) {</span>
+<span class="nc" id="L269">            this.executeRollback(conn);</span>
+<span class="nc" id="L270">            _logger.error(&quot;Error while updating a service&quot;,  t);</span>
+<span class="nc" id="L271">			throw new RuntimeException(&quot;Error while updating a service&quot;, t);</span>
+        } finally {
+<span class="nc" id="L273">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="nc" id="L275">    }</span>
+	
+	private int valorizeStatement(ApiService service, PreparedStatement stat, int index) throws Throwable {
+<span class="nc" id="L278">		String resourceCode = ApiResource.getCode(service.getMaster().getNamespace(), service.getMaster().getResourceName());</span>
+<span class="nc" id="L279">		stat.setString(++index, resourceCode);</span>
+<span class="nc" id="L280">		stat.setString(++index, service.getDescription().toXml());</span>
+<span class="nc" id="L281">		stat.setString(++index, service.getParameters().toXml());</span>
+<span class="nc" id="L282">		stat.setString(++index, service.getTag());</span>
+<span class="nc bnc" id="L283" title="All 4 branches missed.">		if (null == service.getFreeParameters() || service.getFreeParameters().length == 0) {</span>
+<span class="nc" id="L284">			stat.setNull(++index, Types.VARCHAR);</span>
+		} else {
+<span class="nc" id="L286">			ServiceExtraConfigDOM dom = new ServiceExtraConfigDOM();</span>
+<span class="nc" id="L287">			stat.setString(++index, dom.extractXml(service.getFreeParameters()));</span>
+		}
+<span class="nc bnc" id="L289" title="All 2 branches missed.">		int isActive = (service.isActive()) ? 1 : 0;</span>
+<span class="nc" id="L290">		stat.setInt(++index, isActive);</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">		int isHidden = (service.isHidden()) ? 1 : 0;</span>
+<span class="nc" id="L292">		stat.setInt(++index, isHidden);</span>
+		//int isMyEntando = (service.isMyEntando()) ? 1 : 0;
+		//stat.setInt(++index, isMyEntando);
+<span class="nc" id="L295">		stat.setInt(++index, 0);//leeve 'myentando' db field</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">		int authRequired = (service.getRequiredAuth()) ? 1 : 0;</span>
+<span class="nc" id="L297">		stat.setInt(++index, authRequired);</span>
+<span class="nc bnc" id="L298" title="All 4 branches missed.">		if (null != service.getRequiredPermission() &amp;&amp; service.getRequiredPermission().trim().length() &gt; 0) {</span>
+<span class="nc" id="L299">			stat.setString(++index, service.getRequiredPermission());</span>
+		} else {
+<span class="nc" id="L301">			stat.setNull(++index, Types.VARCHAR);</span>
+		}
+<span class="nc bnc" id="L303" title="All 4 branches missed.">		if (null != service.getRequiredGroup() &amp;&amp; service.getRequiredGroup().trim().length() &gt; 0) {</span>
+<span class="nc" id="L304">			stat.setString(++index, service.getRequiredGroup());</span>
+		} else {
+<span class="nc" id="L306">			stat.setNull(++index, Types.VARCHAR);</span>
+		}
+<span class="nc" id="L308">		return index;</span>
+    }
+
+    @Override
+    public void deleteService(String key) {
+<span class="nc" id="L313">        Connection conn = null;</span>
+<span class="nc" id="L314">        PreparedStatement stat = null;</span>
+        try {
+<span class="nc" id="L316">            conn = this.getConnection();</span>
+<span class="nc" id="L317">            conn.setAutoCommit(false);</span>
+<span class="nc" id="L318">            stat = conn.prepareStatement(DELETE_SERVICE);</span>
+<span class="nc" id="L319">            stat.setString(1, key);</span>
+<span class="nc" id="L320">            stat.executeUpdate();</span>
+<span class="nc" id="L321">            conn.commit();</span>
+<span class="nc" id="L322">        } catch (Throwable t) {</span>
+<span class="nc" id="L323">            this.executeRollback(conn);</span>
+<span class="nc" id="L324">            _logger.error(&quot;Error while deleting service {}&quot;, key,  t);</span>
+<span class="nc" id="L325">			throw new RuntimeException(&quot;Error while deleting a service&quot;, t);</span>
+        } finally {
+<span class="nc" id="L327">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="nc" id="L329">    }</span>
+    
+    private static final String LOAD_API_STATUS =
+            &quot;SELECT resourcecode, httpmethod, isactive, authenticationrequired, authorizationrequired, ishidden &quot;
+            + &quot;FROM apicatalog_methods&quot;;
+    
+    private static final String SAVE_API_STATUS =
+            &quot;INSERT INTO apicatalog_methods(resourcecode, httpmethod, isactive, &quot;
+            + &quot;authenticationrequired, authorizationrequired, ishidden) VALUES (?, ?, ?, ?, ?, ?)&quot;;
+    
+    private static final String RESET_API_STATUS =
+            &quot;DELETE FROM apicatalog_methods WHERE resourcecode = ? AND httpmethod = ?&quot;;
+    
+    private static final String LOAD_SERVICES =
+			&quot;SELECT servicekey, resourcecode, description, parameters, tag, freeparameters, isactive, &quot;
+			+ &quot;ishidden, myentando, authenticationrequired, requiredpermission, requiredgroup FROM apicatalog_services&quot;;
+    
+    private static final String ADD_SERVICE =
+            &quot;INSERT INTO apicatalog_services(servicekey, resourcecode, description, parameters, tag, &quot;
+			+ &quot;freeparameters, isactive, ishidden, myentando, authenticationrequired, requiredpermission, requiredgroup) &quot;
+			+ &quot;VALUES ( ? , ? , ? , ? , ? , ? , ? , ? , ? , ? , ? , ? ) &quot;;
+    
+    private static final String UPDATE_SERVICE =
+            &quot;UPDATE apicatalog_services SET resourcecode = ? , description = ? , parameters = ? , tag = ? , &quot;
+			+ &quot;freeparameters = ? , isactive = ? , ishidden = ? , myentando = ? , authenticationrequired = ? , requiredpermission = ? , requiredgroup = ? WHERE servicekey = ? &quot;;
+    
+    private static final String DELETE_SERVICE =
+            &quot;DELETE FROM apicatalog_services WHERE servicekey = ? &quot;;
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

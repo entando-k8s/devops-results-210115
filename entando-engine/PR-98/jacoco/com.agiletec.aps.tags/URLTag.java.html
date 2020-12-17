@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>URLTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.tags</a> &gt; <span class="el_source">URLTag.java</span></div><h1>URLTag.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.tags;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.servlet.ServletRequest;
+import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.tagext.TagSupport;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.services.url.IURLManager;
+import com.agiletec.aps.system.services.url.PageURL;
+import com.agiletec.aps.tags.util.IParameterParentTag;
+import com.agiletec.aps.util.ApsWebApplicationUtils;
+
+/**
+ * Generates the URL to a portal page. The URL is either displayed or placed in a variable.
+ * The URL depends on the page attributes and the given language otherwise the current values
+ * are used.
+ * Use the sub-tag &quot;ParameterTag&quot; to insert parameters in the query string.
+ */
+<span class="nc" id="L40">public class URLTag extends TagSupport implements IParameterParentTag {</span>
+
+<span class="nc" id="L42">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(URLTag.class);</span>
+
+	/**
+	 * Prepares a PageURL object; this object may comprehend several sub-tags
+	 */
+	@Override
+	public int doStartTag() throws JspException {
+<span class="nc" id="L49">		ServletRequest request =  this.pageContext.getRequest();</span>
+<span class="nc" id="L50">		RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+		try {
+<span class="nc" id="L52">			IURLManager urlManager = </span>
+<span class="nc" id="L53">					(IURLManager) ApsWebApplicationUtils.getBean(SystemConstants.URL_MANAGER, this.pageContext);</span>
+<span class="nc" id="L54">			this._pageUrl = urlManager.createURL(reqCtx);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">			if (_pageCode != null) {</span>
+<span class="nc" id="L56">				_pageUrl.setPageCode(_pageCode);</span>
+			}
+<span class="nc bnc" id="L58" title="All 2 branches missed.">			if (_langCode != null) {</span>
+<span class="nc" id="L59">				_pageUrl.setLangCode(_langCode);</span>
+			}
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			if (this.isParamRepeat()) {</span>
+<span class="nc" id="L62">				List&lt;String&gt; exclusion = this.getParametersToExclude();</span>
+<span class="nc" id="L63">				_pageUrl.setParamRepeat(exclusion);</span>
+			}
+<span class="nc" id="L65">		} catch (Throwable t) {</span>
+<span class="nc" id="L66">			_logger.error(&quot;Error during tag initialization&quot;, t);</span>
+<span class="nc" id="L67">			throw new JspException(&quot;Error during tag initialization&quot;, t);</span>
+<span class="nc" id="L68">		}</span>
+<span class="nc" id="L69">		return EVAL_BODY_INCLUDE;</span>
+	}
+
+	/**
+	 * Completes the URL generation making it available for immediate
+	 * output or placing it in a variable
+	 */
+	@Override
+	public int doEndTag() throws JspException {
+<span class="nc" id="L78">		String url = _pageUrl.getURL();</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">		if (this.getVar() != null) {</span>
+<span class="nc" id="L80">			this.pageContext.setAttribute(this.getVar(), url);</span>
+		} else {
+			try {
+<span class="nc" id="L83">				String encodedUrl = org.owasp.encoder.Encode.forHtmlContent(url);</span>
+<span class="nc" id="L84">				this.pageContext.getOut().print(encodedUrl);</span>
+<span class="nc" id="L85">			} catch (Throwable t) {</span>
+<span class="nc" id="L86">				_logger.error(&quot;Error closing tag&quot;, t);</span>
+<span class="nc" id="L87">				throw new JspException(&quot;Error closing tag&quot;, t);</span>
+<span class="nc" id="L88">			}</span>
+		}
+<span class="nc" id="L90">		return EVAL_PAGE;</span>
+	}
+
+	@Override
+	public void addParameter(String name, String value) {
+<span class="nc" id="L95">		this._pageUrl.addParam(name, value);</span>
+<span class="nc" id="L96">	}</span>
+
+	protected List&lt;String&gt; getParametersToExclude() {
+<span class="nc" id="L99">		List&lt;String&gt; parameters = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L100">		String csv = this.getExcludeParameters();</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">		if (null != csv &amp;&amp; csv.trim().length() &gt; 0) {</span>
+<span class="nc" id="L102">			CollectionUtils.addAll(parameters, csv.split(&quot;,&quot;));</span>
+		}
+<span class="nc" id="L104">		parameters.add(SystemConstants.LOGIN_PASSWORD_PARAM_NAME);</span>
+<span class="nc" id="L105">		return parameters;</span>
+	}
+
+	@Override
+	public void release() {
+<span class="nc" id="L110">		this._langCode = null;</span>
+<span class="nc" id="L111">		this._pageCode = null;</span>
+<span class="nc" id="L112">		this._varName = null;</span>
+<span class="nc" id="L113">		this._paramRepeat = false;</span>
+<span class="nc" id="L114">		this._pageUrl = null;</span>
+<span class="nc" id="L115">		this._excludeParameters = null;</span>
+<span class="nc" id="L116">	}</span>
+
+	/**
+	 * Return the language code
+	 * @return The literal code
+	 */
+	public String getLang() {
+<span class="nc" id="L123">		return _langCode;</span>
+	}
+
+	/**
+	 * Set the language code
+	 * @param lang the literal code
+	 */
+	public void setLang(String lang) {
+<span class="nc" id="L131">		this._langCode = lang;</span>
+<span class="nc" id="L132">	}</span>
+
+	/**
+	 * Return the page code
+	 * @return The page code
+	 */
+	public String getPage() {
+<span class="nc" id="L139">		return _pageCode;</span>
+	}
+
+	/**
+	 * Set the page code
+	 * @param page The page code
+	 */
+	public void setPage(String page) {
+<span class="nc" id="L147">		this._pageCode = page;</span>
+<span class="nc" id="L148">	}</span>
+
+	/**
+	 * Return the name of the variable containing the generated URL.
+	 * @return The name of the variable
+	 */
+	public String getVar() {
+<span class="nc" id="L155">		return _varName;</span>
+	}
+
+	/**
+	 * Set the name of the variable containing the generated URL.
+	 * @param var The name of the variable
+	 */
+	public void setVar(String var) {
+<span class="nc" id="L163">		this._varName = var;</span>
+<span class="nc" id="L164">	}</span>
+
+	/**
+	 * Repeats the parameters of the previous request when true, false otherwise.
+	 * @return Returns the parRepeat.
+	 */
+	public boolean isParamRepeat() {
+<span class="nc" id="L171">		return _paramRepeat;</span>
+	}
+
+	/**
+	 * Toggles the repetition of the previous query string parameters
+	 * @param paramRepeat True enables the repetition, false otherwise.
+	 */
+	public void setParamRepeat(boolean paramRepeat) {
+<span class="nc" id="L179">		this._paramRepeat = paramRepeat;</span>
+<span class="nc" id="L180">	}</span>
+
+	/**
+	 * Gets list of parameter names (comma separated) to exclude from repeating.
+	 * By default, this attribute excludes only the password parameter of the login form.
+	 * @return the exclude list.
+	 */
+	public String getExcludeParameters() {
+<span class="nc" id="L188">		return _excludeParameters;</span>
+	}
+
+	/**
+	 * Sets the list of parameter names (comma separated) to exclude from repeating.
+	 * By default, this attribute excludes only the password parameter of the login form.
+	 * @param excludeParameters the excludes list (comma separated).
+	 */
+	public void setExcludeParameters(String excludeParameters) {
+<span class="nc" id="L197">		this._excludeParameters = excludeParameters;</span>
+<span class="nc" id="L198">	}</span>
+
+	private String _langCode;
+	private String _pageCode;
+	private String _varName;
+	private boolean _paramRepeat;
+	private PageURL _pageUrl;
+	private String _excludeParameters;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
