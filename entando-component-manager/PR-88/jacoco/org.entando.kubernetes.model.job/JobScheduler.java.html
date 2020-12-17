@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JobScheduler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.job</a> &gt; <span class="el_source">JobScheduler.java</span></div><h1>JobScheduler.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.job;
+
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Optional;
+
+public class JobScheduler {
+
+    Deque&lt;EntandoBundleComponentJobEntity&gt; jobQueue;
+    Deque&lt;EntandoBundleComponentJobEntity&gt; processedJobStack;
+
+<span class="fc" id="L14">    public JobScheduler() {</span>
+<span class="fc" id="L15">        this.jobQueue = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L16">        this.processedJobStack = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L17">    }</span>
+
+    public void clearJobQueue() {
+<span class="nc" id="L20">        this.jobQueue.clear();</span>
+<span class="nc" id="L21">    }</span>
+
+    public void clearProcessedStack() {
+<span class="nc" id="L24">        this.processedJobStack.clear();</span>
+<span class="nc" id="L25">    }</span>
+
+    public void addToQueue(EntandoBundleComponentJobEntity job) {
+<span class="fc" id="L28">        jobQueue.addLast(job);</span>
+<span class="fc" id="L29">    }</span>
+
+    public void queueAll(Collection&lt;EntandoBundleComponentJobEntity&gt; jobs) {
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        for (EntandoBundleComponentJobEntity job : jobs) {</span>
+<span class="fc" id="L33">            this.addToQueue(job);</span>
+<span class="fc" id="L34">        }</span>
+<span class="fc" id="L35">    }</span>
+
+    public Optional&lt;EntandoBundleComponentJobEntity&gt; extractFromQueue() {
+<span class="fc" id="L38">        EntandoBundleComponentJobEntity nextComponentJob = null;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (!jobQueue.isEmpty()) {</span>
+<span class="fc" id="L40">            nextComponentJob = jobQueue.removeFirst();</span>
+        }
+<span class="fc" id="L42">        return Optional.ofNullable(nextComponentJob);</span>
+    }
+
+    public void recordProcessedComponentJob(EntandoBundleComponentJobEntity componentJob) {
+<span class="fc" id="L46">        processedJobStack.addLast(componentJob);</span>
+<span class="fc" id="L47">    }</span>
+
+    public void activateRollbackMode() {
+<span class="nc" id="L50">        Deque&lt;EntandoBundleComponentJobEntity&gt; rollbackQueue = new ArrayDeque&lt;&gt;();</span>
+<span class="nc" id="L51">        Iterator&lt;EntandoBundleComponentJobEntity&gt; jobIterator = this.processedJobStack</span>
+<span class="nc" id="L52">                .descendingIterator();</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        while (jobIterator.hasNext()) {</span>
+<span class="nc" id="L54">            EntandoBundleComponentJobEntity duplicateJob = EntandoBundleComponentJobEntity</span>
+<span class="nc" id="L55">                    .getNewCopy(jobIterator.next());</span>
+<span class="nc" id="L56">            duplicateJob.setStartedAt(null);</span>
+<span class="nc" id="L57">            duplicateJob.setFinishedAt(null);</span>
+<span class="nc" id="L58">            rollbackQueue.addLast(duplicateJob);</span>
+<span class="nc" id="L59">        }</span>
+<span class="nc" id="L60">        this.jobQueue = rollbackQueue;</span>
+<span class="nc" id="L61">        this.clearProcessedStack();</span>
+<span class="nc" id="L62">    }</span>
+
+    public JobScheduler createRollbackScheduler() {
+<span class="fc" id="L65">        JobScheduler rbScheduler = new JobScheduler();</span>
+<span class="fc" id="L66">        Iterator&lt;EntandoBundleComponentJobEntity&gt; jobIterator = this.processedJobStack</span>
+<span class="fc" id="L67">                .descendingIterator();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        while (jobIterator.hasNext()) {</span>
+<span class="fc" id="L69">            EntandoBundleComponentJobEntity je = jobIterator.next();</span>
+<span class="fc" id="L70">            EntandoBundleComponentJobEntity duplicateJob = EntandoBundleComponentJobEntity.getNewCopy(je);</span>
+<span class="fc" id="L71">            duplicateJob.setStartedAt(null);</span>
+<span class="fc" id="L72">            duplicateJob.setFinishedAt(null);</span>
+<span class="fc" id="L73">            rbScheduler.addToQueue(duplicateJob);</span>
+<span class="fc" id="L74">        }</span>
+<span class="fc" id="L75">        return rbScheduler;</span>
+    }
+
+    public Optional&lt;EntandoBundleComponentJobEntity&gt; componentJobWithError() {
+<span class="nc" id="L79">        return this.processedJobStack.stream()</span>
+<span class="nc" id="L80">                .filter(trJob -&gt; trJob.getStatus().isOfType(JobType.ERROR))</span>
+<span class="nc" id="L81">                .findFirst();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

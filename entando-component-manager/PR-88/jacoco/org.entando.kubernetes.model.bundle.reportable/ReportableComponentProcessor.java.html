@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportableComponentProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.reportable</a> &gt; <span class="el_source">ReportableComponentProcessor.java</span></div><h1>ReportableComponentProcessor.java</h1><pre class="source lang-java linenums">/**
+ * this interface has to be implemented by those processors we want they create a report in order to manage conflicts.
+ */
+
+package org.entando.kubernetes.model.bundle.reportable;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.bundle.processor.ComponentProcessor;
+import org.entando.kubernetes.model.bundle.reader.BundleReader;
+
+public interface ReportableComponentProcessor {
+
+    /**
+     * a function to centralize the ReportableRemoteHandler used by tge concrete processor.
+     *
+     * @return the ReportableRemoteHandler to use with the current reportableProcessor
+     */
+    ReportableRemoteHandler getReportableRemoteHandler();
+
+    /**
+     * This method will process the component descriptor and should return a Reportable containing - the componenttype -
+     * the list of the components' identifiers that should be analysed. - the remote handler (e.g. entando-core,
+     * k8s-service)
+     *
+     * @param bundleReader bundle reader capable of reading the bundle using it's descriptor
+     * @return Should return a list of String representing the identifier of every read component
+     * @throws EntandoComponentManagerException in case of any error while reading any the file from the Zip package
+     */
+    default Reportable getReportable(BundleReader bundleReader, ComponentProcessor&lt;?&gt; componentProcessor) {
+
+<span class="fc" id="L36">        List&lt;String&gt; idList = new ArrayList&lt;&gt;();</span>
+
+        try {
+<span class="fc" id="L39">            List&lt;String&gt; contentDescriptorList = componentProcessor.getDescriptorList(bundleReader);</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">            for (String fileName : contentDescriptorList) {</span>
+<span class="fc" id="L41">                idList.addAll(this.readDescriptorKeys(bundleReader, fileName, componentProcessor));</span>
+<span class="fc" id="L42">            }</span>
+
+<span class="fc" id="L44">            return new Reportable(componentProcessor.getSupportedComponentType(), idList,</span>
+<span class="fc" id="L45">                    this.getReportableRemoteHandler());</span>
+
+<span class="nc" id="L47">        } catch (IOException e) {</span>
+<span class="nc" id="L48">            throw new EntandoComponentManagerException(&quot;Error reading bundle&quot;, e);</span>
+        }
+    }
+
+    /**
+     * reads the keys of the components from the descriptor identified by the received filename.
+     *
+     * @param bundleReader the bundler reader to use in order to read the bundle
+     * @param fileName     the filename identifying the descriptor file to read
+     * @return the list of the keys of the components read from the descriptor
+     */
+    default List&lt;String&gt; readDescriptorKeys(BundleReader bundleReader, String fileName,
+            ComponentProcessor&lt;?&gt; componentProcessor) {
+
+        try {
+<span class="fc bfc" id="L63" title="All 2 branches covered.">            if (componentProcessor.doesComponentDscriptorContainMoreThanOneSingleEntity()) {</span>
+<span class="fc" id="L64">                return bundleReader.readListOfDescriptorFile(fileName, componentProcessor.getDescriptorClass())</span>
+<span class="fc" id="L65">                        .stream().map(descriptor -&gt; descriptor.getComponentKey().getKey())</span>
+<span class="fc" id="L66">                        .collect(Collectors.toList());</span>
+            } else {
+<span class="fc" id="L68">                return Arrays.asList(bundleReader.readDescriptorFile(fileName, componentProcessor.getDescriptorClass())</span>
+<span class="fc" id="L69">                        .getComponentKey().getKey());</span>
+            }
+<span class="nc" id="L71">        } catch (IOException e) {</span>
+<span class="nc" id="L72">            throw new EntandoComponentManagerException(String.format(</span>
+                    &quot;Error parsing content type %s from descriptor %s&quot;,
+<span class="nc" id="L74">                    componentProcessor.getSupportedComponentType(), fileName), e);</span>
+        }
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

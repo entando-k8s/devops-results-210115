@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AppConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.config</a> &gt; <span class="el_source">AppConfiguration.java</span></div><h1>AppConfiguration.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.config;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.Setter;
+import org.entando.kubernetes.client.core.EntandoCoreClient;
+import org.entando.kubernetes.client.k8ssvc.K8SServiceClient;
+import org.entando.kubernetes.model.bundle.ComponentType;
+import org.entando.kubernetes.model.bundle.downloader.BundleDownloaderFactory;
+import org.entando.kubernetes.model.bundle.downloader.GitBundleDownloader;
+import org.entando.kubernetes.model.bundle.downloader.NpmBundleDownloader;
+import org.entando.kubernetes.model.bundle.processor.ComponentProcessor;
+import org.entando.kubernetes.model.bundle.reportable.AnalysisReportFunction;
+import org.entando.kubernetes.model.bundle.reportable.ReportableComponentProcessor;
+import org.entando.kubernetes.model.bundle.reportable.ReportableRemoteHandler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+
+@Configuration
+@Profile(&quot;!test&quot;)
+@Setter
+public class AppConfiguration {
+
+    @Value(&quot;${entando.bundle.type:git}&quot;)
+    public String type;
+    @Getter
+    public static boolean truncatePluginBaseNameIfLonger;   // NOSONAR
+
+    private EntandoCoreClient entandoCoreClient;
+    private K8SServiceClient kubernetesServiceClient;
+
+    @Autowired
+<span class="fc" id="L41">    public AppConfiguration(EntandoCoreClient entandoCoreClient, K8SServiceClient kubernetesServiceClient) {</span>
+<span class="fc" id="L42">        this.entandoCoreClient = entandoCoreClient;</span>
+<span class="fc" id="L43">        this.kubernetesServiceClient = kubernetesServiceClient;</span>
+<span class="fc" id="L44">    }</span>
+
+    @Bean
+    public BundleDownloaderFactory bundleDownloaderFactory() {
+<span class="nc" id="L48">        BundleDownloaderFactory factory = new BundleDownloaderFactory();</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">        if (type.equalsIgnoreCase(&quot;npm&quot;)) {</span>
+<span class="nc" id="L50">            factory.setDefaultSupplier(NpmBundleDownloader::new);</span>
+        } else {
+<span class="nc" id="L52">            factory.setDefaultSupplier(GitBundleDownloader::new);</span>
+        }
+<span class="nc" id="L54">        return factory;</span>
+    }
+
+    @Bean
+    public Map&lt;ComponentType, ComponentProcessor&gt; processorMap(ApplicationContext appContext) {
+<span class="fc" id="L59">        return appContext.getBeansOfType(ComponentProcessor.class).values().stream()</span>
+<span class="fc" id="L60">                .collect(Collectors.toMap(ComponentProcessor::getSupportedComponentType, Function.identity()));</span>
+    }
+
+    @Bean
+    public List&lt;ReportableComponentProcessor&gt; reportableComponentProcessorList(ApplicationContext appContext) {
+<span class="fc" id="L65">        return new ArrayList&lt;&gt;(appContext.getBeansOfType(ReportableComponentProcessor.class).values());</span>
+    }
+
+    @Bean
+    public Map&lt;ReportableRemoteHandler, AnalysisReportFunction&gt; analysisReportStrategies() {
+
+<span class="fc" id="L71">        return Map.of(</span>
+                // ENGINE ANALYSIS
+                ReportableRemoteHandler.ENTANDO_ENGINE,
+<span class="fc" id="L74">                entandoCoreClient::getEngineAnalysisReport,</span>
+                // CMS ANALYSIS
+                ReportableRemoteHandler.ENTANDO_CMS,
+<span class="fc" id="L77">                entandoCoreClient::getCMSAnalysisReport,</span>
+                // K8S SERVICE ANALYSIS
+                ReportableRemoteHandler.ENTANDO_K8S_SERVICE,
+<span class="fc" id="L80">                kubernetesServiceClient::getAnalysisReport</span>
+        );
+    }
+
+    @Value(&quot;${entando.plugin.truncate-if-long:true}&quot;)
+    public void setDatabase(boolean truncatePluginBaseName) {
+<span class="fc" id="L86">        truncatePluginBaseNameIfLonger = truncatePluginBaseName;    // NOSONAR</span>
+<span class="fc" id="L87">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
