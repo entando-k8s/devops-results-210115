@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentViewerHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.plugins.jacms.aps.system.services.content.widget</a> &gt; <span class="el_source">ContentViewerHelper.java</span></div><h1>ContentViewerHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.plugins.jacms.aps.system.services.content.widget;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.lang.Lang;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.tags.util.HeadInfoContainer;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.plugins.jacms.aps.system.JacmsSystemConstants;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.IContentAuthorizationHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.helper.PublicContentAuthorizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.ContentModel;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.IContentModelManager;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.ContentRenderizationInfo;
+import com.agiletec.plugins.jacms.aps.system.services.dispenser.IContentDispenser;
+import org.apache.commons.lang3.StringUtils;
+
+/**
+ * Classe helper per i Widget di erogazione contenuti singoli.
+ *
+ * @author W.Ambu - E.Santoboni
+ */
+<span class="fc" id="L42">public class ContentViewerHelper implements IContentViewerHelper {</span>
+
+<span class="fc" id="L44">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(ContentViewerHelper.class);</span>
+
+    private IContentModelManager contentModelManager;
+    private IContentManager contentManager;
+    private IContentDispenser contentDispenser;
+
+    private IContentAuthorizationHelper contentAuthorizationHelper;
+
+    @Override
+    public String getRenderedContent(String contentId, String modelId, RequestContext reqCtx) throws EntException {
+<span class="fc" id="L54">        return this.getRenderedContent(contentId, modelId, false, reqCtx);</span>
+    }
+
+    /**
+     * Restituisce il contenuto da visualizzare nel widget.
+     *
+     * @param contentId L'identificativo del contenuto ricavato dal tag.
+     * @param modelId Il modello del contenuto ricavato dal tag.
+     * @param publishExtraTitle
+     * @param reqCtx Il contesto della richiesta.
+     * @return Il contenuto da visualizzare nella widget.
+     * @throws EntException In caso di errore.
+     */
+    @Override
+    public String getRenderedContent(String contentId, String modelId, boolean publishExtraTitle, RequestContext reqCtx)
+            throws EntException {
+<span class="fc" id="L70">        String renderedContent = null;</span>
+<span class="fc" id="L71">        ContentRenderizationInfo renderInfo = this.getRenderizationInfo(contentId, modelId, publishExtraTitle, reqCtx);</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (null != renderInfo) {</span>
+<span class="fc" id="L73">            renderedContent = renderInfo.getRenderedContent();</span>
+        }
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (null == renderedContent) {</span>
+<span class="fc" id="L76">            renderedContent = &quot;&quot;;</span>
+        }
+<span class="fc" id="L78">        return renderedContent;</span>
+    }
+
+    @Override
+    public ContentRenderizationInfo getRenderizationInfo(String contentId, String modelId, boolean publishExtraTitle, RequestContext reqCtx)
+            throws EntException {
+<span class="fc" id="L84">        ContentRenderizationInfo renderizationInfo = null;</span>
+        try {
+<span class="fc" id="L86">            Lang currentLang = (Lang) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_LANG);</span>
+<span class="fc" id="L87">            String langCode = currentLang.getCode();</span>
+<span class="fc" id="L88">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            ApsProperties widgetConfig = (null != widget) ? widget.getConfig() : null;</span>
+<span class="fc" id="L90">            contentId = this.extractContentId(contentId, widgetConfig, reqCtx);</span>
+<span class="fc" id="L91">            modelId = this.extractModelId(contentId, modelId, widgetConfig, reqCtx);</span>
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">            if (contentId != null &amp;&amp; modelId != null) {</span>
+<span class="fc" id="L93">                long longModelId = new Long(modelId).longValue();</span>
+<span class="fc" id="L94">                this.setStylesheet(longModelId, reqCtx);</span>
+<span class="fc" id="L95">                renderizationInfo = this.getContentDispenser().getRenderizationInfo(contentId, longModelId, langCode, reqCtx, true);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">                if (null == renderizationInfo) {</span>
+<span class="fc" id="L97">                    logger.info(&quot;Null Renderization informations: content={}&quot;, contentId);</span>
+<span class="fc" id="L98">                    return null;</span>
+                }
+<span class="fc" id="L100">                this.getContentDispenser().resolveLinks(renderizationInfo, reqCtx);</span>
+<span class="fc" id="L101">                String cspToken = (String) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CSP_NONCE_TOKEN);</span>
+<span class="fc" id="L102">                renderizationInfo.replacePlaceholder(JacmsSystemConstants.CSP_NONCE_PLACEHOLDER, cspToken);</span>
+<span class="fc" id="L103">                this.manageAttributeValues(renderizationInfo, publishExtraTitle, reqCtx);</span>
+<span class="fc" id="L104">            } else {</span>
+<span class="fc" id="L105">                logger.warn(&quot;Parametri visualizzazione contenuto incompleti: &quot; + &quot;contenuto={} modello={}&quot;, contentId, modelId);</span>
+            }
+<span class="fc" id="L107">        } catch (Throwable t) {</span>
+<span class="fc" id="L108">            logger.error(&quot;Error extracting renderization info&quot;, t);</span>
+<span class="fc" id="L109">            throw new EntException(&quot;Error extracting renderization info&quot;, t);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">        return renderizationInfo;</span>
+    }
+
+    @Override
+    public PublicContentAuthorizationInfo getAuthorizationInfo(String contentId, RequestContext reqCtx) throws EntException {
+<span class="fc" id="L116">        PublicContentAuthorizationInfo authInfo = null;</span>
+        try {
+<span class="fc" id="L118">            Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="fc" id="L119">            contentId = this.extractContentId(contentId, widget.getConfig(), reqCtx);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            if (null == contentId) {</span>
+<span class="fc" id="L121">                logger.info(&quot;Null contentId&quot;);</span>
+<span class="fc" id="L122">                return null;</span>
+            }
+<span class="fc" id="L124">            authInfo = this.getContentAuthorizationHelper().getAuthorizationInfo(contentId, true);</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            if (null == authInfo) {</span>
+<span class="nc" id="L126">                logger.info(&quot;Null authorization info by content '&quot; + contentId + &quot;'&quot;);</span>
+            }
+<span class="fc" id="L128">        } catch (Throwable t) {</span>
+<span class="fc" id="L129">            logger.error(&quot;Error extracting content authorization info by content {}&quot;, contentId, t);</span>
+<span class="fc" id="L130">            throw new EntException(&quot;Error extracting content authorization info by content '&quot; + contentId + &quot;'&quot;, t);</span>
+<span class="fc" id="L131">        }</span>
+<span class="fc" id="L132">        return authInfo;</span>
+    }
+
+    protected void manageAttributeValues(ContentRenderizationInfo renderInfo, boolean publishExtraTitle, RequestContext reqCtx) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        if (!publishExtraTitle) {</span>
+<span class="fc" id="L137">            return;</span>
+        }
+<span class="fc" id="L139">        IPage page = (IPage) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_PAGE);</span>
+<span class="fc bfc" id="L140" title="All 4 branches covered.">        if (null == page || !page.isUseExtraTitles()) {</span>
+<span class="fc" id="L141">            return;</span>
+        }
+<span class="fc" id="L143">        Integer currentFrame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="pc bpc" id="L144" title="1 of 4 branches missed.">        if (currentFrame == page.getMetadata().getModel().getMainFrame() &amp;&amp; null != renderInfo) {</span>
+<span class="fc" id="L145">            Object extraTitle = renderInfo.getAttributeValues().get(JacmsSystemConstants.ATTRIBUTE_ROLE_TITLE);</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">            if (null != extraTitle) {</span>
+<span class="fc" id="L147">                reqCtx.addExtraParam(SystemConstants.EXTRAPAR_EXTRA_PAGE_TITLES, extraTitle);</span>
+            }
+        }
+<span class="fc" id="L150">    }</span>
+
+    /**
+     * Metodo che determina con che ordine viene ricercato l'identificativo del
+     * contenuto. L'ordine con cui viene cercato è questo: 1) Nel parametro
+     * specificato all'interno del tag. 2) Tra i parametri di configurazione del
+     * widget 3) Nella Request.
+     *
+     * @param contentId L'identificativo del contenuto specificato nel tag. Può
+     * essere null o una Stringa alfanumerica.
+     * @param widgetConfig I parametri di configurazione del widget corrente.
+     * @param reqCtx Il contesto della richiesta.
+     * @return L'identificativo del contenuto da erogare.
+     */
+    protected String extractContentId(String contentId, ApsProperties widgetConfig, RequestContext reqCtx) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (null == contentId) {</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">            if (null != widgetConfig) {</span>
+<span class="fc" id="L167">                contentId = (String) widgetConfig.get(&quot;contentId&quot;);</span>
+            }
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            if (null == contentId) {</span>
+<span class="fc" id="L170">                contentId = reqCtx.getRequest().getParameter(SystemConstants.K_CONTENT_ID_PARAM);</span>
+            }
+        }
+<span class="pc bpc" id="L173" title="1 of 4 branches missed.">        if (null != contentId &amp;&amp; contentId.trim().length() == 0) {</span>
+<span class="nc" id="L174">            contentId = null;</span>
+        }
+<span class="fc" id="L176">        return contentId;</span>
+    }
+
+    /**
+     * Restituisce l'identificativo del modello con il quale renderizzare il
+     * contenuto. Metodo che determina con che ordine viene ricercato
+     * l'identificativo del modello di contenuto. L'ordine con cui viene cercato
+     * è questo: 1) Nel parametro specificato all'interno del tag. 2) Tra i
+     * parametri di configurazione del widget Nel caso non venga trovato nessun
+     * ideentificativo, viene restituito l'identificativo del modello di default
+     * specificato nella configurazione del tipo di contenuto.
+     *
+     * @param contentId L'identificativo del contenuto da erogare. Può essere
+     * null, un numero in forma di stringa, o un'identificativo della tipologia
+     * del modello 'list' (in tal caso viene restituito il modello per le liste
+     * definito nella configurazione del tipo di contenuto) o 'default' (in tal
+     * caso viene restituito il modello di default definito nella configurazione
+     * del tipo di contenuto).
+     * @param modelId L'identificativo del modello specificato nel tag. Può
+     * essere null.
+     * @param widgetConfig La configurazione del widget corrente nel qual è
+     * inserito il tag erogatore del contenuti.
+     * @param reqCtx Il contesto della richiesta.
+     * @return L'identificativo del modello con il quale renderizzare il
+     * contenuto.
+     */
+    protected String extractModelId(String contentId, String modelId, ApsProperties widgetConfig, RequestContext reqCtx) {
+<span class="fc" id="L203">        modelId = this.extractConfiguredModelId(contentId, modelId, widgetConfig);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (null == modelId) {</span>
+<span class="fc" id="L205">            modelId = reqCtx.getRequest().getParameter(&quot;modelId&quot;);</span>
+        }
+<span class="fc bfc" id="L207" title="All 4 branches covered.">        if (null == modelId &amp;&amp; null != contentId) {</span>
+<span class="fc" id="L208">            modelId = this.getContentManager().getDefaultModel(contentId);</span>
+        }
+<span class="fc" id="L210">        return modelId;</span>
+    }
+
+    protected String extractModelId(String contentId, String modelId, ApsProperties widgetConfig) {
+<span class="nc" id="L214">        modelId = this.extractConfiguredModelId(contentId, modelId, widgetConfig);</span>
+<span class="nc bnc" id="L215" title="All 4 branches missed.">        if (null == modelId &amp;&amp; null != contentId) {</span>
+<span class="nc" id="L216">            modelId = this.getContentManager().getDefaultModel(contentId);</span>
+        }
+<span class="nc" id="L218">        return modelId;</span>
+    }
+
+    private String extractConfiguredModelId(String contentId, String modelId, ApsProperties widgetConfig) {
+<span class="fc" id="L222">        modelId = this.checkModelId(contentId, modelId);</span>
+<span class="fc bfc" id="L223" title="All 4 branches covered.">        if (null == modelId &amp;&amp; null != widgetConfig) {</span>
+<span class="fc" id="L224">            String modelIdParamValue = (String) widgetConfig.get(&quot;modelId&quot;);</span>
+<span class="fc" id="L225">            modelId = this.checkModelId(contentId, modelIdParamValue);</span>
+        }
+<span class="fc" id="L227">        return modelId;</span>
+    }
+    
+    private String checkModelId(String contentId, String modelIdToCheck) {
+<span class="fc bfc" id="L231" title="All 4 branches covered.">        if (null != modelIdToCheck &amp;&amp; !ContentModel.isValidModelIdParam(modelIdToCheck.trim())) {</span>
+<span class="fc" id="L232">            logger.warn(&quot;Invalid content template '{}'&quot;, modelIdToCheck);</span>
+<span class="fc" id="L233">            return null;</span>
+        }
+<span class="pc bpc" id="L235" title="1 of 4 branches missed.">        if (!StringUtils.isEmpty(modelIdToCheck) &amp;&amp; !StringUtils.isEmpty(contentId)) {</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">            if (modelIdToCheck.trim().equals(ContentModel.MODEL_ID_LIST)) { //NOSONAR</span>
+<span class="fc" id="L237">                return this.getContentManager().getListModel(contentId);</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">            } else if (modelIdToCheck.trim().equals(ContentModel.MODEL_ID_DEFAULT)) {</span>
+<span class="fc" id="L239">                return this.getContentManager().getDefaultModel(contentId);</span>
+            }
+        }
+<span class="fc" id="L242">        return modelIdToCheck;</span>
+    }
+
+    protected void setStylesheet(long modelId, RequestContext reqCtx) {
+<span class="fc" id="L246">        ContentModel model = this.getContentModelManager().getContentModel(modelId);</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        if (model != null) {</span>
+<span class="fc" id="L248">            String stylesheet = model.getStylesheet();</span>
+<span class="pc bpc" id="L249" title="1 of 4 branches missed.">            if (null != stylesheet &amp;&amp; stylesheet.trim().length() &gt; 0) {</span>
+<span class="fc" id="L250">                HeadInfoContainer headInfo = (HeadInfoContainer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_HEAD_INFO_CONTAINER);</span>
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">                if (headInfo != null) {</span>
+<span class="fc" id="L252">                    headInfo.addInfo(&quot;CSS&quot;, stylesheet);</span>
+                }
+            }
+        }
+<span class="fc" id="L256">    }</span>
+
+    protected IContentModelManager getContentModelManager() {
+<span class="fc" id="L259">        return contentModelManager;</span>
+    }
+
+    public void setContentModelManager(IContentModelManager contentModelManager) {
+<span class="fc" id="L263">        this.contentModelManager = contentModelManager;</span>
+<span class="fc" id="L264">    }</span>
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L267">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L271">        this.contentManager = contentManager;</span>
+<span class="fc" id="L272">    }</span>
+
+    protected IContentDispenser getContentDispenser() {
+<span class="fc" id="L275">        return contentDispenser;</span>
+    }
+
+    public void setContentDispenser(IContentDispenser contentDispenser) {
+<span class="fc" id="L279">        this.contentDispenser = contentDispenser;</span>
+<span class="fc" id="L280">    }</span>
+
+    protected IContentAuthorizationHelper getContentAuthorizationHelper() {
+<span class="fc" id="L283">        return contentAuthorizationHelper;</span>
+    }
+
+    public void setContentAuthorizationHelper(IContentAuthorizationHelper contentAuthorizationHelper) {
+<span class="fc" id="L287">        this.contentAuthorizationHelper = contentAuthorizationHelper;</span>
+<span class="fc" id="L288">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
