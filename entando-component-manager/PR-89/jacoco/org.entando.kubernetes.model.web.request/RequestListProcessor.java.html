@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RequestListProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.web.request</a> &gt; <span class="el_source">RequestListProcessor.java</span></div><h1>RequestListProcessor.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.web.request;
+
+import static java.util.Optional.ofNullable;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public abstract class RequestListProcessor&lt;T&gt; {
+
+    private final PagedListRequest pagedListRequest;
+    private Stream&lt;T&gt; stream;
+
+<span class="fc" id="L17">    public RequestListProcessor(final PagedListRequest pagedListRequest, final Stream&lt;T&gt; stream) {</span>
+<span class="fc" id="L18">        this.pagedListRequest = pagedListRequest;</span>
+<span class="fc" id="L19">        this.stream = stream;</span>
+<span class="fc" id="L20">    }</span>
+
+    public RequestListProcessor(final PagedListRequest pagedListRequest, final List&lt;T&gt; items) {
+<span class="fc" id="L23">        this(pagedListRequest, ofNullable(items).map(List::stream).orElseGet(Stream::empty));</span>
+<span class="fc" id="L24">    }</span>
+
+    protected abstract Function&lt;Filter, Predicate&lt;T&gt;&gt; getPredicates();
+
+    protected abstract Function&lt;String, Comparator&lt;T&gt;&gt; getComparators();
+
+    public RequestListProcessor&lt;T&gt; filter() {
+<span class="fc" id="L31">        Function&lt;Filter, Predicate&lt;T&gt;&gt; predicatesProvider = this.getPredicates();</span>
+<span class="pc bpc" id="L32" title="1 of 4 branches missed.">        if (null != this.pagedListRequest &amp;&amp; null != this.pagedListRequest.getFilters()) {</span>
+<span class="fc" id="L33">            final Filter[] filters = this.pagedListRequest.getFilters();</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">            for (final Filter filter : filters) {</span>
+<span class="fc" id="L35">                final String filterAttribute = filter.getAttribute();</span>
+<span class="fc" id="L36">                final String filterValue = filter.getValue();</span>
+<span class="pc bpc" id="L37" title="2 of 6 branches missed.">                if (filterAttribute != null &amp;&amp; !filterAttribute.isEmpty() &amp;&amp; (</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                        filterValue != null &amp;&amp; !filterValue.isEmpty()</span>
+<span class="pc bpc" id="L39" title="2 of 4 branches missed.">                                || filter.getAllowedValues() != null &amp;&amp; filter.getAllowedValues().length &gt; 0)) {</span>
+<span class="fc" id="L40">                    final Predicate&lt;T&gt; predicate = predicatesProvider.apply(filter);</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                    if (null != predicate) {</span>
+<span class="fc" id="L42">                        this.stream = this.stream.filter(predicate);</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L48">        return this;</span>
+    }
+
+    public RequestListProcessor&lt;T&gt; sort() {
+<span class="fc" id="L52">        final Function&lt;String, Comparator&lt;T&gt;&gt; comparatorsProvider = this.getComparators();</span>
+<span class="fc" id="L53">        final String sort = this.pagedListRequest.getSort();</span>
+<span class="fc" id="L54">        final String direction = this.pagedListRequest.getDirection();</span>
+
+<span class="pc bpc" id="L56" title="2 of 4 branches missed.">        if (sort != null &amp;&amp; direction != null) {</span>
+<span class="fc" id="L57">            Comparator&lt;T&gt; comparator = comparatorsProvider.apply(this.pagedListRequest.getSort());</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if (comparator != null) {</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">                if (direction.equalsIgnoreCase(Filter.DESC_ORDER)) {</span>
+<span class="fc" id="L60">                    comparator = comparator.reversed();</span>
+                }
+
+<span class="fc" id="L63">                this.stream = this.stream.sorted(comparator);</span>
+            }
+        }
+
+<span class="fc" id="L67">        return this;</span>
+    }
+
+    public RequestListProcessor&lt;T&gt; filterAndSort() {
+<span class="fc" id="L71">        return this.filter().sort();</span>
+    }
+
+    public Stream&lt;T&gt; getStream() {
+<span class="nc" id="L75">        return this.stream;</span>
+    }
+
+    public List&lt;T&gt; toList() {
+<span class="fc" id="L79">        return this.stream.collect(Collectors.toList());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BundleUtilities.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.service.digitalexchange</a> &gt; <span class="el_source">BundleUtilities.java</span></div><h1>BundleUtilities.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.service.digitalexchange;
+
+import io.fabric8.zjsonpatch.internal.guava.Strings;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.config.AppConfiguration;
+import org.entando.kubernetes.exception.EntandoComponentManagerException;
+import org.entando.kubernetes.model.DbmsVendor;
+import org.entando.kubernetes.model.bundle.descriptor.DockerImage;
+import org.entando.kubernetes.model.bundle.descriptor.plugin.PluginDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.plugin.PluginDescriptorV1Role;
+import org.entando.kubernetes.model.debundle.EntandoDeBundle;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.model.plugin.EntandoPluginBuilder;
+import org.entando.kubernetes.model.plugin.ExpectedRole;
+import org.entando.kubernetes.model.plugin.Permission;
+import org.springframework.util.StringUtils;
+
+@UtilityClass
+<span class="fc" id="L26">@Slf4j</span>
+public class BundleUtilities {
+
+    public static final String OFFICIAL_SEMANTIC_VERSION_REGEX = &quot;^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-(&quot;
+            + &quot;(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\&quot;
+            + &quot;.[0-9a-zA-Z-]+)*))?$&quot;;
+
+    public static final int MAX_K8S_POD_NAME_LENGTH = 63;
+    public static final int RESERVED_K8S_POD_NAME_LENGTH = 31;
+    public static final int MAX_ENTANDO_K8S_POD_NAME_LENGTH = MAX_K8S_POD_NAME_LENGTH - RESERVED_K8S_POD_NAME_LENGTH;
+    public static final String DEPLOYMENT_BASE_NAME_MAX_LENGHT_EXCEEDED_ERROR = &quot;The prefix \&quot;%s\&quot; of the pod that is &quot;
+            + &quot;about to be created is longer than %d. The prefix has been created using %s&quot;;
+    public static final String DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DEPLOYMENT_END = &quot;Please specify a shorter value &quot;
+            + &quot;in the \&quot;deploymentBaseName\&quot; plugin descriptor property&quot;;
+    public static final String DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DOCKER_IMAGE_SUFFIX = &quot;the format &quot;
+            + &quot;[docker-organization]-[docker-image-name]-[docker-image-version]. &quot;
+            + DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DEPLOYMENT_END;
+    public static final String DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DEPLOYMENT_SUFFIX = &quot;the descriptor &quot;
+            + &quot;\&quot;deploymentBaseName\&quot; property. &quot; + DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DEPLOYMENT_END;
+
+    public static String getBundleVersionOrFail(EntandoDeBundle bundle, String versionReference) {
+<span class="fc" id="L47">        String version = versionReference;</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (!isSemanticVersion(versionReference)) {</span>
+<span class="fc" id="L49">            version = (String) bundle.getSpec().getDetails().getDistTags().get(versionReference);</span>
+        }
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (Strings.isNullOrEmpty(version)) {</span>
+<span class="fc" id="L53">            throw new EntandoComponentManagerException(</span>
+<span class="fc" id="L54">                    &quot;Invalid version '&quot; + versionReference + &quot;' for bundle '&quot; + bundle.getSpec().getDetails().getName()</span>
+                            + &quot;'&quot;);
+        }
+<span class="fc" id="L57">        return version;</span>
+    }
+
+    public static boolean isSemanticVersion(String versionToFind) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        String possibleSemVer = versionToFind.startsWith(&quot;v&quot;) ? versionToFind.substring(1) : versionToFind;</span>
+<span class="fc" id="L62">        return possibleSemVer.matches(getOfficialSemanticVersionRegex());</span>
+    }
+
+    /**
+     * Check semantic version definition: https://semver.org/#is-v123-a-semantic-version
+     *
+     * @return The semantic version PCRE compatible regular expression
+     */
+    public static String getOfficialSemanticVersionRegex() {
+<span class="fc" id="L71">        return OFFICIAL_SEMANTIC_VERSION_REGEX;</span>
+    }
+
+    public static List&lt;ExpectedRole&gt; extractRolesFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc" id="L75">        return descriptor.getRoles().stream()</span>
+<span class="fc" id="L76">                .distinct()</span>
+<span class="fc" id="L77">                .map(role -&gt; new ExpectedRole(role, role))</span>
+<span class="fc" id="L78">                .collect(Collectors.toList());</span>
+    }
+
+    public static List&lt;Permission&gt; extractPermissionsFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc" id="L82">        return Optional.ofNullable(descriptor.getPermissions())</span>
+<span class="fc" id="L83">                .orElse(Collections.emptyList())</span>
+<span class="fc" id="L84">                .stream()</span>
+<span class="fc" id="L85">                .distinct()</span>
+<span class="fc" id="L86">                .map(permission -&gt; new Permission(permission.getClientId(), permission.getRole()))</span>
+<span class="fc" id="L87">                .collect(Collectors.toList());</span>
+    }
+
+    public static String extractNameFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc" id="L91">        return composeDeploymentBaseNameAndTruncateIfNeeded(descriptor);</span>
+    }
+
+    public static String extractIngressPathFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc" id="L95">        return Optional.ofNullable(descriptor.getIngressPath())</span>
+<span class="fc" id="L96">                .orElse(composeIngressPathFromDockerImage(descriptor.getDockerImage()));</span>
+    }
+
+    public static Map&lt;String, String&gt; extractLabelsFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc" id="L100">        DockerImage dockerImage = descriptor.getDockerImage();</span>
+<span class="fc" id="L101">        return getLabelsFromImage(dockerImage);</span>
+    }
+
+    public static String composeDeploymentBaseName(PluginDescriptor descriptor) {
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (!StringUtils.isEmpty(descriptor.getDeploymentBaseName())) {</span>
+<span class="fc" id="L107">            return makeKubernetesCompatible(descriptor.getDeploymentBaseName());</span>
+        } else {
+<span class="fc" id="L109">            return composeNameFromDockerImage(descriptor.getDockerImage());</span>
+        }
+    }
+
+    private static String composeDeploymentBaseNameAndTruncateIfNeeded(PluginDescriptor descriptor) {
+
+        String deploymentBaseName;
+        String errorSuffix;
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (!StringUtils.isEmpty(descriptor.getDeploymentBaseName())) {</span>
+<span class="fc" id="L119">            deploymentBaseName = makeKubernetesCompatible(descriptor.getDeploymentBaseName());</span>
+<span class="fc" id="L120">            errorSuffix = DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DEPLOYMENT_SUFFIX;</span>
+        } else {
+<span class="fc" id="L122">            deploymentBaseName = composeNameFromDockerImage(descriptor.getDockerImage());</span>
+<span class="fc" id="L123">            errorSuffix = DEPLOYMENT_BASE_NAME_MAX_LENGHT_ERROR_DOCKER_IMAGE_SUFFIX;</span>
+        }
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if (AppConfiguration.isTruncatePluginBaseNameIfLonger()) {</span>
+<span class="fc" id="L127">            deploymentBaseName = truncatePodPrefixName(deploymentBaseName);</span>
+        }
+
+<span class="fc" id="L130">        return validateAndReturnDeploymentBaseName(deploymentBaseName, errorSuffix,</span>
+<span class="fc" id="L131">                AppConfiguration.isTruncatePluginBaseNameIfLonger());</span>
+    }
+
+    /**
+     * validate the deploymentBaseName. if the validation fails an EntandoComponentManagerException is thrown
+     *
+     * @param deploymentBaseName          the base name to use for the deployments that have to be generated in
+     *                                    kubernetes
+     * @param errorSuffix                 the suffix to append to the error that specifies which properties was used to
+     *                                    generate the deployment base name
+     * @param isTruncatePluginBaseEnabled if true the plugin base name should be truncated if it's longer than the
+     *                                    admitted, so no validation is applied here
+     * @return the validated string
+     */
+    private static String validateAndReturnDeploymentBaseName(
+            String deploymentBaseName,
+            String errorSuffix,
+            boolean isTruncatePluginBaseEnabled) {
+
+        // deploymentBaseName has to not be longer than 63 chars
+<span class="pc bpc" id="L151" title="3 of 4 branches missed.">        if (!isTruncatePluginBaseEnabled &amp;&amp; deploymentBaseName.length() &gt; MAX_ENTANDO_K8S_POD_NAME_LENGTH) {</span>
+
+<span class="nc" id="L153">            throw new EntandoComponentManagerException(</span>
+<span class="nc" id="L154">                    String.format(</span>
+                            DEPLOYMENT_BASE_NAME_MAX_LENGHT_EXCEEDED_ERROR,
+                            deploymentBaseName,
+<span class="nc" id="L157">                            MAX_ENTANDO_K8S_POD_NAME_LENGTH,</span>
+                            errorSuffix));
+        }
+
+<span class="fc" id="L161">        return deploymentBaseName;</span>
+    }
+
+
+    public static String composeNameFromDockerImage(DockerImage image) {
+
+<span class="fc" id="L167">        return String.join(&quot;-&quot;,</span>
+<span class="fc" id="L168">                makeKubernetesCompatible(image.getOrganization()),</span>
+<span class="fc" id="L169">                makeKubernetesCompatible(image.getName()));</span>
+    }
+
+    public static String truncatePodPrefixName(String podPrefixName) {
+
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        if (podPrefixName.length() &gt; MAX_ENTANDO_K8S_POD_NAME_LENGTH) {</span>
+
+<span class="fc" id="L176">            podPrefixName = podPrefixName</span>
+<span class="fc" id="L177">                    .substring(0, Math.min(MAX_ENTANDO_K8S_POD_NAME_LENGTH, podPrefixName.length()))</span>
+<span class="fc" id="L178">                    .replaceAll(&quot;-$&quot;, &quot;&quot;);        // remove a possible ending hyphen</span>
+        }
+
+<span class="fc" id="L181">        return podPrefixName;</span>
+    }
+
+    private static String composeIngressPathFromDockerImage(DockerImage image) {
+<span class="fc" id="L185">        return &quot;/&quot; + String.join(&quot;/&quot;,</span>
+<span class="fc" id="L186">                makeKubernetesCompatible(image.getOrganization()),</span>
+<span class="fc" id="L187">                makeKubernetesCompatible(image.getName()),</span>
+<span class="fc" id="L188">                makeKubernetesCompatible(image.getVersion()));</span>
+    }
+
+    public static Map&lt;String, String&gt; getLabelsFromImage(DockerImage dockerImage) {
+<span class="fc" id="L192">        Map&lt;String, String&gt; labels = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L193">        labels.put(&quot;organization&quot;, dockerImage.getOrganization());</span>
+<span class="fc" id="L194">        labels.put(&quot;name&quot;, dockerImage.getName());</span>
+<span class="fc" id="L195">        labels.put(&quot;version&quot;, dockerImage.getVersion());</span>
+<span class="fc" id="L196">        return labels;</span>
+    }
+
+
+    public static EntandoPlugin generatePluginFromDescriptor(PluginDescriptor descriptor) {
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        return descriptor.isVersion1()</span>
+<span class="fc" id="L202">                ? generatePluginFromDescriptorV1(descriptor) :</span>
+<span class="fc" id="L203">                generatePluginFromDescriptorV2(descriptor);</span>
+    }
+
+    public static EntandoPlugin generatePluginFromDescriptorV2(PluginDescriptor descriptor) {
+<span class="fc" id="L207">        return new EntandoPluginBuilder()</span>
+<span class="fc" id="L208">                .withNewMetadata()</span>
+<span class="fc" id="L209">                .withName(extractNameFromDescriptor(descriptor))</span>
+<span class="fc" id="L210">                .withLabels(extractLabelsFromDescriptor(descriptor))</span>
+<span class="fc" id="L211">                .endMetadata()</span>
+<span class="fc" id="L212">                .withNewSpec()</span>
+<span class="fc" id="L213">                .withDbms(DbmsVendor.valueOf(descriptor.getDbms().toUpperCase()))</span>
+<span class="fc" id="L214">                .withImage(descriptor.getImage())</span>
+<span class="fc" id="L215">                .withIngressPath(extractIngressPathFromDescriptor(descriptor))</span>
+<span class="fc" id="L216">                .withRoles(extractRolesFromDescriptor(descriptor))</span>
+<span class="fc" id="L217">                .withHealthCheckPath(descriptor.getHealthCheckPath())</span>
+<span class="fc" id="L218">                .withPermissions(extractPermissionsFromDescriptor(descriptor))</span>
+<span class="fc" id="L219">                .endSpec()</span>
+<span class="fc" id="L220">                .build();</span>
+    }
+
+    public static EntandoPlugin generatePluginFromDescriptorV1(PluginDescriptor descriptor) {
+<span class="fc" id="L224">        return new EntandoPluginBuilder()</span>
+<span class="fc" id="L225">                .withNewMetadata()</span>
+<span class="fc" id="L226">                .withName(extractNameFromDescriptor(descriptor))</span>
+<span class="fc" id="L227">                .withLabels(getLabelsFromImage(descriptor.getDockerImage()))</span>
+<span class="fc" id="L228">                .endMetadata()</span>
+<span class="fc" id="L229">                .withNewSpec()</span>
+<span class="fc" id="L230">                .withDbms(DbmsVendor.valueOf(descriptor.getSpec().getDbms().toUpperCase()))</span>
+<span class="fc" id="L231">                .withImage(descriptor.getDockerImage().toString())</span>
+<span class="fc" id="L232">                .withIngressPath(composeIngressPathFromDockerImage(descriptor.getDockerImage()))</span>
+<span class="fc" id="L233">                .withRoles(extractRolesFromRoleList(descriptor.getSpec().getRoles()))</span>
+<span class="fc" id="L234">                .withHealthCheckPath(descriptor.getSpec().getHealthCheckPath())</span>
+<span class="fc" id="L235">                .endSpec()</span>
+<span class="fc" id="L236">                .build();</span>
+    }
+
+
+    public static List&lt;ExpectedRole&gt; extractRolesFromRoleList(List&lt;PluginDescriptorV1Role&gt; roleList) {
+<span class="fc" id="L241">        return roleList.stream()</span>
+<span class="fc" id="L242">                .distinct()</span>
+<span class="fc" id="L243">                .map(role -&gt; new ExpectedRole(role.getCode(), role.getName()))</span>
+<span class="fc" id="L244">                .collect(Collectors.toList());</span>
+    }
+
+    private static String makeKubernetesCompatible(String value) {
+<span class="fc" id="L248">        return value.toLowerCase()</span>
+<span class="fc" id="L249">                .replaceAll(&quot;[\\/\\.\\:_]&quot;, &quot;-&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
