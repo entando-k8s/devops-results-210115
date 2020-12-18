@@ -13,26 +13,19 @@
  */
 package org.entando.entando.plugins.jacms.web.resource;
 
-import static org.entando.entando.aps.util.HttpSessionHelper.extractCurrentUser;
-
-import org.entando.entando.ent.exception.EntException;
 import com.agiletec.aps.system.services.role.Permission;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import javax.servlet.http.HttpSession;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.entando.entando.aps.system.exception.ResourceNotFoundException;
 import org.entando.entando.aps.util.HttpSessionHelper;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
 import org.entando.entando.plugins.jacms.aps.system.services.resource.ResourcesService;
 import org.entando.entando.plugins.jacms.web.resource.model.AssetDto;
 import org.entando.entando.plugins.jacms.web.resource.model.ListAssetsFolderResponse;
@@ -42,26 +35,22 @@ import org.entando.entando.plugins.jacms.web.resource.request.UpdateResourceRequ
 import org.entando.entando.plugins.jacms.web.resource.validator.ResourcesValidator;
 import org.entando.entando.web.common.annotation.RestAccessControl;
 import org.entando.entando.web.common.exceptions.ResourcePermissionsException;
-import org.entando.entando.web.common.model.PagedMetadata;
-import org.entando.entando.web.common.model.PagedRestResponse;
-import org.entando.entando.web.common.model.RestNamedId;
-import org.entando.entando.web.common.model.RestResponse;
-import org.entando.entando.web.common.model.SimpleRestResponse;
-import org.entando.entando.ent.util.EntLogging.EntLogger;
-import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.*;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.DataBinder;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-<span class="pc bpc" id="L64" title="3 of 6 branches missed.">@RequiredArgsConstructor</span>
+import javax.servlet.http.HttpSession;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static org.entando.entando.aps.util.HttpSessionHelper.extractCurrentUser;
+
+<span class="pc bpc" id="L53" title="3 of 6 branches missed.">@RequiredArgsConstructor</span>
 @RestController
 public class ResourcesController {
     public static final String ERRCODE_RESOURCE_NOT_FOUND = &quot;1&quot;;
@@ -73,7 +62,7 @@ public class ResourcesController {
     public static final String ERRCODE_RESOURCE_CONFLICT = &quot;7&quot;;
     public static final String ID_NAME_OF_CORRELATION_CODE = &quot;cc&quot;;
 
-<span class="fc" id="L76">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+<span class="fc" id="L65">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
 
     @NonNull private final ResourcesService service;
     @NonNull private final ResourcesValidator resourceValidator;
@@ -86,12 +75,12 @@ public class ResourcesController {
     @GetMapping(&quot;/plugins/cms/assets&quot;)
     @RestAccessControl(permission = {Permission.MANAGE_RESOURCES, Permission.CONTENT_SUPERVISOR, Permission.CONTENT_EDITOR})
     public ResponseEntity&lt;PagedRestResponse&lt;AssetDto&gt;&gt; listAssets(ListResourceRequest requestList) {
-<span class="fc" id="L89">        logger.debug(&quot;REST request - list image resources&quot;);</span>
+<span class="fc" id="L78">        logger.debug(&quot;REST request - list image resources&quot;);</span>
 
-<span class="fc" id="L91">        resourceValidator.validateRestListRequest(requestList, AssetDto.class);</span>
-<span class="fc" id="L92">        PagedMetadata&lt;AssetDto&gt; result = service.listAssets(requestList,HttpSessionHelper.extractCurrentUser(httpSession));</span>
-<span class="fc" id="L93">        resourceValidator.validateRestListResult(requestList, result);</span>
-<span class="fc" id="L94">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(result));</span>
+<span class="fc" id="L80">        resourceValidator.validateRestListRequest(requestList, AssetDto.class);</span>
+<span class="fc" id="L81">        PagedMetadata&lt;AssetDto&gt; result = service.listAssets(requestList,HttpSessionHelper.extractCurrentUser(httpSession));</span>
+<span class="fc" id="L82">        resourceValidator.validateRestListResult(requestList, result);</span>
+<span class="fc" id="L83">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(result));</span>
     }
 
     @ApiOperation(value = &quot;LIST Resources&quot;, nickname = &quot;listResources&quot;, tags = {&quot;resources-controller&quot;})
@@ -102,40 +91,40 @@ public class ResourcesController {
     @RestAccessControl(permission = {Permission.MANAGE_RESOURCES, Permission.CONTENT_SUPERVISOR, Permission.CONTENT_EDITOR})
     public ResponseEntity&lt;RestResponse&lt;List&lt;AssetDto&gt;, Map&lt;String, Object&gt;&gt;&gt; listAssetsFolder(
             @RequestParam(value = &quot;folderPath&quot;, required = false) String folderPath) {
-<span class="fc" id="L105">        logger.debug(&quot;REST request - list resources folder&quot;);</span>
+<span class="fc" id="L94">        logger.debug(&quot;REST request - list resources folder&quot;);</span>
 
-<span class="fc" id="L107">        folderPath = sanitizeFolderPath(folderPath);</span>
+<span class="fc" id="L96">        folderPath = sanitizeFolderPath(folderPath);</span>
 
-<span class="fc" id="L109">        ListAssetsFolderResponse result = service.listAssetsFolder(folderPath);</span>
+<span class="fc" id="L98">        ListAssetsFolderResponse result = service.listAssetsFolder(folderPath);</span>
 
-<span class="fc" id="L111">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L112">        metadata.put(&quot;folderPath&quot;, result.getFolderPath());</span>
-<span class="fc" id="L113">        metadata.put(&quot;subfolders&quot;, result.getSubfolders());</span>
+<span class="fc" id="L100">        Map&lt;String, Object&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L101">        metadata.put(&quot;folderPath&quot;, result.getFolderPath());</span>
+<span class="fc" id="L102">        metadata.put(&quot;subfolders&quot;, result.getSubfolders());</span>
 
-<span class="fc" id="L115">        return ResponseEntity.ok(new RestResponse&lt;&gt;(result.getAssets(), metadata));</span>
+<span class="fc" id="L104">        return ResponseEntity.ok(new RestResponse&lt;&gt;(result.getAssets(), metadata));</span>
     }
 
     private String sanitizeFolderPath(String folderPath) {
 
-<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (folderPath == null) {</span>
-<span class="fc" id="L121">            return null;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (folderPath == null) {</span>
+<span class="fc" id="L110">            return null;</span>
         }
 
-<span class="fc" id="L124">        String result = folderPath.trim().replaceAll(&quot;/+&quot;, &quot;/&quot;);</span>
+<span class="fc" id="L113">        String result = folderPath.trim().replaceAll(&quot;/+&quot;, &quot;/&quot;);</span>
 
-<span class="fc bfc" id="L126" title="All 4 branches covered.">        if (result.equals(&quot;/&quot;) || result.equals(&quot;&quot;)) {</span>
-<span class="fc" id="L127">            return null;</span>
+<span class="fc bfc" id="L115" title="All 4 branches covered.">        if (result.equals(&quot;/&quot;) || result.equals(&quot;&quot;)) {</span>
+<span class="fc" id="L116">            return null;</span>
         }
 
-<span class="fc bfc" id="L130" title="All 2 branches covered.">        if (result.startsWith(&quot;/&quot;)) {</span>
-<span class="fc" id="L131">            result = result.substring(1);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (result.startsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L120">            result = result.substring(1);</span>
         }
 
-<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (result.endsWith(&quot;/&quot;)) {</span>
-<span class="fc" id="L135">            result = result.substring(0, result.length()-1);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (result.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L124">            result = result.substring(0, result.length()-1);</span>
         }
 
-<span class="fc" id="L138">        return result;</span>
+<span class="fc" id="L127">        return result;</span>
     }
 
     @ApiOperation(value = &quot;CREATE Resource&quot;, nickname = &quot;createResource&quot;, tags = {&quot;resources-controller&quot;})
@@ -147,20 +136,20 @@ public class ResourcesController {
     public ResponseEntity&lt;SimpleRestResponse&lt;AssetDto&gt;&gt; createAsset(
             @RequestParam(value = &quot;metadata&quot;) String request,
             @RequestParam(value = &quot;file&quot;) MultipartFile file) throws JsonProcessingException {
-<span class="fc" id="L150">        logger.debug(&quot;REST request - create new resource&quot;);</span>
+<span class="fc" id="L139">        logger.debug(&quot;REST request - create new resource&quot;);</span>
 
-<span class="fc" id="L152">        CreateResourceRequest resourceRequest = new ObjectMapper().readValue(request, CreateResourceRequest.class);</span>
+<span class="fc" id="L141">        CreateResourceRequest resourceRequest = new ObjectMapper().readValue(request, CreateResourceRequest.class);</span>
 
-<span class="fc" id="L154">        List&lt;String&gt; categoriesList = Optional.ofNullable(resourceRequest.getCategories()).orElse(Collections.emptyList())</span>
-<span class="fc" id="L155">                .stream()</span>
-<span class="fc" id="L156">                .map(String::trim)</span>
-<span class="pc bpc" id="L157" title="1 of 2 branches missed.">                .filter(c -&gt; c.length() &gt; 0)</span>
-<span class="fc" id="L158">                .collect(Collectors.toList());</span>
+<span class="fc" id="L143">        List&lt;String&gt; categoriesList = Optional.ofNullable(resourceRequest.getCategories()).orElse(Collections.emptyList())</span>
+<span class="fc" id="L144">                .stream()</span>
+<span class="fc" id="L145">                .map(String::trim)</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">                .filter(c -&gt; c.length() &gt; 0)</span>
+<span class="fc" id="L147">                .collect(Collectors.toList());</span>
 
-<span class="fc" id="L160">        AssetDto result = service</span>
-<span class="fc" id="L161">                .createAsset(resourceRequest.getCorrelationCode(), resourceRequest.getType(), file, resourceRequest.getGroup(), categoriesList, resourceRequest.getFolderPath(),</span>
-<span class="fc" id="L162">                        extractCurrentUser(httpSession));</span>
-<span class="fc" id="L163">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
+<span class="fc" id="L149">        AssetDto result = service</span>
+<span class="fc" id="L150">                .createAsset(resourceRequest.getCorrelationCode(), resourceRequest.getType(), file, resourceRequest.getGroup(), categoriesList, resourceRequest.getFolderPath(),</span>
+<span class="fc" id="L151">                        extractCurrentUser(httpSession));</span>
+<span class="fc" id="L152">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
     }
 
     @ApiOperation(value = &quot;CLONE Resource&quot;, nickname = &quot;cloneResource&quot;, tags = {&quot;resources-controller&quot;})
@@ -170,9 +159,9 @@ public class ResourcesController {
     @PostMapping(&quot;/plugins/cms/assets/{resourceId}/clone&quot;)
     @RestAccessControl(permission = {Permission.MANAGE_RESOURCES, Permission.CONTENT_SUPERVISOR, Permission.CONTENT_EDITOR})
     public ResponseEntity&lt;SimpleRestResponse&lt;AssetDto&gt;&gt; cloneAsset(@PathVariable(&quot;resourceId&quot;) String resourceId) {
-<span class="fc" id="L173">        logger.debug(&quot;REST request - clone resource&quot;);</span>
-<span class="fc" id="L174">        AssetDto result = service.cloneAsset(resourceId);</span>
-<span class="fc" id="L175">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
+<span class="fc" id="L162">        logger.debug(&quot;REST request - clone resource&quot;);</span>
+<span class="fc" id="L163">        AssetDto result = service.cloneAsset(resourceId);</span>
+<span class="fc" id="L164">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
     }
 
     @ApiOperation(value = &quot;EDIT Resource&quot;, nickname = &quot;editResource&quot;, tags = {&quot;resources-controller&quot;})
@@ -187,24 +176,24 @@ public class ResourcesController {
             @RequestParam(value = &quot;metadata&quot;) String request,
             @RequestParam(value = &quot;file&quot;, required = false) MultipartFile file) throws JsonProcessingException {
         //-
-<span class="fc" id="L190">        logger.debug(&quot;REST request - edit image resource with id {}&quot;, resourceIdOrCC);</span>
+<span class="fc" id="L179">        logger.debug(&quot;REST request - edit image resource with id {}&quot;, resourceIdOrCC);</span>
 
-<span class="fc" id="L192">        String correlationCode = resourceIdOrCC.getValidValue(ID_NAME_OF_CORRELATION_CODE).orElse(null);</span>
-<span class="fc bfc" id="L193" title="All 2 branches covered.">        String resourceId = correlationCode == null ? resourceIdOrCC.value : null;</span>
+<span class="fc" id="L181">        String correlationCode = resourceIdOrCC.getValidValue(ID_NAME_OF_CORRELATION_CODE).orElse(null);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">        String resourceId = correlationCode == null ? resourceIdOrCC.value : null;</span>
 
-<span class="fc" id="L195">        UpdateResourceRequest resourceRequest = new ObjectMapper().readValue(request, UpdateResourceRequest.class);</span>
+<span class="fc" id="L184">        UpdateResourceRequest resourceRequest = new ObjectMapper().readValue(request, UpdateResourceRequest.class);</span>
 
-<span class="fc" id="L197">        List&lt;String&gt; categoriesList = Optional.ofNullable(resourceRequest.getCategories())</span>
-<span class="fc" id="L198">                .orElse(Collections.emptyList())</span>
-<span class="fc" id="L199">                .stream()</span>
-<span class="fc" id="L200">                .map(String::trim)</span>
-<span class="pc bpc" id="L201" title="1 of 2 branches missed.">                .filter(c -&gt; c.length() &gt; 0)</span>
-<span class="fc" id="L202">                .collect(Collectors.toList());</span>
+<span class="fc" id="L186">        List&lt;String&gt; categoriesList = Optional.ofNullable(resourceRequest.getCategories())</span>
+<span class="fc" id="L187">                .orElse(Collections.emptyList())</span>
+<span class="fc" id="L188">                .stream()</span>
+<span class="fc" id="L189">                .map(String::trim)</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                .filter(c -&gt; c.length() &gt; 0)</span>
+<span class="fc" id="L191">                .collect(Collectors.toList());</span>
 
-<span class="fc" id="L204">        AssetDto result = service.editAsset(resourceId, correlationCode, file,</span>
-<span class="fc" id="L205">                resourceRequest.getDescription(), categoriesList, sanitizeFolderPath(resourceRequest.getFolderPath()));</span>
+<span class="fc" id="L193">        AssetDto result = service.editAsset(resourceId, correlationCode, file,</span>
+<span class="fc" id="L194">                resourceRequest.getDescription(), categoriesList, sanitizeFolderPath(resourceRequest.getFolderPath()));</span>
 
-<span class="fc" id="L207">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
+<span class="fc" id="L196">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
     }
 
     @ApiOperation(value = &quot;DELETE Resource&quot;, nickname = &quot;deleteResource&quot;, tags = {&quot;resources-controller&quot;})
@@ -220,21 +209,28 @@ public class ResourcesController {
             @PathVariable(&quot;resourceIdOrCC&quot;) RestNamedId resourceIdOrCC)
             throws EntException {
         //-
-<span class="fc" id="L223">        logger.debug(&quot;REST request - delete resource with id {}&quot;, resourceIdOrCC);</span>
-<span class="fc" id="L224">        String correlationCode = resourceIdOrCC.getValidValue(ID_NAME_OF_CORRELATION_CODE).orElse(null);</span>
-<span class="fc bfc" id="L225" title="All 2 branches covered.">        String resourceId = correlationCode == null ? resourceIdOrCC.value : null;</span>
+<span class="fc" id="L212">        logger.debug(&quot;REST request - delete resource with id {}&quot;, resourceIdOrCC);</span>
+<span class="fc" id="L213">        String correlationCode = resourceIdOrCC.getValidValue(ID_NAME_OF_CORRELATION_CODE).orElse(null);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        String resourceId = correlationCode == null ? resourceIdOrCC.value : null;</span>
 
-<span class="fc bfc" id="L227" title="All 2 branches covered.">        if (!resourceValidator.resourceExists(resourceId, correlationCode)) {</span>
-<span class="fc" id="L228">            throw new ResourceNotFoundException(ERRCODE_RESOURCE_NOT_FOUND, &quot;asset&quot;, resourceIdOrCC.toString());</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        if (!resourceValidator.resourceExists(resourceId, correlationCode)) {</span>
+<span class="fc" id="L217">            throw new ResourceNotFoundException(ERRCODE_RESOURCE_NOT_FOUND, &quot;asset&quot;, resourceIdOrCC.toString());</span>
         }
-<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (!resourceValidator.isResourceDeletableByUser(resourceId, correlationCode, extractCurrentUser(httpSession))) {</span>
-<span class="fc" id="L231">            DataBinder binder = new DataBinder(resourceId);</span>
-<span class="fc" id="L232">            BindingResult bindingResult = binder.getBindingResult();</span>
-<span class="fc" id="L233">            bindingResult.reject(ERRCODE_RESOURCE_FORBIDDEN, new String[]{resourceIdOrCC.value}, &quot;plugins.jacms.resources.resourceManager.error.delete&quot;);</span>
-<span class="fc" id="L234">            throw new ResourcePermissionsException(bindingResult);</span>
+<span class="fc" id="L219">        DataBinder binder = new DataBinder(resourceId);</span>
+<span class="fc" id="L220">        BindingResult bindingResult = binder.getBindingResult();</span>
+
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (!resourceValidator.isResourceDeletableByUser(resourceId, correlationCode, extractCurrentUser(httpSession))) {</span>
+<span class="fc" id="L223">            bindingResult.reject(ERRCODE_RESOURCE_FORBIDDEN, new String[]{resourceIdOrCC.value}, &quot;plugins.jacms.resources.resourceManager.error.delete&quot;);</span>
+<span class="fc" id="L224">            throw new ResourcePermissionsException(bindingResult);</span>
         }
-<span class="fc" id="L236">        service.deleteAsset(resourceId, correlationCode);</span>
-<span class="fc" id="L237">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(new HashMap()));</span>
+
+<span class="fc" id="L227">        resourceValidator.resourceReferencesValidation(resourceId, bindingResult);</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L229">            throw new ValidationGenericException(bindingResult);</span>
+        }
+
+<span class="fc" id="L232">        service.deleteAsset(resourceId, correlationCode);</span>
+<span class="fc" id="L233">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(new HashMap()));</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

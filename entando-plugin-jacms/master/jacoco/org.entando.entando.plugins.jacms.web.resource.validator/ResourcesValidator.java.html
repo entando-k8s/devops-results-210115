@@ -13,58 +13,88 @@
  */
 package org.entando.entando.plugins.jacms.web.resource.validator;
 
-import org.entando.entando.ent.exception.EntException;
 import com.agiletec.aps.system.services.user.UserDetails;
+import com.agiletec.plugins.jacms.aps.system.services.content.ContentManager;
 import com.agiletec.plugins.jacms.aps.system.services.content.helper.BaseContentListHelper;
+import com.agiletec.plugins.jacms.aps.system.services.content.model.ContentRecordVO;
 import com.agiletec.plugins.jacms.aps.system.services.resource.ResourceManager;
+import com.agiletec.plugins.jacms.aps.system.services.resource.ResourceUtilizer;
 import com.agiletec.plugins.jacms.aps.system.services.resource.model.ResourceInterface;
-import java.util.Collection;
 import org.entando.entando.aps.util.GenericResourceUtils;
+import org.entando.entando.ent.exception.EntException;
 import org.entando.entando.plugins.jacms.web.resource.model.ImageAssetDto;
 import org.entando.entando.web.common.validator.AbstractPaginationValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
+import java.util.Collection;
+import java.util.List;
+
 @Component
-<span class="fc" id="L30">public class ResourcesValidator extends AbstractPaginationValidator {</span>
+<span class="fc" id="L35">public class ResourcesValidator extends AbstractPaginationValidator {</span>
 
     @Autowired
     private ResourceManager resourceManager;
-    
+
+    @Autowired
+    private ContentManager contentManager;
+
+    private final static String ERR_CODE_RESOURCE_REFERENCED_CONTENT_ERROR =&quot;20&quot;;
+    private final static String ERR_CODE_RESOURCE_REFERENCED_NOT_DELETABLE =&quot;21&quot;;
+    private final static String ERR_MSG_RESOURCE_REFERENCED_CONTENT_ERROR =&quot;plugins.jacms.resources.delete.error.contentError&quot;;
+    private final static String ERR_MSG_RESOURCE_REFERENCED_NOT_DELETABLE =&quot;plugins.jacms.resources.delete.error.referenced&quot;;
+
     public boolean isResourceDeletableByUser(String resourceId, String correlationCode, UserDetails user) throws EntException {
-<span class="fc" id="L36">        final Collection&lt;String&gt; allowedGroupCodes = BaseContentListHelper.getAllowedGroupCodes(user);</span>
-<span class="fc" id="L37">        final ResourceInterface resource = resourceManager.loadResource(resourceId, correlationCode);</span>
-<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if (resource != null)  {</span>
-<span class="fc" id="L39">            return allowedGroupCodes.stream().anyMatch(group -&gt;</span>
-<span class="fc" id="L40">                GenericResourceUtils</span>
-<span class="fc" id="L41">                        .isResourceAccessibleByGroup(group, resource.getMainGroup(), null)</span>
+<span class="fc" id="L49">        final Collection&lt;String&gt; allowedGroupCodes = BaseContentListHelper.getAllowedGroupCodes(user);</span>
+<span class="fc" id="L50">        final ResourceInterface resource = resourceManager.loadResource(resourceId, correlationCode);</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (resource != null)  {</span>
+<span class="fc" id="L52">            return allowedGroupCodes.stream().anyMatch(group -&gt;</span>
+<span class="fc" id="L53">                GenericResourceUtils</span>
+<span class="fc" id="L54">                        .isResourceAccessibleByGroup(group, resource.getMainGroup(), null)</span>
         );
         }
-<span class="nc" id="L44">        return false;</span>
+<span class="nc" id="L57">        return false;</span>
     }
 
     public boolean resourceExists(String resourceId, String correlationCode) throws EntException {
-<span class="fc" id="L48">        final ResourceInterface resource = resourceManager.loadResource(resourceId, correlationCode);</span>
-<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (resource!=null){</span>
-<span class="fc" id="L50">            return true;</span>
+<span class="fc" id="L61">        final ResourceInterface resource = resourceManager.loadResource(resourceId, correlationCode);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (resource!=null){</span>
+<span class="fc" id="L63">            return true;</span>
         }
-<span class="fc" id="L52">        return false;</span>
+<span class="fc" id="L65">        return false;</span>
     }
+
+    public void resourceReferencesValidation(String resourceId, Errors errors) throws EntException {
+<span class="fc" id="L69">        List&lt;String&gt; references = ((ResourceUtilizer) contentManager).getResourceUtilizers(resourceId);</span>
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">        if (references != null &amp;&amp; references.size() &gt; 0) {</span>
+<span class="fc" id="L71">            references.forEach(reference-&gt;{</span>
+<span class="fc" id="L72">                ContentRecordVO record = null;</span>
+                try {
+<span class="fc" id="L74">                    record = contentManager.loadContentVO(reference);</span>
+<span class="nc" id="L75">                } catch (EntException e) {</span>
+<span class="nc" id="L76">                    errors.reject(ERR_CODE_RESOURCE_REFERENCED_CONTENT_ERROR, new String[]{resourceId, record.getDescription()}, ERR_MSG_RESOURCE_REFERENCED_CONTENT_ERROR);</span>
+<span class="fc" id="L77">                }</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                if (null != record) {</span>
+<span class="fc" id="L79">                    errors.reject(ERR_CODE_RESOURCE_REFERENCED_NOT_DELETABLE, new String[]{resourceId, record.getId(), record.getDescription()}, ERR_MSG_RESOURCE_REFERENCED_NOT_DELETABLE);</span>
+                }
+<span class="fc" id="L81">                });</span>
+            }
+<span class="fc" id="L83">    }</span>
 
     @Override
     public boolean supports(Class&lt;?&gt; paramClass) {
-<span class="nc" id="L57">        return ImageAssetDto.class.equals(paramClass);</span>
+<span class="nc" id="L87">        return ImageAssetDto.class.equals(paramClass);</span>
     }
 
     @Override
     public void validate(Object target, Errors errors) {
 
-<span class="nc" id="L63">    }</span>
+<span class="nc" id="L93">    }</span>
 
     @Override
     protected String getDefaultSortProperty() {
-<span class="fc" id="L67">        return &quot;name&quot;;</span>
+<span class="fc" id="L97">        return &quot;name&quot;;</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
