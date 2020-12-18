@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataObjectUpdaterService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.dataobject</a> &gt; <span class="el_source">DataObjectUpdaterService.java</span></div><h1>DataObjectUpdaterService.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2013 Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This file is part of Entando Enterprise Edition software.
+ * You can redistribute it and/or modify it
+ * under the terms of the Entando's EULA
+ *
+ * See the file License for the specific language governing permissions
+ * and limitations under the License
+ *
+ *
+ *
+ * Copyright 2013 Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ */
+package org.entando.entando.aps.system.services.dataobject;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import org.entando.entando.aps.system.services.cache.ICacheInfoManager;
+
+import com.agiletec.aps.system.ApsSystemUtils;
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.model.EntitySearchFilter;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.category.ReloadingCategoryReferencesThread;
+import com.agiletec.aps.system.services.group.Group;
+import org.entando.entando.aps.system.services.dataobject.model.DataObject;
+
+/**
+ * Manages the operations on the contents in case of events on categories. In
+ * the case of moving categories from one node to another must be recharged
+ * references EVOLUZIONE DEL CORE - AGGIUNTA FIRST EDITOR e funzioni
+ * aggiornamento referenze
+ *
+ */
+<span class="nc" id="L43">public class DataObjectUpdaterService extends AbstractService implements IDataObjectUpdaterService {</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="nc" id="L47">        ApsSystemUtils.getLogger().info(this.getClass().getName() + &quot; ready&quot;);</span>
+<span class="nc" id="L48">    }</span>
+
+    @Override
+    public void reloadCategoryReferences(String categoryCode) {
+        try {
+<span class="nc" id="L53">            Set&lt;String&gt; contents = this.getDataObjectsId(categoryCode);</span>
+<span class="nc" id="L54">            ApsSystemUtils.getLogger().debug(&quot;start reload category references for &quot; + contents.size() + &quot; contents&quot;);</span>
+<span class="nc" id="L55">            ReloadingCategoryReferencesThread th = null;</span>
+<span class="nc" id="L56">            Thread currentThread = Thread.currentThread();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (currentThread instanceof ReloadingCategoryReferencesThread) {</span>
+<span class="nc" id="L58">                th = (ReloadingCategoryReferencesThread) Thread.currentThread();</span>
+<span class="nc" id="L59">                th.setListSize(contents.size());</span>
+            }
+<span class="nc" id="L61">            Iterator&lt;String&gt; it = contents.iterator();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            while (it.hasNext()) {</span>
+<span class="nc" id="L63">                String dataid = it.next();</span>
+<span class="nc" id="L64">                this.reloadEntityReferences(dataid);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (null != th) {</span>
+<span class="nc" id="L66">                    th.setListIndex(th.getListIndex() + 1);</span>
+                }
+<span class="nc" id="L68">            }</span>
+<span class="nc" id="L69">        } catch (Throwable t) {</span>
+<span class="nc" id="L70">            ApsSystemUtils.logThrowable(t, this, &quot;reloadCategoryReferences&quot;);</span>
+<span class="nc" id="L71">        }</span>
+<span class="nc" id="L72">    }</span>
+
+    @Override
+    public Set&lt;String&gt; getDataObjectsId(String categoryCode) throws EntException {
+<span class="nc" id="L76">        Set&lt;String&gt; allContents = new HashSet&lt;String&gt;();</span>
+        try {
+            //Ricerca contenuti per
+<span class="nc" id="L79">            EntitySearchFilter[] filters = null;</span>
+<span class="nc" id="L80">            boolean orCategoryFilter = false;</span>
+            //tutti i gruppi
+<span class="nc" id="L82">            List&lt;String&gt; userGroupCodes = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L83">            userGroupCodes.add(Group.ADMINS_GROUP_NAME);</span>
+
+            //associati alla categoria che è stata spostata...
+<span class="nc" id="L86">            String[] categories = new String[]{categoryCode};</span>
+
+<span class="nc" id="L88">            List&lt;String&gt; publicContents = this.getContentManager().loadDataObjectsId(categories, orCategoryFilter, filters, userGroupCodes);</span>
+<span class="nc" id="L89">            ApsSystemUtils.getLogger().debug(&quot;public contents: &quot; + publicContents.size());</span>
+
+<span class="nc" id="L91">            allContents.addAll(publicContents);</span>
+
+<span class="nc" id="L93">        } catch (Throwable t) {</span>
+<span class="nc" id="L94">            ApsSystemUtils.logThrowable(t, this, &quot;getContentsId&quot;);</span>
+<span class="nc" id="L95">            throw new EntException(&quot;Error loading contents to update&quot;, t);</span>
+<span class="nc" id="L96">        }</span>
+<span class="nc" id="L97">        return allContents;</span>
+    }
+
+    public void reloadEntityReferences(String entityId) {
+        try {
+            //String cacheKey = JacmsSystemConstants.CONTENT_CACHE_PREFIX + entityId;
+            //this.getCacheInfoManager().flushEntry(ICacheInfoManager.DEFAULT_CACHE_NAME, cacheKey);
+            //ApsSystemUtils.getLogger().debug(&quot;removing_from_cache &quot; + cacheKey);
+<span class="nc" id="L105">            DataObject content = this.getContentManager().loadDataObject(entityId, true);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (content != null) {</span>
+<span class="nc" id="L107">                this.getContentUpdaterDAO().reloadDataObjectCategoryReferences(content);</span>
+            }
+<span class="nc" id="L109">            ApsSystemUtils.getLogger().debug(&quot;Reload content references for content &quot; + entityId + &quot;- DONE&quot;);</span>
+<span class="nc" id="L110">        } catch (Throwable t) {</span>
+<span class="nc" id="L111">            ApsSystemUtils.logThrowable(t, this, &quot;reloadEntityReferences&quot;);</span>
+<span class="nc" id="L112">        }</span>
+<span class="nc" id="L113">    }</span>
+
+    protected IDataObjectManager getContentManager() {
+<span class="nc" id="L116">        return _contentManager;</span>
+    }
+
+    public void setContentManager(IDataObjectManager contentManager) {
+<span class="nc" id="L120">        this._contentManager = contentManager;</span>
+<span class="nc" id="L121">    }</span>
+
+    protected ICategoryManager getCategoryManager() {
+<span class="nc" id="L124">        return _categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="nc" id="L128">        this._categoryManager = categoryManager;</span>
+<span class="nc" id="L129">    }</span>
+
+    protected IDataObjectUpdaterDAO getContentUpdaterDAO() {
+<span class="nc" id="L132">        return _contentUpdaterDAO;</span>
+    }
+
+    public void setContentUpdaterDAO(IDataObjectUpdaterDAO contentUpdaterDAO) {
+<span class="nc" id="L136">        this._contentUpdaterDAO = contentUpdaterDAO;</span>
+<span class="nc" id="L137">    }</span>
+
+    protected ICacheInfoManager getCacheInfoManager() {
+<span class="nc" id="L140">        return _cacheInfoManager;</span>
+    }
+
+    public void setCacheInfoManager(ICacheInfoManager cacheInfoManager) {
+<span class="nc" id="L144">        this._cacheInfoManager = cacheInfoManager;</span>
+<span class="nc" id="L145">    }</span>
+
+    private IDataObjectManager _contentManager;
+    private ICategoryManager _categoryManager;
+    private IDataObjectUpdaterDAO _contentUpdaterDAO;
+    private ICacheInfoManager _cacheInfoManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

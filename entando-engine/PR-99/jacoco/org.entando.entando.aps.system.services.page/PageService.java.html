@@ -1,0 +1,882 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.page</a> &gt; <span class="el_source">PageService.java</span></div><h1>PageService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.page;
+
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import com.agiletec.aps.system.common.IManager;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.page.*;
+import com.agiletec.aps.system.services.pagemodel.IPageModelManager;
+import com.agiletec.aps.system.services.pagemodel.PageModel;
+import com.agiletec.aps.system.services.pagemodel.PageModelUtilizer;
+import com.agiletec.aps.util.ApsProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.beanutils.BeanComparator;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IComponentExistsService;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.group.GroupServiceUtilizer;
+import org.entando.entando.aps.system.services.jsonpatch.JsonPatchService;
+import org.entando.entando.aps.system.services.page.model.*;
+import org.entando.entando.aps.system.services.pagemodel.PageModelServiceUtilizer;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.aps.system.services.widgettype.validators.WidgetProcessorFactory;
+import org.entando.entando.aps.system.services.widgettype.validators.WidgetValidatorFactory;
+import org.entando.entando.aps.util.GenericResourceUtils;
+import org.entando.entando.aps.util.PageUtils;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.web.common.assembler.PageSearchMapper;
+import org.entando.entando.web.common.assembler.PagedMetadataMapper;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.web.page.model.PagePositionRequest;
+import org.entando.entando.web.page.model.PageRequest;
+import org.entando.entando.web.page.model.PageSearchRequest;
+import org.entando.entando.web.page.model.WidgetConfigurationRequest;
+import org.entando.entando.web.page.validator.PageValidator;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.lang.Nullable;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.DataBinder;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * @author paddeo
+ */
+<span class="fc" id="L75">public class PageService implements IComponentExistsService, IPageService,</span>
+        GroupServiceUtilizer&lt;PageDto&gt;, PageModelServiceUtilizer&lt;PageDto&gt;, ApplicationContextAware {
+
+<span class="fc" id="L78">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    public static final String ERRCODE_PAGE_NOT_FOUND = &quot;1&quot;;
+    public static final String ERRCODE_PAGEMODEL_NOT_FOUND = &quot;1&quot;;
+    public static final String ERRCODE_GROUP_NOT_FOUND = &quot;2&quot;;
+    public static final String ERRCODE_PARENT_NOT_FOUND = &quot;3&quot;;
+    public static final String ERRCODE_PAGE_ONLY_DRAFT = &quot;3&quot;;
+    public static final String ERRCODE_FRAME_INVALID = &quot;2&quot;;
+    public static final String ERRCODE_WIDGET_INVALID = &quot;4&quot;;
+    public static final String ERRCODE_STATUS_INVALID = &quot;3&quot;;
+    public static final String ERRCODE_PAGE_REFERENCES = &quot;5&quot;;
+
+    @Autowired
+    private IPageManager pageManager;
+
+    @Autowired
+    private IPageModelManager pageModelManager;
+
+    @Autowired
+    private IGroupManager groupManager;
+
+    @Autowired
+    private IWidgetTypeManager widgetTypeManager;
+
+    @Autowired
+    private WidgetValidatorFactory widgetValidatorFactory;
+
+    @Autowired
+    private WidgetProcessorFactory widgetProcessorFactory;
+
+    @Autowired
+    private IDtoBuilder&lt;IPage, PageDto&gt; dtoBuilder;
+
+<span class="fc" id="L111">    private JsonPatchService&lt;PageDto&gt; jsonPatchService = new JsonPatchService&lt;&gt;(PageDto.class);</span>
+
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private IPageTokenManager pageTokenManager;
+
+    @Autowired
+    private PageSearchMapper pageSearchMapper;
+
+    @Autowired
+    private PagedMetadataMapper pagedMetadataMapper;
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L125">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L129">        this.pageManager = pageManager;</span>
+<span class="fc" id="L130">    }</span>
+
+    protected IPageModelManager getPageModelManager() {
+<span class="fc" id="L133">        return pageModelManager;</span>
+    }
+
+    public void setPageModelManager(IPageModelManager pageModelManager) {
+<span class="fc" id="L137">        this.pageModelManager = pageModelManager;</span>
+<span class="fc" id="L138">    }</span>
+
+    public IGroupManager getGroupManager() {
+<span class="fc" id="L141">        return groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L145">        this.groupManager = groupManager;</span>
+<span class="fc" id="L146">    }</span>
+
+    protected IDtoBuilder&lt;IPage, PageDto&gt; getDtoBuilder() {
+<span class="fc" id="L149">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;IPage, PageDto&gt; dtoBuilder) {
+<span class="fc" id="L153">        this.dtoBuilder = dtoBuilder;</span>
+<span class="fc" id="L154">    }</span>
+
+    protected WidgetValidatorFactory getWidgetValidatorFactory() {
+<span class="fc" id="L157">        return widgetValidatorFactory;</span>
+    }
+
+    public void setWidgetValidatorFactory(WidgetValidatorFactory widgetValidatorFactory) {
+<span class="fc" id="L161">        this.widgetValidatorFactory = widgetValidatorFactory;</span>
+<span class="fc" id="L162">    }</span>
+
+    protected WidgetProcessorFactory getWidgetProcessorFactory() {
+<span class="fc" id="L165">        return widgetProcessorFactory;</span>
+    }
+
+    public void setWidgetProcessorFactory(WidgetProcessorFactory widgetProcessorFactory) {
+<span class="fc" id="L169">        this.widgetProcessorFactory = widgetProcessorFactory;</span>
+<span class="fc" id="L170">    }</span>
+
+    protected IWidgetTypeManager getWidgetTypeManager() {
+<span class="fc" id="L173">        return widgetTypeManager;</span>
+    }
+
+    public void setWidgetTypeManager(IWidgetTypeManager widgetTypeManager) {
+<span class="nc" id="L177">        this.widgetTypeManager = widgetTypeManager;</span>
+<span class="nc" id="L178">    }</span>
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+<span class="fc" id="L182">        this.applicationContext = applicationContext;</span>
+<span class="fc" id="L183">    }</span>
+
+    public IPageTokenManager getPageTokenManager() {
+<span class="fc" id="L186">        return pageTokenManager;</span>
+    }
+
+    public void setPageTokenManager(IPageTokenManager pageTokenManager) {
+<span class="fc" id="L190">        this.pageTokenManager = pageTokenManager;</span>
+<span class="fc" id="L191">    }</span>
+
+    @Override
+    public List&lt;PageDto&gt; getPages(String parentCode,
+                                  @Nullable String forLinkingToOwnerGroup, @Nullable Collection&lt;String&gt; forLinkingToExtraGroups) {
+<span class="fc" id="L196">        List&lt;PageDto&gt; res = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L197">        IPage parent = this.getPageManager().getDraftPage(parentCode);</span>
+<span class="fc" id="L198">        Optional.ofNullable(parent).ifPresent(root -&gt; Optional.ofNullable(root.getChildrenCodes())</span>
+<span class="fc" id="L199">                .ifPresent(children -&gt; Arrays.asList(children).forEach(childCode -&gt; {</span>
+<span class="fc" id="L200">                    IPage childD = this.getPageManager().getDraftPage(childCode);</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">                    if (forLinkingToOwnerGroup == null ||</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">                            GenericResourceUtils.isResourceLinkableByContent(</span>
+<span class="fc" id="L203">                                    childD.getGroup(), childD.getExtraGroups(),</span>
+                                    forLinkingToOwnerGroup, forLinkingToExtraGroups)
+                    ) {
+<span class="fc" id="L206">                        res.add(dtoBuilder.convert(childD));</span>
+                    }
+<span class="fc" id="L208">                })));</span>
+<span class="fc" id="L209">        return res;</span>
+    }
+
+    @Override
+    public PageDto getPage(String pageCode, String status) {
+<span class="fc" id="L214">        IPage page = this.loadPage(pageCode, status);</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">        if (null == page) {</span>
+<span class="fc" id="L216">            logger.warn(&quot;no page found with code {} and status {}&quot;, pageCode, status);</span>
+<span class="fc" id="L217">            DataBinder binder = new DataBinder(pageCode);</span>
+<span class="fc" id="L218">            BindingResult bindingResult = binder.getBindingResult();</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">            String errorCode = status.equals(STATUS_DRAFT) ? ERRCODE_PAGE_NOT_FOUND : ERRCODE_PAGE_ONLY_DRAFT;</span>
+<span class="fc" id="L220">            bindingResult.reject(errorCode, new String[]{pageCode, status}, &quot;page.NotFound&quot;);</span>
+<span class="fc" id="L221">            throw new ResourceNotFoundException(bindingResult);</span>
+        }
+<span class="fc" id="L223">        String token = this.getPageTokenManager().encrypt(pageCode);</span>
+<span class="fc" id="L224">        PageDto pageDto = this.getDtoBuilder().convert(page);</span>
+<span class="fc" id="L225">        pageDto.setToken(token);</span>
+<span class="fc" id="L226">        pageDto.setReferences(this.getReferencesInfo(page));</span>
+<span class="fc" id="L227">        return pageDto;</span>
+    }
+
+    public boolean exists(String pageCode, String status) {
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        return this.loadPage(pageCode, status) != null;</span>
+    }
+
+    @Override
+    public boolean exists(String code) {
+<span class="pc bpc" id="L236" title="1 of 4 branches missed.">        return this.exists(code, IPageService.STATUS_DRAFT) || this.exists(code, IPageService.STATUS_ONLINE);</span>
+    }
+
+    @Override
+    public PageDto addPage(PageRequest pageRequest) {
+<span class="fc" id="L241">        this.validateRequest(pageRequest);</span>
+        try {
+<span class="fc" id="L243">            IPage page = this.createPage(pageRequest);</span>
+<span class="fc" id="L244">            this.getPageManager().addPage(page);</span>
+<span class="fc" id="L245">            IPage addedPage = this.getPageManager().getDraftPage(page.getCode());</span>
+<span class="fc" id="L246">            return this.getDtoBuilder().convert(addedPage);</span>
+<span class="nc" id="L247">        } catch (EntException e) {</span>
+<span class="nc" id="L248">            logger.error(&quot;Error adding page&quot;, e);</span>
+<span class="nc" id="L249">            throw new RestServerError(&quot;error add page&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public void removePage(String pageCode) {
+        try {
+<span class="fc" id="L256">            IPage page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">            if (null != page) {</span>
+<span class="fc" id="L258">                this.getPageManager().deletePage(pageCode);</span>
+            }
+<span class="nc" id="L260">        } catch (EntException e) {</span>
+<span class="nc" id="L261">            logger.error(&quot;Error in delete page {}&quot;, pageCode, e);</span>
+<span class="nc" id="L262">            throw new RestServerError(&quot;error in delete page&quot;, e);</span>
+<span class="fc" id="L263">        }</span>
+<span class="fc" id="L264">    }</span>
+
+    @Override
+    public PageDto updatePage(String pageCode, PageRequest pageRequest) {
+<span class="fc" id="L268">        IPage oldPage = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">        if (null == oldPage) {</span>
+<span class="nc" id="L270">            throw new ResourceNotFoundException(null, &quot;page&quot;, pageCode);</span>
+        }
+<span class="fc" id="L272">        this.validateRequest(pageRequest);</span>
+
+<span class="fc bfc" id="L274" title="All 2 branches covered.">        if (!oldPage.getGroup().equals(pageRequest.getOwnerGroup())) {</span>
+<span class="fc" id="L275">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(oldPage, &quot;page&quot;);</span>
+<span class="fc" id="L276">            bindingResult.reject(PageValidator.ERRCODE_GROUP_MISMATCH,</span>
+<span class="fc" id="L277">                    new String[]{oldPage.getGroup(), pageRequest.getOwnerGroup()}, &quot;page.update.group.invalid&quot;);</span>
+<span class="fc" id="L278">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        try {
+<span class="fc bfc" id="L281" title="All 2 branches covered.">            if (!oldPage.getParentCode().equals(pageRequest.getParentCode())) {</span>
+<span class="fc" id="L282">                PagePositionRequest pagePositionRequest = new PagePositionRequest();</span>
+<span class="fc" id="L283">                pagePositionRequest.setParentCode(pageRequest.getParentCode());</span>
+<span class="fc" id="L284">                pagePositionRequest.setCode(pageCode);</span>
+<span class="fc" id="L285">                int position = this.getPages(pageCode).size() + 1;</span>
+<span class="fc" id="L286">                pagePositionRequest.setPosition(position);</span>
+<span class="fc" id="L287">                this.movePage(pageCode, pagePositionRequest);</span>
+<span class="fc" id="L288">                oldPage = this.getPageManager().getDraftPage(pageCode);</span>
+            }
+
+<span class="fc" id="L291">            IPage newPage = this.updatePage(oldPage, pageRequest);</span>
+<span class="fc" id="L292">            this.getPageManager().updatePage(newPage);</span>
+<span class="fc" id="L293">            IPage updatePage = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc" id="L294">            PageDto page = this.getDtoBuilder().convert(updatePage);</span>
+<span class="fc" id="L295">            page.setPosition(oldPage.getPosition());</span>
+<span class="fc" id="L296">            return page;</span>
+<span class="nc" id="L297">        } catch (EntException e) {</span>
+<span class="nc" id="L298">            logger.error(&quot;Error updating page {}&quot;, pageCode, e);</span>
+<span class="nc" id="L299">            throw new RestServerError(&quot;error in update page&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public PageDto getPatchedPage(String pageCode, JsonNode patch) {
+<span class="fc" id="L305">        PageDto pageDto = this.getPage(pageCode, STATUS_DRAFT);</span>
+<span class="fc" id="L306">        return this.jsonPatchService.applyPatch(patch, pageDto);</span>
+    }
+
+    @Override
+    public PageDto updatePageStatus(String pageCode, String status) {
+<span class="fc" id="L311">        IPage currentPage = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc" id="L312">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(pageCode, &quot;page&quot;);</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">        if (null == currentPage) {</span>
+<span class="nc" id="L314">            throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+        }
+<span class="pc bpc" id="L316" title="1 of 4 branches missed.">        if (status.equals(STATUS_DRAFT) &amp;&amp; null == this.getPageManager().getOnlinePage(pageCode)) {</span>
+<span class="nc" id="L317">            return this.getDtoBuilder().convert(currentPage);</span>
+        }
+        try {
+<span class="fc" id="L320">            IPage newPage = null;</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">            if (status.equals(STATUS_ONLINE)) {</span>
+<span class="fc" id="L322">                IPage publicParent = this.getPageManager().getOnlinePage(currentPage.getParentCode());</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">                if (null == publicParent) {</span>
+<span class="fc" id="L324">                    bindingResult.reject(PageValidator.ERRCODE_PAGE_WITH_NO_PUBLIC_PARENT,</span>
+<span class="fc" id="L325">                            new String[]{pageCode, currentPage.getParentCode()}, &quot;page.status.parent.unpublished&quot;);</span>
+<span class="fc" id="L326">                    throw new ValidationGenericException(bindingResult);</span>
+                }
+<span class="fc" id="L328">                this.getPageManager().setPageOnline(pageCode);</span>
+<span class="fc" id="L329">                newPage = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">            } else if (status.equals(STATUS_DRAFT)) {</span>
+<span class="fc" id="L331">                String[] childCodes = currentPage.getChildrenCodes();</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">                for (String childCode : childCodes) {</span>
+<span class="fc" id="L333">                    IPage publicChild = this.getPageManager().getOnlinePage(childCode);</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">                    if (null != publicChild) {</span>
+<span class="fc" id="L335">                        bindingResult.reject(PageValidator.ERRCODE_PAGE_WITH_PUBLIC_CHILD,</span>
+                                new String[]{pageCode}, &quot;page.status.publicChild&quot;);
+<span class="fc" id="L337">                        throw new ValidationGenericException(bindingResult);</span>
+                    }
+                }
+<span class="fc" id="L340">                Map&lt;String, PageServiceUtilizer&gt; beans = applicationContext.getBeansOfType(PageServiceUtilizer.class);</span>
+<span class="pc bpc" id="L341" title="1 of 2 branches missed.">                if (null != beans) {</span>
+<span class="fc" id="L342">                    Iterator&lt;PageServiceUtilizer&gt; iter = beans.values().iterator();</span>
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">                    while (iter.hasNext()) {</span>
+<span class="nc" id="L344">                        PageServiceUtilizer serviceUtilizer = iter.next();</span>
+<span class="nc" id="L345">                        List utilizer = serviceUtilizer.getPageUtilizer(pageCode);</span>
+<span class="nc bnc" id="L346" title="All 4 branches missed.">                        if (null != utilizer &amp;&amp; utilizer.size() &gt; 0) {</span>
+<span class="nc" id="L347">                            bindingResult.reject(PageValidator.ERRCODE_REFERENCED_ONLINE_PAGE, new String[]{pageCode}, &quot;page.status.invalid.online.ref&quot;);</span>
+<span class="nc" id="L348">                            throw new ValidationGenericException(bindingResult);</span>
+                        }
+<span class="nc" id="L350">                    }</span>
+                }
+<span class="fc" id="L352">                this.getPageManager().setPageOffline(pageCode);</span>
+<span class="fc" id="L353">                newPage = this.getPageManager().getDraftPage(pageCode);</span>
+            }
+<span class="fc" id="L355">            return this.getDtoBuilder().convert(newPage);</span>
+<span class="fc" id="L356">        } catch (ValidationGenericException e) {</span>
+<span class="fc" id="L357">            throw e;</span>
+<span class="nc" id="L358">        } catch (EntException e) {</span>
+<span class="nc" id="L359">            logger.error(&quot;Error updating page {} status&quot;, pageCode, e);</span>
+<span class="nc" id="L360">            throw new RestServerError(&quot;error in update page status&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public PageDto movePage(String pageCode, PagePositionRequest pageRequest) {
+<span class="fc" id="L366">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(pageCode, &quot;page&quot;);</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">        if (pageCode.equals(pageRequest.getParentCode())) {</span>
+<span class="fc" id="L368">            bindingResult.reject(PageValidator.ERRCODE_INVALID_PARENT, new String[]{pageCode}, &quot;page.movement.parent.invalid.1&quot;);</span>
+<span class="fc" id="L369">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L371">        IPage parent = this.getPageManager().getDraftPage(pageRequest.getParentCode());</span>
+<span class="fc" id="L372">        IPage page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">        if (parent.isChildOf(pageCode, this.getPageManager())) {</span>
+<span class="fc" id="L374">            bindingResult.reject(PageValidator.ERRCODE_INVALID_PARENT,</span>
+<span class="fc" id="L375">                    new String[]{pageRequest.getParentCode(), pageCode}, &quot;page.movement.parent.invalid.2&quot;);</span>
+<span class="fc" id="L376">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L378">        int iterations = Math.abs(page.getPosition() - pageRequest.getPosition());</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        boolean moveUp = page.getPosition() &gt; pageRequest.getPosition();</span>
+        try {
+<span class="fc bfc" id="L381" title="All 2 branches covered.">            if (page.getParentCode().equals(parent.getCode())) {</span>
+<span class="pc bpc" id="L382" title="1 of 4 branches missed.">                while (iterations-- &gt; 0 &amp;&amp; this.getPageManager().movePage(pageCode, moveUp)) ;</span>
+            } else {
+<span class="fc" id="L384">                this.getPageManager().movePage(page, parent);</span>
+            }
+<span class="fc" id="L386">            page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="nc" id="L387">        } catch (EntException e) {</span>
+<span class="nc" id="L388">            logger.error(&quot;Error moving page {}&quot;, pageCode, e);</span>
+<span class="nc" id="L389">            throw new RestServerError(&quot;error in moving page&quot;, e);</span>
+<span class="fc" id="L390">        }</span>
+<span class="fc" id="L391">        return this.getDtoBuilder().convert(page);</span>
+    }
+
+    @Override
+    public PageConfigurationDto getPageConfiguration(String pageCode, String status) {
+<span class="fc" id="L396">        IPage page = this.loadPage(pageCode, status);</span>
+<span class="pc bpc" id="L397" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L398">            throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+        }
+<span class="fc" id="L400">        PageConfigurationDto pageConfigurationDto = new PageConfigurationDto(page, status);</span>
+<span class="fc" id="L401">        return pageConfigurationDto;</span>
+    }
+
+    @Override
+    public PageConfigurationDto restorePageConfiguration(String pageCode) {
+        try {
+<span class="nc" id="L407">            IPage pageD = this.loadPage(pageCode, STATUS_DRAFT);</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            if (null == pageD) {</span>
+<span class="nc" id="L409">                throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+            }
+<span class="nc" id="L411">            IPage pageO = this.loadPage(pageCode, STATUS_ONLINE);</span>
+<span class="nc bnc" id="L412" title="All 2 branches missed.">            if (null == pageO) {</span>
+<span class="nc" id="L413">                DataBinder binder = new DataBinder(pageCode);</span>
+<span class="nc" id="L414">                BindingResult bindingResult = binder.getBindingResult();</span>
+<span class="nc" id="L415">                bindingResult.reject(ERRCODE_STATUS_INVALID, new String[]{pageCode}, &quot;page.status.invalid&quot;);</span>
+<span class="nc" id="L416">                throw new ValidationGenericException(bindingResult);</span>
+            }
+<span class="nc" id="L418">            pageD.setMetadata(pageO.getMetadata());</span>
+<span class="nc" id="L419">            pageD.setWidgets(pageO.getWidgets());</span>
+<span class="nc" id="L420">            this.getPageManager().updatePage(pageD);</span>
+<span class="nc" id="L421">            PageConfigurationDto pageConfigurationDto = new PageConfigurationDto(pageO, STATUS_ONLINE);</span>
+<span class="nc" id="L422">            return pageConfigurationDto;</span>
+<span class="nc" id="L423">        } catch (EntException e) {</span>
+<span class="nc" id="L424">            logger.error(&quot;Error restoring page {} configuration&quot;, pageCode, e);</span>
+<span class="nc" id="L425">            throw new RestServerError(&quot;error in restoring page configuration&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public WidgetConfigurationDto getWidgetConfiguration(String pageCode, int frameId, String status) {
+<span class="fc" id="L431">        IPage page = this.loadPage(pageCode, status);</span>
+<span class="pc bpc" id="L432" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L433">            throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+        }
+<span class="pc bpc" id="L435" title="1 of 2 branches missed.">        if (frameId &gt; page.getWidgets().length) {</span>
+<span class="nc" id="L436">            throw new ResourceNotFoundException(ERRCODE_FRAME_INVALID, &quot;frame&quot;, String.valueOf(frameId));</span>
+        }
+<span class="fc" id="L438">        Widget widget = page.getWidgets()[frameId];</span>
+<span class="fc bfc" id="L439" title="All 2 branches covered.">        if (null == widget) {</span>
+<span class="fc" id="L440">            return null;</span>
+        }
+<span class="fc" id="L442">        return new WidgetConfigurationDto(widget);</span>
+    }
+
+    @Override
+    public WidgetConfigurationDto updateWidgetConfiguration(String pageCode, int frameId, WidgetConfigurationRequest widgetReq) {
+        try {
+<span class="fc" id="L448">            IPage page = this.loadPage(pageCode, STATUS_DRAFT);</span>
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">            if (null == page) {</span>
+<span class="nc" id="L450">                throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+            }
+<span class="pc bpc" id="L452" title="2 of 4 branches missed.">            if (page.getWidgets() == null || frameId &gt; page.getWidgets().length) {</span>
+<span class="nc" id="L453">                throw new ResourceNotFoundException(ERRCODE_FRAME_INVALID, &quot;frame&quot;, String.valueOf(frameId));</span>
+            }
+<span class="pc bpc" id="L455" title="1 of 2 branches missed.">            if (null == this.getWidgetType(widgetReq.getCode())) {</span>
+<span class="nc" id="L456">                throw new ResourceNotFoundException(ERRCODE_WIDGET_INVALID, &quot;widget&quot;, String.valueOf(widgetReq.getCode()));</span>
+            }
+<span class="fc" id="L458">            BeanPropertyBindingResult validation = this.getWidgetValidatorFactory().get(widgetReq.getCode()).validate(widgetReq, page);</span>
+<span class="pc bpc" id="L459" title="2 of 4 branches missed.">            if (null != validation &amp;&amp; validation.hasErrors()) {</span>
+<span class="nc" id="L460">                throw new ValidationConflictException(validation);</span>
+            }
+<span class="fc" id="L462">            ApsProperties properties = (ApsProperties) this.getWidgetProcessorFactory().get(widgetReq.getCode()).buildConfiguration(widgetReq);</span>
+<span class="fc" id="L463">            WidgetType widgetType = this.getWidgetType(widgetReq.getCode());</span>
+<span class="fc" id="L464">            Widget widget = new Widget();</span>
+<span class="fc" id="L465">            widget.setType(widgetType);</span>
+<span class="fc" id="L466">            widget.setConfig(properties);</span>
+<span class="fc" id="L467">            this.getPageManager().joinWidget(pageCode, widget, frameId);</span>
+
+<span class="fc" id="L469">            ApsProperties outProperties = this.getWidgetProcessorFactory().get(widgetReq.getCode()).extractConfiguration(widget.getConfig());</span>
+<span class="fc" id="L470">            return new WidgetConfigurationDto(widget.getType().getCode(), outProperties);</span>
+<span class="nc" id="L471">        } catch (EntException e) {</span>
+<span class="nc" id="L472">            logger.error(&quot;Error in update widget configuration {}&quot;, pageCode, e);</span>
+<span class="nc" id="L473">            throw new RestServerError(&quot;error in update widget configuration&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public void deleteWidgetConfiguration(String pageCode, int frameId) {
+        try {
+<span class="fc" id="L480">            IPage page = this.loadPage(pageCode, STATUS_DRAFT);</span>
+<span class="pc bpc" id="L481" title="1 of 2 branches missed.">            if (null == page) {</span>
+<span class="nc" id="L482">                logger.debug(&quot;Deleting a widget into a page not found - page ''{}'', pos ''{}''&quot;, pageCode, frameId);</span>
+<span class="nc" id="L483">                return;</span>
+            }
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">            if (frameId &gt;= page.getWidgets().length) {</span>
+<span class="nc" id="L486">                logger.info(&quot;the frame to delete with index {} in page {} with model {} does not exists&quot;,</span>
+<span class="nc" id="L487">                        frameId, pageCode,</span>
+<span class="nc" id="L488">                        page.getModel().getCode());</span>
+<span class="nc" id="L489">                return;</span>
+            }
+<span class="fc" id="L491">            this.pageManager.removeWidget(pageCode, frameId);</span>
+<span class="nc" id="L492">        } catch (EntException e) {</span>
+<span class="nc" id="L493">            logger.error(&quot;Error in delete widget configuration for page {} and frame {}&quot;, pageCode, frameId, e);</span>
+<span class="nc" id="L494">            throw new RestServerError(&quot;error in delete widget configuration&quot;, e);</span>
+<span class="fc" id="L495">        }</span>
+<span class="fc" id="L496">    }</span>
+
+    @Override
+    public PageConfigurationDto applyDefaultWidgets(String pageCode) {
+        try {
+<span class="fc" id="L501">            IPage page = this.loadPage(pageCode, STATUS_DRAFT);</span>
+<span class="pc bpc" id="L502" title="1 of 2 branches missed.">            if (null == page) {</span>
+<span class="nc" id="L503">                throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+            }
+<span class="fc" id="L505">            PageModel pageModel = page.getModel();</span>
+<span class="fc" id="L506">            Widget[] defaultWidgets = pageModel.getDefaultWidget();</span>
+<span class="pc bpc" id="L507" title="1 of 2 branches missed.">            if (null == defaultWidgets) {</span>
+<span class="nc" id="L508">                logger.info(&quot;no default widget configuration for model {}&quot;, pageModel.getCode());</span>
+<span class="nc" id="L509">                return new PageConfigurationDto(page, STATUS_DRAFT);</span>
+            }
+
+<span class="fc" id="L512">            Widget[] widgets = mergePageConfiguration(page, defaultWidgets);</span>
+<span class="fc" id="L513">            page.setWidgets(widgets);</span>
+<span class="fc" id="L514">            this.getPageManager().updatePage(page);</span>
+<span class="fc" id="L515">            return new PageConfigurationDto(page, STATUS_DRAFT);</span>
+
+<span class="nc" id="L517">        } catch (EntException e) {</span>
+<span class="nc" id="L518">            logger.error(&quot;Error setting default widgets for page {}&quot;, pageCode, e);</span>
+<span class="nc" id="L519">            throw new RestServerError(&quot;Error setting default widgets for page &quot; + pageCode, e);</span>
+        }
+    }
+
+    /**
+     * Merge the page configuration with the provided new one.
+     * &lt;/p&gt;
+     *
+     * @param page
+     * @param newWidgetConfiguration
+     * @return
+     */
+    protected Widget[] mergePageConfiguration(IPage page, Widget[] newWidgetConfiguration) {
+<span class="fc" id="L532">        Widget[] widgets = page.getWidgets();</span>
+<span class="fc bfc" id="L533" title="All 2 branches covered.">        for (int i = 0; i &lt; newWidgetConfiguration.length; i++) {</span>
+<span class="fc" id="L534">            Widget defaultWidget = newWidgetConfiguration[i];</span>
+<span class="fc bfc" id="L535" title="All 2 branches covered.">            if (null != defaultWidget) {</span>
+<span class="pc bpc" id="L536" title="1 of 2 branches missed.">                if (null == defaultWidget.getType()) {</span>
+<span class="nc" id="L537">                    logger.info(&quot;Widget Type null when adding defaulWidget (of pagemodel '{}') on frame '{}' of page '{}'&quot;, page.getModel().getCode(), i, page.getCode());</span>
+<span class="nc" id="L538">                    continue;</span>
+                }
+<span class="fc" id="L540">                widgets[i] = defaultWidget;</span>
+            }
+        }
+<span class="fc" id="L543">        return widgets;</span>
+    }
+
+    public WidgetType getWidgetType(String typeCode) {
+<span class="fc" id="L547">        return this.getWidgetTypeManager().getWidgetType(typeCode);</span>
+    }
+
+    protected IPage createPage(PageRequest pageRequest) {
+<span class="fc" id="L551">        Page page = new Page();</span>
+<span class="fc" id="L552">        page.setCode(pageRequest.getCode());</span>
+<span class="fc" id="L553">        page.setShowable(pageRequest.isDisplayedInMenu());</span>
+<span class="fc" id="L554">        PageModel model = this.getPageModelManager().getPageModel(pageRequest.getPageModel());</span>
+<span class="fc" id="L555">        page.setModel(model);</span>
+<span class="fc" id="L556">        page.setWidgets(new Widget[model.getFrames().length]);</span>
+<span class="fc" id="L557">        page.setCharset(pageRequest.getCharset());</span>
+<span class="fc" id="L558">        page.setMimeType(pageRequest.getContentType());</span>
+<span class="fc" id="L559">        page.setParentCode(pageRequest.getParentCode());</span>
+<span class="fc" id="L560">        page.setUseExtraTitles(pageRequest.isSeo());</span>
+<span class="fc" id="L561">        Optional&lt;Map&lt;String, String&gt;&gt; titles = Optional.ofNullable(pageRequest.getTitles());</span>
+<span class="fc" id="L562">        ApsProperties apsTitles = new ApsProperties();</span>
+<span class="fc" id="L563">        titles.ifPresent(values -&gt; values.keySet().forEach((lang) -&gt; {</span>
+<span class="fc" id="L564">            apsTitles.put(lang, values.get(lang));</span>
+<span class="fc" id="L565">        }));</span>
+<span class="fc" id="L566">        page.setTitles(apsTitles);</span>
+<span class="fc" id="L567">        page.setGroup(pageRequest.getOwnerGroup());</span>
+<span class="fc" id="L568">        Optional&lt;List&lt;String&gt;&gt; groups = Optional.ofNullable(pageRequest.getJoinGroups());</span>
+<span class="fc" id="L569">        groups.ifPresent(values -&gt; values.forEach((group) -&gt; {</span>
+<span class="nc" id="L570">            page.addExtraGroup(group);</span>
+<span class="nc" id="L571">        }));</span>
+<span class="fc" id="L572">        page.setParentCode(pageRequest.getParentCode());</span>
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">        if (pageRequest.getParentCode() != null) {</span>
+<span class="fc" id="L574">            IPage parent = this.getPageManager().getDraftPage(pageRequest.getParentCode());</span>
+<span class="fc" id="L575">            page.setParentCode(parent.getCode());</span>
+        }
+<span class="fc" id="L577">        PageMetadata metadata = page.getMetadata();</span>
+<span class="fc" id="L578">        this.valueMetadataFromRequest(metadata, pageRequest);</span>
+<span class="fc" id="L579">        page.setMetadata(metadata);</span>
+<span class="fc" id="L580">        return page;</span>
+    }
+
+    protected IPage updatePage(IPage oldPage, PageRequest pageRequest) {
+<span class="fc" id="L584">        Page page = new Page();</span>
+<span class="fc" id="L585">        PageMetadata metadata = oldPage.getMetadata();</span>
+<span class="pc bpc" id="L586" title="1 of 2 branches missed.">        if (metadata == null) {</span>
+<span class="nc" id="L587">            metadata = new PageMetadata();</span>
+        }
+<span class="fc" id="L589">        this.valueMetadataFromRequest(metadata, pageRequest);</span>
+<span class="fc" id="L590">        page.setMetadata(metadata);</span>
+<span class="fc" id="L591">        page.setCode(pageRequest.getCode());</span>
+<span class="fc" id="L592">        page.setShowable(pageRequest.isDisplayedInMenu());</span>
+<span class="fc bfc" id="L593" title="All 2 branches covered.">        if (!oldPage.getModel().getCode().equals(pageRequest.getPageModel())) {</span>
+<span class="fc" id="L594">            PageModel model = this.getPageModelManager().getPageModel(pageRequest.getPageModel());</span>
+<span class="fc" id="L595">            model.setCode(pageRequest.getPageModel());</span>
+<span class="fc" id="L596">            page.setModel(model);</span>
+<span class="fc" id="L597">            page.setWidgets(new Widget[model.getFrames().length]);</span>
+<span class="fc" id="L598">        } else {</span>
+<span class="fc" id="L599">            page.setWidgets(oldPage.getWidgets());</span>
+        }
+<span class="fc" id="L601">        page.setCharset(pageRequest.getCharset());</span>
+<span class="fc" id="L602">        page.setMimeType(pageRequest.getContentType());</span>
+<span class="fc" id="L603">        page.setParentCode(pageRequest.getParentCode());</span>
+<span class="fc" id="L604">        page.setUseExtraTitles(pageRequest.isSeo());</span>
+<span class="fc" id="L605">        Optional&lt;Map&lt;String, String&gt;&gt; titles = Optional.ofNullable(pageRequest.getTitles());</span>
+<span class="fc" id="L606">        ApsProperties apsTitles = new ApsProperties();</span>
+<span class="fc" id="L607">        titles.ifPresent(values -&gt; values.keySet().forEach((lang) -&gt; {</span>
+<span class="fc" id="L608">            apsTitles.put(lang, values.get(lang));</span>
+<span class="fc" id="L609">        }));</span>
+<span class="fc" id="L610">        page.setTitles(apsTitles);</span>
+<span class="fc" id="L611">        page.setGroup(pageRequest.getOwnerGroup());</span>
+<span class="fc bfc" id="L612" title="All 2 branches covered.">        if (page.getExtraGroups() != null) {</span>
+<span class="fc" id="L613">            List&lt;String&gt; oldGroups = new ArrayList&lt;&gt;(page.getExtraGroups());</span>
+<span class="fc" id="L614">            oldGroups.forEach(page::removeExtraGroup);</span>
+        }
+<span class="pc bpc" id="L616" title="1 of 2 branches missed.">        if (pageRequest.getJoinGroups() != null) {</span>
+<span class="fc" id="L617">            pageRequest.getJoinGroups().forEach(page::addExtraGroup);</span>
+        }
+<span class="fc" id="L619">        page.setParentCode(pageRequest.getParentCode());</span>
+<span class="fc" id="L620">        page.setPosition(oldPage.getPosition());</span>
+<span class="fc" id="L621">        page.setChildrenCodes(oldPage.getChildrenCodes());</span>
+
+<span class="fc" id="L623">        return page;</span>
+    }
+
+    private void valueMetadataFromRequest(PageMetadata metadata, PageRequest request) {
+<span class="fc" id="L627">        metadata.setGroup(request.getOwnerGroup());</span>
+<span class="fc" id="L628">        metadata.setShowable(request.isDisplayedInMenu());</span>
+<span class="fc" id="L629">        metadata.setUseExtraTitles(request.isSeo());</span>
+<span class="fc" id="L630">        Optional&lt;Map&lt;String, String&gt;&gt; titles = Optional.ofNullable(request.getTitles());</span>
+<span class="fc" id="L631">        ApsProperties apsTitles = new ApsProperties();</span>
+<span class="fc" id="L632">        titles.ifPresent(values -&gt; values.keySet().forEach((lang) -&gt; {</span>
+<span class="fc" id="L633">            apsTitles.put(lang, values.get(lang));</span>
+<span class="fc" id="L634">        }));</span>
+<span class="fc" id="L635">        metadata.setTitles(apsTitles);</span>
+<span class="fc bfc" id="L636" title="All 2 branches covered.">        if (metadata.getExtraGroups() != null) {</span>
+<span class="fc" id="L637">            List&lt;String&gt; oldGroups = new ArrayList&lt;&gt;(metadata.getExtraGroups());</span>
+<span class="fc" id="L638">            oldGroups.forEach(metadata::removeExtraGroup);</span>
+        }
+<span class="pc bpc" id="L640" title="1 of 2 branches missed.">        if (request.getJoinGroups() != null) {</span>
+<span class="fc" id="L641">            request.getJoinGroups().forEach(metadata::addExtraGroup);</span>
+        }
+<span class="fc" id="L643">        String charset = request.getCharset();</span>
+<span class="fc bfc" id="L644" title="All 2 branches covered.">        metadata.setCharset(StringUtils.isNotBlank(charset) ? charset : null);</span>
+
+<span class="fc" id="L646">        String mimetype = request.getContentType();</span>
+<span class="fc bfc" id="L647" title="All 2 branches covered.">        metadata.setMimeType(StringUtils.isNotBlank(mimetype) ? mimetype : null);</span>
+<span class="fc" id="L648">    }</span>
+
+    protected IPage loadPage(String pageCode, String status) {
+<span class="fc" id="L651">        IPage page = null;</span>
+<span class="pc bpc" id="L652" title="1 of 3 branches missed.">        switch (status) {</span>
+            case STATUS_DRAFT:
+<span class="fc" id="L654">                page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="fc" id="L655">                break;</span>
+            case STATUS_ONLINE:
+<span class="fc" id="L657">                page = this.getPageManager().getOnlinePage(pageCode);</span>
+<span class="fc" id="L658">                break;</span>
+            default:
+                break;
+        }
+<span class="pc bpc" id="L662" title="1 of 6 branches missed.">        if (status.equals(STATUS_ONLINE) &amp;&amp; null == page &amp;&amp; null != this.getPageManager().getDraftPage(pageCode)) {</span>
+<span class="nc" id="L663">            BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(page, &quot;page&quot;);</span>
+<span class="nc" id="L664">            bindingResult.reject(ERRCODE_PAGE_ONLY_DRAFT, new Object[]{pageCode}, &quot;page.status.draftOnly&quot;);</span>
+<span class="nc" id="L665">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L667">        return page;</span>
+    }
+
+    protected void validateRequest(PageRequest request) {
+<span class="pc bpc" id="L671" title="1 of 2 branches missed.">        if (this.getPageModelManager().getPageModel(request.getPageModel()) == null) {</span>
+<span class="nc" id="L672">            throw new ResourceNotFoundException(ERRCODE_PAGEMODEL_NOT_FOUND, &quot;pageModel&quot;, request.getPageModel());</span>
+        }
+<span class="pc bpc" id="L674" title="1 of 2 branches missed.">        if (this.getPageManager().getDraftPage(request.getParentCode()) == null) {</span>
+<span class="nc" id="L675">            throw new ResourceNotFoundException(ERRCODE_PARENT_NOT_FOUND, &quot;parent&quot;, request.getParentCode());</span>
+        }
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">        if (this.getGroupManager().getGroup(request.getOwnerGroup()) == null) {</span>
+<span class="nc" id="L678">            throw new ResourceNotFoundException(ERRCODE_GROUP_NOT_FOUND, &quot;group&quot;, request.getOwnerGroup());</span>
+        }
+<span class="fc" id="L680">        Optional.ofNullable(request.getJoinGroups()).ifPresent(groups -&gt; groups.forEach(group -&gt; {</span>
+<span class="pc bpc" id="L681" title="1 of 2 branches missed.">            if (this.getGroupManager().getGroup(group) == null) {</span>
+<span class="nc" id="L682">                throw new ResourceNotFoundException(ERRCODE_GROUP_NOT_FOUND, &quot;joingroup&quot;, group);</span>
+            }
+<span class="fc" id="L684">        }));</span>
+<span class="fc" id="L685">    }</span>
+
+    @Override
+    public String getManagerName() {
+<span class="fc" id="L689">        return ((IManager) this.getPageManager()).getName();</span>
+    }
+
+    @Override
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public List&lt;PageDto&gt; getGroupUtilizer(String groupName) {
+        try {
+<span class="fc" id="L696">            List&lt;IPage&gt; pages = ((GroupUtilizer&lt;IPage&gt;) this.getPageManager()).getGroupUtilizers(groupName);</span>
+<span class="fc" id="L697">            return this.getDtoBuilder().convert(pages);</span>
+<span class="nc" id="L698">        } catch (EntException ex) {</span>
+<span class="nc" id="L699">            logger.error(&quot;Error loading page references for group {}&quot;, groupName, ex);</span>
+<span class="nc" id="L700">            throw new RestServerError(&quot;Error loading page references for group&quot;, ex);</span>
+        }
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    @Override
+    public List&lt;PageDto&gt; getPageModelUtilizer(String pageModelCode) {
+        try {
+<span class="fc" id="L708">            List&lt;IPage&gt; pages = ((PageModelUtilizer) this.getPageManager()).getPageModelUtilizers(pageModelCode);</span>
+<span class="fc" id="L709">            return this.getDtoBuilder().convert(pages);</span>
+<span class="nc" id="L710">        } catch (EntException ex) {</span>
+<span class="nc" id="L711">            logger.error(&quot;Error loading page references for pagemodel {}&quot;, pageModelCode, ex);</span>
+<span class="nc" id="L712">            throw new RestServerError(&quot;Error loading page references for pagemodel &quot; + pageModelCode, ex);</span>
+        }
+    }
+
+
+    @Override
+    public PagedMetadata&lt;PageDto&gt; searchPages(PageSearchRequest request, List&lt;String&gt; allowedGroups) {
+        try {
+<span class="fc" id="L720">            List&lt;IPage&gt; rawPages = this.getPageManager().searchPages(request.getPageCodeToken(), allowedGroups);</span>
+<span class="fc" id="L721">            List&lt;PageDto&gt; pages = this.getDtoBuilder().convert(rawPages);</span>
+<span class="fc" id="L722">            return pageSearchMapper.toPageSearchDto(request, pages);</span>
+<span class="nc" id="L723">        } catch (EntException ex) {</span>
+<span class="nc" id="L724">            logger.error(&quot;Error searching pages with token {}&quot;, request.getPageCodeToken(), ex);</span>
+<span class="nc" id="L725">            throw new RestServerError(&quot;Error searching pages&quot;, ex);</span>
+        }
+    }
+
+    @Override
+    public PagedMetadata&lt;?&gt; getPageReferences(String pageCode, String managerName, RestListRequest requestList) {
+<span class="nc" id="L731">        IPage page = this.getPageManager().getDraftPage(pageCode);</span>
+<span class="nc bnc" id="L732" title="All 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L733">            logger.warn(&quot;no page found with code {}&quot;, pageCode);</span>
+<span class="nc" id="L734">            throw new ResourceNotFoundException(ERRCODE_PAGE_NOT_FOUND, &quot;page&quot;, pageCode);</span>
+        }
+<span class="nc" id="L736">        PageServiceUtilizer&lt;?&gt; utilizer = this.getPageServiceUtilizer(managerName);</span>
+<span class="nc bnc" id="L737" title="All 2 branches missed.">        if (null == utilizer) {</span>
+<span class="nc" id="L738">            logger.warn(&quot;no references found for {}&quot;, managerName);</span>
+<span class="nc" id="L739">            throw new ResourceNotFoundException(ERRCODE_PAGE_REFERENCES, &quot;reference&quot;, managerName);</span>
+        }
+<span class="nc" id="L741">        List&lt;?&gt; dtoList = utilizer.getPageUtilizer(pageCode);</span>
+<span class="nc" id="L742">        List&lt;?&gt; subList = requestList.getSublist(dtoList);</span>
+<span class="nc" id="L743">        SearcherDaoPaginatedResult&lt;?&gt; pagedResult = new SearcherDaoPaginatedResult&lt;&gt;(dtoList.size(), subList);</span>
+<span class="nc" id="L744">        PagedMetadata&lt;Object&gt; pagedMetadata = new PagedMetadata&lt;&gt;(requestList, pagedResult);</span>
+<span class="nc" id="L745">        pagedMetadata.setBody((List&lt;Object&gt;) subList);</span>
+<span class="nc" id="L746">        return pagedMetadata;</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;PageDto&gt; searchOnlineFreePages(RestListRequest request) {
+        try {
+<span class="fc" id="L752">            List&lt;String&gt; groups = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L753">            groups.add(Group.FREE_GROUP_NAME);</span>
+<span class="fc" id="L754">            List&lt;IPage&gt; rawPages = this.getPageManager().searchOnlinePages(null, groups);</span>
+<span class="fc" id="L755">            List&lt;PageDto&gt; pages = this.getDtoBuilder().convert(rawPages);</span>
+<span class="fc" id="L756">            return pageSearchMapper.toPageSearchDto(request, pages);</span>
+<span class="nc" id="L757">        } catch (EntException ex) {</span>
+<span class="nc" id="L758">            logger.error(&quot;Error searching free online pages &quot;, ex);</span>
+<span class="nc" id="L759">            throw new RestServerError(&quot;Error searching free online pages&quot;, ex);</span>
+        }
+    }
+
+    @Override
+    public Integer getComponentUsage(String pageCode) {
+        try {
+<span class="fc" id="L766">            return this.getComponentUsageDetails(pageCode, new RestListRequest()).getTotalItems();</span>
+<span class="fc" id="L767">        } catch (ResourceNotFoundException e) {</span>
+<span class="fc" id="L768">            return 0;</span>
+        }
+    }
+
+
+    @Override
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String pageCode, RestListRequest restListRequest) {
+
+<span class="fc" id="L776">        PageDto pageDto = this.getPage(pageCode, IPageService.STATUS_DRAFT);</span>
+<span class="fc" id="L777">        List&lt;PageDto&gt; childrenPageDtoList = this.getPages(pageCode);</span>
+
+<span class="fc" id="L779">        List&lt;ComponentUsageEntity&gt; componentUsageEntityList = childrenPageDtoList.stream()</span>
+<span class="fc" id="L780">                .map(childPageDto -&gt; new ComponentUsageEntity(ComponentUsageEntity.TYPE_PAGE, childPageDto.getCode(), childPageDto.getStatus()))</span>
+<span class="fc" id="L781">                .collect(Collectors.toList());</span>
+
+<span class="fc bfc" id="L783" title="All 2 branches covered.">        if (pageDto.getStatus().equals(IPageService.STATUS_ONLINE)) {</span>
+<span class="fc" id="L784">            componentUsageEntityList.add(new ComponentUsageEntity(ComponentUsageEntity.TYPE_PAGE, pageDto.getCode(), pageDto.getStatus()));</span>
+        }
+
+<span class="fc" id="L787">        return pagedMetadataMapper.getPagedResult(restListRequest, componentUsageEntityList);</span>
+    }
+
+    private PagedMetadata&lt;PageDto&gt; getPagedResult(PageSearchRequest request, List&lt;PageDto&gt; pages) {
+<span class="nc" id="L791">        BeanComparator comparator = new BeanComparator(request.getSort());</span>
+<span class="nc bnc" id="L792" title="All 2 branches missed.">        if (request.getDirection().equals(FieldSearchFilter.DESC_ORDER)) {</span>
+<span class="nc" id="L793">            Collections.sort(pages, comparator.reversed());</span>
+        } else {
+<span class="nc" id="L795">            Collections.sort(pages, comparator);</span>
+        }
+<span class="nc" id="L797">        PageSearchDto result = new PageSearchDto(request, pages);</span>
+<span class="nc" id="L798">        result.imposeLimits();</span>
+<span class="nc" id="L799">        return result;</span>
+    }
+
+    private PagedMetadata&lt;PageDto&gt; getPagedResult(RestListRequest request, List&lt;PageDto&gt; pages) {
+<span class="nc" id="L803">        PageSearchRequest pageSearchReq = new PageSearchRequest();</span>
+<span class="nc" id="L804">        BeanUtils.copyProperties(request, pageSearchReq);</span>
+
+<span class="nc" id="L806">        return getPagedResult(pageSearchReq, pages);</span>
+    }
+
+
+    protected Map&lt;String, Boolean&gt; getReferencesInfo(IPage page) {
+<span class="fc" id="L811">        Map&lt;String, Boolean&gt; references = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L813">            String[] defNames = applicationContext.getBeanNamesForType(PageUtilizer.class);</span>
+<span class="fc bfc" id="L814" title="All 2 branches covered.">            for (String defName : defNames) {</span>
+<span class="fc" id="L815">                Object service = null;</span>
+                try {
+<span class="fc" id="L817">                    service = applicationContext.getBean(defName);</span>
+<span class="nc" id="L818">                } catch (Throwable t) {</span>
+<span class="nc" id="L819">                    logger.error(&quot;error in hasReferencingObjects&quot;, t);</span>
+<span class="nc" id="L820">                    service = null;</span>
+<span class="fc" id="L821">                }</span>
+<span class="pc bpc" id="L822" title="1 of 2 branches missed.">                if (service != null) {</span>
+<span class="fc" id="L823">                    PageUtilizer pageUtilizer = (PageUtilizer) service;</span>
+<span class="fc" id="L824">                    List&lt;?&gt; utilizers = pageUtilizer.getPageUtilizers(page.getCode());</span>
+<span class="pc bpc" id="L825" title="2 of 4 branches missed.">                    if (utilizers != null &amp;&amp; !utilizers.isEmpty()) {</span>
+<span class="fc" id="L826">                        references.put(pageUtilizer.getName(), true);</span>
+                    } else {
+<span class="nc" id="L828">                        references.put(pageUtilizer.getName(), false);</span>
+                    }
+                }
+            }
+<span class="nc" id="L832">        } catch (EntException ex) {</span>
+<span class="nc" id="L833">            logger.error(&quot;error loading references for page {}&quot;, page.getCode(), ex);</span>
+<span class="nc" id="L834">            throw new RestServerError(&quot;error in getReferencingObjects &quot;, ex);</span>
+<span class="fc" id="L835">        }</span>
+<span class="fc" id="L836">        return references;</span>
+    }
+
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    private PageServiceUtilizer&lt;?&gt; getPageServiceUtilizer(String managerName) {
+<span class="nc" id="L841">        Map&lt;String, PageServiceUtilizer&gt; beans = applicationContext.getBeansOfType(PageServiceUtilizer.class);</span>
+<span class="nc" id="L842">        PageServiceUtilizer defName = beans.values().stream()</span>
+<span class="nc" id="L843">                .filter(service -&gt; service.getManagerName().equals(managerName))</span>
+<span class="nc" id="L844">                .findFirst().orElse(null);</span>
+<span class="nc" id="L845">        return defName;</span>
+
+    }
+
+    @Override
+    public PagesStatusDto getPagesStatus() {
+<span class="fc" id="L851">        PagesStatus raw = this.getPageManager().getPagesStatus();</span>
+<span class="fc" id="L852">        return new PagesStatusDto(raw);</span>
+    }
+
+    @Override
+    public List&lt;PageDto&gt; listViewPages() {
+<span class="fc" id="L857">        IPage root = pageManager.getOnlineRoot();</span>
+<span class="fc" id="L858">        List&lt;IPage&gt; pages = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L859">        addViewPages(root, pages);</span>
+<span class="fc" id="L860">        return pages.stream()</span>
+<span class="fc" id="L861">                .map(p -&gt; PageDtoBuilder.converToDto(p, pageManager))</span>
+<span class="fc" id="L862">                .collect(Collectors.toList());</span>
+    }
+
+    private void addViewPages(IPage page, List&lt;IPage&gt; pages) {
+<span class="pc bpc" id="L866" title="1 of 2 branches missed.">        if (null == page) {</span>
+<span class="nc" id="L867">            return;</span>
+        }
+<span class="fc bfc" id="L869" title="All 4 branches covered.">        if (page.getGroup().equals(Group.FREE_GROUP_NAME) &amp;&amp; PageUtils.isOnlineFreeViewerPage(page, null)) {</span>
+<span class="fc" id="L870">            pages.add(page);</span>
+        }
+<span class="fc" id="L872">        String[] children = page.getChildrenCodes();</span>
+<span class="pc bpc" id="L873" title="1 of 2 branches missed.">        if (null == children) {</span>
+<span class="nc" id="L874">            return;</span>
+        }
+<span class="fc bfc" id="L876" title="All 2 branches covered.">        for (int i = 0; i &lt; children.length; i++) {</span>
+<span class="fc" id="L877">            IPage child = pageManager.getOnlinePage(children[i]);</span>
+<span class="fc" id="L878">            this.addViewPages(child, pages);</span>
+        }
+<span class="fc" id="L880">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

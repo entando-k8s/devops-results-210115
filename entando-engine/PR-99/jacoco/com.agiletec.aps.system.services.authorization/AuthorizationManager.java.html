@@ -1,0 +1,748 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.authorization</a> &gt; <span class="el_source">AuthorizationManager.java</span></div><h1>AuthorizationManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.authorization;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.agiletec.aps.system.common.AbstractService;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.group.Group;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.role.IRoleManager;
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.aps.system.services.role.Role;
+import com.agiletec.aps.system.services.user.UserDetails;
+import org.apache.commons.lang.StringUtils;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Aspect;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Servizio di autorizzazione. Il servizio espone tutti i metodi necessari per
+ * la verifica verifica delle autorizzazioni utente, qualsiasi sia la sua
+ * provenienza e definizione.
+ * @author E.Santoboni
+ */
+@Aspect
+<span class="fc" id="L48">public class AuthorizationManager extends AbstractService implements IAuthorizationManager, GroupUtilizer {</span>
+
+<span class="fc" id="L50">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(AuthorizationManager.class);</span>
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L54">        _logger.debug(&quot;{} ready&quot;, this.getClass().getName());</span>
+<span class="fc" id="L55">    }</span>
+
+    @Override
+    @Deprecated
+    public boolean isAuth(UserDetails user, IApsAuthority auth) {
+<span class="nc" id="L60">        return this.checkAuth(user, auth);</span>
+    }
+
+    @Override
+    public boolean isAuthOnGroupAndPermission(UserDetails user, String groupName, String permissionName, boolean chechAdmin) {
+<span class="pc bpc" id="L65" title="3 of 6 branches missed.">        if (null == user || null == groupName || null == permissionName) {</span>
+<span class="nc" id="L66">            return false;</span>
+        }
+<span class="fc" id="L68">        List&lt;Role&gt; roles = new ArrayList&lt;Role&gt;();</span>
+<span class="fc" id="L69">        List&lt;Role&gt; rolesWithPermission = this.getRoleManager().getRolesWithPermission(permissionName);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (null != rolesWithPermission) {</span>
+<span class="fc" id="L71">            roles.addAll(rolesWithPermission);</span>
+        }
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (chechAdmin) {</span>
+<span class="fc" id="L74">            List&lt;Role&gt; rolesWithSupPermission = this.getRoleManager().getRolesWithPermission(Permission.SUPERUSER);</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (null != rolesWithSupPermission) {</span>
+<span class="fc" id="L76">                roles.addAll(rolesWithSupPermission);</span>
+            }
+        }
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        for (int i = 0; i &lt; roles.size(); i++) {</span>
+<span class="fc" id="L80">            Role role = roles.get(i);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            if (null != role) {</span>
+<span class="fc" id="L82">                boolean check = this.isAuthOnGroupAndRole(user, groupName, role.getName(), chechAdmin);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                if (check) {</span>
+<span class="fc" id="L84">                    return true;</span>
+                }
+            }
+
+        }
+<span class="fc" id="L89">        return false;</span>
+    }
+
+    @Override
+    public boolean isAuthOnGroupAndRole(UserDetails user, String groupName, String roleName, boolean chechAdmin) {
+<span class="pc bpc" id="L94" title="2 of 6 branches missed.">        if (null == user || (null == groupName &amp;&amp; null == roleName)) {</span>
+<span class="nc" id="L95">            return false;</span>
+        }
+<span class="fc" id="L97">        List&lt;Authorization&gt; userAuths = user.getAuthorizations();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        for (int i = 0; i &lt; userAuths.size(); i++) {</span>
+<span class="fc" id="L99">            Authorization userAuth = userAuths.get(i);</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (null == userAuth) {</span>
+<span class="nc" id="L101">                continue;</span>
+            }
+<span class="fc" id="L103">            Group group = userAuth.getGroup();</span>
+<span class="pc bpc" id="L104" title="5 of 8 branches missed.">            if ((null == group &amp;&amp; null != groupName) || (null != group &amp;&amp; null == groupName)) {</span>
+<span class="nc" id="L105">                continue;</span>
+<span class="pc bpc" id="L106" title="2 of 4 branches missed.">            } else if (null != group &amp;&amp; null != groupName) {</span>
+<span class="fc bfc" id="L107" title="All 4 branches covered.">                if (!chechAdmin &amp;&amp; !groupName.equals(group.getName())) {</span>
+<span class="fc" id="L108">                    continue;</span>
+<span class="fc bfc" id="L109" title="All 4 branches covered.">                } else if (chechAdmin &amp;&amp; !Group.ADMINS_GROUP_NAME.equals(group.getName())) {</span>
+<span class="fc" id="L110">                    continue;</span>
+                }
+            }
+<span class="fc" id="L113">            Role role = userAuth.getRole();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (null == roleName) {</span>
+<span class="nc" id="L115">                return true;</span>
+            } else {
+<span class="fc" id="L117">                boolean isSuper = role.hasPermission(Permission.SUPERUSER);</span>
+<span class="pc bpc" id="L118" title="5 of 6 branches missed.">                if (role.getName().equals(roleName) || (chechAdmin &amp;&amp; isSuper)) {</span>
+<span class="fc" id="L119">                    return true;</span>
+                }
+            }
+        }
+<span class="fc" id="L123">        return false;</span>
+    }
+
+    @Override
+    public List&lt;IApsAuthority&gt; getRelatedAuthorities(UserDetails user, IApsAuthority auth) {
+<span class="pc bpc" id="L128" title="2 of 4 branches missed.">        if (null == user || null == auth) {</span>
+<span class="nc" id="L129">            return null;</span>
+        }
+<span class="fc" id="L131">        String requiredAuthName = auth.getAuthority();</span>
+<span class="fc" id="L132">        boolean isRole = (auth instanceof Role);</span>
+<span class="fc" id="L133">        return (List&lt;IApsAuthority&gt;) this.getRelatedAuthorities(user, requiredAuthName, isRole);</span>
+    }
+
+    private List getRelatedAuthorities(UserDetails user, String requiredAuthName, boolean isRole) {
+<span class="pc bpc" id="L137" title="2 of 12 branches missed.">        if (null == user || null == requiredAuthName || (isRole &amp;&amp; null == this.getRoleManager().getRole(requiredAuthName)) || (!isRole &amp;&amp; null == this.getGroupManager().getGroup(requiredAuthName))) {</span>
+<span class="fc" id="L138">            return null;</span>
+        }
+
+<span class="fc" id="L141">        List&lt;String&gt; adminRoleNames = new ArrayList&lt;String&gt;();</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        if (isRole) {</span>
+<span class="fc" id="L143">            List&lt;Role&gt; adminRoles = this.getRolesWithPermission(user, Permission.SUPERUSER);</span>
+<span class="pc bpc" id="L144" title="1 of 4 branches missed.">            if (null != adminRoles &amp;&amp; !adminRoles.isEmpty()) {</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                for (int i = 0; i &lt; adminRoles.size(); i++) {</span>
+<span class="fc" id="L146">                    Role role = adminRoles.get(i);</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">                    if (null != role) {</span>
+<span class="fc" id="L148">                        adminRoleNames.add(role.getName());</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L153">        List authorities = new ArrayList&lt;IApsAuthority&gt;();</span>
+<span class="fc" id="L154">        List&lt;Authorization&gt; userAuths = user.getAuthorizations();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        for (int i = 0; i &lt; userAuths.size(); i++) {</span>
+<span class="fc" id="L156">            Authorization userAuth = userAuths.get(i);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">            if (null == userAuth) {</span>
+<span class="nc" id="L158">                continue;</span>
+            }
+<span class="pc bpc" id="L160" title="1 of 8 branches missed.">            if (!isRole &amp;&amp; null != userAuth.getGroup() &amp;&amp; (userAuth.getGroup().getName().equals(Group.ADMINS_GROUP_NAME) || requiredAuthName.equals(userAuth.getGroup().getAuthority()))) {</span>
+<span class="fc" id="L161">                authorities.add(userAuth.getRole());</span>
+            }
+<span class="pc bpc" id="L163" title="2 of 8 branches missed.">            if (isRole &amp;&amp; null != userAuth.getRole() &amp;&amp; (adminRoleNames.contains(userAuth.getRole().getName()) || requiredAuthName.equals(userAuth.getRole().getAuthority()))) {</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">                if (userAuth.getGroup().getName().equals(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L165">                    return this.getGroupManager().getGroups();</span>
+                } else {
+<span class="fc" id="L167">                    authorities.add(userAuth.getGroup());</span>
+                }
+            }
+        }
+<span class="fc" id="L171">        return authorities;</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, Group group) {
+<span class="fc" id="L176">        return this.isAuthOnGroup(user, group.getName());</span>
+    }
+
+    @Override
+    public List&lt;IApsAuthority&gt; getAuthoritiesByGroup(UserDetails user, Group group) {
+<span class="nc" id="L181">        return this.getRelatedAuthorities(user, group);</span>
+    }
+
+    @Override
+    public List&lt;Role&gt; getRolesByGroup(UserDetails user, Group group) {
+<span class="nc" id="L186">        return this.getRelatedAuthorities(user, group.getName(), false);</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, IApsEntity entity) {
+<span class="pc bpc" id="L191" title="2 of 4 branches missed.">        if (null == entity || null == user) {</span>
+<span class="nc" id="L192">            return false;</span>
+        }
+<span class="fc" id="L194">        String mainGroupName = entity.getMainGroup();</span>
+<span class="pc bpc" id="L195" title="1 of 6 branches missed.">        if (mainGroupName.equals(Group.FREE_GROUP_NAME) || this.checkAuth(user, mainGroupName, false) || this.checkAuth(user, Group.ADMINS_GROUP_NAME, false)) {</span>
+<span class="fc" id="L196">            return true;</span>
+        }
+<span class="fc" id="L198">        Set&lt;String&gt; groups = entity.getGroups();</span>
+<span class="fc" id="L199">        return isAuth(user, groups);</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, Set&lt;String&gt; groups) {
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L205">            return false;</span>
+        }
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (this.checkAuth(user, Group.ADMINS_GROUP_NAME, false)) {</span>
+<span class="nc" id="L208">            return true;</span>
+        }
+<span class="pc bpc" id="L210" title="1 of 4 branches missed.">        if (null == groups || groups.isEmpty()) {</span>
+<span class="fc" id="L211">            return false;</span>
+        }
+<span class="fc" id="L213">        Iterator&lt;String&gt; iter = groups.iterator();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        while (iter.hasNext()) {</span>
+<span class="fc" id="L215">            String groupName = iter.next();</span>
+<span class="fc bfc" id="L216" title="All 4 branches covered.">            if (groupName.equals(Group.FREE_GROUP_NAME) || this.checkAuth(user, groupName, false)) {</span>
+<span class="fc" id="L217">                return true;</span>
+            }
+<span class="fc" id="L219">        }</span>
+<span class="fc" id="L220">        return false;</span>
+    }
+
+    @Override
+    public boolean isAuth(UserDetails user, Permission permission) {
+<span class="fc" id="L225">        return this.isAuthOnPermission(user, permission.getName());</span>
+    }
+
+    @Override
+    public List&lt;IApsAuthority&gt; getAuthoritiesByPermission(UserDetails user, Permission permission) {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        if (null == permission) {</span>
+<span class="nc" id="L231">            return null;</span>
+        }
+<span class="nc" id="L233">        return this.getAuthoritiesByPermissionName(user, permission.getName());</span>
+    }
+
+    @Override
+    public List&lt;Group&gt; getGroupsByPermission(UserDetails user, Permission permission) {
+<span class="nc bnc" id="L238" title="All 2 branches missed.">        if (null == permission) {</span>
+<span class="nc" id="L239">            return null;</span>
+        }
+<span class="nc" id="L241">        return this.getGroupsByPermission(user, permission.getName());</span>
+    }
+
+    @Override
+    public List&lt;Group&gt; getGroupsByPermission(UserDetails user, String permissionName) {
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L247">            return null;</span>
+        }
+<span class="fc" id="L249">        List&lt;Group&gt; groups = new ArrayList&lt;Group&gt;();</span>
+<span class="fc" id="L250">        List&lt;IApsAuthority&gt; auths = this.getAuthoritiesByPermissionName(user, permissionName);</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="fc" id="L252">            IApsAuthority auth = auths.get(i);</span>
+<span class="pc bpc" id="L253" title="2 of 4 branches missed.">            if (null != auth &amp;&amp; auth instanceof Group) {</span>
+<span class="fc" id="L254">                String groupName = auth.getAuthority();</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">                if (Group.ADMINS_GROUP_NAME.equals(groupName)) {</span>
+<span class="fc" id="L256">                    return this.getGroupManager().getGroups();</span>
+                } else {
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                    if (!groups.contains((Group) auth)) {</span>
+<span class="fc" id="L259">                        groups.add((Group) auth);</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L264">        return groups;</span>
+    }
+
+    private List getAuthoritiesByPermissionName(UserDetails user, String permissionName) {
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L269">            return null;</span>
+        }
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">        if (null == permissionName) {</span>
+<span class="nc" id="L272">            return null;</span>
+        }
+<span class="fc" id="L274">        List auths = new ArrayList();</span>
+<span class="fc" id="L275">        this.addAuthoritiesByPermissionName(user, permissionName, auths);</span>
+<span class="fc" id="L276">        this.addAuthoritiesByPermissionName(user, Permission.SUPERUSER, auths);</span>
+<span class="fc" id="L277">        return auths;</span>
+    }
+
+    private void addAuthoritiesByPermissionName(UserDetails user, String permissionName, List auths) {
+<span class="fc" id="L281">        List&lt;Role&gt; roles = this.getRolesWithPermission(user, permissionName);</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">        for (int i = 0; i &lt; roles.size(); i++) {</span>
+<span class="fc" id="L283">            Role role = roles.get(i);</span>
+<span class="fc" id="L284">            List groupAuths = this.getRelatedAuthorities(user, role);</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">            if (null != groupAuths) {</span>
+<span class="fc" id="L286">                auths.addAll(groupAuths);</span>
+            }
+        }
+<span class="fc" id="L289">    }</span>
+
+    @Override
+    public boolean isAuth(UserDetails user, IPage page) {
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L294">            return false;</span>
+        }
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        if (this.isAuthOnGroup(user, Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L297">            return true;</span>
+        }
+<span class="fc" id="L299">        String pageGroup = page.getGroup();</span>
+<span class="fc bfc" id="L300" title="All 2 branches covered.">        if (Group.FREE_GROUP_NAME.equals(pageGroup)) {</span>
+<span class="fc" id="L301">            return true;</span>
+        }
+<span class="fc" id="L303">        boolean isAuthorized = this.isAuthOnGroup(user, pageGroup);</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (isAuthorized) {</span>
+<span class="fc" id="L305">            return true;</span>
+        }
+<span class="fc" id="L307">        Collection&lt;String&gt; extraGroups = page.getExtraGroups();</span>
+<span class="pc bpc" id="L308" title="3 of 4 branches missed.">        if (null != extraGroups &amp;&amp; !extraGroups.isEmpty()) {</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">            if (extraGroups.contains(Group.FREE_GROUP_NAME)) {</span>
+<span class="nc" id="L310">                return true;</span>
+            }
+<span class="nc" id="L312">            Iterator&lt;String&gt; iter = extraGroups.iterator();</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">            while (iter.hasNext()) {</span>
+<span class="nc" id="L314">                String extraGroupName = iter.next();</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">                if (this.isAuthOnGroup(user, extraGroupName)) {</span>
+<span class="nc" id="L316">                    return true;</span>
+                }
+<span class="nc" id="L318">            }</span>
+        }
+<span class="fc" id="L320">        return false;</span>
+    }
+
+    @Override
+    public boolean isAuthOnGroup(UserDetails user, String groupName) {
+<span class="fc bfc" id="L325" title="All 4 branches covered.">        return ((this.checkAuth(user, groupName, false) || this.checkAuth(user, Group.ADMINS_GROUP_NAME, false)));</span>
+    }
+
+    @Override
+    public List&lt;IApsAuthority&gt; getAuthoritiesByGroup(UserDetails user, String groupName) {
+<span class="fc" id="L330">        return this.getRelatedAuthorities(user, groupName, false);</span>
+    }
+
+    @Override
+    public List&lt;Role&gt; getRolesByGroup(UserDetails user, String groupName) {
+<span class="nc" id="L335">        return this.getRelatedAuthorities(user, groupName, false);</span>
+    }
+
+    @Override
+    public boolean isAuthOnRole(UserDetails user, String roleName) {
+<span class="nc bnc" id="L340" title="All 4 branches missed.">        return ((this.isAuthOnPermission(user, Permission.SUPERUSER) || this.checkAuth(user, roleName, true)));</span>
+    }
+
+    @Override
+    public List&lt;IApsAuthority&gt; getAuthoritiesByRole(UserDetails user, String roleName) {
+<span class="fc" id="L345">        return this.getRelatedAuthorities(user, roleName, true);</span>
+    }
+
+    @Override
+    public List&lt;Group&gt; getGroupsByRole(UserDetails user, String roleName) {
+<span class="nc" id="L350">        return this.getRelatedAuthorities(user, roleName, true);</span>
+    }
+
+    @Override
+    public boolean isAuthOnPermission(UserDetails user, String permissionName) {
+<span class="fc" id="L355">        boolean check = this.isAuthOnSinglePermission(user, permissionName);</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">        if (check) {</span>
+<span class="fc" id="L357">            return true;</span>
+        }
+<span class="fc" id="L359">        return this.isAuthOnSinglePermission(user, Permission.SUPERUSER);</span>
+    }
+
+    private boolean isAuthOnSinglePermission(UserDetails user, String permissionName) {
+<span class="pc bpc" id="L363" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L364">            return false;</span>
+        }
+<span class="fc" id="L366">        List&lt;Role&gt; rolesWithPermission = this.getRolesWithPermission(user, permissionName);</span>
+<span class="pc bfc" id="L367" title="All 2 branches covered.">        for (int i = 0; i &lt; rolesWithPermission.size(); i++) {</span>
+<span class="fc" id="L368">            Role role = rolesWithPermission.get(i);</span>
+<span class="fc" id="L369">            boolean check = this.checkAuth(user, role.getAuthority(), true);</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">            if (check) {</span>
+<span class="fc" id="L371">                return true;</span>
+            }
+        }
+<span class="fc" id="L374">        return false;</span>
+    }
+
+    private List&lt;Role&gt; getRolesWithPermission(UserDetails user, String permissionName) {
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L379">            return null;</span>
+        }
+<span class="fc" id="L381">        List&lt;Role&gt; roles = new ArrayList&lt;Role&gt;();</span>
+<span class="fc" id="L382">        List&lt;Authorization&gt; auths = user.getAuthorizations();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="fc" id="L384">            Authorization auth = auths.get(i);</span>
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">            if (null == auth) {</span>
+<span class="nc" id="L386">                continue;</span>
+            }
+<span class="fc bfc" id="L388" title="All 4 branches covered.">            if (null != auth.getRole() &amp;&amp; auth.getRole().hasPermission(permissionName)) {</span>
+<span class="fc" id="L389">                roles.add(auth.getRole());</span>
+            }
+        }
+<span class="fc" id="L392">        return roles;</span>
+    }
+
+    @Override
+    @Deprecated
+    public List&lt;Group&gt; getGroupsOfUser(UserDetails user) {
+<span class="nc" id="L398">        return this.getUserGroups(user);</span>
+    }
+
+    @Override
+    public List&lt;Group&gt; getUserGroups(UserDetails user) {
+<span class="pc bpc" id="L403" title="1 of 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L404">            return null;</span>
+        }
+<span class="fc" id="L406">        List&lt;Group&gt; groups = new ArrayList&lt;Group&gt;();</span>
+<span class="fc" id="L407">        List&lt;Authorization&gt; auths = user.getAuthorizations();</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="fc" id="L409">            Authorization auth = auths.get(i);</span>
+<span class="pc bpc" id="L410" title="2 of 4 branches missed.">            if (null != auth &amp;&amp; null != auth.getGroup()) {</span>
+<span class="fc" id="L411">                String groupName = auth.getGroup().getName();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">                if (Group.ADMINS_GROUP_NAME.equals(groupName)) {</span>
+<span class="fc" id="L413">                    return this.getGroupManager().getGroups();</span>
+                } else {
+<span class="fc" id="L415">                    groups.add(auth.getGroup());</span>
+                }
+            }
+        }
+<span class="fc" id="L419">        return groups;</span>
+    }
+
+    @Override
+    public List&lt;Role&gt; getUserRoles(UserDetails user) {
+<span class="nc bnc" id="L424" title="All 2 branches missed.">        if (null == user) {</span>
+<span class="nc" id="L425">            return null;</span>
+        }
+<span class="nc" id="L427">        List&lt;Role&gt; roles = new ArrayList&lt;Role&gt;();</span>
+<span class="nc" id="L428">        List&lt;Authorization&gt; auths = user.getAuthorizations();</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="nc" id="L430">            Authorization auth = auths.get(i);</span>
+<span class="nc bnc" id="L431" title="All 4 branches missed.">            if (null != auth &amp;&amp; null != auth.getRole()) {</span>
+<span class="nc" id="L432">                roles.add(auth.getRole());</span>
+            }
+        }
+<span class="nc" id="L435">        return roles;</span>
+    }
+
+    @Deprecated
+    private boolean checkAuth(UserDetails user, IApsAuthority requiredAuth) {
+<span class="nc bnc" id="L440" title="All 4 branches missed.">        if (null == requiredAuth || null == user) {</span>
+<span class="nc" id="L441">            return false;</span>
+        }
+<span class="nc" id="L443">        boolean isRole = (requiredAuth instanceof Role);</span>
+<span class="nc" id="L444">        String requiredAuthName = requiredAuth.getAuthority();</span>
+<span class="nc" id="L445">        return this.checkAuth(user, requiredAuthName, isRole);</span>
+    }
+
+    private boolean checkAuth(UserDetails user, String requiredAuthName, boolean isRole) {
+<span class="pc bpc" id="L449" title="2 of 4 branches missed.">        if (null == requiredAuthName || null == user) {</span>
+<span class="nc" id="L450">            return false;</span>
+        }
+<span class="fc" id="L452">        List&lt;Authorization&gt; auths = user.getAuthorizations();</span>
+<span class="fc bfc" id="L453" title="All 2 branches covered.">        for (int i = 0; i &lt; auths.size(); i++) {</span>
+<span class="fc" id="L454">            Authorization auth = auths.get(i);</span>
+<span class="pc bpc" id="L455" title="1 of 2 branches missed.">            if (null == auth) {</span>
+<span class="nc" id="L456">                continue;</span>
+            }
+<span class="pc bpc" id="L458" title="2 of 6 branches missed.">            if (isRole &amp;&amp; null != auth.getRole() &amp;&amp; requiredAuthName.equals(auth.getRole().getAuthority())) {</span>
+<span class="fc" id="L459">                return true;</span>
+            }
+<span class="pc bpc" id="L461" title="2 of 6 branches missed.">            if (!isRole &amp;&amp; null != auth.getGroup() &amp;&amp; requiredAuthName.equals(auth.getGroup().getAuthority())) {</span>
+<span class="fc" id="L462">                return true;</span>
+            }
+        }
+<span class="fc" id="L465">        return false;</span>
+    }
+
+    @Override
+    public List&lt;Authorization&gt; getUserAuthorizations(String username) throws EntException {
+<span class="fc" id="L470">        List&lt;Authorization&gt; authorizations = null;</span>
+        try {
+<span class="fc" id="L472">            Map&lt;String, Group&gt; groups = (Map&lt;String, Group&gt;) this.getAuthorityMap(this.getGroupManager().getGroups());</span>
+<span class="fc" id="L473">            Map&lt;String, Role&gt; roles = (Map&lt;String, Role&gt;) this.getAuthorityMap(this.getRoleManager().getRoles());</span>
+<span class="fc" id="L474">            authorizations = this.getAuthorizationDAO().getUserAuthorizations(username, groups, roles);</span>
+<span class="nc" id="L475">        } catch (Throwable t) {</span>
+<span class="nc" id="L476">            _logger.error(&quot;Error extracting user authorizations for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L477">            throw new EntException(&quot;Error extracting user authorizations for user &quot; + username, t);</span>
+<span class="fc" id="L478">        }</span>
+<span class="fc" id="L479">        return authorizations;</span>
+    }
+
+    private Map getAuthorityMap(List list) {
+<span class="fc" id="L483">        Map&lt;String, IApsAuthority&gt; map = new HashMap&lt;String, IApsAuthority&gt;();</span>
+<span class="fc bfc" id="L484" title="All 2 branches covered.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L485">            IApsAuthority authority = (IApsAuthority) list.get(i);</span>
+<span class="fc" id="L486">            map.put(authority.getAuthority(), authority);</span>
+        }
+<span class="fc" id="L488">        return map;</span>
+    }
+
+    @Override
+    public void addUserAuthorization(String username, String groupName, String roleName) throws EntException {
+        try {
+<span class="fc bfc" id="L494" title="All 2 branches covered.">            Group group = (null != groupName) ? this.getGroupManager().getGroup(groupName) : null;</span>
+<span class="fc bfc" id="L495" title="All 4 branches covered.">            if (null != groupName &amp;&amp; null == group) {</span>
+<span class="fc" id="L496">                _logger.warn(&quot;invalid authorization -  invalid referenced group name&quot;);</span>
+<span class="fc" id="L497">                return;</span>
+            }
+<span class="fc bfc" id="L499" title="All 2 branches covered.">            Role role = (null != roleName) ? this.getRoleManager().getRole(roleName) : null;</span>
+<span class="fc bfc" id="L500" title="All 4 branches covered.">            if (null != roleName &amp;&amp; null == role) {</span>
+<span class="fc" id="L501">                _logger.warn(&quot;invalid authorization -  invalid referenced role name&quot;);</span>
+<span class="fc" id="L502">                return;</span>
+            }
+<span class="fc" id="L504">            Authorization authorization = new Authorization(group, role);</span>
+<span class="fc" id="L505">            this.addUserAuthorization(username, authorization);</span>
+<span class="nc" id="L506">        } catch (Throwable t) {</span>
+<span class="nc" id="L507">            _logger.error(&quot;Error adding user authorization for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L508">            throw new EntException(&quot;Error adding user authorization for user &quot; + username, t);</span>
+<span class="fc" id="L509">        }</span>
+<span class="fc" id="L510">    }</span>
+
+    @Override
+    public void addUserAuthorization(String username, Authorization authorization) throws EntException {
+<span class="pc bpc" id="L514" title="2 of 4 branches missed.">        if (null == username || null == authorization) {</span>
+<span class="nc" id="L515">            return;</span>
+        }
+        try {
+<span class="pc bpc" id="L518" title="1 of 2 branches missed.">            if (this.checkAuthorization(authorization)) {</span>
+<span class="fc" id="L519">                this.getAuthorizationDAO().addUserAuthorization(username, authorization);</span>
+            }
+<span class="nc" id="L521">        } catch (Throwable t) {</span>
+<span class="nc" id="L522">            _logger.error(&quot;Error adding user authorization for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L523">            throw new EntException(&quot;Error adding user authorization for user &quot; + username, t);</span>
+<span class="fc" id="L524">        }</span>
+<span class="fc" id="L525">    }</span>
+
+    @Override
+    public void addUserAuthorizations(String username, List&lt;Authorization&gt; authorizations) throws EntException {
+<span class="pc bpc" id="L529" title="1 of 2 branches missed.">        if (null == username) {</span>
+<span class="nc" id="L530">            return;</span>
+        }
+        try {
+<span class="fc" id="L533">            List&lt;Authorization&gt; toAdd = this.checkAuthorizations(authorizations);</span>
+<span class="pc bpc" id="L534" title="1 of 2 branches missed.">            if (null == toAdd) {</span>
+<span class="nc" id="L535">                return;</span>
+            }
+<span class="fc" id="L537">            this.getAuthorizationDAO().addUserAuthorizations(username, toAdd);</span>
+<span class="nc" id="L538">        } catch (Throwable t) {</span>
+<span class="nc" id="L539">            _logger.error(&quot;Error adding user authorizations for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L540">            throw new EntException(&quot;Error adding user authorizations for user &quot; + username, t);</span>
+<span class="fc" id="L541">        }</span>
+<span class="fc" id="L542">    }</span>
+
+    @Override
+    public void updateUserAuthorizations(String username, List&lt;Authorization&gt; authorizations) throws EntException {
+<span class="nc bnc" id="L546" title="All 2 branches missed.">        if (null == username) {</span>
+<span class="nc" id="L547">            return;</span>
+        }
+        try {
+<span class="nc" id="L550">            List&lt;Authorization&gt; toSet = this.checkAuthorizations(authorizations);</span>
+<span class="nc bnc" id="L551" title="All 2 branches missed.">            if (null == toSet) {</span>
+<span class="nc" id="L552">                return;</span>
+            }
+<span class="nc" id="L554">            this.getAuthorizationDAO().updateUserAuthorizations(username, toSet);</span>
+<span class="nc" id="L555">        } catch (Throwable t) {</span>
+<span class="nc" id="L556">            _logger.error(&quot;Error updating user authorizations for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L557">            throw new EntException(&quot;Error updating user authorizations for user &quot; + username, t);</span>
+<span class="nc" id="L558">        }</span>
+<span class="nc" id="L559">    }</span>
+
+    private List&lt;Authorization&gt; checkAuthorizations(List&lt;Authorization&gt; authorizations) throws Throwable {
+<span class="pc bpc" id="L562" title="1 of 2 branches missed.">        if (null == authorizations) {</span>
+<span class="nc" id="L563">            return null;</span>
+        }
+<span class="fc" id="L565">        List&lt;Authorization&gt; checked = new ArrayList&lt;Authorization&gt;();</span>
+<span class="fc bfc" id="L566" title="All 2 branches covered.">        for (int i = 0; i &lt; authorizations.size(); i++) {</span>
+<span class="fc" id="L567">            Authorization authorization = authorizations.get(i);</span>
+<span class="fc bfc" id="L568" title="All 2 branches covered.">            if (this.checkAuthorization(authorization)) {</span>
+<span class="fc" id="L569">                checked.add(authorization);</span>
+            }
+        }
+<span class="fc" id="L572">        return checked;</span>
+    }
+
+    private boolean checkAuthorization(Authorization authorization) throws Throwable {
+<span class="pc bpc" id="L576" title="1 of 2 branches missed.">        if (null == authorization) {</span>
+<span class="nc" id="L577">            _logger.warn(&quot;invalid authorization -  null object&quot;);</span>
+<span class="nc" id="L578">            return false;</span>
+        }
+<span class="fc bfc" id="L580" title="All 2 branches covered.">        String groupName = (null != authorization.getGroup()) ? authorization.getGroup().getName() : null;</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">        String roleName = (null != authorization.getRole()) ? authorization.getRole().getName() : null;</span>
+<span class="pc bpc" id="L582" title="1 of 4 branches missed.">        if (null == roleName &amp;&amp; null == groupName) {</span>
+<span class="nc" id="L583">            _logger.warn(&quot;invalid authorization -  null group and role&quot;);</span>
+<span class="nc" id="L584">            return false;</span>
+        }
+<span class="fc bfc" id="L586" title="All 4 branches covered.">        if (null != groupName &amp;&amp; null == this.getGroupManager().getGroup(groupName)) {</span>
+<span class="fc" id="L587">            _logger.warn(&quot;invalid authorization -  invalid referenced group&quot;);</span>
+<span class="fc" id="L588">            return false;</span>
+        }
+<span class="pc bpc" id="L590" title="1 of 4 branches missed.">        if (null != roleName &amp;&amp; null == this.getRoleManager().getRole(roleName)) {</span>
+<span class="nc" id="L591">            _logger.warn(&quot;invalid authorization -  invalid referenced role&quot;);</span>
+<span class="nc" id="L592">            return false;</span>
+        }
+<span class="fc" id="L594">        return true;</span>
+    }
+
+    @Override
+    public void deleteUserAuthorization(String username, String groupname, String rolename) throws EntException {
+        try {
+<span class="fc" id="L600">            this.getAuthorizationDAO().deleteUserAuthorization(username, groupname, rolename);</span>
+<span class="nc" id="L601">        } catch (Throwable t) {</span>
+<span class="nc" id="L602">            _logger.error(&quot;Error deleting user authorization for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L603">            throw new EntException(&quot;Error deleting user authorization for user &quot; + username, t);</span>
+<span class="fc" id="L604">        }</span>
+<span class="fc" id="L605">    }</span>
+
+    @Override
+    public void deleteUserAuthorizations(String username) throws EntException {
+        try {
+<span class="fc" id="L610">            this.getAuthorizationDAO().deleteUserAuthorizations(username);</span>
+<span class="nc" id="L611">        } catch (Throwable t) {</span>
+<span class="nc" id="L612">            _logger.error(&quot;Error deleting user authorizations for user '{}'&quot;, username, t);</span>
+<span class="nc" id="L613">            throw new EntException(&quot;Error deleting user authorizations for user &quot; + username, t);</span>
+<span class="fc" id="L614">        }</span>
+<span class="fc" id="L615">    }</span>
+
+    @AfterReturning(pointcut = &quot;execution(* com.agiletec.aps.system.services.user.IUserManager.removeUser(..)) &amp;&amp; args(key)&quot;)
+    public void deleteUser(Object key) {
+<span class="fc" id="L619">        String username = null;</span>
+<span class="fc bfc" id="L620" title="All 2 branches covered.">        if (key instanceof String) {</span>
+<span class="fc" id="L621">            username = key.toString();</span>
+<span class="pc bpc" id="L622" title="1 of 2 branches missed.">        } else if (key instanceof UserDetails) {</span>
+<span class="fc" id="L623">            UserDetails userDetails = (UserDetails) key;</span>
+<span class="fc" id="L624">            username = userDetails.getUsername();</span>
+        }
+<span class="pc bpc" id="L626" title="1 of 2 branches missed.">        if (username != null) {</span>
+            try {
+<span class="fc" id="L628">                this.deleteUserAuthorizations(username);</span>
+<span class="nc" id="L629">            } catch (Throwable t) {</span>
+<span class="nc" id="L630">                _logger.error(&quot;Error deleting user authorizations. user: {}&quot;, username, t);</span>
+<span class="fc" id="L631">            }</span>
+        }
+<span class="fc" id="L633">    }</span>
+
+    @Override
+    public List&lt;String&gt; getUsersByRole(IApsAuthority authority, boolean includeAdmin) throws EntException {
+<span class="pc bpc" id="L637" title="1 of 6 branches missed.">        if (null == authority || !(authority instanceof Role) || null == this.getRoleManager().getRole(authority.getAuthority())) {</span>
+<span class="fc" id="L638">            return null;</span>
+        }
+<span class="fc" id="L640">        return this.getUsersByAuthorities(null, authority.getAuthority(), includeAdmin);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getUsersByRole(String roleName, boolean includeAdmin) throws EntException {
+<span class="fc" id="L645">        Role role = this.getRoleManager().getRole(roleName);</span>
+<span class="pc bpc" id="L646" title="1 of 2 branches missed.">        if (null == role) {</span>
+<span class="nc" id="L647">            return null;</span>
+        }
+<span class="fc" id="L649">        return this.getUsersByAuthorities(null, roleName, includeAdmin);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getUsersByGroup(IApsAuthority authority, boolean includeAdmin) throws EntException {
+<span class="pc bpc" id="L654" title="1 of 6 branches missed.">        if (null == authority || !(authority instanceof Group) || null == this.getGroupManager().getGroup(authority.getAuthority())) {</span>
+<span class="fc" id="L655">            return null;</span>
+        }
+<span class="fc" id="L657">        return this.getUsersByAuthorities(authority.getAuthority(), null, includeAdmin);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getUsersByGroup(String groupName, boolean includeAdmin) throws EntException {
+<span class="fc" id="L662">        Group group = this.getGroupManager().getGroup(groupName);</span>
+<span class="pc bpc" id="L663" title="1 of 2 branches missed.">        if (null == group) {</span>
+<span class="nc" id="L664">            return null;</span>
+        }
+<span class="fc" id="L666">        return this.getUsersByAuthorities(groupName, null, includeAdmin);</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getUsersByAuthorities(String groupName, String roleName, boolean includeAdmin) throws EntException {
+<span class="fc" id="L671">        List&lt;String&gt; usernames = null;</span>
+        try {
+<span class="fc" id="L673">            List&lt;String&gt; groupNames = null;</span>
+<span class="fc bfc" id="L674" title="All 2 branches covered.">            if (!StringUtils.isEmpty(groupName)) {</span>
+<span class="fc" id="L675">                groupNames = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L676">                groupNames.add(groupName);</span>
+<span class="pc bpc" id="L677" title="1 of 4 branches missed.">                if (includeAdmin &amp;&amp; !groupName.equals(Group.ADMINS_GROUP_NAME)) {</span>
+<span class="fc" id="L678">                    groupNames.add(Group.ADMINS_GROUP_NAME);</span>
+                }
+            }
+<span class="fc" id="L681">            List&lt;String&gt; roleNames = null;</span>
+<span class="fc bfc" id="L682" title="All 2 branches covered.">            if (!StringUtils.isEmpty(roleName)) {</span>
+<span class="fc" id="L683">                roleNames = new ArrayList&lt;String&gt;();</span>
+<span class="fc" id="L684">                roleNames.add(roleName);</span>
+<span class="fc bfc" id="L685" title="All 2 branches covered.">                if (includeAdmin) {</span>
+<span class="fc" id="L686">                    List&lt;Role&gt; adminRoles = this.getRoleManager().getRolesWithPermission(Permission.SUPERUSER);</span>
+<span class="pc bpc" id="L687" title="1 of 2 branches missed.">                    if (null != adminRoles) {</span>
+<span class="fc bfc" id="L688" title="All 2 branches covered.">                        for (int i = 0; i &lt; adminRoles.size(); i++) {</span>
+<span class="fc" id="L689">                            Role role = adminRoles.get(i);</span>
+<span class="pc bpc" id="L690" title="2 of 4 branches missed.">                            if (null != role &amp;&amp; !roleNames.contains(role.getName())) {</span>
+<span class="fc" id="L691">                                roleNames.add(role.getName());</span>
+                            }
+                        }
+                    }
+                }
+            }
+<span class="fc" id="L697">            usernames = this.getAuthorizationDAO().getUsersByAuthorities(groupNames, roleNames);</span>
+<span class="nc" id="L698">        } catch (Throwable t) {</span>
+<span class="nc" id="L699">            _logger.error(&quot;Error extracting usernames by authorities - group '{}' : role {}&quot;, groupName, roleName, t);</span>
+<span class="nc" id="L700">            throw new EntException(&quot;Error extracting usernames by authorities&quot;, t);</span>
+<span class="fc" id="L701">        }</span>
+<span class="fc" id="L702">        return usernames;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getUsersByAuthority(IApsAuthority authority, boolean includeAdmin) throws EntException {
+<span class="fc bfc" id="L707" title="All 2 branches covered.">        if (authority instanceof Group) {</span>
+<span class="fc" id="L708">            return this.getUsersByGroup(authority, includeAdmin);</span>
+        } else {
+<span class="fc" id="L710">            return this.getUsersByRole(authority, includeAdmin);</span>
+        }
+    }
+
+	@Override
+    public List&lt;String&gt; getGroupUtilizers(String groupName) throws EntException {
+<span class="fc" id="L716">		return this.getUsersByGroup(groupName, false);</span>
+	}
+
+    protected IAuthorizationDAO getAuthorizationDAO() {
+<span class="fc" id="L720">        return _authorizationDAO;</span>
+    }
+
+    public void setAuthorizationDAO(IAuthorizationDAO authorizationDAO) {
+<span class="fc" id="L724">        this._authorizationDAO = authorizationDAO;</span>
+<span class="fc" id="L725">    }</span>
+
+    protected IRoleManager getRoleManager() {
+<span class="fc" id="L728">        return _roleManager;</span>
+    }
+
+    public void setRoleManager(IRoleManager roleManager) {
+<span class="fc" id="L732">        this._roleManager = roleManager;</span>
+<span class="fc" id="L733">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="fc" id="L736">        return _groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L740">        this._groupManager = groupManager;</span>
+<span class="fc" id="L741">    }</span>
+
+    private IAuthorizationDAO _authorizationDAO;
+    private IRoleManager _roleManager;
+    private IGroupManager _groupManager;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

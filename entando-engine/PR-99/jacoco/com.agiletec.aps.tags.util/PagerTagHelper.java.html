@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PagerTagHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.tags.util</a> &gt; <span class="el_source">PagerTagHelper.java</span></div><h1>PagerTagHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.tags.util;
+
+import java.util.Collection;
+
+import javax.servlet.ServletRequest;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.RequestContext;
+import com.agiletec.aps.system.SystemConstants;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Classe helper per il tag PagerTag.
+ * @author E.Santoboni
+ */
+<span class="nc" id="L33">public class PagerTagHelper {</span>
+
+<span class="nc" id="L35">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PagerTagHelper.class);</span>
+	
+	/**
+	 * Restituisce l'oggetto necessario per fornire gli elementi necessari 
+	 * a determinare l'item corrente.
+	 * @param collection La collection degli elementi da paginare.
+	 * @param pagerId L'identificativo (specificato nel tag) del paginatore. Può essere null.
+	 * @param pagerIdFromFrame Determina se ricavare l'identificativo dall'id del frame 
+	 * dove è inserito il paginatore. 
+	 * @param max Il numero massimo (specificato nel tag) di elementi per item. 
+	 * Nel caso che sia 0 (o non sia stato specificato nel tag) il valore 
+	 * viene ricercato nei parametri di configurazione della showlet. 
+	 * @param isAdvanced Specifica se il pginatore è in modalità avanzata.
+	 * @param offset Campo offset, considerato solo nel caso di paginatore avanzato.
+	 * @param request La request.
+	 * @return L'oggetto necessario per fornire gli elementi necessari a determinare l'item corrente.
+	 * @throws EntException In caso di errori nella costruzione dell'oggetto richiesto.
+	 */
+	public IPagerVO getPagerVO(Collection collection, String pagerId, boolean pagerIdFromFrame, 
+			int max, boolean isAdvanced, int offset, ServletRequest request) throws EntException {
+<span class="nc" id="L55">		IPagerVO pagerVo = null;</span>
+		try {
+<span class="nc" id="L57">			String truePagerId = this.getPagerId(pagerId, pagerIdFromFrame, request);</span>
+<span class="nc" id="L58">			int item = this.getItemNumber(truePagerId, request);</span>
+<span class="nc" id="L59">			int maxElement = this.getMaxElementForItem(max, request);</span>
+<span class="nc" id="L60">			pagerVo = this.buildPageVO(collection, item, maxElement, truePagerId, isAdvanced, offset);</span>
+<span class="nc" id="L61">		} catch (Throwable t) {</span>
+<span class="nc" id="L62">			_logger.error(&quot;Error while preparing the pagerVo object&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;getPagerVO&quot;);
+<span class="nc" id="L64">			throw new EntException(&quot;Error while preparing the pagerVo object&quot;, t);</span>
+<span class="nc" id="L65">		}</span>
+<span class="nc" id="L66">		return pagerVo;</span>
+	}
+	
+	protected int getMaxElementForItem(int maxItems, ServletRequest request) {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">		if (maxItems == 0) {</span>
+<span class="nc" id="L71">			RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">			if (reqCtx != null) {</span>
+<span class="nc" id="L73">				Widget widget = (Widget) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_WIDGET);</span>
+<span class="nc" id="L74">				ApsProperties config = widget.getConfig();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">				String stringMax = (null != config) ? (String) config.get(&quot;maxElemForItem&quot;) : null;</span>
+<span class="nc bnc" id="L76" title="All 4 branches missed.">				if (stringMax != null &amp;&amp; stringMax.length() &gt; 0) {</span>
+<span class="nc" id="L77">					maxItems = Integer.parseInt(stringMax);</span>
+				}
+			}
+		}
+<span class="nc" id="L81">		return maxItems;</span>
+	}
+	
+	private int getItemNumber(String truePagerId, ServletRequest request) {
+<span class="nc" id="L85">		String stringItem = null;</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">		if (null != truePagerId) {</span>
+<span class="nc" id="L87">			stringItem = request.getParameter(truePagerId+&quot;_item&quot;);</span>
+		} else {
+<span class="nc" id="L89">			stringItem = request.getParameter(&quot;item&quot;);</span>
+		}
+<span class="nc" id="L91">		int item = 0;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">		if (stringItem != null) {</span>
+			try {
+<span class="nc" id="L94">				item = Integer.parseInt(stringItem);</span>
+<span class="nc" id="L95">			} catch (NumberFormatException e) {</span>
+<span class="nc" id="L96">				_logger.error(&quot;Error while parsing the stringItem {}&quot;, stringItem, e);</span>
+<span class="nc" id="L97">			}</span>
+		}
+<span class="nc" id="L99">		return item;</span>
+	}
+	
+	private String getPagerId(String pagerId, boolean pagerIdFromFrame, ServletRequest request) {
+<span class="nc" id="L103">		String truePagerId = pagerId;</span>
+<span class="nc bnc" id="L104" title="All 4 branches missed.">		if (null == truePagerId &amp;&amp; pagerIdFromFrame) {</span>
+<span class="nc" id="L105">			RequestContext reqCtx = (RequestContext) request.getAttribute(RequestContext.REQCTX);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			if (reqCtx != null) {</span>
+<span class="nc" id="L107">				int currentFrame = this.getCurrentFrame(reqCtx);</span>
+<span class="nc" id="L108">				truePagerId = &quot;frame&quot; + currentFrame;</span>
+			}
+		}
+<span class="nc" id="L111">		return truePagerId;</span>
+	}
+	
+	private int getCurrentFrame(RequestContext reqCtx) {
+<span class="nc" id="L115">		Integer frame = (Integer) reqCtx.getExtraParam(SystemConstants.EXTRAPAR_CURRENT_FRAME);</span>
+<span class="nc" id="L116">		int currentFrame = frame.intValue();</span>
+<span class="nc" id="L117">		return currentFrame;</span>
+	}
+	
+	protected IPagerVO buildPageVO(Collection object, int item, 
+			int maxElement, String pagerId, boolean isAdvanced, int offset) {
+<span class="nc" id="L122">		PagerVO pagerVo = new PagerVO();</span>
+<span class="nc" id="L123">		int size = 0;</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">		if (null != object) size = object.size();</span>
+		try {
+<span class="nc" id="L126">			pagerVo.setPagerId(pagerId);</span>
+<span class="nc" id="L127">			pagerVo.setSize(size);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">			if (maxElement == 0) {</span>
+<span class="nc" id="L129">				maxElement = size;</span>
+			}
+<span class="nc" id="L131">			pagerVo.setMax(maxElement);</span>
+			
+			int itemMax;
+<span class="nc bnc" id="L134" title="All 2 branches missed.">			if (maxElement == 0) {</span>
+				//caso in cui non abbia specificato il max e la lista sia vuota
+<span class="nc" id="L136">				itemMax = 0;</span>
+			} else {
+				//Tutti altri casi
+<span class="nc bnc" id="L139" title="All 2 branches missed.">				if (size%maxElement != 0) {</span>
+<span class="nc" id="L140">					itemMax = size/maxElement+1;</span>
+				} else {
+<span class="nc" id="L142">					itemMax = size/maxElement;</span>
+				}
+			}
+<span class="nc" id="L145">			pagerVo.setMaxItem(itemMax);</span>
+			
+<span class="nc" id="L147">			int currItem = Math.max(1, item);</span>
+<span class="nc" id="L148">			currItem = Math.min(currItem, itemMax);</span>
+<span class="nc" id="L149">			pagerVo.setCurrItem(currItem);</span>
+			
+<span class="nc" id="L151">			int to = currItem*maxElement;</span>
+<span class="nc" id="L152">			to = Math.min(to, size);</span>
+<span class="nc" id="L153">			int end = to - 1;</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">			if (end &lt; 0) end = 0;</span>
+<span class="nc" id="L155">			pagerVo.setEnd(end);</span>
+			
+<span class="nc" id="L157">			int from = (currItem - 1)*maxElement + 1;</span>
+<span class="nc" id="L158">			from = Math.max(from, 1);</span>
+<span class="nc" id="L159">			int begin = from - 1;</span>
+<span class="nc" id="L160">			pagerVo.setBegin(begin);</span>
+			
+<span class="nc" id="L162">			int prevItem = currItem - 1;</span>
+<span class="nc" id="L163">			prevItem = Math.max(prevItem, 1);</span>
+<span class="nc" id="L164">			pagerVo.setPrevItem(prevItem);</span>
+			
+<span class="nc" id="L166">			int nextItem = currItem + 1;</span>
+<span class="nc" id="L167">			nextItem = Math.min(nextItem, itemMax);</span>
+<span class="nc" id="L168">			pagerVo.setNextItem(nextItem);</span>
+			
+<span class="nc bnc" id="L170" title="All 2 branches missed.">			if (offset == 0) {</span>
+<span class="nc" id="L171">				offset = DEFAULT_OFFSET;</span>
+			}
+<span class="nc" id="L173">			pagerVo.setOffset(offset);</span>
+			
+<span class="nc" id="L175">			int beginItemAnchor = 1;</span>
+<span class="nc" id="L176">			int endItemAnchor = itemMax;</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if (isAdvanced) {</span>
+<span class="nc" id="L178">				int[] result = this.calcolateItemAnchorBounds(currItem, offset, itemMax);</span>
+<span class="nc" id="L179">				beginItemAnchor = result[0];</span>
+<span class="nc" id="L180">				endItemAnchor = result[1];</span>
+			}
+<span class="nc" id="L182">			pagerVo.setAdvanced(isAdvanced);</span>
+<span class="nc" id="L183">			pagerVo.setBeginItemAnchor(beginItemAnchor);</span>
+<span class="nc" id="L184">			pagerVo.setEndItemAnchor(endItemAnchor);</span>
+<span class="nc" id="L185">		} catch (Throwable t) {</span>
+<span class="nc" id="L186">			_logger.error(&quot;error in buildPageVO&quot;, t);</span>
+			//ApsSystemUtils.logThrowable(t, this, &quot;buildPageVO&quot;);
+<span class="nc" id="L188">		}</span>
+<span class="nc" id="L189">		return pagerVo;</span>
+	}
+	
+	private int[] calcolateItemAnchorBounds(int currItem, int offset, int itemMax) {
+<span class="nc" id="L193">		int[] result = new int[2];</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">		if (currItem &lt;= offset) {</span>
+<span class="nc" id="L195">			result[0] = 1;</span>
+		} else {
+<span class="nc" id="L197">			result[0] = currItem - offset + 1;</span>
+		}
+<span class="nc bnc" id="L199" title="All 2 branches missed.">		if (itemMax &gt;= (currItem+offset)) {</span>
+<span class="nc" id="L200">			result[1] = (currItem+offset-1);</span>
+		} else {
+<span class="nc" id="L202">			result[1] = itemMax;</span>
+		}
+<span class="nc" id="L204">		return result;</span>
+	}
+	
+	public static final int DEFAULT_OFFSET = 10;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
