@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContentModelResourceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.web.contentmodel</a> &gt; <span class="el_source">ContentModelResourceController.java</span></div><h1>ContentModelResourceController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.web.contentmodel;
+
+import com.agiletec.aps.system.services.role.Permission;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.model.ContentModelDto;
+import java.util.Collections;
+import java.util.Map;
+import javax.validation.Valid;
+import org.entando.entando.aps.system.services.dataobjectmodel.model.IEntityModelDictionary;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.plugins.jacms.aps.system.services.ContentModelService;
+import org.entando.entando.plugins.jacms.web.contentmodel.model.ContentModelReferenceDTO;
+import org.entando.entando.plugins.jacms.web.contentmodel.validator.ContentModelReferencesValidator;
+import org.entando.entando.plugins.jacms.web.contentmodel.validator.ContentModelUsageDetailsValidator;
+import org.entando.entando.plugins.jacms.web.contentmodel.validator.ContentModelValidator;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.web.component.ComponentUsage;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping(value = &quot;/plugins/cms/contentmodels&quot;)
+public class ContentModelResourceController implements ContentModelResource {
+
+<span class="fc" id="L56">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private final ContentModelService contentModelService;
+    private final ContentModelValidator contentModelValidator;
+    private final ContentModelReferencesValidator contentModelReferencesValidator;
+    private final ContentModelUsageDetailsValidator contentModelUsageDetailsValidator;
+
+    @Autowired
+    public ContentModelResourceController(ContentModelService contentModelService,
+            ContentModelReferencesValidator contentModelReferencesValidator,
+<span class="fc" id="L66">            ContentModelUsageDetailsValidator contentModelUsageDetailsValidator) {</span>
+<span class="fc" id="L67">        this.contentModelService = contentModelService;</span>
+<span class="fc" id="L68">        this.contentModelReferencesValidator = contentModelReferencesValidator;</span>
+<span class="fc" id="L69">        this.contentModelUsageDetailsValidator = contentModelUsageDetailsValidator;</span>
+<span class="fc" id="L70">        this.contentModelValidator = new ContentModelValidator();</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ContentModelDto&gt;&gt; getContentModels(RestListRequest requestList,
+            BindingResult bindingResult) {
+<span class="fc" id="L78">        this.contentModelValidator.validateRestListRequest(requestList, ContentModelDto.class);</span>
+<span class="fc" id="L79">        this.contentModelValidator.validateIdFilter(bindingResult, requestList.getFilters());</span>
+<span class="fc" id="L80">        PagedMetadata&lt;ContentModelDto&gt; result = contentModelService.findMany(requestList);</span>
+<span class="fc" id="L81">        this.contentModelValidator.validateRestListResult(requestList, result);</span>
+<span class="fc" id="L82">        logger.debug(&quot;loading contentModel list -&gt; {}&quot;, result);</span>
+<span class="fc" id="L83">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(result));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; getContentModel(@PathVariable Long modelId) {
+<span class="fc" id="L90">        logger.debug(&quot;loading contentModel {}&quot;, modelId);</span>
+<span class="fc" id="L91">        ContentModelDto contentModel = contentModelService.getContentModel(modelId);</span>
+<span class="fc" id="L92">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(contentModel));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; addContentModel(@Valid @RequestBody ContentModelDto contentModel, BindingResult bindingResult) {
+<span class="fc" id="L99">        logger.debug(&quot;adding content model&quot;);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L101">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L103">        ContentModelDto dto = contentModelService.create(contentModel);</span>
+<span class="fc" id="L104">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dto));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @PutMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ContentModelDto&gt;&gt; updateContentModel(@PathVariable Long modelId, @Valid @RequestBody ContentModelDto contentModel, BindingResult bindingResult) {
+<span class="fc" id="L111">        logger.debug(&quot;updating contentModel {}&quot;, modelId);</span>
+
+        // field validations
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L115">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L117">        this.contentModelValidator.validateBodyName(modelId, contentModel, bindingResult);</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (bindingResult.hasErrors()) {</span>
+<span class="nc" id="L119">            throw new ValidationGenericException(bindingResult);</span>
+        }
+
+<span class="fc" id="L122">        ContentModelDto updatedContentModel = contentModelService.update(contentModel);</span>
+<span class="fc" id="L123">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(updatedContentModel));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @DeleteMapping(value = &quot;/{modelId}&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; deleteContentModel(@PathVariable Long modelId) {
+<span class="fc" id="L130">        logger.info(&quot;deleting content model {}&quot;, modelId);</span>
+<span class="fc" id="L131">        contentModelService.delete(modelId);</span>
+<span class="fc" id="L132">        Map&lt;String, String&gt; result = Collections.singletonMap(&quot;modelId&quot;, String.valueOf(modelId));</span>
+<span class="fc" id="L133">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(result));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(value = &quot;/{modelId}/pagereferences&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ContentModelReferenceDTO&gt;&gt; getReferences(@PathVariable Long modelId,RestListRequest requestList) {
+<span class="fc" id="L140">        logger.debug(&quot;loading contentModel references for model {}&quot;, modelId);</span>
+<span class="fc" id="L141">        this.contentModelReferencesValidator.validateRestListRequest(requestList, ContentModelReferenceDTO.class);</span>
+<span class="fc" id="L142">        PagedMetadata&lt;ContentModelReferenceDTO&gt; references = contentModelService.getContentModelReferences(modelId,requestList);</span>
+<span class="fc" id="L143">        return ResponseEntity.ok(new PagedRestResponse&lt;&gt;(references));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(value = &quot;/{modelId}/usage&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ComponentUsage&gt;&gt; getComponentUsage(@PathVariable Long modelId) {
+<span class="fc" id="L150">        logger.debug(&quot;loading contentModel usage for model {}&quot;, modelId);</span>
+<span class="fc" id="L151">        final ComponentUsage componentUsage = contentModelService.getComponentUsage(modelId);</span>
+<span class="fc" id="L152">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(componentUsage));</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(value = &quot;/{modelId}/usage/details&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;ComponentUsageEntity&gt;&gt; getComponentUsageDetails(@PathVariable Long modelId, RestListRequest restListRequest) {
+<span class="fc" id="L159">        logger.debug(&quot;get contentModel usage details for model {}&quot;, modelId);</span>
+<span class="fc" id="L160">        contentModelUsageDetailsValidator.validateRestListRequest(restListRequest, ComponentUsageEntity.class);</span>
+<span class="fc" id="L161">        PagedMetadata&lt;ComponentUsageEntity&gt; result = this.contentModelService.getComponentUsageDetails(modelId, restListRequest);</span>
+<span class="fc" id="L162">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @Override
+    @RestAccessControl(permission = Permission.SUPERUSER)
+    @GetMapping(value = &quot;/dictionary&quot;, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;IEntityModelDictionary&gt;&gt; getDictionary(@RequestParam(value = &quot;typeCode&quot;, required = false) String typeCode) {
+<span class="fc" id="L169">        logger.debug(&quot;loading contentModel dictionary for type {}&quot;, typeCode);</span>
+<span class="fc" id="L170">        IEntityModelDictionary dictionary = contentModelService.getContentModelDictionary(typeCode);</span>
+<span class="fc" id="L171">        return ResponseEntity.ok(new SimpleRestResponse&lt;&gt;(dictionary));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RowContentListViewerWidgetValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Plugin: CMS</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.plugins.jacms.aps.system.services.widgettype.validators</a> &gt; <span class="el_source">RowContentListViewerWidgetValidator.java</span></div><h1>RowContentListViewerWidgetValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.plugins.jacms.aps.system.services.widgettype.validators;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.plugins.jacms.aps.system.services.content.IContentManager;
+import com.agiletec.plugins.jacms.aps.system.services.contentmodel.IContentModelManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.widgettype.validators.WidgetConfigurationValidator;
+import org.entando.entando.plugins.jacms.aps.system.services.content.widget.RowContentListHelper;
+import org.entando.entando.web.page.model.WidgetConfigurationRequest;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+<span class="fc" id="L34">public class RowContentListViewerWidgetValidator extends AbstractListViewerWidgetValidator {</span>
+
+<span class="fc" id="L36">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    public static final String WIDGET_CODE = &quot;row_content_viewer_list&quot;;
+
+    private static final String WIDGET_CONFIG_KEY_CONTENTS = &quot;contents&quot;;
+
+    private IContentManager contentManager;
+    private IContentModelManager contentModelManager;
+
+    protected IContentManager getContentManager() {
+<span class="fc" id="L46">        return contentManager;</span>
+    }
+
+    public void setContentManager(IContentManager contentManager) {
+<span class="fc" id="L50">        this.contentManager = contentManager;</span>
+<span class="fc" id="L51">    }</span>
+
+    protected IContentModelManager getContentModelManager() {
+<span class="fc" id="L54">        return contentModelManager;</span>
+    }
+
+    public void setContentModelManager(IContentModelManager contentModelManager) {
+<span class="fc" id="L58">        this.contentModelManager = contentModelManager;</span>
+<span class="fc" id="L59">    }</span>
+
+    @Override
+    public String getWidgetCode() {
+<span class="fc" id="L63">        return WIDGET_CODE;</span>
+    }
+
+    @Override
+    public BeanPropertyBindingResult validate(WidgetConfigurationRequest widget, IPage page) {
+<span class="fc" id="L68">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(widget, widget.getClass().getSimpleName());</span>
+        try {
+<span class="fc" id="L70">            logger.debug(&quot;validating widget {} for page {}&quot;, widget.getCode(), page.getCode());</span>
+<span class="fc" id="L71">            WidgetValidatorCmsHelper.validateTitle(widget, getLangManager(), bindingResult);</span>
+<span class="fc" id="L72">            WidgetValidatorCmsHelper.validateLink(widget, getLangManager(), getPageManager(), bindingResult);</span>
+<span class="fc" id="L73">            this.validateContents(widget, page, bindingResult);</span>
+<span class="nc" id="L74">        } catch (Throwable e) {</span>
+<span class="nc" id="L75">            logger.error(&quot;error in validate wiget {} in page {}&quot;, widget.getCode(), page.getCode());</span>
+<span class="nc" id="L76">            throw new RestServerError(&quot;error in widget config validation&quot;, e);</span>
+<span class="fc" id="L77">        }</span>
+<span class="fc" id="L78">        return bindingResult;</span>
+    }
+
+    private void validateContents(WidgetConfigurationRequest widget, IPage page, BeanPropertyBindingResult errors) throws EntException {
+<span class="fc" id="L82">        List&lt;Object&gt; contentsConfig = extractContentsConfiguration(widget);</span>
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (null == contentsConfig) {</span>
+<span class="nc" id="L85">            errors.reject(WidgetValidatorCmsHelper.ERRCODE_INVALID_CONFIGURATION, new String[]{}, widget.getCode() + &quot;.contents.required&quot;);</span>
+<span class="nc" id="L86">            return;</span>
+        }
+
+<span class="fc" id="L89">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L90">        List&lt;RowContentListConfigurationEntry&gt; contentsConfigEntries = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        for (Object contentConfEntry : contentsConfig) {</span>
+<span class="fc" id="L92">            RowContentListConfigurationEntry entry = mapper.convertValue(contentConfEntry, RowContentListConfigurationEntry.class);</span>
+<span class="fc" id="L93">            contentsConfigEntries.add(entry);</span>
+<span class="fc" id="L94">        }</span>
+
+<span class="fc" id="L96">        widget.getProcessInfo().put(WidgetConfigurationValidator.PROCESS_INFO_CONFIG, contentsConfigEntries);</span>
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (contentsConfigEntries.isEmpty()) {</span>
+<span class="nc" id="L99">            errors.reject(WidgetValidatorCmsHelper.ERRCODE_INVALID_CONFIGURATION, new String[]{}, widget.getCode() + &quot;.contents.required&quot;);</span>
+<span class="nc" id="L100">            return;</span>
+        }
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        for (RowContentListConfigurationEntry entry : contentsConfigEntries) {</span>
+<span class="fc" id="L104">            WidgetValidatorCmsHelper.validateSingleContentOnPage(widget.getCode(), page, entry.getContentId(), this.getContentManager(), errors);</span>
+<span class="fc" id="L105">            String typeCode = entry.getContentId().substring(0, 3);</span>
+<span class="fc" id="L106">            WidgetValidatorCmsHelper.validateContentModel(widget.getCode(), typeCode, entry.getModelId(), this.getContentModelManager(), errors);</span>
+<span class="fc" id="L107">        }</span>
+<span class="fc" id="L108">    }</span>
+
+    /**
+     * try to build the configuration from a complex structure or from a string
+     *
+     * @param widget
+     * @return
+     */
+    protected List&lt;Object&gt; extractContentsConfiguration(WidgetConfigurationRequest widget) {
+<span class="fc" id="L117">        List&lt;Object&gt; contents = WidgetValidatorCmsHelper.extractConfig(widget, WIDGET_CONFIG_KEY_CONTENTS);</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (null == contents) {</span>
+<span class="fc" id="L119">            String configuration = WidgetValidatorCmsHelper.extractConfigParam(widget, WIDGET_CONFIG_KEY_CONTENTS);</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">            if (StringUtils.isNotBlank(configuration)) {</span>
+<span class="fc" id="L121">                List&lt;Properties&gt; props = RowContentListHelper.fromParameterToContents(configuration);</span>
+<span class="pc bpc" id="L122" title="2 of 4 branches missed.">                if (null != props &amp;&amp; !props.isEmpty()) {</span>
+<span class="fc" id="L123">                    final List&lt;Object&gt; validProps = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                    props.stream().filter(i -&gt; !i.isEmpty())</span>
+<span class="fc" id="L125">                            .forEach(i -&gt; validProps.add(i));</span>
+<span class="fc" id="L126">                    contents = validProps;</span>
+                }
+
+            }
+        }
+<span class="fc" id="L131">        return contents;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
