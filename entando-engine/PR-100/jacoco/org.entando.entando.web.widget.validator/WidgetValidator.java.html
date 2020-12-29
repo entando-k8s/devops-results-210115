@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.widget.validator</a> &gt; <span class="el_source">WidgetValidator.java</span></div><h1>WidgetValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.widget.validator;
+
+import com.agiletec.aps.util.ApsProperties;
+import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+import org.entando.entando.aps.system.services.widgettype.WidgetTypeManager;
+import org.entando.entando.web.common.validator.AbstractPaginationValidator;
+import org.entando.entando.web.widget.model.WidgetRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.Errors;
+
+@Component
+<span class="fc" id="L29">public class WidgetValidator extends AbstractPaginationValidator {</span>
+
+    public static final String ERRCODE_WIDGET_NOT_FOUND = &quot;1&quot;;
+
+    public static final String ERRCODE_WIDGET_ALREADY_EXISTS = &quot;1&quot;;
+
+    public static final String ERRCODE_WIDGET_GROUP_INVALID = &quot;2&quot;;
+
+    public static final String ERRCODE_WIDGET_DOES_NOT_EXISTS = &quot;1&quot;;
+    public static final String ERRCODE_URINAME_MISMATCH = &quot;3&quot;;
+    public static final String ERRCODE_MISSING_TITLE = &quot;4&quot;;
+    
+    public static final String ERRCODE_OPERATION_FORBIDDEN_LOCKED = &quot;1&quot;;
+    public static final String ERRCODE_CANNOT_DELETE_USED_PAGES = &quot;2&quot;;
+
+    public static final String ERRCODE_NOT_BLANK = &quot;52&quot;;
+
+    @Autowired
+    private WidgetTypeManager widgetTypeManager;
+
+    @Override
+    public boolean supports(Class&lt;?&gt; paramClass) {
+<span class="nc" id="L51">        return WidgetRequest.class.equals(paramClass);</span>
+    }
+
+    @Override
+    public void validate(Object target, Errors errors) {
+<span class="fc" id="L56">        WidgetRequest widgetRequest = (WidgetRequest) target;</span>
+<span class="fc bfc" id="L57" title="All 4 branches covered.">        if (StringUtils.isEmpty(widgetRequest.getCustomUi()) &amp;&amp; StringUtils.isEmpty(widgetRequest.getParentType())) {</span>
+<span class="fc" id="L58">            errors.rejectValue(&quot;customUi&quot;, ERRCODE_NOT_BLANK, new String[]{}, &quot;widgettype.customUi.notBlank&quot;);</span>
+        }
+<span class="fc" id="L60">        this.validateTitles(widgetRequest, errors);</span>
+<span class="fc" id="L61">    }</span>
+    
+    public void validateEditWidget(String widgetCode, WidgetRequest widgetRequest, Errors errors) {
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if (!StringUtils.equals(widgetCode, widgetRequest.getCode())) {</span>
+<span class="nc" id="L65">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{widgetCode, widgetRequest.getCode()}, &quot;widgettype.code.mismatch&quot;);</span>
+        }
+
+<span class="fc" id="L68">        WidgetType type = widgetTypeManager.getWidgetType(widgetCode);</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (type == null) {</span>
+<span class="fc" id="L71">            throw new ResourceNotFoundException(WidgetValidator.ERRCODE_WIDGET_DOES_NOT_EXISTS, &quot;widget&quot;, widgetCode);</span>
+        }
+
+<span class="fc" id="L74">        ApsProperties newWidgetConfig = ApsProperties.fromMap(widgetRequest.getConfig());</span>
+<span class="fc" id="L75">        ApsProperties widgetTypeConfig = type.getConfig();</span>
+
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (newWidgetConfig.size( ) == 0) {</span>
+<span class="fc" id="L78">            newWidgetConfig = null;</span>
+        }
+
+<span class="pc bpc" id="L81" title="1 of 10 branches missed.">        if ((widgetTypeConfig==null &amp;&amp; newWidgetConfig!=null &amp;&amp; type.isLocked()) ||</span>
+<span class="pc bpc" id="L82" title="2 of 6 branches missed.">           (widgetTypeConfig!=null &amp;&amp; newWidgetConfig==null &amp;&amp; type.isLocked()) ||</span>
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">           (widgetTypeConfig!=null &amp;&amp; newWidgetConfig!=null  &amp;&amp; !widgetTypeConfig.equals(newWidgetConfig) &amp;&amp; type.isLocked()))</span>
+        {
+<span class="fc" id="L85">            errors.rejectValue(&quot;code&quot;, ERRCODE_OPERATION_FORBIDDEN_LOCKED, new String[]{widgetCode, widgetRequest.getCode()}, &quot;widgettype.edit.locked&quot;);</span>
+        }
+
+<span class="fc" id="L88">        this.validateTitles(widgetRequest, errors);</span>
+
+<span class="fc" id="L90">    }</span>
+
+    protected void validateTitles(WidgetRequest widgetRequest, Errors errors) {
+<span class="fc" id="L93">        Map&lt;String, String&gt; titles = widgetRequest.getTitles();</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (null == titles) {</span>
+<span class="nc" id="L95">            errors.rejectValue(&quot;titles&quot;, ERRCODE_NOT_BLANK, &quot;widgettype.titles.notBlank&quot;);</span>
+        } else {
+<span class="fc" id="L97">            String[] langs = {&quot;en&quot;, &quot;it&quot;};</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            for (String lang : langs) {</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                if (StringUtils.isBlank(titles.get(lang))) {</span>
+<span class="fc" id="L100">                    errors.rejectValue(&quot;titles&quot;, ERRCODE_MISSING_TITLE, new String[]{lang}, &quot;widgettype.title.notBlank&quot;);</span>
+                }
+            }
+        }
+<span class="fc" id="L104">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

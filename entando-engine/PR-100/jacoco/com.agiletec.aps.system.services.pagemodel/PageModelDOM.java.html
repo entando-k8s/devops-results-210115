@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PageModelDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.pagemodel</a> &gt; <span class="el_source">PageModelDOM.java</span></div><h1>PageModelDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.pagemodel;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.agiletec.aps.util.ApsPropertiesDOM;
+
+import java.io.StringReader;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.widgettype.IWidgetTypeManager;
+import org.entando.entando.aps.system.services.widgettype.WidgetType;
+
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Helper class for xml descriptor of page template.
+ * @author E.Santoboni
+ */
+public class PageModelDOM {
+	
+<span class="fc" id="L44">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(PageModelDOM.class);</span>
+	
+	/**
+	 * Constructor of the dom. This constructor has to be used 
+	 * for create a page template from xml.
+	 * @param xmlText The xml tring to parse.
+	 * @param widgetTypeManager The manager of widget types.
+	 * @throws EntException in case of errors.
+	 */
+<span class="fc" id="L53">	public PageModelDOM(String xmlText, IWidgetTypeManager widgetTypeManager) throws EntException {</span>
+<span class="fc" id="L54">		this.decodeDOM(xmlText);</span>
+<span class="fc" id="L55">		this.buildFrames(widgetTypeManager);</span>
+<span class="fc" id="L56">	}</span>
+	
+<span class="fc" id="L58">	public PageModelDOM(PageModel pageModel) throws EntException {</span>
+<span class="fc" id="L59">		this._doc = new Document();</span>
+<span class="fc" id="L60">		Element root = new Element(&quot;frames&quot;);</span>
+<span class="fc" id="L61">		this._doc.setRootElement(root);</span>
+<span class="fc" id="L62">		Frame[] frames = pageModel.getConfiguration();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">		for (int i = 0; i &lt; frames.length; i++) {</span>
+<span class="fc" id="L64">			Frame frame = frames[i];</span>
+<span class="fc" id="L65">			Element frameElement = new Element(TAB_FRAME);</span>
+<span class="fc" id="L66">			frameElement.setAttribute(ATTRIBUTE_POS, String.valueOf(i));</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">			if (frame.isMainFrame()) {</span>
+<span class="fc" id="L68">				frameElement.setAttribute(ATTRIBUTE_MAIN, &quot;true&quot;);</span>
+			}
+<span class="fc" id="L70">			Element descrElement = new Element(TAB_DESCR);</span>
+<span class="fc" id="L71">			descrElement.setText(frame.getDescription());</span>
+<span class="fc" id="L72">			frameElement.addContent(descrElement);</span>
+			
+<span class="fc" id="L74">			Element sketchElement = this.buildSketchXML(frame);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">			if (null != sketchElement) {</span>
+<span class="fc" id="L76">				frameElement.addContent(sketchElement);</span>
+			}
+			
+<span class="fc" id="L79">			Widget defaultWidget = frame.getDefaultWidget();</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">			if (null != defaultWidget) {</span>
+<span class="fc" id="L81">				Element defaultWidgetElement = new Element(TAB_DEFAULT_WIDGET);</span>
+<span class="fc" id="L82">				defaultWidgetElement.setAttribute(ATTRIBUTE_CODE, defaultWidget.getType().getCode());</span>
+<span class="fc" id="L83">				ApsProperties properties = defaultWidget.getConfig();</span>
+<span class="pc bpc" id="L84" title="1 of 4 branches missed.">				if (null != properties &amp;&amp; !properties.isEmpty()) {</span>
+<span class="fc" id="L85">					ApsPropertiesDOM propertiesDom = new ApsPropertiesDOM();</span>
+<span class="fc" id="L86">					propertiesDom.buildJDOM(properties);</span>
+<span class="fc" id="L87">					Element widgetConfigElement = propertiesDom.getRootElement();</span>
+<span class="fc" id="L88">					defaultWidgetElement.addContent(widgetConfigElement);</span>
+				}
+<span class="fc" id="L90">				frameElement.addContent(defaultWidgetElement);</span>
+			}
+<span class="fc" id="L92">			root.addContent(frameElement);</span>
+		}
+<span class="fc" id="L94">	}</span>
+	
+	private Element buildSketchXML(Frame frame) {
+<span class="fc" id="L97">		FrameSketch sketch = frame.getSketch();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (null != sketch) {</span>
+<span class="fc" id="L99">			Element sketchElement = new Element(TAB_SKETCH);</span>
+<span class="fc" id="L100">			sketchElement.setAttribute(ATTRIBUTE_X1, String.valueOf(sketch.getX1()));</span>
+<span class="fc" id="L101">			sketchElement.setAttribute(ATTRIBUTE_Y1, String.valueOf(sketch.getY1()));</span>
+<span class="fc" id="L102">			sketchElement.setAttribute(ATTRIBUTE_X2, String.valueOf(sketch.getX2()));</span>
+<span class="fc" id="L103">			sketchElement.setAttribute(ATTRIBUTE_Y2, String.valueOf(sketch.getY2()));</span>
+<span class="fc" id="L104">			return sketchElement;</span>
+		}
+<span class="fc" id="L106">		return null;</span>
+	}
+
+	private void decodeDOM(String xmlText) throws EntException {
+<span class="fc" id="L110">		SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L111">		builder.setValidation(false);</span>
+<span class="fc" id="L112">		StringReader reader = new StringReader(xmlText);</span>
+		try {
+<span class="fc" id="L114">			_doc = builder.build(reader);</span>
+<span class="nc" id="L115">		} catch (Throwable t) {</span>
+<span class="nc" id="L116">			_logger.error(&quot;Error parsing the page template XML: {}&quot;, xmlText, t);</span>
+<span class="nc" id="L117">			throw new EntException(&quot;Error parsing the page template XML&quot;, t);</span>
+<span class="fc" id="L118">		}</span>
+<span class="fc" id="L119">	}</span>
+	
+	private ApsProperties buildProperties(Element propertiesElement) {
+<span class="fc" id="L122">		List&lt;Element&gt; propertyElements = propertiesElement.getChildren(TAB_PROPERTY);</span>
+<span class="pc bpc" id="L123" title="2 of 4 branches missed.">		if (null == propertyElements || propertyElements.isEmpty()) {</span>
+<span class="nc" id="L124">			return null;</span>
+		}
+<span class="fc" id="L126">		ApsProperties prop = new ApsProperties();</span>
+<span class="fc" id="L127">		Iterator&lt;Element&gt; propertyElementsIter = propertyElements.iterator();</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">		while (propertyElementsIter.hasNext()) {</span>
+<span class="fc" id="L129">			Element property = (Element) propertyElementsIter.next();</span>
+<span class="fc" id="L130">			prop.put(property.getAttributeValue(ATTRIBUTE_KEY), property.getText().trim());</span>
+<span class="fc" id="L131">		}</span>
+<span class="fc" id="L132">		return prop;</span>
+	}
+	
+	private void buildFrames(IWidgetTypeManager widgetTypeManager) throws EntException {
+<span class="fc" id="L136">		List&lt;Element&gt; frameElements = this._doc.getRootElement().getChildren(TAB_FRAME);</span>
+<span class="pc bpc" id="L137" title="2 of 4 branches missed.">		if (null != frameElements &amp;&amp; frameElements.size() &gt; 0) {</span>
+<span class="fc" id="L138">			int framesNumber = frameElements.size();</span>
+			//_frames = new String[framesNumber];
+			//_defaultWidget = new Widget[framesNumber];
+<span class="fc" id="L141">			this._configuration = new Frame[framesNumber];</span>
+<span class="fc" id="L142">			this._existMainFrame = false;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			for (int i = 0; i &lt; frameElements.size(); i++) {</span>
+<span class="fc" id="L144">				Element frameElement = frameElements.get(i);</span>
+<span class="fc" id="L145">				int pos = Integer.parseInt(frameElement.getAttributeValue(ATTRIBUTE_POS));</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">				if (pos &gt;= framesNumber) {</span>
+<span class="nc" id="L147">					throw new EntException(&quot;The position '&quot; + pos + &quot;' exceeds the number of frames defined in the page template&quot;);</span>
+				}
+<span class="fc" id="L149">				Frame frame = new Frame();</span>
+<span class="fc" id="L150">				frame.setPos(pos);</span>
+<span class="fc" id="L151">				String main = frameElement.getAttributeValue(ATTRIBUTE_MAIN);</span>
+<span class="pc bpc" id="L152" title="1 of 4 branches missed.">				if (null != main &amp;&amp; main.equals(&quot;true&quot;)) {</span>
+<span class="fc" id="L153">					_existMainFrame = true;</span>
+<span class="fc" id="L154">					_mainFrame = pos;</span>
+<span class="fc" id="L155">					frame.setMainFrame(true);</span>
+				}
+<span class="fc" id="L157">				Element frameDescrElement = frameElement.getChild(TAB_DESCR);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">				if (null != frameDescrElement) {</span>
+					//_frames[pos] = frameDescrElement.getText();
+<span class="fc" id="L160">					frame.setDescription(frameDescrElement.getText());</span>
+				}
+<span class="fc" id="L162">				Element defaultWidgetElement = frameElement.getChild(TAB_DEFAULT_WIDGET);</span>
+				//to guaranted compatibility with previsous version of Entamdo 3.3.1 *** Start Block
+<span class="fc bfc" id="L164" title="All 2 branches covered.">				if (null == defaultWidgetElement) {</span>
+<span class="fc" id="L165">					defaultWidgetElement = frameElement.getChild(&quot;defaultShowlet&quot;);</span>
+				}
+				//to guaranted compatibility with previsous version of Entamdo 3.3.1 *** End Block
+<span class="fc bfc" id="L168" title="All 2 branches covered.">				if (null != defaultWidgetElement) {</span>
+<span class="fc" id="L169">					this.buildDefaultWidget(frame, defaultWidgetElement, pos, widgetTypeManager);</span>
+				}
+<span class="fc" id="L171">				FrameSketch frameSketch = this.buildFrameSketch(frameElement);</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">				if (null != frameSketch) {</span>
+<span class="nc" id="L173">					frame.setSketch(frameSketch);</span>
+				} else {
+<span class="fc" id="L175">					this.applyDefaultFrameSketch(frame);</span>
+				}
+				
+<span class="fc" id="L178">				this._configuration[pos] = frame;</span>
+			}
+<span class="fc" id="L180">		} else {</span>
+<span class="nc" id="L181">			this._configuration = new Frame[0];</span>
+		}
+<span class="fc" id="L183">	}</span>
+	
+	
+	/**
+	 * the framework behavior when, reading from db, no sketch info is found.
+	 * this implementations do nothing
+	 * @param frame
+	 */
+	protected void applyDefaultFrameSketch(Frame frame) {
+		// do nothing
+<span class="fc" id="L193">	}</span>
+
+	private FrameSketch buildFrameSketch(Element frameElement) {
+<span class="fc" id="L196">		Element frameSketchElement = frameElement.getChild(TAB_SKETCH);</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">		if (null == frameSketchElement) {</span>
+<span class="fc" id="L198">			return null;</span>
+		}
+		
+<span class="nc" id="L201">		String x1Val = frameSketchElement.getAttributeValue(ATTRIBUTE_X1);</span>
+<span class="nc" id="L202">		String y1Val = frameSketchElement.getAttributeValue(ATTRIBUTE_Y1);</span>
+<span class="nc" id="L203">		String x2Val = frameSketchElement.getAttributeValue(ATTRIBUTE_X2);</span>
+<span class="nc" id="L204">		String y2Val = frameSketchElement.getAttributeValue(ATTRIBUTE_Y2);</span>
+		
+<span class="nc bnc" id="L206" title="All 2 branches missed.">		int x1 = StringUtils.isNumeric(x1Val) ? new Integer(x1Val) : 0;</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">		int y1 = StringUtils.isNumeric(x1Val) ? new Integer(y1Val) : 0;</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">		int x2 = StringUtils.isNumeric(x1Val) ? new Integer(x2Val) : 0;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">		int y2 = StringUtils.isNumeric(x1Val) ? new Integer(y2Val) : 0;</span>
+        
+<span class="nc" id="L211">		FrameSketch frameSketch = new FrameSketch();</span>
+<span class="nc" id="L212">		frameSketch.setCoords(x1, y1, x2, y2);</span>
+<span class="nc" id="L213">		return frameSketch;</span>
+	}
+
+	private void buildDefaultWidget(Frame frame, Element defaultWidgetElement, int pos, IWidgetTypeManager widgetTypeManager) {
+<span class="fc" id="L217">		Widget widget = new Widget();</span>
+<span class="fc" id="L218">		String widgetCode = defaultWidgetElement.getAttributeValue(ATTRIBUTE_CODE);</span>
+<span class="fc" id="L219">		WidgetType type = widgetTypeManager.getWidgetType(widgetCode);</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">		if (null == type) {</span>
+<span class="nc" id="L221">			_logger.warn(&quot;Unknown code of the default widget - '{}'&quot;, widgetCode);</span>
+<span class="nc" id="L222">			return;</span>
+		}
+<span class="fc" id="L224">		widget.setType(type);</span>
+<span class="fc" id="L225">		Element propertiesElement = defaultWidgetElement.getChild(TAB_PROPERTIES);</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">		if (null != propertiesElement) {</span>
+<span class="fc" id="L227">			ApsProperties prop = this.buildProperties(propertiesElement);</span>
+<span class="fc" id="L228">			widget.setConfig(prop);</span>
+		}
+<span class="fc" id="L230">		frame.setDefaultWidget(widget);</span>
+<span class="fc" id="L231">	}</span>
+	
+	/**
+	 * La posizione del frame principale, se esiste;
+	 * vale -1 se non esiste;
+	 * @return La posizione del frame principale.
+	 */
+	public int getMainFrame() {
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">		if (_existMainFrame) {</span>
+<span class="fc" id="L240">			return this._mainFrame;</span>
+		} else {
+<span class="nc" id="L242">			return -1;</span>
+		}
+	}
+	
+	public String getXMLDocument(){
+<span class="fc" id="L247">		XMLOutputter out = new XMLOutputter();</span>
+<span class="fc" id="L248">		Format format = Format.getPrettyFormat();</span>
+<span class="fc" id="L249">		format.setIndent(&quot;\t&quot;);</span>
+<span class="fc" id="L250">		out.setFormat(format);</span>
+<span class="fc" id="L251">		return out.outputString(this._doc);</span>
+	}
+	
+	public Frame[] getConfiguration() {
+<span class="fc" id="L255">		return _configuration;</span>
+	}
+	
+	private Document _doc;
+<span class="fc" id="L259">	private final String TAB_FRAME = &quot;frame&quot;;</span>
+<span class="fc" id="L260">	private final String ATTRIBUTE_POS = &quot;pos&quot;;</span>
+<span class="fc" id="L261">	private final String ATTRIBUTE_MAIN = &quot;main&quot;;</span>
+<span class="fc" id="L262">	private final String TAB_DESCR = &quot;descr&quot;;</span>
+<span class="fc" id="L263">	private final String TAB_DEFAULT_WIDGET = &quot;defaultWidget&quot;;</span>
+<span class="fc" id="L264">	private final String ATTRIBUTE_CODE = &quot;code&quot;;</span>
+<span class="fc" id="L265">	private final String TAB_PROPERTIES = &quot;properties&quot;;</span>
+<span class="fc" id="L266">	private final String TAB_PROPERTY = &quot;property&quot;;</span>
+<span class="fc" id="L267">	private final String ATTRIBUTE_KEY = &quot;key&quot;;</span>
+	
+<span class="fc" id="L269">	private final String TAB_SKETCH = &quot;sketch&quot;;</span>
+<span class="fc" id="L270">	private final String ATTRIBUTE_X1 = &quot;x1&quot;;</span>
+<span class="fc" id="L271">	private final String ATTRIBUTE_Y1 = &quot;y1&quot;;</span>
+<span class="fc" id="L272">	private final String ATTRIBUTE_X2 = &quot;x2&quot;;</span>
+<span class="fc" id="L273">	private final String ATTRIBUTE_Y2 = &quot;y2&quot;;</span>
+	
+	
+	private boolean _existMainFrame;
+	private int _mainFrame;
+	private Frame[] _configuration;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

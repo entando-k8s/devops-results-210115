@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InstallationReportDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init</a> &gt; <span class="el_source">InstallationReportDAO.java</span></div><h1>InstallationReportDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractDAO;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L30">public class InstallationReportDAO extends AbstractDAO {</span>
+	
+<span class="fc" id="L32">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(InstallationReportDAO.class);</span>
+	
+	public SystemInstallationReport loadReport(String version) {
+<span class="fc" id="L35">		Connection conn = null;</span>
+<span class="fc" id="L36">		PreparedStatement stat = null;</span>
+<span class="fc" id="L37">		ResultSet res = null;</span>
+<span class="fc" id="L38">		SystemInstallationReport report = null;</span>
+		try {
+<span class="fc" id="L40">			conn = this.getConnection();</span>
+<span class="fc" id="L41">			stat = conn.prepareStatement(VERSION_ITEM);</span>
+<span class="fc" id="L42">			stat.setString(1, version);</span>
+<span class="fc" id="L43">			stat.setString(2, InitializerManager.REPORT_CONFIG_ITEM);</span>
+<span class="fc" id="L44">			res = stat.executeQuery();</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">			if (res.next()) {</span>
+<span class="fc" id="L46">				String xml = res.getString(1);</span>
+<span class="fc" id="L47">				report = new SystemInstallationReport(xml);</span>
+<span class="fc" id="L48">			} else {</span>
+				//PORTING
+<span class="nc" id="L50">				report = SystemInstallationReport.getPortingInstance();</span>
+			}
+<span class="fc" id="L52">		} catch (SQLException sqle) {</span>
+			//NOT_AVAILABLE
+<span class="fc" id="L54">			_logger.info(&quot;Report not available&quot; + sqle);</span>
+<span class="fc" id="L55">			return null;</span>
+<span class="nc" id="L56">		} catch (Throwable t) {</span>
+<span class="nc" id="L57">			_logger.error(&quot;Error while loading component installation report - version: {}&quot;, version,  t);</span>
+<span class="nc" id="L58">			throw new RuntimeException(&quot;Error while loading component installation report - version: &quot; + version, t);</span>
+		} finally {
+<span class="fc" id="L60">			closeDaoResources(res, stat, conn);</span>
+		}
+<span class="fc" id="L62">		return report;</span>
+	}
+	
+	public void saveConfigItem(String config, String version) {
+<span class="fc" id="L66">		Connection conn = null;</span>
+<span class="fc" id="L67">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L69">			conn = this.getConnection();</span>
+<span class="fc" id="L70">			conn.setAutoCommit(false);</span>
+<span class="fc" id="L71">			this.deleteItem(version, conn);</span>
+<span class="fc" id="L72">			stat = conn.prepareStatement(ADD_ITEM);</span>
+<span class="fc" id="L73">			stat.setString(1, version);</span>
+<span class="fc" id="L74">			stat.setString(2, InitializerManager.REPORT_CONFIG_ITEM);</span>
+<span class="fc" id="L75">			stat.setString(3, &quot;The component installation report&quot;);</span>
+<span class="fc" id="L76">			stat.setString(4, config);</span>
+<span class="fc" id="L77">			stat.executeUpdate();</span>
+<span class="fc" id="L78">			conn.commit();</span>
+<span class="nc" id="L79">		} catch (Throwable t) {</span>
+<span class="nc" id="L80">			this.executeRollback(conn);</span>
+<span class="nc" id="L81">			_logger.error(&quot;Error saving item&quot; ,  t);</span>
+<span class="nc" id="L82">			throw new RuntimeException(&quot;Error saving item&quot;, t);</span>
+		} finally {
+<span class="fc" id="L84">			closeDaoResources(null, stat, conn);</span>
+		}
+<span class="fc" id="L86">	}</span>
+	
+	private void deleteItem(String version, Connection conn) {
+<span class="fc" id="L89">		PreparedStatement stat = null;</span>
+		try {
+<span class="fc" id="L91">			stat = conn.prepareStatement(DELETE_ITEM);</span>
+<span class="fc" id="L92">			stat.setString(1, InitializerManager.REPORT_CONFIG_ITEM);</span>
+<span class="fc" id="L93">			stat.setString(2, version);</span>
+<span class="fc" id="L94">			stat.executeUpdate();</span>
+<span class="nc" id="L95">		} catch (Throwable t) {</span>
+<span class="nc" id="L96">			_logger.error(&quot;Error deleting item&quot; ,  t);</span>
+<span class="nc" id="L97">			throw new RuntimeException(&quot;Error deleting item&quot;, t);</span>
+		} finally {
+<span class="fc" id="L99">			closeDaoResources(null, stat);</span>
+		}
+<span class="fc" id="L101">	}</span>
+	
+<span class="fc" id="L103">	private final String VERSION_ITEM =</span>
+		&quot;SELECT config FROM sysconfig WHERE version = ? AND item = ?&quot;;
+	
+	private static final String DELETE_ITEM = 
+		&quot;DELETE FROM sysconfig WHERE item = ? AND version = ?&quot;;
+	
+	private static final String ADD_ITEM = 
+		&quot;INSERT INTO sysconfig(version, item, descr, config) VALUES (?, ?, ?, ?)&quot;;
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

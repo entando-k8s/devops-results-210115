@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StorageManagerUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.storage</a> &gt; <span class="el_source">StorageManagerUtil.java</span></div><h1>StorageManagerUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.storage;
+
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.regex.*;
+import org.entando.entando.ent.exception.EntRuntimeException;
+import org.entando.entando.ent.util.EntSanitization;
+import org.springframework.lang.Nullable;
+
+public final class StorageManagerUtil {
+
+    private static final String PATH_SEP_WINDOWS = &quot;\\&quot;;
+    private static final String PATH_SEP_UNIX = &quot;/&quot;;
+
+    private StorageManagerUtil() {
+        // Utility class, not to be instantiated
+    }
+
+<span class="fc" id="L37">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(StorageManagerUtil.class);</span>
+
+    private static final String REGEXP_FILE_EXTENSION = &quot;([\\w|\\-]+?$)&quot;;
+    private static final String REGEXP_FILE_BASENAME = &quot;\\A(?!(?:COM[0-9]|CON|LPT[0-9]|NUL|PRN|AUX|com[0-9]|con|lpt[0-9]|nul|prn|aux)|[\\s\\.])[^\\\\/:*\&quot;?&lt;&gt;|]{1,254}\\z&quot;;
+    private static final String REGEXP_DIR = &quot;(^[\\w|\\.|\\-|\\_|/| ]+?)&quot;;
+
+    public static String mustBeValidFilename(String fullname) {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (isValidFilename(fullname)) {</span>
+<span class="fc" id="L45">            return fullname;</span>
+        } else {
+<span class="fc" id="L47">            throw new EntRuntimeException(&quot;Invalid filename detected: \&quot;&quot; +</span>
+<span class="fc" id="L48">                    EntSanitization.fixJavaSecS5145(fullname) + &quot;\&quot;&quot;);</span>
+        }
+    }
+
+    public static String mustBeValidDirName(String fullname) {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (isValidDirName(fullname)) {</span>
+<span class="fc" id="L54">            return fullname;</span>
+        } else {
+<span class="fc" id="L56">            throw new EntRuntimeException(&quot;Invalid directory name detected: \&quot;&quot; +</span>
+<span class="fc" id="L57">                    EntSanitization.fixJavaSecS5145(fullname) + &quot;\&quot;&quot;);</span>
+        }
+    }
+
+    public static boolean isValidFilename(String fullname) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (StringUtils.isBlank(fullname)) {</span>
+<span class="fc" id="L63">            return false;</span>
+        }
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (fullname.endsWith(&quot;.&quot;)) {</span>
+<span class="fc" id="L66">            return false;</span>
+        }
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!isValidPath(fullname)) {</span>
+<span class="fc" id="L69">            return false;</span>
+        }
+<span class="fc" id="L71">        String basename = FilenameUtils.getBaseName(fullname);</span>
+<span class="fc" id="L72">        String extension = FilenameUtils.getExtension(fullname);</span>
+<span class="fc" id="L73">        return isValidFilename(basename, extension);</span>
+    }
+
+    public static boolean isValidFilename(String basename, String extension) {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (StringUtils.isBlank(basename)) {</span>
+<span class="fc" id="L78">            return false;</span>
+        }
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!isValidPath(basename)) {</span>
+<span class="fc" id="L81">            return false;</span>
+        }
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (!isValidFilenameNoExtension(basename)) {</span>
+<span class="fc" id="L84">            return false;</span>
+        }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (StringUtils.isNotBlank(extension)) {</span>
+<span class="fc" id="L87">            return isValidExtension(extension);</span>
+        }
+<span class="fc" id="L89">        return true;</span>
+    }
+
+    public static boolean isValidFilenameNoExtension(String basename) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (StringUtils.isBlank(basename)) {</span>
+<span class="fc" id="L94">            return false;</span>
+        }
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (!isValidPath(basename)) {</span>
+<span class="fc" id="L97">            return false;</span>
+        }
+<span class="fc" id="L99">        Pattern pattern = Pattern.compile(REGEXP_FILE_BASENAME);</span>
+<span class="fc" id="L100">        Matcher matcher = pattern.matcher(basename);</span>
+<span class="fc" id="L101">        return matcher.matches();</span>
+    }
+
+    public static boolean isValidDirName(String basename) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (StringUtils.isBlank(basename)) {</span>
+<span class="fc" id="L106">            return true;</span>
+        }
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (!isValidPath(basename)) {</span>
+<span class="fc" id="L109">            return false;</span>
+        }
+<span class="fc" id="L111">        Pattern pattern = Pattern.compile(REGEXP_DIR);</span>
+<span class="fc" id="L112">        Matcher matcher = pattern.matcher(basename);</span>
+<span class="fc" id="L113">        boolean check = matcher.matches();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (!check) {</span>
+<span class="fc" id="L115">            return false;</span>
+        }
+<span class="fc" id="L117">        return endWithParentDir(basename);</span>
+    }
+
+    public static boolean isValidExtension(String extension) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (StringUtils.isBlank(extension)) {</span>
+<span class="fc" id="L122">            return false;</span>
+        }
+<span class="fc" id="L124">        Pattern pattern = Pattern.compile(REGEXP_FILE_EXTENSION);</span>
+<span class="fc" id="L125">        Matcher matcher = pattern.matcher(extension);</span>
+<span class="fc" id="L126">        return matcher.matches();</span>
+    }
+
+    private static boolean isValidPath(String path) {
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if (StringUtils.isBlank(path)) {</span>
+<span class="nc" id="L131">            return true;</span>
+        }
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (path.contains(&quot;../&quot;)</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                || path.contains(&quot;%2e%2e%2f&quot;)</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">                || path.contains(&quot;..%2f&quot;)</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                || path.contains(&quot;..&quot; + File.separator)</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                || path.contains(&quot;%2e%2e/&quot;)</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">                || path.contains(&quot;%2e%2e&quot; + File.separator)) {</span>
+<span class="fc" id="L139">            logger.info(&quot;Attack avoided - requested path {}&quot;, path);</span>
+<span class="fc" id="L140">            return false;</span>
+        }
+<span class="fc" id="L142">        return true;</span>
+    }
+
+    private static boolean endWithParentDir(String path) {
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        if (StringUtils.isBlank(path)) {</span>
+<span class="nc" id="L147">            return true;</span>
+        }
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        if (path.endsWith(&quot;..&quot;)</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                || path.endsWith(&quot;%2e%2e&quot;)) {</span>
+<span class="fc" id="L151">            logger.info(&quot;Attack avoided - requested path {}&quot;, path);</span>
+<span class="fc" id="L152">            return false;</span>
+        }
+<span class="fc" id="L154">        return true;</span>
+    }
+
+    /**
+     * Tells if a actual path is contained in another actual path
+     * Note that for this function a path doesn't contain itself
+     *
+     * @see #doesPathContainsPath(String, String, boolean)
+     */
+    public static boolean doesPathContainsPath(String basePath, String pathToCheck) throws IOException {
+<span class="fc" id="L164">        return doesPathContainsPath(basePath, pathToCheck, false);</span>
+    }
+
+    /**
+     * Tells if a actual path is contained in another actual path
+     *
+     * @param basePath         the path that should contain
+     * @param pathToCheck      the path that should be contained
+     * @param baseIncludesBase if the paths are the same path, function returns this result
+     * @throws IOException throw by the internal use of {@link FilenameUtils#directoryContains}
+     */
+    public static boolean doesPathContainsPath(String basePath, String pathToCheck, boolean baseIncludesBase) throws IOException {
+<span class="pc bpc" id="L176" title="1 of 4 branches missed.">        if (basePath == null || pathToCheck == null) return false;</span>
+<span class="fc" id="L177">        basePath = normalizePathForComparison(basePath);</span>
+<span class="fc" id="L178">        pathToCheck = normalizePathForComparison(pathToCheck);</span>
+<span class="fc bfc" id="L179" title="All 4 branches covered.">        if (basePath == null || pathToCheck == null) return false;</span>
+        try {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">            if (FilenameUtils.directoryContains(basePath, pathToCheck)) {</span>
+<span class="fc" id="L182">                return true;</span>
+            } else {
+<span class="fc bfc" id="L184" title="All 4 branches covered.">                return baseIncludesBase &amp;&amp; isSamePath(basePath, pathToCheck);</span>
+            }
+<span class="nc" id="L186">        } catch (IllegalArgumentException ignore) {</span>
+            // caught but it never occurs due to the
+<span class="nc" id="L188">            return false;   //NOSONAR</span>
+        }
+    }
+
+    /**
+     * Tells if two path expressions are equivalent,
+     */
+    public static boolean isSamePath(String path1, String path2) {
+<span class="fc bfc" id="L196" title="All 4 branches covered.">        if (path1 == null || path2 == null) return false;</span>
+<span class="fc" id="L197">        path1=normalizePathForComparison(path1);</span>
+<span class="fc" id="L198">        path2=normalizePathForComparison(path2);</span>
+<span class="fc bfc" id="L199" title="All 4 branches covered.">        if (path1 == null || path2 == null) return false;</span>
+<span class="fc" id="L200">        return path1.equals(path2);</span>
+    }
+
+    private static String normalizePathForComparison(@Nullable String path) {
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (path == null) return null;</span>
+<span class="fc" id="L205">        path = FilenameUtils.normalize(path);</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">        if (path == null) return null;</span>
+<span class="pc bpc" id="L207" title="1 of 4 branches missed.">        return (path.endsWith(PATH_SEP_WINDOWS) || path.endsWith(PATH_SEP_UNIX)) ?</span>
+<span class="fc" id="L208">                path.substring(0, path.length() - 1) + File.separator : path + File.separator;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TableDataUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init.util</a> &gt; <span class="el_source">TableDataUtils.java</span></div><h1>TableDataUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init.util;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.DateConverter;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.Date;
+
+import javax.sql.DataSource;
+
+import org.apache.commons.lang.StringEscapeUtils;
+
+import org.entando.entando.aps.system.init.model.DataInstallationReport;
+import org.entando.entando.aps.system.init.model.SystemInstallationReport;
+import org.entando.entando.aps.system.init.model.TableDumpReport;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="nc" id="L45">public class TableDataUtils {</span>
+    
+<span class="fc" id="L47">    private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(TableDataUtils.class);</span>
+    
+    public static void valueDatabase(String script, String databaseName,
+            DataSource dataSource, DataInstallationReport schemaReport) throws EntException {
+        try {
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">            String[] queries = (null != script) ? QueryExtractor.extractInsertQueries(script) : null;</span>
+<span class="pc bpc" id="L53" title="2 of 4 branches missed.">            if (null == queries || queries.length == 0) {</span>
+<span class="nc" id="L54">                _logger.info(&quot;Script file for db {} void&quot;, databaseName);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">                if (null != schemaReport) {</span>
+<span class="nc" id="L56">                    schemaReport.getDatabaseStatus().put(databaseName, SystemInstallationReport.Status.NOT_AVAILABLE);</span>
+                }
+<span class="nc" id="L58">                return;</span>
+            }
+<span class="fc" id="L60">            executeQueries(dataSource, queries, true);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (null != schemaReport) {</span>
+<span class="nc" id="L62">                schemaReport.getDatabaseStatus().put(databaseName, SystemInstallationReport.Status.OK);</span>
+            }
+<span class="nc" id="L64">        } catch (Throwable t) {</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            if (null != schemaReport) {</span>
+<span class="nc" id="L66">                schemaReport.getDatabaseStatus().put(databaseName, SystemInstallationReport.Status.INCOMPLETE);</span>
+            }
+<span class="nc" id="L68">            _logger.error(&quot;Error executing script into db {} &quot;, databaseName, t);</span>
+<span class="nc" id="L69">            throw new EntException(&quot;Error executing script into db &quot; + databaseName, t);</span>
+<span class="fc" id="L70">        }</span>
+<span class="fc" id="L71">    }</span>
+    
+    public static void executeQueries(DataSource dataSource, String[] queries, boolean traceException) throws EntException {
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">        if (null == queries || queries.length == 0) {</span>
+<span class="nc" id="L75">            return;</span>
+        }
+<span class="fc" id="L77">        Connection conn = null;</span>
+<span class="fc" id="L78">        Statement stat = null;</span>
+<span class="fc" id="L79">        String currentQuery = null;</span>
+        try {
+<span class="fc" id="L81">            conn = dataSource.getConnection();</span>
+<span class="fc" id="L82">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L83">            stat = conn.createStatement();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">            for (String querie : queries) {</span>
+<span class="fc" id="L85">                currentQuery = querie;</span>
+<span class="fc" id="L86">                stat.addBatch(currentQuery);</span>
+            }
+<span class="fc" id="L88">            stat.executeBatch();</span>
+<span class="fc" id="L89">            conn.commit();</span>
+<span class="nc" id="L90">        } catch (Throwable t) {</span>
+            try {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                if (conn != null) {</span>
+<span class="nc" id="L93">                    conn.rollback();</span>
+                }
+<span class="nc" id="L95">            } catch (Throwable tr) {</span>
+<span class="nc" id="L96">                _logger.error(&quot;Error executing rollback&quot;, tr);</span>
+<span class="nc" id="L97">            }</span>
+<span class="nc" id="L98">            String errorMessage = &quot;Error executing script - QUERY:\n&quot; + currentQuery;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (traceException) {</span>
+<span class="nc" id="L100">                _logger.error(&quot;Error executing script - QUERY:\n{}&quot;, currentQuery, t);</span>
+            }
+<span class="nc" id="L102">            throw new EntException(errorMessage, t);</span>
+        } finally {
+            try {
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                if (stat != null) {</span>
+<span class="fc" id="L106">                    stat.close();</span>
+                }
+<span class="nc" id="L108">            } catch (Throwable t) {</span>
+<span class="nc" id="L109">                _logger.error(&quot;Error while closing the statement&quot;, t);</span>
+<span class="fc" id="L110">            }</span>
+            try {
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">                if (conn != null) {</span>
+<span class="fc" id="L113">                    conn.close();</span>
+                }
+<span class="nc" id="L115">            } catch (Throwable t) {</span>
+<span class="nc" id="L116">                _logger.error(&quot;Error closing the connection&quot;, t);</span>
+<span class="fc" id="L117">            }</span>
+        }
+<span class="fc" id="L119">    }</span>
+    
+    public static TableDumpReport dumpTable(BufferedWriter br, DataSource dataSource, String tableName) throws EntException {
+<span class="nc" id="L122">        TableDumpReport report = new TableDumpReport(tableName);</span>
+<span class="nc" id="L123">        StringBuilder scriptPrefix = new StringBuilder(&quot;INSERT INTO &quot;).append(tableName).append(&quot; (&quot;);</span>
+<span class="nc" id="L124">        Connection conn = null;</span>
+<span class="nc" id="L125">        Statement stat = null;</span>
+<span class="nc" id="L126">        ResultSet res = null;</span>
+<span class="nc" id="L127">        long start = System.currentTimeMillis();</span>
+        try {
+<span class="nc" id="L129">            conn = dataSource.getConnection();</span>
+<span class="nc" id="L130">            String query = &quot;SELECT * FROM $tablename&quot;;</span>
+<span class="nc" id="L131">            query = query.replace(&quot;$tablename&quot;, tableName);</span>
+<span class="nc" id="L132">            stat = conn.createStatement();</span>
+<span class="nc" id="L133">            res = stat.executeQuery(query);</span>
+<span class="nc" id="L134">            ResultSetMetaData metaData = res.getMetaData();</span>
+<span class="nc" id="L135">            int columnCount = metaData.getColumnCount();</span>
+<span class="nc" id="L136">            int[] types = new int[columnCount];</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            for (int i = 0; i &lt; columnCount; i++) {</span>
+<span class="nc" id="L138">                int indexColumn = i + 1;</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                if (metaData.isAutoIncrement(indexColumn)) {</span>
+<span class="nc" id="L140">                    continue;</span>
+                }
+<span class="nc" id="L142">                scriptPrefix.append(metaData.getColumnName(indexColumn).toLowerCase()).append(&quot;,&quot;);</span>
+<span class="nc" id="L143">                types[i] = metaData.getColumnType(indexColumn);</span>
+            }
+<span class="nc" id="L145">            scriptPrefix.deleteCharAt(scriptPrefix.lastIndexOf(&quot;,&quot;));</span>
+<span class="nc" id="L146">            scriptPrefix.append(&quot;) VALUES (&quot;);</span>
+<span class="nc" id="L147">            int rows = 0;</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">            while (res.next()) {</span>
+<span class="nc" id="L149">                StringBuilder newRecord = new StringBuilder(scriptPrefix);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">                for (int i = 0; i &lt; columnCount; i++) {</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                    if (metaData.isAutoIncrement(i + 1)) {</span>
+<span class="nc" id="L152">                        continue;</span>
+                    }
+<span class="nc" id="L154">                    Object value = getColumnValue(res, i, types);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                    if (value == null) {</span>
+<span class="nc" id="L156">                        newRecord.append(&quot;NULL&quot;);</span>
+                    } else {
+<span class="nc" id="L158">                        String outputValue = value.toString();</span>
+<span class="nc" id="L159">                        outputValue = StringEscapeUtils.escapeSql(outputValue);</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                        if (isDataNeedsQuotes(types[i])) {</span>
+<span class="nc" id="L161">                            newRecord.append(&quot;'&quot;).append(outputValue).append(&quot;'&quot;);</span>
+                        } else {
+<span class="nc" id="L163">                            newRecord.append(outputValue);</span>
+                        }
+
+                    }
+<span class="nc" id="L167">                    newRecord.append(&quot;,&quot;);</span>
+                }
+<span class="nc" id="L169">                newRecord.deleteCharAt(newRecord.lastIndexOf(&quot;,&quot;));</span>
+<span class="nc" id="L170">                newRecord.append(&quot;);\n&quot;);</span>
+<span class="nc" id="L171">                br.write(newRecord.toString());</span>
+<span class="nc" id="L172">                rows++;</span>
+<span class="nc" id="L173">            }</span>
+<span class="nc" id="L174">            report.setRows(rows);</span>
+<span class="nc" id="L175">        } catch (Throwable t) {</span>
+<span class="nc" id="L176">            _logger.error(&quot;Error creating backup&quot;, t);</span>
+<span class="nc" id="L177">            throw new EntException(&quot;Error creating backup&quot;, t);</span>
+        } finally {
+            try {
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (res != null) {</span>
+<span class="nc" id="L181">                    res.close();</span>
+                }
+<span class="nc" id="L183">            } catch (Throwable t) {</span>
+<span class="nc" id="L184">                _logger.error(&quot;Error while closing the resultset&quot;, t);</span>
+<span class="nc" id="L185">            }</span>
+            try {
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                if (stat != null) {</span>
+<span class="nc" id="L188">                    stat.close();</span>
+                }
+<span class="nc" id="L190">            } catch (Throwable t) {</span>
+<span class="nc" id="L191">                _logger.error(&quot;Error while closing the statement&quot;, t);</span>
+<span class="nc" id="L192">            }</span>
+            try {
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                if (conn != null) {</span>
+<span class="nc" id="L195">                    conn.close();</span>
+                }
+<span class="nc" id="L197">            } catch (Throwable t) {</span>
+<span class="nc" id="L198">                _logger.error(&quot;Error closing the connection&quot;, t);</span>
+<span class="nc" id="L199">            }</span>
+        }
+<span class="nc" id="L201">        long time = System.currentTimeMillis() - start;</span>
+<span class="nc" id="L202">        report.setRequiredTime(time);</span>
+<span class="nc" id="L203">        return report;</span>
+    }
+    
+    private static Object getColumnValue(ResultSet res, int columnIndex, int[] columnTypes) throws SQLException {
+<span class="nc" id="L207">        int type = columnTypes[columnIndex];</span>
+<span class="nc" id="L208">        int resIndex = columnIndex + 1;</span>
+<span class="nc bnc" id="L209" title="All 21 branches missed.">        switch (type) {</span>
+            //case Types.ARRAY:
+            //	return ....;
+            case Types.BIGINT:
+<span class="nc" id="L213">                Object bigintObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">                if (null != bigintObject) {</span>
+<span class="nc" id="L215">                    return (Integer) bigintObject;</span>
+                } else {
+<span class="nc" id="L217">                    return null;</span>
+                }
+            //case Types.BINARY:
+            //	return ....;
+            case Types.BIT:
+<span class="nc" id="L222">                return (int) res.getByte(resIndex);</span>
+            case Types.BLOB:
+<span class="nc" id="L224">                return res.getBlob(resIndex);</span>
+            case Types.BOOLEAN:
+<span class="nc" id="L226">                Boolean bool = res.getBoolean(resIndex);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                if (null == bool) {</span>
+<span class="nc" id="L228">                    return null;</span>
+                }
+<span class="nc bnc" id="L230" title="All 2 branches missed.">                return (bool) ? 1 : 0;</span>
+            case Types.CHAR:
+<span class="nc" id="L232">                return res.getString(resIndex);</span>
+            case Types.CLOB:
+<span class="nc" id="L234">                Clob clob = res.getClob(resIndex);</span>
+<span class="nc" id="L235">                return getClobAsString(clob);</span>
+            //case Types.DATALINK:
+            //	return ....;
+            case Types.DATE:
+<span class="nc" id="L239">                Date date = res.getDate(resIndex);</span>
+<span class="nc" id="L240">                return getDateAsString(date);</span>
+            case Types.DECIMAL:
+<span class="nc" id="L242">                return res.getBigDecimal(resIndex);</span>
+            //case Types.DISTINCT:
+            //	return ....;
+            case Types.DOUBLE:
+<span class="nc" id="L246">                Object doubleObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                if (null != doubleObject) {</span>
+<span class="nc" id="L248">                    return (Double) doubleObject;</span>
+                } else {
+<span class="nc" id="L250">                    return null;</span>
+                }
+            case Types.FLOAT:
+<span class="nc" id="L253">                Object floatObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                if (null != floatObject) {</span>
+<span class="nc" id="L255">                    return (Float) floatObject;</span>
+                } else {
+<span class="nc" id="L257">                    return null;</span>
+                }
+            case Types.INTEGER:
+<span class="nc" id="L260">                Object intObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                if (null != intObject) {</span>
+<span class="nc" id="L262">                    return (Integer) intObject;</span>
+                } else {
+<span class="nc" id="L264">                    return null;</span>
+                }
+            //case Types.JAVA_OBJECT:
+            //	return ....;
+            case Types.LONGNVARCHAR:
+<span class="nc" id="L269">                return res.getString(resIndex);</span>
+            //case Types.LONGVARBINARY:
+            //	return ....;
+            case Types.LONGVARCHAR:
+<span class="nc" id="L273">                return res.getString(resIndex);</span>
+            //case Types.NCHAR:
+            //	return ....;
+            case Types.NCLOB:
+<span class="nc" id="L277">                return res.getString(resIndex);</span>
+            //case Types.NULL:
+            //	return ....;
+            //case Types.NUMERIC:
+            //	return ....;
+            case Types.NVARCHAR:
+<span class="nc" id="L283">                return res.getString(resIndex);</span>
+            //case Types.OTHER:
+            //	return ....;
+            //case Types.REAL:
+            //	return ....;
+            //case Types.REF:
+            //	return ....;
+            //case Types.ROWID:
+            //	return ....;
+            case Types.SMALLINT:
+<span class="nc" id="L293">                Object shortObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">                if (null != shortObject) {</span>
+<span class="nc" id="L295">                    return (Integer) shortObject;</span>
+                } else {
+<span class="nc" id="L297">                    return null;</span>
+                }
+            //case Types.SQLXML:
+            //	return ....;
+            //case Types.STRUCT:
+            //	return ....;
+            case Types.TIME:
+<span class="nc" id="L304">                Time time = res.getTime(resIndex);</span>
+<span class="nc" id="L305">                return getTimeAsString(time);</span>
+            case Types.TIMESTAMP:
+<span class="nc" id="L307">                Timestamp timestamp = res.getTimestamp(resIndex);</span>
+<span class="nc" id="L308">                return getTimestampAsString(timestamp);</span>
+            case Types.TINYINT:
+<span class="nc" id="L310">                Object tinyintObject = res.getObject(resIndex);</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">                if (null != tinyintObject) {</span>
+<span class="nc" id="L312">                    return (Integer) tinyintObject;</span>
+                } else {
+<span class="nc" id="L314">                    return null;</span>
+                }
+            //case Types.VARBINARY:
+            //	return ....;
+            case Types.VARCHAR:
+<span class="nc" id="L319">                return res.getString(resIndex);</span>
+            default:
+<span class="nc" id="L321">                return res.getObject(resIndex);</span>
+        }
+        //return null;
+    }
+    
+    protected static String getClobAsString(Clob clob) {
+<span class="nc bnc" id="L327" title="All 2 branches missed.">        if (null == clob) {</span>
+<span class="nc" id="L328">            return null;</span>
+        }
+<span class="nc" id="L330">        StringBuilder strOut = new StringBuilder();</span>
+        try {
+            String aux;
+<span class="nc" id="L333">            BufferedReader br = new BufferedReader(clob.getCharacterStream());</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">            while ((aux = br.readLine()) != null) {</span>
+<span class="nc" id="L335">                strOut.append(aux).append(System.lineSeparator());</span>
+            }
+<span class="nc" id="L337">        } catch (Throwable t) {</span>
+<span class="nc" id="L338">            _logger.error(&quot;Error extracting clob value&quot;, t);</span>
+<span class="nc" id="L339">        }</span>
+<span class="nc" id="L340">        return strOut.toString().trim();</span>
+    }
+    
+    private static String getDateAsString(Date date) {
+<span class="nc bnc" id="L344" title="All 2 branches missed.">        if (null == date) {</span>
+<span class="nc" id="L345">            return null;</span>
+        }
+<span class="nc" id="L347">        return DateConverter.getFormattedDate(date, &quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+    }
+    
+    private static String getTimeAsString(Time time) {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        if (null == time) {</span>
+<span class="nc" id="L352">            return null;</span>
+        }
+<span class="nc" id="L354">        Date date = new Date(time.getTime());</span>
+<span class="nc" id="L355">        return getDateAsString(date);</span>
+    }
+    
+    private static String getTimestampAsString(Timestamp time) {
+<span class="nc bnc" id="L359" title="All 2 branches missed.">        if (null == time) {</span>
+<span class="nc" id="L360">            return null;</span>
+        }
+<span class="nc" id="L362">        Date date = new Date(time.getTime());</span>
+<span class="nc" id="L363">        return getDateAsString(date);</span>
+    }
+    
+    private static boolean isDataNeedsQuotes(int type) {
+<span class="nc bnc" id="L367" title="All 12 branches missed.">        switch (type) {</span>
+            case Types.BIGINT:
+<span class="nc" id="L369">                return false;</span>
+            case Types.BIT:
+<span class="nc" id="L371">                return false;</span>
+            case Types.BOOLEAN:
+<span class="nc" id="L373">                return false;</span>
+            case Types.DECIMAL:
+<span class="nc" id="L375">                return false;</span>
+            case Types.DOUBLE:
+<span class="nc" id="L377">                return false;</span>
+            case Types.FLOAT:
+<span class="nc" id="L379">                return false;</span>
+            case Types.INTEGER:
+<span class="nc" id="L381">                return false;</span>
+            case Types.NUMERIC:
+<span class="nc" id="L383">                return false;</span>
+            case Types.REAL:
+<span class="nc" id="L385">                return false;</span>
+            case Types.SMALLINT:
+<span class="nc" id="L387">                return false;</span>
+            case Types.TINYINT:
+<span class="nc" id="L389">                return false;</span>
+            default:
+<span class="nc" id="L391">                return true;</span>
+        }
+    }
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
