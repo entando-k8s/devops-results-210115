@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApsEntityDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.common.entity.parse</a> &gt; <span class="el_source">ApsEntityDOM.java</span></div><h1>ApsEntityDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.common.entity.parse;
+
+import java.io.Serializable;
+
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.output.XMLOutputter;
+
+import com.agiletec.aps.system.common.entity.ApsEntityManager;
+
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * This class generates the XML of the single entity, and it is used by all those managers that manages
+ * ApsEntity elements.
+ * This class is used by the managers that manage the ApsEntities; it is utilized by default in the 
+ * Spring definition of the abstract service {@link ApsEntityManager}; this definition can be substituted
+ * in the declaration of those services that, extending the 'ApsEntityManager'use a custom DOM class to
+ * build the XML code that maps the structure of a new Entity Type. Such Entity Type must implement the 
+ * 'IApsEntity' interface.
+ * @author M.Morini - S.Didaci - E.Santoboni
+ */
+<span class="fc" id="L37">public class ApsEntityDOM implements IApsEntityDOM, Serializable {</span>
+	
+<span class="fc" id="L39">	private static final EntLogger _logger =  EntLogFactory.getSanitizedLogger(ApsEntityDOM.class);</span>
+	
+	@Override
+	public ApsEntityDOM clone() {
+<span class="fc" id="L43">		ApsEntityDOM copy = null;</span>
+		try {
+<span class="fc" id="L45">			copy = this.getClass().newInstance();</span>
+<span class="fc" id="L46">			this.copyInto(copy);</span>
+<span class="nc" id="L47">		} catch (InstantiationException | IllegalAccessException t) {</span>
+<span class="nc" id="L48">			_logger.error(&quot;Error cloning {}&quot; + this.getClass(), t);</span>
+<span class="nc" id="L49">			throw new RuntimeException(&quot;Error cloning &quot; + this.getClass(), t);</span>
+<span class="fc" id="L50">		}</span>
+<span class="fc" id="L51">		return copy;</span>
+	}
+	
+	protected void copyInto(IApsEntityDOM copy) {
+<span class="fc" id="L55">		copy.setRootElementName(this._rootElementName);</span>
+<span class="fc" id="L56">	}</span>
+	
+	/**
+	 * DOM initialization;
+	 * this method must be invoked when starting to populate the fields.
+	 */
+	@Override
+	public void init() {
+<span class="fc" id="L64">		this.buildDOM();</span>
+<span class="fc" id="L65">	}</span>
+	
+	@Override
+	public void dispose() {
+<span class="fc" id="L69">		this._doc = null;</span>
+<span class="fc" id="L70">		this._root = null;</span>
+<span class="fc" id="L71">	}</span>
+	
+	/**
+	 * Assign the ID string to the entity.
+	 * @param id The entity ID
+	 */
+	@Override
+	public void setId(String id) {
+<span class="fc" id="L79">		this._root.setAttribute(&quot;id&quot;, id);</span>
+<span class="fc" id="L80">	}</span>
+	
+	/**
+	 * Set up the Entity Type code
+	 * @param typeCode The entity Type code.
+	 */
+	@Override
+	public void setTypeCode(String typeCode) {
+<span class="fc" id="L88">		this._root.setAttribute(&quot;typecode&quot;, typeCode);</span>
+<span class="fc" id="L89">	}</span>
+	
+	/**
+	 * Assign the given description to the Entity Type.
+	 * @param typeDescription The Entity Type description to associate.
+	 */
+	@Override
+	public void setTypeDescription(String typeDescription) {
+<span class="fc" id="L97">		this._root.setAttribute(&quot;typedescr&quot;, typeDescription);</span>
+<span class="fc" id="L98">	}</span>
+	@Override
+	@Deprecated
+	public void setTypeDescr(String typeDescr) {
+<span class="nc" id="L102">		this.setTypeDescription(typeDescr);</span>
+<span class="nc" id="L103">	}</span>
+	
+	/**
+	 * Assign the given description to the entity.
+	 * @param description The entity description.
+	 */
+	@Override
+	public void setDescription(String description) {
+<span class="fc" id="L111">		this._root.getChild(TAG_DESCR).setText(description);</span>
+<span class="fc" id="L112">	}</span>
+	@Override
+	@Deprecated
+	public void setDescr(String description) {
+<span class="nc" id="L116">		this.setDescription(description);</span>
+<span class="nc" id="L117">	}</span>
+	
+	/**
+	 * Assign the main group this entity belongs to.
+	 * @param group The main group.
+	 */
+	@Override
+	public void setMainGroup(String group){
+<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (group != null) {</span>
+<span class="fc" id="L126">			this._root.getChild(TAG_GROUPS).setAttribute(&quot;mainGroup&quot;, group);</span>
+		}
+<span class="fc" id="L128">	}</span>
+	
+	/**
+	 * Add the code of a group authorized to visualize the entity.
+	 * @param groupName The group to add.
+	 */
+	@Override
+	public void addGroup(String groupName) {
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">		if (null != groupName) {</span>
+<span class="fc" id="L137">			Element groupTag = new Element(&quot;group&quot;);</span>
+<span class="fc" id="L138">			groupTag.setAttribute(&quot;name&quot;, groupName);</span>
+<span class="fc" id="L139">			this._root.getChild(TAG_GROUPS).addContent(groupTag);</span>
+		}
+<span class="fc" id="L141">	}</span>
+	
+	/**
+	 * Add, setting its value, a new element to the categories tag.
+	 * @param categoryCode The value of the category tag.
+	 */
+	@Override
+	public void addCategory(String categoryCode) {
+<span class="fc" id="L149">		Element tag = new Element(&quot;category&quot;);</span>
+<span class="fc" id="L150">		tag.setAttribute(&quot;id&quot;, categoryCode);</span>
+<span class="fc" id="L151">		_root.getChild(TAG_CATEGORIES).addContent(tag);</span>
+<span class="fc" id="L152">	}</span>
+	
+	/**
+	 * Add a new attribute to a tag.
+	 * @param attributeElem The element, which corresponds to an attribute, 
+	 * to add to the entity XML structure.
+	 */
+	@Override
+	public void addAttribute(Element attributeElem) {
+<span class="fc" id="L161">		this._root.getChild(TAG_ATTRIBUTES).addContent(attributeElem);</span>
+<span class="fc" id="L162">	}</span>
+
+	private void buildDOM() {
+<span class="fc" id="L165">		this._doc = new Document();</span>
+<span class="fc" id="L166">		this._root = new Element(this._rootElementName);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		for (int i = 0; i &lt; TAGS.length; i++) {</span>
+<span class="fc" id="L168">			Element tag = new Element(TAGS[i]);</span>
+<span class="fc" id="L169">			_root.addContent(tag);</span>
+		}
+<span class="fc" id="L171">		_doc.setRootElement(_root);</span>
+<span class="fc" id="L172">	}</span>
+
+	/**
+	 * Return the XML structure of the entity.
+	 * @return String The XML structure of the entity.
+	 */
+	@Override
+	public String getXMLDocument(){
+<span class="fc" id="L180">		XMLOutputter out = new XMLOutputter();</span>
+<span class="fc" id="L181">		String xml = out.outputString(_doc);</span>
+<span class="fc" id="L182">		return xml;</span>
+	}
+
+	@Override
+	public void setRootElementName(String rootElementName) {
+<span class="fc" id="L187">		this._rootElementName = rootElementName;</span>
+<span class="fc" id="L188">	}</span>
+
+	/**
+	 * The JDOM document of the entity.
+	 */
+	protected Document _doc;
+
+	/**
+	 * The root of the JDOM document.
+	 */
+	protected Element _root;
+
+	private final static String TAG_DESCR = &quot;descr&quot;;
+	private final static String TAG_GROUPS = &quot;groups&quot;;
+	private final static String TAG_CATEGORIES = &quot;categories&quot;;
+	private final static String TAG_ATTRIBUTES = &quot;attributes&quot;;
+<span class="fc" id="L204">	private final static String[] TAGS = {TAG_DESCR, TAG_GROUPS, TAG_CATEGORIES, TAG_ATTRIBUTES};</span>
+
+	private String _rootElementName;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

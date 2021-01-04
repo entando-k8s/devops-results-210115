@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WidgetService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.widgettype</a> &gt; <span class="el_source">WidgetService.java</span></div><h1>WidgetService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.widgettype;
+
+import com.agiletec.aps.system.common.IManager;
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.system.services.group.GroupUtilizer;
+import com.agiletec.aps.system.services.group.IGroupManager;
+import com.agiletec.aps.system.services.page.IPage;
+import com.agiletec.aps.system.services.page.IPageManager;
+import com.agiletec.aps.system.services.page.Widget;
+import com.agiletec.aps.util.ApsProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.IDtoBuilder;
+import org.entando.entando.aps.system.services.group.GroupServiceUtilizer;
+import org.entando.entando.aps.system.services.guifragment.GuiFragment;
+import org.entando.entando.aps.system.services.guifragment.IGuiFragmentManager;
+import org.entando.entando.aps.system.services.page.IPageService;
+import org.entando.entando.aps.system.services.security.NonceInjector;
+import org.entando.entando.aps.system.services.widgettype.model.WidgetDetails;
+import org.entando.entando.aps.system.services.widgettype.model.WidgetDto;
+import org.entando.entando.aps.system.services.widgettype.model.WidgetInfoDto;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.web.common.assembler.PagedMetadataMapper;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.component.ComponentUsageEntity;
+import org.entando.entando.web.widget.model.WidgetRequest;
+import org.entando.entando.web.widget.validator.WidgetValidator;
+import org.springframework.stereotype.Service;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.web.context.ServletContextAware;
+
+import javax.servlet.ServletContext;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+<span class="fc" id="L58">public class WidgetService implements IWidgetService, GroupServiceUtilizer&lt;WidgetDto&gt;, ServletContextAware {</span>
+
+<span class="fc" id="L60">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private IWidgetTypeManager widgetManager;
+
+    private IPageManager pageManager;
+
+    private IGuiFragmentManager guiFragmentManager;
+
+    private IGroupManager groupManager;
+
+    private IDtoBuilder&lt;WidgetType, WidgetDto&gt; dtoBuilder;
+
+    private ServletContext srvCtx;
+    
+<span class="fc" id="L74">    private ObjectMapper objectMapper = new ObjectMapper();</span>
+
+    private PagedMetadataMapper pagedMetadataMapper;
+
+    protected IWidgetTypeManager getWidgetManager() {
+<span class="fc" id="L79">        return widgetManager;</span>
+    }
+
+    public void setWidgetManager(IWidgetTypeManager widgetManager) {
+<span class="fc" id="L83">        this.widgetManager = widgetManager;</span>
+<span class="fc" id="L84">    }</span>
+
+    protected IPageManager getPageManager() {
+<span class="fc" id="L87">        return pageManager;</span>
+    }
+
+    public void setPageManager(IPageManager pageManager) {
+<span class="fc" id="L91">        this.pageManager = pageManager;</span>
+<span class="fc" id="L92">    }</span>
+
+    protected IGroupManager getGroupManager() {
+<span class="fc" id="L95">        return groupManager;</span>
+    }
+
+    public void setGroupManager(IGroupManager groupManager) {
+<span class="fc" id="L99">        this.groupManager = groupManager;</span>
+<span class="fc" id="L100">    }</span>
+
+    protected IGuiFragmentManager getGuiFragmentManager() {
+<span class="fc" id="L103">        return guiFragmentManager;</span>
+    }
+
+    public void setGuiFragmentManager(IGuiFragmentManager guiFragmentManager) {
+<span class="fc" id="L107">        this.guiFragmentManager = guiFragmentManager;</span>
+<span class="fc" id="L108">    }</span>
+
+    protected IDtoBuilder&lt;WidgetType, WidgetDto&gt; getDtoBuilder() {
+<span class="fc" id="L111">        return dtoBuilder;</span>
+    }
+
+    public void setDtoBuilder(IDtoBuilder&lt;WidgetType, WidgetDto&gt; dtoBuilder) {
+<span class="fc" id="L115">        this.dtoBuilder = dtoBuilder;</span>
+<span class="fc" id="L116">    }</span>
+
+    public PagedMetadataMapper getPagedMetadataMapper() {
+<span class="nc" id="L119">        return pagedMetadataMapper;</span>
+    }
+
+    public void setPagedMetadataMapper(PagedMetadataMapper pagedMetadataMapper) {
+<span class="fc" id="L123">        this.pagedMetadataMapper = pagedMetadataMapper;</span>
+<span class="fc" id="L124">    }</span>
+
+    @Override
+    public PagedMetadata&lt;WidgetDto&gt; getWidgets(RestListRequest restListReq) {
+        try {
+<span class="fc" id="L129">            List&lt;WidgetType&gt; types = this.getWidgetManager().getWidgetTypes();</span>
+<span class="fc" id="L130">            List&lt;WidgetDto&gt; dtoList = dtoBuilder.convert(types);</span>
+<span class="fc" id="L131">            List&lt;WidgetDto&gt; resultList = new WidgetTypeListProcessor(restListReq, dtoList).filterAndSort().toList();</span>
+<span class="fc" id="L132">            List&lt;WidgetDto&gt; sublist = restListReq.getSublist(resultList);</span>
+<span class="fc" id="L133">            SearcherDaoPaginatedResult&lt;WidgetDto&gt; paginatedResult = new SearcherDaoPaginatedResult&lt;&gt;(resultList.size(), sublist);</span>
+<span class="fc" id="L134">            PagedMetadata&lt;WidgetDto&gt; pagedMetadata = new PagedMetadata&lt;&gt;(restListReq, paginatedResult);</span>
+<span class="fc" id="L135">            pagedMetadata.setBody(sublist);</span>
+<span class="fc" id="L136">            return pagedMetadata;</span>
+<span class="nc" id="L137">        } catch (Throwable t) {</span>
+<span class="nc" id="L138">            logger.error(&quot;error in get widgets&quot;, t);</span>
+<span class="nc" id="L139">            throw new RestServerError(&quot;error in get widgets&quot;, t);</span>
+        }
+    }
+
+    @Override
+    public WidgetDto getWidget(String widgetCode) {
+<span class="fc" id="L145">        WidgetType widgetType = this.getWidgetManager().getWidgetType(widgetCode);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">        if (null == widgetType) {</span>
+<span class="fc" id="L147">            logger.warn(&quot;no widget type found with code {}&quot;, widgetCode);</span>
+<span class="fc" id="L148">            throw new ResourceNotFoundException(WidgetValidator.ERRCODE_WIDGET_NOT_FOUND, &quot;widget type&quot;, widgetCode);</span>
+        }
+<span class="fc" id="L150">        WidgetDto widgetDto = dtoBuilder.convert(widgetType);</span>
+        try {
+<span class="fc" id="L152">            this.addFragments(widgetDto);</span>
+<span class="nc" id="L153">        } catch (Exception e) {</span>
+<span class="nc" id="L154">            logger.error(&quot;Failed to fetch gui fragment for widget type code &quot;, e);</span>
+<span class="fc" id="L155">        }</span>
+<span class="fc" id="L156">        return widgetDto;</span>
+    }
+
+    @Override
+    public boolean exists(String code) {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        return this.getWidgetManager().getWidgetType(code) != null;</span>
+    }
+
+    @Override
+    public WidgetInfoDto getWidgetInfo(String widgetCode) {
+        try {
+<span class="fc" id="L167">            List&lt;IPage&gt; publishedUtilizer = this.getPageManager().getOnlineWidgetUtilizers(widgetCode);</span>
+<span class="fc" id="L168">            List&lt;IPage&gt; draftUtilizer = this.getPageManager().getDraftWidgetUtilizers(widgetCode);</span>
+<span class="fc" id="L169">            WidgetType type = this.getWidgetManager().getWidgetType(widgetCode);</span>
+<span class="fc" id="L170">            WidgetInfoDto info = new WidgetInfoDto();</span>
+<span class="fc" id="L171">            info.setCode(widgetCode);</span>
+<span class="fc" id="L172">            info.setTitles(type.getTitles());</span>
+<span class="fc" id="L173">            publishedUtilizer.stream().forEach(page -&gt; info.addPublishedUtilizer(getWidgetDetails(page, widgetCode)));</span>
+<span class="fc" id="L174">            draftUtilizer.stream().forEach(page -&gt; info.addDraftUtilizer(getWidgetDetails(page, widgetCode)));</span>
+<span class="fc" id="L175">            return info;</span>
+<span class="nc" id="L176">        } catch (EntException e) {</span>
+<span class="nc" id="L177">            logger.error(&quot;Failed to load widget info for widgetCode {} &quot;, widgetCode);</span>
+<span class="nc" id="L178">            throw new RestServerError(&quot;error in loading widget info&quot;, e);</span>
+        }
+    }
+
+    private WidgetDetails getWidgetDetails(IPage page, String widgetCode) {
+<span class="fc" id="L183">        List&lt;Widget&gt; list = Arrays.asList(page.getWidgets());</span>
+<span class="fc bfc" id="L184" title="All 4 branches covered.">        int index = list.indexOf(list.stream().filter(widget -&gt; widget != null &amp;&amp; widget.getType().getCode().equals(widgetCode)).findFirst().get());</span>
+<span class="fc" id="L185">        WidgetDetails details = new WidgetDetails();</span>
+<span class="fc" id="L186">        details.setFrameIndex(index);</span>
+<span class="fc" id="L187">        details.setFrame(page.getModel().getFrames()[index]);</span>
+<span class="fc" id="L188">        details.setPageCode(page.getCode());</span>
+<span class="fc" id="L189">        details.setPageFullPath(page.getPath(this.getPageManager()));</span>
+<span class="fc" id="L190">        return details;</span>
+    }
+
+    @Override
+    public WidgetDto addWidget(WidgetRequest widgetRequest) {
+<span class="fc" id="L195">        WidgetType widgetType = new WidgetType();</span>
+<span class="fc" id="L196">        this.processWidgetType(widgetType, widgetRequest);</span>
+<span class="fc" id="L197">        WidgetType oldWidgetType = this.getWidgetManager().getWidgetType(widgetType.getCode());</span>
+<span class="fc" id="L198">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(widgetType, &quot;widget&quot;);</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">        if (null != oldWidgetType) {</span>
+<span class="nc" id="L200">            bindingResult.reject(WidgetValidator.ERRCODE_WIDGET_ALREADY_EXISTS, new String[]{widgetType.getCode()}, &quot;widgettype.exists&quot;);</span>
+<span class="nc" id="L201">            throw new ValidationGenericException(bindingResult);</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        } else if (null == this.getGroupManager().getGroup(widgetRequest.getGroup())) {</span>
+<span class="nc" id="L203">            bindingResult.reject(WidgetValidator.ERRCODE_WIDGET_GROUP_INVALID, new String[]{widgetRequest.getGroup()}, &quot;widgettype.group.invalid&quot;);</span>
+<span class="nc" id="L204">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        try {
+<span class="fc" id="L207">            this.getWidgetManager().addWidgetType(widgetType);</span>
+<span class="fc" id="L208">            String customUi = NonceInjector.process(widgetRequest.getCustomUi());</span>
+<span class="pc bpc" id="L209" title="1 of 4 branches missed.">            if (StringUtils.isEmpty(customUi) &amp;&amp; widgetType.getParentType() != null) {</span>
+<span class="fc" id="L210">                GuiFragment guiFragment = this.getGuiFragmentManager().getUniqueGuiFragmentByWidgetType(widgetType.getParentTypeCode());</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">                if (guiFragment != null) {</span>
+<span class="fc" id="L212">                    customUi = guiFragment.getCurrentGui();</span>
+                }
+            }
+<span class="fc" id="L215">            this.createAndAddFragment(widgetType, customUi);</span>
+<span class="fc" id="L216">            WidgetDto widgetDto = this.dtoBuilder.convert(widgetType);</span>
+<span class="fc" id="L217">            this.addFragments(widgetDto);</span>
+<span class="fc" id="L218">            return widgetDto;</span>
+<span class="nc" id="L219">        } catch (Exception e) {</span>
+<span class="nc" id="L220">            logger.error(&quot;Failed to add widget type for request {} &quot;, widgetRequest, e);</span>
+<span class="nc" id="L221">            throw new RestServerError(&quot;error in add widget&quot;, e);</span>
+        }
+    }
+
+    @Override
+    public WidgetDto updateWidget(String widgetCode, WidgetRequest widgetRequest) {
+<span class="fc" id="L227">        WidgetType type = this.getWidgetManager().getWidgetType(widgetCode);</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">        if (type == null) {</span>
+<span class="nc" id="L229">            throw new ResourceNotFoundException(WidgetValidator.ERRCODE_WIDGET_DOES_NOT_EXISTS, &quot;widget&quot;, widgetCode);</span>
+        }
+        WidgetDto widgetDto;
+        try {
+<span class="fc bfc" id="L233" title="All 2 branches covered.">            if (null == this.getGroupManager().getGroup(widgetRequest.getGroup())) {</span>
+<span class="fc" id="L234">                BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(type, &quot;widget&quot;);</span>
+<span class="fc" id="L235">                bindingResult.reject(WidgetValidator.ERRCODE_WIDGET_GROUP_INVALID, new String[]{widgetRequest.getGroup()}, &quot;widgettype.group.invalid&quot;);</span>
+<span class="fc" id="L236">                throw new ValidationGenericException(bindingResult);</span>
+            }
+
+<span class="fc" id="L239">            this.processWidgetType(type, widgetRequest);</span>
+
+<span class="fc" id="L241">            String customUi = NonceInjector.process(widgetRequest.getCustomUi());</span>
+<span class="pc bpc" id="L242" title="1 of 4 branches missed.">            if (StringUtils.isEmpty(customUi) &amp;&amp; type.getParentType() != null) {</span>
+<span class="nc" id="L243">                GuiFragment guiFragment = this.getGuiFragmentManager().getUniqueGuiFragmentByWidgetType(type.getParentTypeCode());</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                if (guiFragment != null) {</span>
+<span class="nc" id="L245">                    customUi = guiFragment.getCurrentGui();</span>
+                }
+            }
+
+<span class="fc bfc" id="L249" title="All 2 branches covered.">            if (type.isUserType()</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">                    &amp;&amp; StringUtils.isBlank(customUi)</span>
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">                    &amp;&amp; !WidgetType.existsJsp(this.srvCtx, widgetCode, widgetCode)) {</span>
+<span class="fc" id="L252">                BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(type, &quot;widget&quot;);</span>
+<span class="fc" id="L253">                bindingResult.reject(WidgetValidator.ERRCODE_NOT_BLANK, new String[]{type.getCode()}, &quot;widgettype.customUi.notBlank&quot;);</span>
+<span class="fc" id="L254">                throw new ValidationGenericException(bindingResult);</span>
+            }
+
+<span class="fc" id="L257">            widgetDto = dtoBuilder.convert(type);</span>
+<span class="fc" id="L258">            this.getWidgetManager().updateWidgetType(widgetCode, type.getTitles(), type.getConfig(), type.getMainGroup(),</span>
+<span class="fc" id="L259">                    type.getConfigUi(), type.getBundleId(), type.isReadonlyPageWidgetConfig(), type.getWidgetCategory());</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">            if (!StringUtils.isEmpty(widgetCode)) {</span>
+<span class="fc" id="L261">                GuiFragment guiFragment = this.getGuiFragmentManager().getUniqueGuiFragmentByWidgetType(widgetCode);</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">                if (null == guiFragment) {</span>
+<span class="fc" id="L263">                    this.createAndAddFragment(type, customUi);</span>
+                } else {
+<span class="fc" id="L265">                    guiFragment.setGui(customUi);</span>
+<span class="fc" id="L266">                    this.getGuiFragmentManager().updateGuiFragment(guiFragment);</span>
+                }
+            }
+<span class="fc" id="L269">            this.addFragments(widgetDto);</span>
+<span class="fc" id="L270">        } catch (ValidationGenericException vge) {</span>
+<span class="fc" id="L271">            logger.error(&quot;Found an error on validation, throwing original exception&quot;, vge);</span>
+<span class="fc" id="L272">            throw vge;</span>
+<span class="nc" id="L273">        } catch (Throwable e) {</span>
+<span class="nc" id="L274">            logger.error(&quot;failed to update widget type&quot;, e);</span>
+<span class="nc" id="L275">            throw new RestServerError(&quot;Failed to update widget&quot;, e);</span>
+<span class="fc" id="L276">        }</span>
+<span class="fc" id="L277">        return widgetDto;</span>
+    }
+
+    @Override
+    public void removeWidget(String widgetCode) {
+        try {
+<span class="fc" id="L283">            WidgetType type = this.getWidgetManager().getWidgetType(widgetCode);</span>
+<span class="fc" id="L284">            BeanPropertyBindingResult validationResult = checkWidgetForDelete(type);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            if (validationResult.hasErrors()) {</span>
+<span class="fc" id="L286">                throw new ValidationGenericException(validationResult);</span>
+            }
+<span class="fc" id="L288">            List&lt;String&gt; fragmentCodes = this.getGuiFragmentManager().getGuiFragmentCodesByWidgetType(widgetCode);</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">            for (String fragmentCode : fragmentCodes) {</span>
+<span class="fc" id="L290">                this.getGuiFragmentManager().deleteGuiFragment(fragmentCode);</span>
+<span class="fc" id="L291">            }</span>
+<span class="fc" id="L292">            this.getWidgetManager().deleteWidgetType(widgetCode);</span>
+<span class="nc" id="L293">        } catch (EntException e) {</span>
+<span class="nc" id="L294">            logger.error(&quot;Failed to remove widget type for request {} &quot;, widgetCode);</span>
+<span class="nc" id="L295">            throw new RestServerError(&quot;failed to update widget type by code &quot;, e);</span>
+<span class="fc" id="L296">        }</span>
+<span class="fc" id="L297">    }</span>
+
+    @Override
+    public String getManagerName() {
+<span class="fc" id="L301">        return ((IManager) this.getWidgetManager()).getName();</span>
+    }
+
+    @Override
+    public List&lt;WidgetDto&gt; getGroupUtilizer(String groupCode) {
+        try {
+<span class="fc" id="L307">            List&lt;WidgetType&gt; list = ((GroupUtilizer&lt;WidgetType&gt;) this.getWidgetManager()).getGroupUtilizers(groupCode);</span>
+<span class="fc" id="L308">            return this.getDtoBuilder().convert(list);</span>
+<span class="nc" id="L309">        } catch (EntException ex) {</span>
+<span class="nc" id="L310">            logger.error(&quot;Error loading WidgetType references for group {}&quot;, groupCode, ex);</span>
+<span class="nc" id="L311">            throw new RestServerError(&quot;Error loading WidgetType references for group&quot;, ex);</span>
+        }
+    }
+
+
+    @Override
+    public Integer getComponentUsage(String componentCode) {
+        try {
+<span class="fc" id="L319">            return this.getWidget(componentCode).getUsed();</span>
+<span class="fc" id="L320">        } catch (ResourceNotFoundException e) {</span>
+<span class="fc" id="L321">            return 0;</span>
+        }
+    }
+
+
+    @Override
+    public PagedMetadata&lt;ComponentUsageEntity&gt; getComponentUsageDetails(String componentCode, RestListRequest restListRequest) {
+
+<span class="fc" id="L329">        WidgetInfoDto widgetInfoDto = this.getWidgetInfo(componentCode);</span>
+
+<span class="fc" id="L331">        List&lt;ComponentUsageEntity&gt; totalReferenced = widgetInfoDto.getPublishedUtilizers().stream()</span>
+<span class="fc" id="L332">                .map(widgetDetail -&gt; new ComponentUsageEntity(ComponentUsageEntity.TYPE_PAGE, widgetDetail.getPageCode(), IPageService.STATUS_ONLINE))</span>
+<span class="fc" id="L333">                .collect(Collectors.toList());</span>
+<span class="fc" id="L334">        List&lt;ComponentUsageEntity&gt; draftReferenced = widgetInfoDto.getDraftUtilizers().stream()</span>
+<span class="fc" id="L335">                .map(widgetDetail -&gt; new ComponentUsageEntity(ComponentUsageEntity.TYPE_PAGE, widgetDetail.getPageCode(), IPageService.STATUS_DRAFT))</span>
+<span class="fc" id="L336">                .collect(Collectors.toList());</span>
+
+<span class="fc" id="L338">        totalReferenced.addAll(draftReferenced);</span>
+
+<span class="fc" id="L340">        return pagedMetadataMapper.getPagedResult(restListRequest, totalReferenced);</span>
+    }
+
+
+    protected String extractUniqueGuiFragmentCode(String widgetTypeCode) throws EntException {
+<span class="fc" id="L345">        String uniqueCode = widgetTypeCode;</span>
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">        if (null != this.getGuiFragmentManager().getGuiFragment(uniqueCode)) {</span>
+<span class="nc" id="L347">            int index = 0;</span>
+<span class="nc" id="L348">            String currentCode = null;</span>
+            do {
+<span class="nc" id="L350">                index++;</span>
+<span class="nc" id="L351">                currentCode = uniqueCode + &quot;_&quot; + index;</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">            } while (null != this.getGuiFragmentManager().getGuiFragment(currentCode));</span>
+<span class="nc" id="L353">            uniqueCode = currentCode;</span>
+        }
+<span class="fc" id="L355">        return uniqueCode;</span>
+    }
+
+    private void createAndAddFragment(WidgetType widgetType, String customUi) throws Exception {
+<span class="fc" id="L359">        GuiFragment guiFragment = new GuiFragment();</span>
+<span class="fc" id="L360">        String code = this.extractUniqueGuiFragmentCode(widgetType.getCode());</span>
+<span class="fc" id="L361">        guiFragment.setCode(code);</span>
+<span class="fc" id="L362">        guiFragment.setPluginCode(widgetType.getPluginCode());</span>
+<span class="fc" id="L363">        guiFragment.setGui(customUi);</span>
+<span class="fc" id="L364">        guiFragment.setWidgetTypeCode(widgetType.getCode());</span>
+<span class="fc" id="L365">        this.getGuiFragmentManager().addGuiFragment(guiFragment);</span>
+<span class="fc" id="L366">    }</span>
+
+    private void processWidgetType(WidgetType type, WidgetRequest widgetRequest) {
+<span class="fc" id="L369">        type.setCode(widgetRequest.getCode());</span>
+<span class="fc" id="L370">        ApsProperties titles = new ApsProperties();</span>
+<span class="fc" id="L371">        widgetRequest.getTitles().forEach(titles::put);</span>
+<span class="fc" id="L372">        type.setTitles(titles);</span>
+<span class="fc" id="L373">        type.setMainGroup(widgetRequest.getGroup());</span>
+<span class="fc" id="L374">        type.setBundleId(widgetRequest.getBundleId());</span>
+<span class="fc" id="L375">        type.setWidgetCategory(widgetRequest.getWidgetCategory());</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">        if (widgetRequest.isReadonlyPageWidgetConfig() != null) {</span>
+<span class="fc" id="L377">            type.setReadonlyPageWidgetConfig(widgetRequest.isReadonlyPageWidgetConfig());</span>
+        }
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        if (widgetRequest.getParentType() != null) {</span>
+<span class="fc" id="L380">            type.setParentType(widgetManager.getWidgetType(widgetRequest.getParentType()));</span>
+        }
+
+<span class="fc bfc" id="L383" title="All 4 branches covered.">        if ((widgetRequest.getConfig() != null) &amp;&amp; !type.isLocked()){</span>
+<span class="fc" id="L384">            type.setConfig(ApsProperties.fromMap(widgetRequest.getConfig()));</span>
+        }
+
+        try {
+<span class="fc bfc" id="L388" title="All 2 branches covered.">            if (widgetRequest.getConfigUi() != null) {</span>
+<span class="fc" id="L389">                type.setConfigUi(objectMapper.writeValueAsString(widgetRequest.getConfigUi()));</span>
+            } else {
+<span class="fc" id="L391">                type.setConfigUi(null);</span>
+            }
+<span class="nc" id="L393">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L394">            logger.error(&quot;Failed to parse configUi property for request {} &quot;, widgetRequest, e);</span>
+<span class="nc" id="L395">            throw new RestServerError(&quot;error in add widget&quot;, e);</span>
+<span class="fc" id="L396">        }</span>
+<span class="fc" id="L397">    }</span>
+
+    private void addFragments(WidgetDto widgetDto) throws Exception {
+<span class="fc" id="L400">        List&lt;String&gt; fragmentCodes = this.getGuiFragmentManager().getGuiFragmentCodesByWidgetType(widgetDto.getCode());</span>
+<span class="pc bpc" id="L401" title="1 of 2 branches missed.">        if (fragmentCodes != null) {</span>
+<span class="fc bfc" id="L402" title="All 2 branches covered.">            for (String fragmentCode : fragmentCodes) {</span>
+<span class="fc" id="L403">                GuiFragment fragment = this.getGuiFragmentManager().getGuiFragment(fragmentCode);</span>
+<span class="fc" id="L404">                widgetDto.addGuiFragmentRef(fragment.getCode(), fragment.getCurrentGui(), fragment.getDefaultGui());</span>
+<span class="fc" id="L405">            }</span>
+        }
+<span class="fc" id="L407">    }</span>
+
+    private BeanPropertyBindingResult checkWidgetForDelete(WidgetType widgetType) throws EntException {
+<span class="fc" id="L410">        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(widgetType, &quot;widget&quot;);</span>
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">        if (null == widgetType) {</span>
+<span class="nc" id="L412">            return bindingResult;</span>
+        }
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        if (widgetType.isLocked()) {</span>
+<span class="fc" id="L415">            bindingResult.reject(WidgetValidator.ERRCODE_OPERATION_FORBIDDEN_LOCKED, new String[]{widgetType.getCode()}, &quot;widgettype.delete.locked&quot;);</span>
+        }
+<span class="fc" id="L417">        List&lt;IPage&gt; onLinePages = this.getPageManager().getOnlineWidgetUtilizers(widgetType.getCode());</span>
+<span class="fc" id="L418">        List&lt;IPage&gt; draftPages = this.getPageManager().getDraftWidgetUtilizers(widgetType.getCode());</span>
+<span class="pc bpc" id="L419" title="3 of 8 branches missed.">        if ((null != onLinePages &amp;&amp; onLinePages.size() &gt; 0) || (null != draftPages &amp;&amp; draftPages.size() &gt; 0)) {</span>
+<span class="fc" id="L420">            bindingResult.reject(WidgetValidator.ERRCODE_CANNOT_DELETE_USED_PAGES, new String[]{widgetType.getCode()}, &quot;widgettype.delete.references.page&quot;);</span>
+        }
+<span class="fc" id="L422">        return bindingResult;</span>
+    }
+
+    @Override
+    public void setServletContext(ServletContext srvCtx) {
+<span class="fc" id="L427">        this.srvCtx = srvCtx;</span>
+<span class="fc" id="L428">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

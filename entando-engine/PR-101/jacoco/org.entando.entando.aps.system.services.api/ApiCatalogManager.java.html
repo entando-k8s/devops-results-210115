@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiCatalogManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.api</a> &gt; <span class="el_source">ApiCatalogManager.java</span></div><h1>ApiCatalogManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.api;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.entando.entando.aps.system.services.api.model.ApiMethod;
+import org.entando.entando.aps.system.services.api.model.ApiMethodRelatedWidget;
+import org.entando.entando.aps.system.services.api.model.ApiResource;
+import org.entando.entando.aps.system.services.api.model.ApiService;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.aps.system.services.api.cache.IApiResourceCacheWrapper;
+import org.entando.entando.aps.system.services.api.cache.IApiServiceCacheWrapper;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L37">public class ApiCatalogManager extends AbstractService implements IApiCatalogManager {</span>
+
+<span class="fc" id="L39">	private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+	public static final String DEFAULT_LOCATION_PATTERN = &quot;classpath*:/api/**/aps/apiMethods.xml&quot;;
+
+	private IApiServiceCacheWrapper serviceCacheWrapper;
+
+	private IApiResourceCacheWrapper resourceCacheWrapper;
+
+	private String locationPatterns;
+
+	private IApiCatalogDAO apiCatalogDAO;
+
+	protected IApiServiceCacheWrapper getServiceCacheWrapper() {
+<span class="fc" id="L52">		return serviceCacheWrapper;</span>
+	}
+
+	public void setServiceCacheWrapper(IApiServiceCacheWrapper cacheWrapper) {
+<span class="fc" id="L56">		this.serviceCacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L57">	}</span>
+
+	protected IApiResourceCacheWrapper getResourceCacheWrapper() {
+<span class="fc" id="L60">		return resourceCacheWrapper;</span>
+	}
+
+	public void setResourceCacheWrapper(IApiResourceCacheWrapper resourceCacheWrapper) {
+<span class="fc" id="L64">		this.resourceCacheWrapper = resourceCacheWrapper;</span>
+<span class="fc" id="L65">	}</span>
+
+	public void setLocationPatterns(String locationPatterns) {
+<span class="nc" id="L68">		this.locationPatterns = locationPatterns;</span>
+<span class="nc" id="L69">	}</span>
+
+	protected IApiCatalogDAO getApiCatalogDAO() {
+<span class="fc" id="L72">		return apiCatalogDAO;</span>
+	}
+
+	public void setApiCatalogDAO(IApiCatalogDAO apiCatalogDAO) {
+<span class="fc" id="L76">		this.apiCatalogDAO = apiCatalogDAO;</span>
+<span class="fc" id="L77">	}</span>
+
+	@Override
+	public void init() throws Exception {
+<span class="fc" id="L81">		ApiResourceLoader loader = new ApiResourceLoader(this.getLocationPatterns());</span>
+<span class="fc" id="L82">		Map&lt;String, ApiResource&gt; resources = loader.getResources();</span>
+<span class="fc" id="L83">		this.getResourceCacheWrapper().initCache(resources, this.getApiCatalogDAO());</span>
+<span class="fc" id="L84">		this.getServiceCacheWrapper().initCache(resources, this.getApiCatalogDAO());</span>
+<span class="fc" id="L85">		logger.debug(&quot;{} ready.&quot;, this.getClass().getName());</span>
+<span class="fc" id="L86">	}</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L90">        this.getServiceCacheWrapper().release();</span>
+<span class="fc" id="L91">        this.getResourceCacheWrapper().release();</span>
+<span class="fc" id="L92">        super.release();</span>
+<span class="fc" id="L93">    }</span>
+
+	@Override
+	public ApiMethod getRelatedMethod(String showletCode) throws EntException {
+<span class="nc" id="L97">		List&lt;ApiMethod&gt; masterMethods = this.getMasterMethods(ApiMethod.HttpMethod.GET);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">		for (int i = 0; i &lt; masterMethods.size(); i++) {</span>
+<span class="nc" id="L99">			ApiMethod apiMethod = masterMethods.get(i);</span>
+<span class="nc" id="L100">			ApiMethodRelatedWidget relatedWidget = apiMethod.getRelatedWidget();</span>
+<span class="nc bnc" id="L101" title="All 4 branches missed.">			if (null != relatedWidget &amp;&amp; relatedWidget.getWidgetCode().equals(showletCode)) {</span>
+<span class="nc" id="L102">				return apiMethod.clone();</span>
+			}
+		}
+<span class="nc" id="L105">		return null;</span>
+	}
+
+	@Override
+	@Deprecated
+	public Map&lt;String, ApiMethod&gt; getRelatedShowletMethods() throws EntException {
+<span class="nc" id="L111">		return this.getRelatedWidgetMethods();</span>
+	}
+
+	@Override
+	public Map&lt;String, ApiMethod&gt; getRelatedWidgetMethods() throws EntException {
+<span class="nc" id="L116">		Map&lt;String, ApiMethod&gt; mapping = new HashMap&lt;String, ApiMethod&gt;();</span>
+		try {
+<span class="nc" id="L118">			List&lt;ApiMethod&gt; masterMethods = this.getMasterMethods(ApiMethod.HttpMethod.GET);</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">			for (int i = 0; i &lt; masterMethods.size(); i++) {</span>
+<span class="nc" id="L120">				ApiMethod apiMethod = masterMethods.get(i);</span>
+<span class="nc" id="L121">				ApiMethodRelatedWidget relatedWidget = apiMethod.getRelatedWidget();</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">				if (null != relatedWidget) {</span>
+<span class="nc" id="L123">					String widgetCode = relatedWidget.getWidgetCode();</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">					if (mapping.containsKey(widgetCode)) {</span>
+<span class="nc" id="L125">						ApiMethod alreadyMapped = mapping.get(widgetCode);</span>
+<span class="nc" id="L126">						logger.error(&quot;There is more than one method related whith widget '{}' - Actual mapped '{}'; other method '{}'&quot;, widgetCode,</span>
+<span class="nc" id="L127">								alreadyMapped.getResourceName(), apiMethod.getResourceName());</span>
+<span class="nc" id="L128">					} else {</span>
+<span class="nc" id="L129">						mapping.put(widgetCode, apiMethod.clone());</span>
+					}
+				}
+			}
+<span class="nc" id="L133">		} catch (Throwable t) {</span>
+<span class="nc" id="L134">			logger.error(&quot;Error loading related widget methods&quot;, t);</span>
+<span class="nc" id="L135">			throw new EntException(&quot;Error loading related widget methods&quot;, t);</span>
+<span class="nc" id="L136">		}</span>
+<span class="nc" id="L137">		return mapping;</span>
+	}
+
+	@Override
+	public void updateMethodConfig(ApiMethod apiMethod) throws EntException {
+		try {
+<span class="fc" id="L143">			ApiMethod masterMethod = this.checkMethod(apiMethod);</span>
+<span class="fc" id="L144">			this.getApiCatalogDAO().saveApiStatus(apiMethod);</span>
+<span class="fc" id="L145">			masterMethod.setStatus(apiMethod.getStatus());</span>
+<span class="fc" id="L146">			masterMethod.setHidden(apiMethod.getHidden());</span>
+<span class="fc" id="L147">			masterMethod.setRequiredAuth(apiMethod.getRequiredAuth());</span>
+<span class="fc" id="L148">			String requiredPermission = apiMethod.getRequiredPermission();</span>
+<span class="pc bpc" id="L149" title="3 of 4 branches missed.">			if (null != requiredPermission &amp;&amp; requiredPermission.trim().length() &gt; 0) {</span>
+<span class="nc" id="L150">				masterMethod.setRequiredPermission(requiredPermission);</span>
+			} else {
+<span class="fc" id="L152">				masterMethod.setRequiredPermission(null);</span>
+			}
+<span class="fc" id="L154">			String resourceCode = ApiResource.getCode(masterMethod.getNamespace(), masterMethod.getResourceName());</span>
+<span class="fc" id="L155">			ApiResource resource = this.getResourceCacheWrapper().getMasterResource(resourceCode);</span>
+<span class="fc" id="L156">			this.getResourceCacheWrapper().updateResource(resource);</span>
+<span class="nc" id="L157">		} catch (Throwable t) {</span>
+<span class="nc" id="L158">			logger.error(&quot;Error error updating api status : resource '{}' method '{}'&quot;, apiMethod.getResourceName(), apiMethod.getHttpMethod(), t);</span>
+<span class="nc" id="L159">			throw new EntException(&quot;Error updating api status&quot;, t);</span>
+<span class="fc" id="L160">		}</span>
+<span class="fc" id="L161">	}</span>
+
+	@Override
+	public void resetMethodConfig(ApiMethod apiMethod) throws EntException {
+		try {
+<span class="nc" id="L166">			ApiMethod masterMethod = this.checkMethod(apiMethod);</span>
+<span class="nc" id="L167">			String resourceCode = ApiResource.getCode(masterMethod.getNamespace(), masterMethod.getResourceName());</span>
+<span class="nc" id="L168">			this.getApiCatalogDAO().resetApiStatus(resourceCode, masterMethod.getHttpMethod());</span>
+<span class="nc" id="L169">			masterMethod.resetConfiguration();</span>
+<span class="nc" id="L170">		} catch (Throwable t) {</span>
+<span class="nc" id="L171">			logger.error(&quot;Error error resetting api status : resource '{}' method '{}'&quot;, apiMethod.getResourceName(), apiMethod.getHttpMethod(), t);</span>
+<span class="nc" id="L172">			throw new EntException(&quot;Error resetting api status&quot;, t);</span>
+<span class="nc" id="L173">		}</span>
+<span class="nc" id="L174">	}</span>
+
+	private ApiMethod checkMethod(ApiMethod apiMethod) throws EntException {
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">		if (null == apiMethod) {</span>
+<span class="nc" id="L178">			throw new EntException(&quot;Null api method&quot;);</span>
+		}
+<span class="fc" id="L180">		ApiMethod masterMethod = this.getMasterMethod(apiMethod.getHttpMethod(), apiMethod.getNamespace(), apiMethod.getResourceName());</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">		if (null == masterMethod) {</span>
+<span class="nc" id="L182">			throw new EntException(&quot;Api namespace '&quot; + apiMethod.getNamespace() + &quot;' &quot;</span>
+<span class="nc" id="L183">					+ &quot;resource '&quot; + apiMethod.getResourceName() + &quot;' &quot;</span>
+<span class="nc" id="L184">					+ &quot;method '&quot; + apiMethod.getHttpMethod() + &quot;' does not exist&quot;);</span>
+		}
+<span class="fc" id="L186">		return masterMethod;</span>
+	}
+
+	@Deprecated
+	@Override
+	public ApiMethod getMethod(String resourceName) throws EntException {
+<span class="nc" id="L192">		return this.getMethod(ApiMethod.HttpMethod.GET, resourceName);</span>
+	}
+
+	@Override
+	public ApiMethod getMethod(ApiMethod.HttpMethod httpMethod, String resourceName) throws EntException {
+<span class="fc" id="L197">		return this.getMethod(ApiMethod.HttpMethod.GET, null, resourceName);</span>
+	}
+
+	@Override
+	public ApiMethod getMethod(ApiMethod.HttpMethod httpMethod, String namespace, String resourceName) throws EntException {
+<span class="fc" id="L202">		ApiMethod masterMethod = this.getMasterMethod(httpMethod, namespace, resourceName);</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">		if (null != masterMethod) {</span>
+<span class="fc" id="L204">			return masterMethod.clone();</span>
+		}
+<span class="nc" id="L206">		return null;</span>
+	}
+
+	protected ApiMethod getMasterMethod(ApiMethod.HttpMethod httpMethod, String namespace, String resourceName) throws EntException {
+		try {
+<span class="fc" id="L211">			String resourceCode = ApiResource.getCode(namespace, resourceName);</span>
+<span class="fc" id="L212">			ApiResource resource = this.getResourceCacheWrapper().getMasterResource(resourceCode);</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">			if (null != resource) {</span>
+<span class="fc" id="L214">				return resource.getMethod(httpMethod);</span>
+			}
+<span class="nc" id="L216">		} catch (Throwable t) {</span>
+<span class="nc" id="L217">			logger.error(&quot;Error extracting methods&quot;, t);</span>
+<span class="nc" id="L218">			throw new EntException(&quot;Error extracting methods&quot;, t);</span>
+<span class="nc" id="L219">		}</span>
+<span class="nc" id="L220">		return null;</span>
+	}
+
+	@Deprecated
+	@Override
+	public Map&lt;String, ApiMethod&gt; getMethods() throws EntException {
+<span class="nc" id="L226">		Map&lt;String, ApiMethod&gt; map = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L227">		List&lt;ApiMethod&gt; list = this.getMethods(ApiMethod.HttpMethod.GET);</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">		for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="nc" id="L229">			ApiMethod apiMethod = list.get(i);</span>
+<span class="nc" id="L230">			map.put(apiMethod.getResourceName(), apiMethod);</span>
+		}
+<span class="nc" id="L232">		return map;</span>
+	}
+
+	@Override
+	public List&lt;ApiMethod&gt; getMethods(ApiMethod.HttpMethod httpMethod) throws EntException {
+<span class="fc" id="L237">		List&lt;ApiMethod&gt; clonedMethods = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L239">			List&lt;ApiMethod&gt; masterMethods = this.getMasterMethods(httpMethod);</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">			for (int i = 0; i &lt; masterMethods.size(); i++) {</span>
+<span class="fc" id="L241">				ApiMethod apiMethod = masterMethods.get(i);</span>
+<span class="fc" id="L242">				clonedMethods.add(apiMethod.clone());</span>
+			}
+<span class="nc" id="L244">		} catch (Throwable t) {</span>
+<span class="nc" id="L245">			logger.error(&quot;Error extracting methods&quot;, t);</span>
+<span class="nc" id="L246">			throw new EntException(&quot;Error extracting methods&quot;, t);</span>
+<span class="fc" id="L247">		}</span>
+<span class="fc" id="L248">		return clonedMethods;</span>
+	}
+
+	protected List&lt;ApiMethod&gt; getMasterMethods(ApiMethod.HttpMethod httpMethod) throws EntException {
+<span class="fc" id="L252">		List&lt;ApiMethod&gt; apiMethods = new ArrayList&lt;&gt;();</span>
+		try {
+<span class="fc" id="L254">			List&lt;ApiResource&gt; resourceList = new ArrayList&lt;&gt;(this.getResourceCacheWrapper().getMasterResources().values());</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">			for (int i = 0; i &lt; resourceList.size(); i++) {</span>
+<span class="fc" id="L256">				ApiResource apiResource = resourceList.get(i);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">				if (null != apiResource.getMethod(httpMethod)) {</span>
+<span class="fc" id="L258">					apiMethods.add(apiResource.getMethod(httpMethod));</span>
+				}
+			}
+<span class="nc" id="L261">		} catch (Throwable t) {</span>
+<span class="nc" id="L262">			logger.error(&quot;Error loading Master Methods definitions&quot;, t);</span>
+<span class="nc" id="L263">			throw new EntException(&quot;Error loading Master Methods definitions&quot;, t);</span>
+<span class="fc" id="L264">		}</span>
+<span class="fc" id="L265">		return apiMethods;</span>
+	}
+
+	@Override
+	public Map&lt;String, ApiResource&gt; getResources() throws EntException {
+<span class="fc" id="L270">		Map&lt;String, ApiResource&gt; clonedApiResources = new HashMap&lt;String, ApiResource&gt;();</span>
+		try {
+<span class="fc" id="L272">			Map&lt;String, ApiResource&gt; resources = this.getResourceCacheWrapper().getMasterResources();</span>
+<span class="fc" id="L273">			Iterator&lt;String&gt; iterator = resources.keySet().iterator();</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">			while (iterator.hasNext()) {</span>
+<span class="fc" id="L275">				String resourceFullCode = iterator.next();</span>
+<span class="fc" id="L276">				ApiResource resource = resources.get(resourceFullCode);</span>
+<span class="fc" id="L277">				clonedApiResources.put(resourceFullCode, resource.clone());</span>
+<span class="fc" id="L278">			}</span>
+<span class="nc" id="L279">		} catch (Throwable t) {</span>
+<span class="nc" id="L280">			logger.error(&quot;Error extracting resources&quot;, t);</span>
+<span class="nc" id="L281">			throw new EntException(&quot;Error extracting resources&quot;, t);</span>
+<span class="fc" id="L282">		}</span>
+<span class="fc" id="L283">		return clonedApiResources;</span>
+	}
+
+	@Override
+	public ApiResource getResource(String namespace, String resourceName) throws EntException {
+		try {
+<span class="fc" id="L289">			String resourceCode = ApiResource.getCode(namespace, resourceName);</span>
+<span class="fc" id="L290">			ApiResource apiResource = this.getResourceCacheWrapper().getMasterResource(resourceCode);</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">			if (null != apiResource) {</span>
+<span class="fc" id="L292">				return apiResource.clone();</span>
+			}
+<span class="nc" id="L294">		} catch (Throwable t) {</span>
+<span class="nc" id="L295">			logger.error(&quot;Error extracting resource by name '{}'&quot;, resourceName, t);</span>
+<span class="nc" id="L296">			throw new EntException(&quot;Error extracting resource&quot;, t);</span>
+<span class="nc" id="L297">		}</span>
+<span class="nc" id="L298">		return null;</span>
+	}
+
+	@Override
+	public ApiService getApiService(String key) throws EntException {
+<span class="nc" id="L303">		ApiService service = this.getServiceCacheWrapper().getMasterServices().get(key);</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">		if (null == service) {</span>
+<span class="nc" id="L305">			return null;</span>
+		}
+<span class="nc" id="L307">		return service.clone();</span>
+	}
+
+	@Override
+	public Map&lt;String, ApiService&gt; getServices() throws EntException {
+<span class="fc" id="L312">		Map&lt;String, ApiService&gt; clonedServices = new HashMap&lt;&gt;();</span>
+		try {
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">			if (null != this.getServiceCacheWrapper().getMasterServices()) {</span>
+<span class="fc" id="L315">				Iterator&lt;String&gt; servicesIter = this.getServiceCacheWrapper().getMasterServices().keySet().iterator();</span>
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">				while (servicesIter.hasNext()) {</span>
+<span class="nc" id="L317">					String serviceKey = servicesIter.next();</span>
+<span class="nc" id="L318">					clonedServices.put(serviceKey, this.getServiceCacheWrapper().getMasterServices().get(serviceKey).clone());</span>
+<span class="nc" id="L319">				}</span>
+			}
+<span class="nc" id="L321">		} catch (Throwable t) {</span>
+<span class="nc" id="L322">			logger.error(&quot;Error extracting services&quot;, t);</span>
+<span class="nc" id="L323">			throw new EntException(&quot;Error extracting services&quot;, t);</span>
+<span class="fc" id="L324">		}</span>
+<span class="fc" id="L325">		return clonedServices;</span>
+	}
+
+	@Override
+	public Map&lt;String, ApiService&gt; getServices(String tag) throws EntException {
+<span class="nc" id="L330">		Map&lt;String, ApiService&gt; services = this.getServices();</span>
+<span class="nc bnc" id="L331" title="All 4 branches missed.">		if (null == tag || tag.trim().length() == 0) {</span>
+<span class="nc" id="L332">			return services;</span>
+		}
+<span class="nc" id="L334">		Map&lt;String, ApiService&gt; servicesToReturn = new HashMap&lt;&gt;();</span>
+		try {
+<span class="nc" id="L336">			Iterator&lt;ApiService&gt; iter = services.values().iterator();</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">			while (iter.hasNext()) {</span>
+<span class="nc" id="L338">				ApiService apiService = iter.next();</span>
+<span class="nc" id="L339">				String serviceTag = apiService.getTag();</span>
+<span class="nc bnc" id="L340" title="All 4 branches missed.">				boolean tagCheck = (null != serviceTag &amp;&amp; serviceTag.toLowerCase().indexOf(tag.trim().toLowerCase()) &gt; -1);</span>
+<span class="nc bnc" id="L341" title="All 2 branches missed.">				if (tagCheck) {</span>
+<span class="nc" id="L342">					servicesToReturn.put(apiService.getKey(), apiService);</span>
+				}
+<span class="nc" id="L344">			}</span>
+<span class="nc" id="L345">		} catch (Throwable t) {</span>
+<span class="nc" id="L346">			logger.error(&quot;Error extracting services&quot;, t);</span>
+<span class="nc" id="L347">			throw new EntException(&quot;Error extracting services&quot;, t);</span>
+<span class="nc" id="L348">		}</span>
+<span class="nc" id="L349">		return servicesToReturn;</span>
+	}
+
+	@Override
+	public void saveService(ApiService service) throws EntException {
+		try {
+<span class="nc bnc" id="L355" title="All 2 branches missed.">			if (null == service) {</span>
+<span class="nc" id="L356">				throw new EntException(&quot;Null api service to save&quot;);</span>
+			}
+<span class="nc" id="L358">			ApiMethod master = service.getMaster();</span>
+<span class="nc bnc" id="L359" title="All 4 branches missed.">			if (null == master || null == this.getMethod(master.getHttpMethod(), master.getNamespace(), master.getResourceName())) {</span>
+<span class="nc" id="L360">				throw new EntException(&quot;null or invalid master method of service to save&quot;);</span>
+			}
+<span class="nc bnc" id="L362" title="All 2 branches missed.">			if (null != this.getServiceCacheWrapper().getMasterServices().get(service.getKey())) {</span>
+<span class="nc" id="L363">				this.getApiCatalogDAO().updateService(service);</span>
+			} else {
+<span class="nc" id="L365">				this.getApiCatalogDAO().addService(service);</span>
+			}
+<span class="nc" id="L367">			this.getServiceCacheWrapper().addService(service);</span>
+<span class="nc" id="L368">		} catch (Throwable t) {</span>
+<span class="nc" id="L369">			logger.error(&quot;Error saving service&quot;, t);</span>
+<span class="nc" id="L370">			throw new EntException(&quot;Error saving service&quot;, t);</span>
+<span class="nc" id="L371">		}</span>
+<span class="nc" id="L372">	}</span>
+
+	@Override
+	public void deleteService(String key) throws EntException {
+		try {
+<span class="nc" id="L377">			this.getApiCatalogDAO().deleteService(key);</span>
+<span class="nc" id="L378">			this.getServiceCacheWrapper().removeService(key);</span>
+<span class="nc" id="L379">		} catch (Throwable t) {</span>
+<span class="nc" id="L380">			logger.error(&quot;Error deleting api service by key '{}'&quot;, key, t);</span>
+<span class="nc" id="L381">			throw new EntException(&quot;Error deleting service '&quot; + key + &quot;'&quot;, t);</span>
+<span class="nc" id="L382">		}</span>
+<span class="nc" id="L383">	}</span>
+
+	@Override
+	public void updateService(ApiService service) throws EntException {
+		try {
+<span class="nc bnc" id="L388" title="All 2 branches missed.">			if (null == service) {</span>
+<span class="nc" id="L389">				throw new EntException(&quot;Null api service to update&quot;);</span>
+			}
+<span class="nc" id="L391">			ApiService masterService = this.getServiceCacheWrapper().getMasterServices().get(service.getKey());</span>
+<span class="nc bnc" id="L392" title="All 2 branches missed.">			if (null == masterService) {</span>
+<span class="nc" id="L393">				throw new EntException(&quot;Api service '&quot; + service.getKey() + &quot;' does not exist&quot;);</span>
+			}
+<span class="nc" id="L395">			masterService.setActive(service.isActive());</span>
+<span class="nc" id="L396">			masterService.setHidden(service.isHidden());</span>
+<span class="nc" id="L397">			this.getApiCatalogDAO().updateService(masterService);</span>
+<span class="nc" id="L398">			this.getServiceCacheWrapper().updateService(service);</span>
+<span class="nc" id="L399">		} catch (Throwable t) {</span>
+<span class="nc" id="L400">			logger.error(&quot;Error updating api service with key '{}'&quot;, service.getKey(), t);</span>
+<span class="nc" id="L401">			throw new EntException(&quot;Error updating service '&quot; + service.getKey() + &quot;'&quot;, t);</span>
+<span class="nc" id="L402">		}</span>
+<span class="nc" id="L403">	}</span>
+
+	protected String getLocationPatterns() {
+<span class="pc bpc" id="L406" title="1 of 2 branches missed.">		if (null == this.locationPatterns) {</span>
+<span class="fc" id="L407">			return DEFAULT_LOCATION_PATTERN;</span>
+		}
+<span class="nc" id="L409">		return locationPatterns;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

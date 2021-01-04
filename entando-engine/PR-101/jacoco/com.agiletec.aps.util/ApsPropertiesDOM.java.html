@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApsPropertiesDOM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.util</a> &gt; <span class="el_source">ApsPropertiesDOM.java</span></div><h1>ApsPropertiesDOM.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.util;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.Iterator;
+import java.util.List;
+
+import org.jdom.Document;
+import org.jdom.Element;
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+/**
+ * Classe per la lettura e scrittura delle Properties da xml.
+ * Il formato dell'xml è: 
+ * 
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;properties&gt;
+	&lt;property key=&quot;Chiave1&quot;&gt;Valore 1&lt;/property&gt;
+	&lt;property key=&quot;Chiave2&quot;&gt;Valore 2&lt;/property&gt;
+	....
+&lt;/properties&gt;
+ * @author E.Santoboni
+ */
+<span class="fc" id="L41">public class ApsPropertiesDOM {</span>
+
+<span class="fc" id="L43">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ApsPropertiesDOM.class);</span>
+	
+	/**
+	 * Costruisce il Jdom Document in base alle properties inserite.
+	 * @param prop le properties da cui ricavare il Documento Jdom
+	 */
+	public void buildJDOM(ApsProperties prop) {
+<span class="fc" id="L50">		this._doc = new Document();</span>
+<span class="fc" id="L51">		this._rootElement = new Element(ROOT);</span>
+<span class="fc" id="L52">		Iterator&lt;Object&gt; titlesIter = prop.keySet().iterator();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">		while (titlesIter.hasNext()) {</span>
+<span class="fc" id="L54">			String attributeValue = (String) titlesIter.next();</span>
+<span class="fc" id="L55">			String value = (String) prop.get(attributeValue);</span>
+<span class="pc bpc" id="L56" title="2 of 4 branches missed.">			if (null != value &amp;&amp; value.trim().length() &gt; 0) {</span>
+<span class="fc" id="L57">				Element tag = new Element(TAB_ELEMENT);</span>
+<span class="fc" id="L58">				tag.setAttribute(ATTRIBUTE_KEY, attributeValue);</span>
+<span class="fc" id="L59">				tag.setText(value);</span>
+<span class="fc" id="L60">				this._rootElement.addContent(tag);</span>
+			}
+<span class="fc" id="L62">		}</span>
+<span class="fc" id="L63">		this._doc.setRootElement(this._rootElement);</span>
+<span class="fc" id="L64">	}</span>
+	
+	/**
+	 * Restituisce il formato xml delle Properties.
+	 * @return String Formato xml delle Properties.
+	 */
+	public String getXMLDocument(){
+<span class="fc" id="L71">		XMLOutputter out = new XMLOutputter();</span>
+<span class="fc" id="L72">		Format format = Format.getPrettyFormat();</span>
+<span class="fc" id="L73">		format.setIndent(&quot;&quot;);</span>
+<span class="fc" id="L74">		out.setFormat(format);</span>
+<span class="fc" id="L75">		return out.outputString(_doc);</span>
+	}
+	
+	public Element getRootElement() {
+<span class="fc" id="L79">		return (Element) this._doc.getRootElement().clone();</span>
+	}
+	
+	private void decodeDOM(String xmlText) {
+<span class="fc" id="L83">		SAXBuilder builder = new SAXBuilder();</span>
+<span class="fc" id="L84">		builder.setValidation(false);</span>
+<span class="fc" id="L85">		StringReader reader = new StringReader(xmlText);</span>
+		try {
+<span class="fc" id="L87">			_doc = builder.build(reader);</span>
+<span class="fc" id="L88">			_rootElement = _doc.getRootElement();</span>
+<span class="nc" id="L89">		} catch (Throwable t) {</span>
+<span class="nc" id="L90">			_logger.error(&quot;Parsing error. xml: {}&quot;, xmlText, t);</span>
+<span class="nc" id="L91">			throw new RuntimeException(&quot;Error detected while parsing the XML&quot;, t);</span>
+<span class="fc" id="L92">		}</span>
+<span class="fc" id="L93">	}</span>
+	
+	private ApsProperties extractProperties() {
+<span class="fc" id="L96">		ApsProperties prop = new ApsProperties();</span>
+<span class="fc" id="L97">		List&lt;Element&gt; elements = this._rootElement.getChildren(TAB_ELEMENT);</span>
+<span class="fc" id="L98">		Iterator&lt;Element&gt; elementsIter = elements.iterator();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		while (elementsIter.hasNext()) {</span>
+<span class="fc" id="L100">			Element currentElement = (Element) elementsIter.next();</span>
+<span class="fc" id="L101">			String key = currentElement.getAttributeValue(ATTRIBUTE_KEY);</span>
+<span class="fc" id="L102">			String value = currentElement.getText();</span>
+<span class="fc" id="L103">			prop.put(key, value);</span>
+<span class="fc" id="L104">		}</span>
+<span class="fc" id="L105">		return prop;</span>
+	}
+	
+	/**
+	 * Estrae le Properies dal testo xml immesso.
+	 * @param xml L'xml da cui estrarre le properties.
+	 * @return Le properties cercate.
+	 * @throws IOException
+	 */
+	public ApsProperties extractProperties(String xml) throws IOException {
+<span class="fc" id="L115">		ApsProperties prop = null;</span>
+<span class="fc" id="L116">		this.decodeDOM(xml);</span>
+<span class="fc" id="L117">		prop = this.extractProperties();</span>
+<span class="fc" id="L118">		return prop;</span>
+	}
+	
+	private Document _doc;
+	private Element _rootElement;
+<span class="fc" id="L123">	private final String ROOT = &quot;properties&quot;;</span>
+<span class="fc" id="L124">	private final String TAB_ELEMENT = &quot;property&quot;;</span>
+<span class="fc" id="L125">	private final String ATTRIBUTE_KEY = &quot;key&quot;;</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CategoryController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.web.category</a> &gt; <span class="el_source">CategoryController.java</span></div><h1>CategoryController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.web.category;
+
+import com.agiletec.aps.system.services.role.Permission;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.validation.Valid;
+import org.entando.entando.aps.system.services.category.ICategoryService;
+import org.entando.entando.aps.system.services.category.model.CategoryDto;
+import org.entando.entando.ent.exception.EntException;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.web.category.validator.CategoryValidator;
+import org.entando.entando.web.common.annotation.RestAccessControl;
+import org.entando.entando.web.common.exceptions.ValidationGenericException;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.PagedRestResponse;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.common.model.RestResponse;
+import org.entando.entando.web.common.model.SimpleRestResponse;
+import org.entando.entando.web.component.ComponentUsage;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * @author E.Santoboni
+ */
+@RestController
+@RequestMapping(value = &quot;/categories&quot;)
+<span class="fc" id="L55">public class CategoryController {</span>
+
+<span class="fc" id="L57">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+    public static final String COMPONENT_ID = &quot;category&quot;;
+
+    @Autowired
+    private ICategoryService categoryService;
+
+    @Autowired
+    private CategoryValidator categoryValidator;
+
+    protected ICategoryService getCategoryService() {
+<span class="fc" id="L67">        return categoryService;</span>
+    }
+
+    public void setCategoryService(ICategoryService categoryService) {
+<span class="fc" id="L71">        this.categoryService = categoryService;</span>
+<span class="fc" id="L72">    }</span>
+
+    public CategoryValidator getCategoryValidator() {
+<span class="fc" id="L75">        return categoryValidator;</span>
+    }
+
+    public void setCategoryValidator(CategoryValidator categoryValidator) {
+<span class="fc" id="L79">        this.categoryValidator = categoryValidator;</span>
+<span class="fc" id="L80">    }</span>
+
+    @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;List&lt;CategoryDto&gt;, Map&lt;String, String&gt;&gt;&gt; getCategories(@RequestParam(value = &quot;parentCode&quot;, required = false, defaultValue = &quot;home&quot;) String parentCode) {
+<span class="fc" id="L84">        logger.debug(&quot;getting category tree for parent {}&quot;, parentCode);</span>
+<span class="fc" id="L85">        List&lt;CategoryDto&gt; result = this.getCategoryService().getTree(parentCode);</span>
+<span class="fc" id="L86">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L87">        metadata.put(&quot;parentCode&quot;, parentCode);</span>
+<span class="fc" id="L88">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(result, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = { Permission.ENTER_BACKEND })
+    @RequestMapping(value = &quot;/{categoryCode}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;CategoryDto&gt;&gt; getCategory(@PathVariable String categoryCode) {
+<span class="fc" id="L94">        logger.debug(&quot;getting category {}&quot;, categoryCode);</span>
+<span class="fc" id="L95">        CategoryDto category = this.getCategoryService().getCategory(categoryCode);</span>
+<span class="fc" id="L96">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(category), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.ENTER_BACKEND)
+    @RequestMapping(value = &quot;/{categoryCode}/references/{holder}&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;PagedRestResponse&lt;?&gt;&gt; getCategoryReferences(@PathVariable String categoryCode, @PathVariable String holder, RestListRequest requestList) {
+<span class="fc" id="L102">        logger.debug(&quot;getting category references - {}&quot;, categoryCode);</span>
+<span class="fc" id="L103">        PagedMetadata&lt;?&gt; result = this.getCategoryService().getCategoryReferences(categoryCode, holder, requestList);</span>
+<span class="fc" id="L104">        return new ResponseEntity&lt;&gt;(new PagedRestResponse&lt;&gt;(result), HttpStatus.OK);</span>
+    }
+
+    @ApiOperation(&quot;Retrieve categories usage count&quot;)
+    @ApiResponses({
+            @ApiResponse(code = 200, message = &quot;OK&quot;),
+            @ApiResponse(code = 400, message = &quot;Bad Request&quot;)
+    })
+    @RestAccessControl(permission = Permission.MANAGE_PAGES)
+    @RequestMapping(value = &quot;/{code}/usage&quot;, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;ComponentUsage&gt;&gt; getComponentUsage(@PathVariable String code) {
+<span class="fc" id="L115">        logger.trace(&quot;get {} usage by code {}&quot;, COMPONENT_ID, code);</span>
+<span class="fc" id="L116">        ComponentUsage usage = ComponentUsage.builder()</span>
+<span class="fc" id="L117">                .type(COMPONENT_ID)</span>
+<span class="fc" id="L118">                .code(code)</span>
+<span class="fc" id="L119">                .usage(categoryService.getComponentUsage(code))</span>
+<span class="fc" id="L120">                .build();</span>
+<span class="fc" id="L121">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(usage), HttpStatus.OK);</span>
+    }
+
+
+    @RestAccessControl(permission = Permission.MANAGE_CATEGORIES)
+    @RequestMapping(method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;CategoryDto&gt;&gt; addCategory(@Valid @RequestBody CategoryDto categoryRequest, BindingResult bindingResult) throws EntException {
+        //field validations
+<span class="fc" id="L129">        this.getCategoryValidator().validate(categoryRequest, bindingResult);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L131">            throw new ValidationGenericException(bindingResult);</span>
+        }
+        //business validations
+<span class="fc" id="L134">        this.getCategoryValidator().validatePostReferences(categoryRequest, bindingResult);</span>
+<span class="fc" id="L135">        CategoryDto category = this.getCategoryService().addCategory(categoryRequest);</span>
+<span class="fc" id="L136">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(category), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_CATEGORIES)
+    @RequestMapping(value = &quot;/{categoryCode}&quot;, method = RequestMethod.PUT, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;RestResponse&lt;CategoryDto, Map&lt;String, String&gt;&gt;&gt; updateCategory(@PathVariable String categoryCode, @Valid @RequestBody CategoryDto categoryRequest, BindingResult bindingResult) {
+<span class="fc" id="L142">        logger.debug(&quot;updating category {} with request {}&quot;, categoryCode, categoryRequest);</span>
+        //field validations
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L145">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L147">        this.getCategoryValidator().validatePutReferences(categoryCode, categoryRequest, bindingResult);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (bindingResult.hasErrors()) {</span>
+<span class="fc" id="L149">            throw new ValidationGenericException(bindingResult);</span>
+        }
+<span class="fc" id="L151">        CategoryDto category = this.getCategoryService().updateCategory(categoryRequest);</span>
+<span class="fc" id="L152">        Map&lt;String, String&gt; metadata = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L153">        return new ResponseEntity&lt;&gt;(new RestResponse&lt;&gt;(category, metadata), HttpStatus.OK);</span>
+    }
+
+    @RestAccessControl(permission = Permission.MANAGE_CATEGORIES)
+    @RequestMapping(value = &quot;/{categoryCode}&quot;, method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;SimpleRestResponse&lt;Map&lt;String, String&gt;&gt;&gt; deleteCategory(@PathVariable String categoryCode) {
+<span class="fc" id="L159">        logger.debug(&quot;Deleting category -&gt; {}&quot;, categoryCode);</span>
+<span class="fc" id="L160">        this.getCategoryService().deleteCategory(categoryCode);</span>
+<span class="fc" id="L161">        Map&lt;String, String&gt; payload = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L162">        payload.put(&quot;code&quot;, categoryCode);</span>
+<span class="fc" id="L163">        return new ResponseEntity&lt;&gt;(new SimpleRestResponse&lt;&gt;(payload), HttpStatus.OK);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

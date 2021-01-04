@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntityAttributeDto.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.entity.model</a> &gt; <span class="el_source">EntityAttributeDto.java</span></div><h1>EntityAttributeDto.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.entity.model;
+
+import com.agiletec.aps.system.SystemConstants;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.common.entity.model.attribute.BooleanAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.CompositeAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.DateAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.ITextAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.ListAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.MonoListAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.NumberAttribute;
+import com.agiletec.aps.system.common.entity.model.attribute.TextAttribute;
+import com.agiletec.aps.util.DateConverter;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.math.BigDecimal;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.validation.BindingResult;
+
+/**
+ * @author E.Santoboni
+ */
+public class EntityAttributeDto {
+<span class="fc" id="L44">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(getClass());</span>
+
+    private String code;
+
+    private Object value;
+
+<span class="fc" id="L50">    private Map&lt;String, Object&gt; values = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L52">    private List&lt;EntityAttributeDto&gt; elements = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L54">    @JsonProperty(&quot;compositeelements&quot;)</span>
+    private List&lt;EntityAttributeDto&gt; compositeElements = new ArrayList&lt;&gt;();
+
+<span class="fc" id="L57">    @JsonProperty(&quot;listelements&quot;)</span>
+    private Map&lt;String, List&lt;EntityAttributeDto&gt;&gt; listElements = new HashMap&lt;&gt;();
+
+<span class="fc" id="L60">    public EntityAttributeDto() {</span>
+<span class="fc" id="L61">    }</span>
+
+<span class="fc" id="L63">    public EntityAttributeDto(AttributeInterface src) {</span>
+<span class="fc" id="L64">        this.setCode(src.getName());</span>
+<span class="fc" id="L65">        Object value = src.getValue();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (null == value) {</span>
+<span class="fc" id="L67">            return;</span>
+        }
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if (src.isSimple()) {</span>
+<span class="fc bfc" id="L70" title="All 4 branches covered.">            if ((value instanceof String) || (value instanceof Number)) {</span>
+<span class="fc" id="L71">                this.setValue(value.toString());</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            } else if (value instanceof Boolean) {</span>
+<span class="fc" id="L73">                this.setValue(value);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            } else if (value instanceof Date) {</span>
+<span class="fc" id="L75">                String stringDate = DateConverter.getFormattedDate((Date) value, SystemConstants.API_DATE_FORMAT);</span>
+<span class="fc" id="L76">                this.setValue(stringDate);</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">            } else if (value instanceof Map) {</span>
+<span class="fc" id="L78">                setValues(((Map&lt;String,Object&gt;) value).entrySet().stream()</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                    .filter(e -&gt; e.getValue() != null)</span>
+<span class="fc" id="L80">                    .map(e -&gt; {</span>
+<span class="fc" id="L81">                        Object mapValue = e.getValue();</span>
+<span class="fc" id="L82">                        String key = e.getKey();</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">                        if (mapValue instanceof AttributeInterface) {</span>
+<span class="nc" id="L84">                            return new AbstractMap.SimpleEntry&lt;&gt;(key, new EntityAttributeDto((AttributeInterface) mapValue));</span>
+                        } else {
+<span class="fc" id="L86">                            return new AbstractMap.SimpleEntry&lt;&gt;(key, mapValue);</span>
+                        }
+                    })
+<span class="fc" id="L89">                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            } else if(TextAttribute.class.isAssignableFrom(src.getClass())){</span>
+<span class="nc" id="L91">                setValue(value);</span>
+<span class="nc" id="L92">                setValues(((TextAttribute)src).getTextMap().entrySet().stream()</span>
+<span class="nc" id="L93">                        .map(e -&gt; new AbstractMap.SimpleEntry&lt;&gt;(e.getKey(), e.getValue()))</span>
+<span class="nc" id="L94">                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));</span>
+            }
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        } else if (src instanceof MonoListAttribute) {</span>
+<span class="fc" id="L97">            List&lt;AttributeInterface&gt; list = ((MonoListAttribute) src).getAttributes();</span>
+<span class="fc" id="L98">            list.stream().forEach(element -&gt; this.getElements().add(new EntityAttributeDto(element)));</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">        } else if (src instanceof CompositeAttribute) {</span>
+<span class="fc" id="L100">            Map&lt;String, AttributeInterface&gt; map = ((CompositeAttribute) src).getAttributeMap();</span>
+<span class="fc" id="L101">            map.keySet().stream().forEach(key -&gt; this.getCompositeElements().add(new EntityAttributeDto(map.get(key))));</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        } else if (src instanceof ListAttribute) {</span>
+<span class="fc" id="L103">            Map&lt;String, List&lt;AttributeInterface&gt;&gt; map = ((ListAttribute) src).getAttributeListMap();</span>
+<span class="fc" id="L104">            map.keySet().stream().forEach(key -&gt; {</span>
+<span class="fc" id="L105">                List&lt;EntityAttributeDto&gt; dtos = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L106">                List&lt;AttributeInterface&gt; list = map.get(key);</span>
+<span class="fc" id="L107">                list.stream().forEach(element -&gt; dtos.add(new EntityAttributeDto(element)));</span>
+<span class="fc" id="L108">                this.getListElements().put(key, dtos);</span>
+<span class="fc" id="L109">            });</span>
+        }
+<span class="fc" id="L111">    }</span>
+
+    public void fillEntityAttribute(AttributeInterface attribute, BindingResult bindingResult) {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (attribute instanceof ITextAttribute) {</span>
+<span class="fc" id="L115">            ITextAttribute textAttribute = (ITextAttribute) attribute;</span>
+<span class="pc bpc" id="L116" title="1 of 6 branches missed.">            if (attribute.isMultilingual() &amp;&amp; this.getValues() != null &amp;&amp; !this.getValues().isEmpty()) {</span>
+<span class="fc" id="L117">                this.getValues().keySet().stream().forEach(langCode -&gt; textAttribute.setText(this.getValues().get(langCode).toString(), langCode));</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">            } else if (null != this.getValue()) {</span>
+<span class="fc" id="L119">                textAttribute.setText(this.getValue().toString(), null);</span>
+            }
+        }
+<span class="pc bpc" id="L122" title="1 of 4 branches missed.">        if (attribute instanceof NumberAttribute &amp;&amp; (null != this.getValue())) {</span>
+<span class="fc" id="L123">            BigDecimal number = new BigDecimal(this.getValue().toString());</span>
+<span class="fc" id="L124">            ((NumberAttribute) attribute).setValue(number);</span>
+        }
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (attribute instanceof BooleanAttribute) {</span>
+<span class="fc" id="L127">            ((BooleanAttribute) attribute).setBooleanValue((Boolean)this.getValue());</span>
+        }
+<span class="fc bfc" id="L129" title="All 4 branches covered.">        if (attribute instanceof DateAttribute &amp;&amp; (null != this.getValue())) {</span>
+<span class="fc" id="L130">            Date date = null;</span>
+<span class="fc" id="L131">            String dateValue = null;</span>
+            try {
+<span class="fc" id="L133">                date = DateConverter.parseDate(this.getValue().toString(), SystemConstants.API_DATE_FORMAT);</span>
+<span class="nc" id="L134">            } catch (Exception e) {</span>
+<span class="nc" id="L135">                dateValue = this.getValue().toString();</span>
+<span class="fc" id="L136">            }</span>
+<span class="fc" id="L137">            ((DateAttribute) attribute).setDate(date);</span>
+<span class="fc" id="L138">            ((DateAttribute) attribute).setFailedDateString(dateValue);</span>
+        }
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">        if (attribute instanceof CompositeAttribute &amp;&amp; (null != this.getCompositeElements())) {</span>
+<span class="fc" id="L141">            this.getCompositeElements().stream().forEach(i -&gt; {</span>
+<span class="fc" id="L142">                AttributeInterface compositeElement = ((CompositeAttribute) attribute).getAttribute(i.getCode());</span>
+<span class="fc" id="L143">                i.fillEntityAttribute(compositeElement, bindingResult);</span>
+<span class="fc" id="L144">            });</span>
+<span class="pc bpc" id="L145" title="1 of 4 branches missed.">        } else if (attribute instanceof MonoListAttribute &amp;&amp; (null != this.getElements())) {</span>
+<span class="fc" id="L146">            this.getElements().stream().forEach(i -&gt; {</span>
+<span class="fc" id="L147">                AttributeInterface prototype = ((MonoListAttribute) attribute).addAttribute();</span>
+<span class="fc" id="L148">                prototype.setName(((MonoListAttribute) attribute).getName());</span>
+<span class="fc" id="L149">                i.fillEntityAttribute(prototype, bindingResult);</span>
+<span class="fc" id="L150">            });</span>
+<span class="pc bpc" id="L151" title="1 of 4 branches missed.">        } else if (attribute instanceof ListAttribute &amp;&amp; (null != this.getListElements())) {</span>
+<span class="fc" id="L152">            ((ListAttribute) attribute).getAttributeListMap().clear();</span>
+<span class="fc" id="L153">            this.getListElements().keySet().stream().forEach(langCode -&gt; {</span>
+<span class="fc" id="L154">                List&lt;EntityAttributeDto&gt; list = this.getListElements().get(langCode);</span>
+<span class="fc" id="L155">                list.stream().forEach(i -&gt; {</span>
+<span class="fc" id="L156">                    AttributeInterface prototype = ((ListAttribute) attribute).addAttribute(langCode);</span>
+<span class="fc" id="L157">                    prototype.setName(((ListAttribute) attribute).getName());</span>
+<span class="fc" id="L158">                    i.fillEntityAttribute(prototype, bindingResult);</span>
+<span class="fc" id="L159">                });</span>
+<span class="fc" id="L160">            });</span>
+        }
+<span class="fc" id="L162">    }</span>
+
+    public String getCode() {
+<span class="fc" id="L165">        return code;</span>
+    }
+
+    public void setCode(String code) {
+<span class="fc" id="L169">        this.code = code;</span>
+<span class="fc" id="L170">    }</span>
+
+    public Object getValue() {
+<span class="fc" id="L173">        return value;</span>
+    }
+
+    public void setValue(Object value) {
+<span class="fc" id="L177">        this.value = value;</span>
+<span class="fc" id="L178">    }</span>
+
+    public Map&lt;String, Object&gt; getValues() {
+<span class="fc" id="L181">        return values;</span>
+    }
+
+    public void setValues(Map&lt;String, Object&gt; values) {
+<span class="fc" id="L185">        this.values = values;</span>
+<span class="fc" id="L186">    }</span>
+
+    public List&lt;EntityAttributeDto&gt; getElements() {
+<span class="fc" id="L189">        return elements;</span>
+    }
+
+    public void setElements(List&lt;EntityAttributeDto&gt; elements) {
+<span class="fc" id="L193">        this.elements = elements;</span>
+<span class="fc" id="L194">    }</span>
+
+    public List&lt;EntityAttributeDto&gt; getCompositeElements() {
+<span class="fc" id="L197">        return compositeElements;</span>
+    }
+
+    public void setCompositeElements(List&lt;EntityAttributeDto&gt; compositeElements) {
+<span class="fc" id="L201">        this.compositeElements = compositeElements;</span>
+<span class="fc" id="L202">    }</span>
+
+    public Map&lt;String, List&lt;EntityAttributeDto&gt;&gt; getListElements() {
+<span class="fc" id="L205">        return listElements;</span>
+    }
+
+    public void setListElements(Map&lt;String, List&lt;EntityAttributeDto&gt;&gt; listElements) {
+<span class="fc" id="L209">        this.listElements = listElements;</span>
+<span class="fc" id="L210">    }</span>
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractEntityService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.entity</a> &gt; <span class="el_source">AbstractEntityService.java</span></div><h1>AbstractEntityService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.entity;
+
+import com.agiletec.aps.system.common.IManager;
+import com.agiletec.aps.system.common.entity.IEntityManager;
+import com.agiletec.aps.system.common.entity.model.AttributeFieldError;
+import com.agiletec.aps.system.common.entity.model.AttributeTracer;
+import com.agiletec.aps.system.common.entity.model.FieldError;
+import com.agiletec.aps.system.common.entity.model.IApsEntity;
+import com.agiletec.aps.system.common.entity.model.attribute.AttributeInterface;
+import com.agiletec.aps.system.services.category.ICategoryManager;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import java.util.List;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.services.entity.model.EntityDto;
+import org.entando.entando.web.common.exceptions.ValidationConflictException;
+import org.entando.entando.web.entity.validator.AbstractEntityTypeValidator;
+import org.entando.entando.web.entity.validator.EntityValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.BindingResult;
+
+/**
+ * @author E.Santoboni
+ * @param &lt;I&gt;
+ * @param &lt;T&gt;
+ */
+<span class="fc" id="L42">public abstract class AbstractEntityService&lt;I extends IApsEntity, T extends EntityDto&gt; {</span>
+
+<span class="fc" id="L44">    protected final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    @Autowired
+    private List&lt;IEntityManager&gt; entityManagers;
+
+    @Autowired
+    private ICategoryManager categoryManager;
+
+    @Autowired
+    private ILangManager langManager;
+
+    protected abstract T buildEntityDto(I entity);
+
+    protected T getEntity(String entityManagerCode, String id) {
+<span class="fc" id="L58">        IEntityManager entityManager = this.extractEntityManager(entityManagerCode);</span>
+        try {
+<span class="fc" id="L60">            I entity = (I) entityManager.getEntity(id);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (null == entity) {</span>
+<span class="nc" id="L62">                throw new ResourceNotFoundException(EntityValidator.ERRCODE_ENTITY_DOES_NOT_EXIST, &quot;Entity&quot;, id);</span>
+            }
+<span class="fc" id="L64">            return this.buildEntityDto(entity);</span>
+<span class="nc" id="L65">        } catch (ResourceNotFoundException rnf) {</span>
+<span class="nc" id="L66">            throw rnf;</span>
+<span class="nc" id="L67">        } catch (Exception e) {</span>
+<span class="nc" id="L68">            logger.error(&quot;Error extracting entity&quot;, e);</span>
+<span class="nc" id="L69">            throw new RestServerError(&quot;error extracting entity&quot;, e);</span>
+        }
+    }
+
+    protected T addEntity(String entityManagerCode, EntityDto request, BindingResult bindingResult) {
+<span class="fc" id="L74">        IEntityManager entityManager = this.extractEntityManager(entityManagerCode);</span>
+        try {
+<span class="fc" id="L76">            String id = request.getId();</span>
+<span class="fc" id="L77">            I oldEntity = (I) entityManager.getEntity(id);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if (null != oldEntity) {</span>
+<span class="nc" id="L79">                bindingResult.reject(EntityValidator.ERRCODE_ENTITY_ALREADY_EXISTS,</span>
+                        new String[]{id}, &quot;entity.exists&quot;);
+<span class="nc" id="L81">                throw new ValidationConflictException(bindingResult);</span>
+            }
+<span class="fc" id="L83">            I entity = this.getEntityPrototype(entityManager, request.getTypeCode());</span>
+<span class="fc" id="L84">            request.fillEntity(entity, this.getCategoryManager(), bindingResult);</span>
+<span class="fc" id="L85">            this.scanEntity(entity, bindingResult);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            if (!bindingResult.hasErrors()) {</span>
+<span class="fc" id="L87">                I newEntity = (I) this.addEntity(entityManager, entity);</span>
+<span class="fc" id="L88">                return this.buildEntityDto(newEntity);</span>
+            }
+<span class="nc" id="L90">        } catch (ValidationConflictException vce) {</span>
+<span class="nc" id="L91">            throw vce;</span>
+<span class="nc" id="L92">        } catch (Exception e) {</span>
+<span class="nc" id="L93">            logger.error(&quot;Error adding entity&quot;, e);</span>
+<span class="nc" id="L94">            throw new RestServerError(&quot;error add entity&quot;, e);</span>
+<span class="fc" id="L95">        }</span>
+<span class="fc" id="L96">        return null;</span>
+    }
+
+    protected abstract I addEntity(IEntityManager entityManager, I entityToAdd);
+
+    protected synchronized T updateEntity(String entityManagerCode, EntityDto request, BindingResult bindingResult) {
+<span class="fc" id="L102">        IEntityManager entityManager = this.extractEntityManager(entityManagerCode);</span>
+        try {
+<span class="fc" id="L104">            String id = request.getId();</span>
+
+<span class="fc" id="L106">            I entity = (I) entityManager.getEntity(id);</span>
+
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">            if (null == entity) {</span>
+<span class="nc" id="L109">                bindingResult.reject(EntityValidator.ERRCODE_ENTITY_DOES_NOT_EXIST,</span>
+                        new String[]{id}, &quot;entity.notExists&quot;);
+<span class="nc" id="L111">                throw new ResourceNotFoundException(bindingResult);</span>
+            }
+<span class="fc" id="L113">            String typeCode = request.getTypeCode();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (this.getEntityPrototype(entityManager, typeCode) == null) {</span>
+<span class="nc" id="L115">                bindingResult.reject(EntityValidator.ERRCODE_TYPE_MISMATCH,</span>
+<span class="nc" id="L116">                        new String[]{entity.getTypeCode(), typeCode}, &quot;entity.type.invalid&quot;);</span>
+<span class="nc" id="L117">                throw new ValidationConflictException(bindingResult);</span>
+            }
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            if (!typeCode.equals(entity.getTypeCode())) {</span>
+<span class="fc" id="L121">                entity = this.getEntityPrototype(entityManager, request.getTypeCode());</span>
+            }
+
+<span class="fc" id="L124">            request.fillEntity(entity, this.getCategoryManager(), bindingResult);</span>
+<span class="fc" id="L125">            this.scanEntity(entity, bindingResult);</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            if (!bindingResult.hasErrors()) {</span>
+<span class="fc" id="L127">                I updatedEntity = (I) this.updateEntity(entityManager, entity);</span>
+<span class="fc" id="L128">                return this.buildEntityDto(updatedEntity);</span>
+            }
+<span class="nc" id="L130">        } catch (Exception e) {</span>
+<span class="nc" id="L131">            logger.error(&quot;Error updating entity&quot;, e);</span>
+<span class="nc" id="L132">            throw new RestServerError(&quot;error updating entity&quot;, e);</span>
+<span class="nc" id="L133">        }</span>
+<span class="nc" id="L134">        return null;</span>
+    }
+
+    protected abstract I updateEntity(IEntityManager entityManager, I entityToUpdate);
+
+    protected void scanEntity(I currentEntity, BindingResult bindingResult) {
+<span class="fc" id="L140">        List&lt;AttributeInterface&gt; attributes = currentEntity.getAttributeList();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        for (AttributeInterface entityAttribute : attributes) {</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">            if (entityAttribute.isActive()) {</span>
+<span class="fc" id="L143">                List&lt;AttributeFieldError&gt; errors = entityAttribute.validate(new AttributeTracer(), this.getLangManager());</span>
+<span class="pc bpc" id="L144" title="1 of 4 branches missed.">                if (null != errors &amp;&amp; errors.size() &gt; 0) {</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                    for (AttributeFieldError attributeFieldError : errors) {</span>
+<span class="fc" id="L146">                        AttributeTracer tracer = attributeFieldError.getTracer();</span>
+<span class="fc" id="L147">                        AttributeInterface attribute = attributeFieldError.getAttribute();</span>
+<span class="fc" id="L148">                        String messagePrefix = this.createErrorMessageAttributePositionPrefix(attribute, tracer);</span>
+<span class="fc" id="L149">                        bindingResult.reject(EntityValidator.ERRCODE_ATTRIBUTE_INVALID,</span>
+<span class="fc" id="L150">                                messagePrefix + &quot; &quot; + this.getErrorMessage(</span>
+<span class="fc" id="L151">                                        attributeFieldError.getErrorCode()) + &quot;: &quot; + attributeFieldError.getMessage());</span>
+<span class="fc" id="L152">                    }</span>
+                }
+            }
+<span class="fc" id="L155">        }</span>
+<span class="fc" id="L156">    }</span>
+
+    protected String getErrorMessage(String errorCode) {
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if (errorCode.equals(FieldError.MANDATORY)) {</span>
+<span class="fc" id="L160">            return &quot;Mandatory&quot;;</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.INVALID)) {</span>
+<span class="nc" id="L162">            return &quot;Invalid&quot;;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.INVALID_FORMAT)) {</span>
+<span class="nc" id="L164">            return &quot;Invalid format&quot;;</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.INVALID_MIN_LENGTH)) {</span>
+<span class="nc" id="L166">            return &quot;Invalid min length&quot;;</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.INVALID_MAX_LENGTH)) {</span>
+<span class="nc" id="L168">            return &quot;Invalid max length&quot;;</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.LESS_THAN_ALLOWED)) {</span>
+<span class="nc" id="L170">            return &quot;Less than allowed&quot;;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        } else if (errorCode.equals(FieldError.GREATER_THAN_ALLOWED)) {</span>
+<span class="nc" id="L172">            return &quot;Greater than allowed&quot;;</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        } else if (errorCode.equals(AttributeFieldError.OGNL_VALIDATION)) {</span>
+<span class="nc" id="L174">            return &quot;Invalid (ognl)&quot;;</span>
+        } else {
+<span class="nc" id="L176">            return &quot;Invalid&quot;;</span>
+        }
+    }
+
+    private String createErrorMessageAttributePositionPrefix(AttributeInterface attribute, AttributeTracer tracer) {
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (tracer.isMonoListElement()) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            if (tracer.isCompositeElement()) {</span>
+<span class="nc" id="L183">                String[] args = {tracer.getParentAttribute().getName(), String.valueOf(tracer.getListIndex() + 1), attribute.getName()};</span>
+<span class="nc" id="L184">                return &quot;List attribute '&quot; + args[0] + &quot;' - Index &quot; + args[1] + &quot;' - Name '&quot; + args[2] + &quot;'&quot;;</span>
+            } else {
+<span class="nc" id="L186">                String[] args = {attribute.getName(), String.valueOf(tracer.getListIndex() + 1)};</span>
+<span class="nc" id="L187">                return &quot;List attribute '&quot; + args[0] + &quot;' - Index &quot; + args[1] + &quot;'&quot;;</span>
+            }
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        } else if (tracer.isCompositeElement()) {</span>
+<span class="nc" id="L190">            String[] args = {tracer.getParentAttribute().getName(), attribute.getName()};</span>
+<span class="nc" id="L191">            return &quot;Composite attribute '&quot; + args[0] + &quot;' - Name '&quot; + args[1] + &quot;'&quot;;</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        } else if (tracer.isListElement()) {</span>
+<span class="nc" id="L193">            String[] args = {attribute.getName(), tracer.getListLang().getDescr(), String.valueOf(tracer.getListIndex() + 1)};</span>
+<span class="nc" id="L194">            return &quot;List attribute '&quot; + args[0] + &quot;' - Lang '&quot; + args[1] + &quot;' - Index '&quot; + args[2] + &quot;'&quot;;</span>
+        } else {
+<span class="fc" id="L196">            String[] args = {attribute.getName()};</span>
+<span class="fc" id="L197">            return &quot;Attribute '&quot; + args[0] + &quot;'&quot;;</span>
+        }
+    }
+
+    protected I getEntityPrototype(IEntityManager entityManager, String entityTypeCode) {
+<span class="fc" id="L202">        I entityType = (I) entityManager.getEntityPrototype(entityTypeCode);</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (null == entityType) {</span>
+<span class="nc" id="L204">            logger.warn(&quot;no type found with code {}&quot;, entityTypeCode);</span>
+<span class="nc" id="L205">            throw new ResourceNotFoundException(AbstractEntityTypeValidator.ERRCODE_ENTITY_TYPE_DOES_NOT_EXIST, &quot;Type Code&quot;, entityTypeCode);</span>
+        }
+<span class="fc" id="L207">        return (I) entityType.getEntityPrototype();</span>
+    }
+
+    protected IEntityManager extractEntityManager(String entityManagerCode) {
+<span class="fc" id="L211">        IEntityManager entityManager = null;</span>
+<span class="fc" id="L212">        List&lt;IEntityManager&gt; managers = this.getEntityManagers();</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        for (IEntityManager manager : managers) {</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">            if (((IManager) manager).getName().equals(entityManagerCode)) {</span>
+<span class="fc" id="L215">                entityManager = manager;</span>
+<span class="fc" id="L216">                break;</span>
+            }
+<span class="fc" id="L218">        }</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        if (null == entityManager) {</span>
+<span class="nc" id="L220">            logger.warn(&quot;no entity manager found with code {}&quot;, entityManagerCode);</span>
+<span class="nc" id="L221">            throw new ResourceNotFoundException(&quot;entityManagerCode&quot;, entityManagerCode);</span>
+        }
+<span class="fc" id="L223">        return entityManager;</span>
+    }
+
+    public List&lt;IEntityManager&gt; getEntityManagers() {
+<span class="fc" id="L227">        return entityManagers;</span>
+    }
+
+    public void setEntityManagers(List&lt;IEntityManager&gt; entityManagers) {
+<span class="nc" id="L231">        this.entityManagers = entityManagers;</span>
+<span class="nc" id="L232">    }</span>
+
+    public ICategoryManager getCategoryManager() {
+<span class="fc" id="L235">        return categoryManager;</span>
+    }
+
+    public void setCategoryManager(ICategoryManager categoryManager) {
+<span class="nc" id="L239">        this.categoryManager = categoryManager;</span>
+<span class="nc" id="L240">    }</span>
+
+    public ILangManager getLangManager() {
+<span class="fc" id="L243">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="nc" id="L247">        this.langManager = langManager;</span>
+<span class="nc" id="L248">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
