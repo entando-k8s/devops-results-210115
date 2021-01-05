@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BundleReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Component Manager</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.model.bundle.reader</a> &gt; <span class="el_source">BundleReader.java</span></div><h1>BundleReader.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.model.bundle.reader;
+
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.entando.kubernetes.exception.digitalexchange.InvalidBundleException;
+import org.entando.kubernetes.model.bundle.BundleProperty;
+import org.entando.kubernetes.model.bundle.descriptor.BundleDescriptor;
+import org.entando.kubernetes.model.bundle.descriptor.FileDescriptor;
+
+<span class="fc" id="L28">@Slf4j</span>
+public class BundleReader {
+
+<span class="fc" id="L31">    private final YAMLMapper mapper = new YAMLMapper();</span>
+    private final Path bundleBasePath;
+
+<span class="fc" id="L34">    public BundleReader(Path filePath) {</span>
+<span class="fc" id="L35">        bundleBasePath = filePath;</span>
+<span class="fc" id="L36">    }</span>
+
+    public BundleDescriptor readBundleDescriptor() throws IOException {
+<span class="fc" id="L39">        return readDescriptorFile(BundleProperty.DESCRIPTOR_FILENAME.getValue(), BundleDescriptor.class);</span>
+    }
+
+    public boolean containsResourceFolder() {
+<span class="fc" id="L43">        return bundleBasePath.resolve(BundleProperty.RESOURCES_FOLDER_PATH.getValue()).toFile().isDirectory();</span>
+    }
+
+    public String getBundleCode() throws IOException {
+<span class="fc" id="L47">        return readBundleDescriptor().getCode();</span>
+    }
+
+    public List&lt;String&gt; getResourceFolders() {
+<span class="fc" id="L51">        return getResourceOfType(Files::isDirectory);</span>
+    }
+
+
+    public List&lt;String&gt; getResourceFiles() {
+<span class="fc" id="L56">        return getResourceOfType(Files::isRegularFile);</span>
+    }
+
+    private List&lt;String&gt; getResourceOfType(Predicate&lt;Path&gt; checkFunction) {
+        List&lt;Path&gt; resources;
+<span class="fc" id="L61">        Path resourcePath = bundleBasePath.resolve(&quot;resources/&quot;);</span>
+<span class="fc" id="L62">        try (Stream&lt;Path&gt; paths = Files.walk(resourcePath)) {</span>
+<span class="fc" id="L63">            resources = paths</span>
+<span class="fc" id="L64">                    .filter(checkFunction)</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">                    .filter(p -&gt; p != resourcePath)</span>
+<span class="fc" id="L66">                    .collect(Collectors.toList());</span>
+<span class="nc" id="L67">        } catch (IOException e) {</span>
+<span class="nc" id="L68">            resources = Collections.emptyList();</span>
+<span class="fc" id="L69">        }</span>
+<span class="fc" id="L70">        return resources.stream().map(bundleBasePath::relativize).map(Path::toString).collect(Collectors.toList());</span>
+
+    }
+
+    public &lt;T&gt; T readDescriptorFile(final String fileName, final Class&lt;T&gt; clazz) throws IOException {
+<span class="fc" id="L75">        try (InputStream fis = new FileInputStream(bundleBasePath.resolve(fileName).toFile())) {</span>
+<span class="fc" id="L76">            return readDescriptorFile(fis, clazz);</span>
+        }
+    }
+
+    private &lt;T&gt; T readDescriptorFile(final InputStream file, Class&lt;T&gt; clazz) throws IOException {
+<span class="fc" id="L81">        return mapper.readValue(file, clazz);</span>
+    }
+
+    public &lt;T&gt; List&lt;T&gt; readListOfDescriptorFile(final String filename, final Class&lt;T&gt; clazz) throws IOException {
+<span class="fc" id="L85">        try (InputStream fis = new FileInputStream(bundleBasePath.resolve(filename).toFile())) {</span>
+<span class="fc" id="L86">            return readListOfDescriptorsFile(fis, clazz);</span>
+        }
+    }
+
+    private &lt;T&gt; List&lt;T&gt; readListOfDescriptorsFile(InputStream file, Class&lt;T&gt; clz) throws IOException {
+<span class="fc" id="L91">        JavaType type = mapper.getTypeFactory().constructCollectionType(List.class, clz);</span>
+<span class="fc" id="L92">        return mapper.readValue(file, type);</span>
+    }
+
+    public String readFileAsString(String fileName) throws IOException {
+<span class="fc" id="L96">        verifyFileExistance(fileName);</span>
+<span class="fc" id="L97">        try (InputStream fis = new FileInputStream(bundleBasePath.resolve(fileName).toFile());</span>
+<span class="fc" id="L98">                StringWriter writer = new StringWriter()) {</span>
+<span class="fc" id="L99">            IOUtils.copy(fis, writer, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L100">            return writer.toString();</span>
+        }
+    }
+
+    public FileDescriptor getResourceFileAsDescriptor(final String fileName) throws IOException {
+<span class="fc" id="L105">        verifyFileExistance(fileName);</span>
+<span class="fc" id="L106">        File f = bundleBasePath.resolve(fileName).toFile();</span>
+<span class="fc" id="L107">        try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {</span>
+<span class="fc" id="L108">            IOUtils.copy(new FileInputStream(f), outputStream);</span>
+<span class="fc" id="L109">            final String base64 = Base64.encodeBase64String(outputStream.toByteArray());</span>
+<span class="fc" id="L110">            final String filename = FilenameUtils.getName(fileName);</span>
+<span class="fc" id="L111">            final String folder = FilenameUtils.getPath(fileName);</span>
+<span class="fc" id="L112">            return new FileDescriptor(folder, filename, base64);</span>
+        }
+    }
+
+    private void verifyFileExistance(String fileName) {
+<span class="fc" id="L117">        log.debug(&quot;Reading file {}&quot;, fileName);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (!bundleBasePath.resolve(fileName).toFile().exists()) {</span>
+<span class="fc" id="L119">            throw new InvalidBundleException(String.format(&quot;File with name %s not found in the bundle&quot;, fileName));</span>
+        }
+<span class="fc" id="L121">    }</span>
+
+    public File getAssetFile(final String directory, final String fileName) {
+<span class="fc" id="L124">        return bundleBasePath.resolve(directory + &quot;/&quot; + fileName).toFile();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
