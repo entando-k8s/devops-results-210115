@@ -93,7 +93,7 @@ public class EntandoAppController {
             @PathVariable(&quot;name&quot;) String appName,
             @RequestBody EntandoPlugin entandoPlugin) {
 <span class="fc" id="L95">        EntandoApp entandoApp = getEntandoAppOrFail(appName);</span>
-<span class="fc" id="L96">        EntandoPlugin plugin = getOrCreatePlugin(entandoPlugin);</span>
+<span class="fc" id="L96">        EntandoPlugin plugin = createPlugin(entandoPlugin);</span>
 <span class="fc" id="L97">        EntandoAppPluginLink newLink = linkService.buildBetweenAppAndPlugin(entandoApp, plugin);</span>
 <span class="fc" id="L98">        EntandoAppPluginLink deployedLink = linkService.deploy(newLink);</span>
 <span class="fc" id="L99">        return ResponseEntity.status(HttpStatus.CREATED).body(linkResourceAssembler.toModel(deployedLink));</span>
@@ -115,28 +115,29 @@ public class EntandoAppController {
                 });
     }
 
-    private EntandoPlugin getOrCreatePlugin(EntandoPlugin plugin) {
-<span class="fc" id="L119">        String pluginName = plugin.getMetadata().getName();</span>
-<span class="fc" id="L120">        Optional&lt;EntandoPlugin&gt; optionalPlugin = pluginService.findByName(pluginName);</span>
-<span class="fc" id="L121">        return optionalPlugin.orElseGet(() -&gt; {</span>
-<span class="fc" id="L122">            String pluginNamespace = Optional.ofNullable(plugin.getMetadata().getNamespace())</span>
-<span class="pc bpc" id="L123" title="1 of 2 branches missed.">                    .filter(ns -&gt; !ns.isEmpty())</span>
-<span class="fc" id="L124">                    .orElse(k8sUtils.getCurrentNamespace());</span>
-<span class="fc" id="L125">            plugin.getMetadata().setNamespace(pluginNamespace);</span>
-<span class="fc" id="L126">            return pluginService.deploy(plugin);</span>
-        });
+    private EntandoPlugin getOrCreatePlugin(EntandoPlugin newPlugin) {
+<span class="nc" id="L119">        String pluginName = newPlugin.getMetadata().getName();</span>
+<span class="nc" id="L120">        return pluginService.findByName(pluginName)</span>
+<span class="nc" id="L121">                .orElseGet(() -&gt; createPlugin(newPlugin));</span>
+    }
 
+    private EntandoPlugin createPlugin(EntandoPlugin newPlugin) {
+<span class="fc" id="L125">        String pluginNamespace = Optional.ofNullable(newPlugin.getMetadata().getNamespace())</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                .filter(ns -&gt; !ns.isEmpty())</span>
+<span class="fc" id="L127">                .orElse(k8sUtils.getCurrentNamespace());</span>
+<span class="fc" id="L128">        newPlugin.getMetadata().setNamespace(pluginNamespace);</span>
+<span class="fc" id="L129">        return pluginService.deploy(newPlugin, EntandoPluginService.CREATE_OR_REPLACE);</span>
     }
 
     private void addAppCollectionLinks(CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; collection) {
-<span class="fc" id="L132">        collection.add(linkTo(methodOn(EntandoAppController.class).get(null)).withRel(&quot;app&quot;));</span>
-<span class="fc" id="L133">        collection.add(linkTo(methodOn(EntandoLinksController.class).listAppLinks(null)).withRel(&quot;app-links&quot;));</span>
-<span class="fc" id="L134">        collection.add(linkTo(methodOn(EntandoAppController.class).listInNamespace(null)).withRel(&quot;apps-in-namespace&quot;));</span>
-<span class="fc" id="L135">    }</span>
+<span class="fc" id="L133">        collection.add(linkTo(methodOn(EntandoAppController.class).get(null)).withRel(&quot;app&quot;));</span>
+<span class="fc" id="L134">        collection.add(linkTo(methodOn(EntandoLinksController.class).listAppLinks(null)).withRel(&quot;app-links&quot;));</span>
+<span class="fc" id="L135">        collection.add(linkTo(methodOn(EntandoAppController.class).listInNamespace(null)).withRel(&quot;apps-in-namespace&quot;));</span>
+<span class="fc" id="L136">    }</span>
 
     private CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; getAppsCollectionModel(List&lt;EntandoApp&gt; entandoApps) {
-<span class="fc" id="L138">        return new CollectionModel&lt;&gt;(</span>
-<span class="fc" id="L139">                entandoApps.stream().map(appResourceAssembler::toModel).collect(Collectors.toList()));</span>
+<span class="fc" id="L139">        return new CollectionModel&lt;&gt;(</span>
+<span class="fc" id="L140">                entandoApps.stream().map(appResourceAssembler::toModel).collect(Collectors.toList()));</span>
     }
 
 }
