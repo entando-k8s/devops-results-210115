@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoAppController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Kubernetes Service</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller</a> &gt; <span class="el_source">EntandoAppController.java</span></div><h1>EntandoAppController.java</h1><pre class="source lang-java linenums">package org.entando.kubernetes.controller;
+
+import static org.springframework.hateoas.MediaTypes.HAL_JSON_VALUE;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.entando.kubernetes.exception.NotFoundExceptionFactory;
+import org.entando.kubernetes.model.app.EntandoApp;
+import org.entando.kubernetes.model.link.EntandoAppPluginLink;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.service.EntandoAppService;
+import org.entando.kubernetes.service.EntandoLinkService;
+import org.entando.kubernetes.service.EntandoPluginService;
+import org.entando.kubernetes.service.IngressService;
+import org.entando.kubernetes.service.KubernetesUtils;
+import org.entando.kubernetes.service.assembler.EntandoAppPluginLinkResourceAssembler;
+import org.entando.kubernetes.service.assembler.EntandoAppResourceAssembler;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.zalando.problem.ThrowableProblem;
+
+
+<span class="fc" id="L39">@Slf4j</span>
+@RestController
+@RequiredArgsConstructor
+@SuppressWarnings(&quot;PMD.ExcessiveImports&quot;)
+@RequestMapping(&quot;/apps&quot;)
+public class EntandoAppController {
+
+    private final EntandoAppService appService;
+    private final EntandoAppResourceAssembler appResourceAssembler;
+    private final EntandoAppPluginLinkResourceAssembler linkResourceAssembler;
+    private final KubernetesUtils k8sUtils;
+    private final EntandoLinkService linkService;
+    private final IngressService ingressService;
+    private final EntandoPluginService pluginService;
+
+    @GetMapping(produces = {APPLICATION_JSON_VALUE, HAL_JSON_VALUE})
+    public ResponseEntity&lt;CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt;&gt; list() {
+<span class="fc" id="L56">        log.info(&quot;Listing apps from all observed namespaces&quot;);</span>
+<span class="fc" id="L57">        List&lt;EntandoApp&gt; entandoApps = appService.getAll();</span>
+<span class="fc" id="L58">        CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; collection = getAppsCollectionModel(entandoApps);</span>
+<span class="fc" id="L59">        addAppCollectionLinks(collection);</span>
+<span class="fc" id="L60">        return ResponseEntity.ok(collection);</span>
+    }
+
+
+    @GetMapping(produces = {APPLICATION_JSON_VALUE,
+            HAL_JSON_VALUE}, params = &quot;namespace&quot;)
+    public ResponseEntity&lt;CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt;&gt; listInNamespace(@RequestParam String namespace) {
+<span class="fc" id="L67">        log.info(&quot;Listing apps&quot;);</span>
+<span class="fc" id="L68">        List&lt;EntandoApp&gt; entandoApps = appService.getAllInNamespace(namespace);</span>
+<span class="fc" id="L69">        CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; collection = getAppsCollectionModel(entandoApps);</span>
+<span class="fc" id="L70">        addAppCollectionLinks(collection);</span>
+<span class="fc" id="L71">        return ResponseEntity.ok(collection);</span>
+    }
+
+    @GetMapping(path = &quot;/{name}&quot;, produces = {APPLICATION_JSON_VALUE,
+            HAL_JSON_VALUE})
+    public ResponseEntity&lt;EntityModel&lt;EntandoApp&gt;&gt; get(@PathVariable(&quot;name&quot;) String appName) {
+<span class="fc" id="L77">        log.debug(&quot;Requesting app with name {}&quot;, appName);</span>
+<span class="nc" id="L78">        EntandoApp entandoApp = getEntandoAppOrFail(appName);</span>
+<span class="nc" id="L79">        return ResponseEntity.ok(appResourceAssembler.toModel(entandoApp));</span>
+    }
+
+    @GetMapping(path = &quot;/{name}/ingress&quot;, produces = {APPLICATION_JSON_VALUE, HAL_JSON_VALUE})
+    public ResponseEntity&lt;EntityModel&lt;Ingress&gt;&gt; getAppIngress(@PathVariable(&quot;name&quot;) String appName) {
+<span class="fc" id="L84">        log.debug(&quot;Requesting app with name {}&quot;, appName);</span>
+<span class="fc" id="L85">        EntandoApp entandoApp = getEntandoAppOrFail(appName);</span>
+<span class="fc" id="L86">        Ingress appIngress = getEntandoAppIngressOrFail(entandoApp);</span>
+<span class="fc" id="L87">        return ResponseEntity.ok(new EntityModel&lt;&gt;(appIngress));</span>
+    }
+
+    @PostMapping(path = &quot;/{name}/links&quot;, consumes = APPLICATION_JSON_VALUE, produces = {
+            APPLICATION_JSON_VALUE, HAL_JSON_VALUE})
+    public ResponseEntity&lt;EntityModel&lt;EntandoAppPluginLink&gt;&gt; linkToPlugin(
+            @PathVariable(&quot;name&quot;) String appName,
+            @RequestBody EntandoPlugin entandoPlugin) {
+<span class="fc" id="L95">        EntandoApp entandoApp = getEntandoAppOrFail(appName);</span>
+<span class="fc" id="L96">        EntandoPlugin plugin = createPlugin(entandoPlugin);</span>
+<span class="fc" id="L97">        EntandoAppPluginLink newLink = linkService.buildBetweenAppAndPlugin(entandoApp, plugin);</span>
+<span class="fc" id="L98">        EntandoAppPluginLink deployedLink = linkService.deploy(newLink);</span>
+<span class="fc" id="L99">        return ResponseEntity.status(HttpStatus.CREATED).body(linkResourceAssembler.toModel(deployedLink));</span>
+    }
+
+    public Ingress getEntandoAppIngressOrFail(EntandoApp app) {
+<span class="fc" id="L103">        return ingressService</span>
+<span class="fc" id="L104">                .findByEntandoApp(app)</span>
+<span class="fc" id="L105">                .&lt;ThrowableProblem&gt;orElseThrow(() -&gt; {</span>
+<span class="fc" id="L106">                    throw NotFoundExceptionFactory.ingress(app);</span>
+                });
+    }
+
+    private EntandoApp getEntandoAppOrFail(String appName) {
+<span class="fc" id="L111">        return appService</span>
+<span class="fc" id="L112">                .findByName(appName)</span>
+<span class="fc" id="L113">                .&lt;ThrowableProblem&gt;orElseThrow(() -&gt; {</span>
+<span class="fc" id="L114">                    throw NotFoundExceptionFactory.entandoApp(appName);</span>
+                });
+    }
+
+    private EntandoPlugin getOrCreatePlugin(EntandoPlugin newPlugin) {
+<span class="nc" id="L119">        String pluginName = newPlugin.getMetadata().getName();</span>
+<span class="nc" id="L120">        return pluginService.findByName(pluginName)</span>
+<span class="nc" id="L121">                .orElseGet(() -&gt; createPlugin(newPlugin));</span>
+    }
+
+    private EntandoPlugin createPlugin(EntandoPlugin newPlugin) {
+<span class="fc" id="L125">        String pluginNamespace = Optional.ofNullable(newPlugin.getMetadata().getNamespace())</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                .filter(ns -&gt; !ns.isEmpty())</span>
+<span class="fc" id="L127">                .orElse(k8sUtils.getCurrentNamespace());</span>
+<span class="fc" id="L128">        newPlugin.getMetadata().setNamespace(pluginNamespace);</span>
+<span class="fc" id="L129">        return pluginService.deploy(newPlugin, EntandoPluginService.CREATE_OR_REPLACE);</span>
+    }
+
+    private void addAppCollectionLinks(CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; collection) {
+<span class="fc" id="L133">        collection.add(linkTo(methodOn(EntandoAppController.class).get(null)).withRel(&quot;app&quot;));</span>
+<span class="fc" id="L134">        collection.add(linkTo(methodOn(EntandoLinksController.class).listAppLinks(null)).withRel(&quot;app-links&quot;));</span>
+<span class="fc" id="L135">        collection.add(linkTo(methodOn(EntandoAppController.class).listInNamespace(null)).withRel(&quot;apps-in-namespace&quot;));</span>
+<span class="fc" id="L136">    }</span>
+
+    private CollectionModel&lt;EntityModel&lt;EntandoApp&gt;&gt; getAppsCollectionModel(List&lt;EntandoApp&gt; entandoApps) {
+<span class="fc" id="L139">        return new CollectionModel&lt;&gt;(</span>
+<span class="fc" id="L140">                entandoApps.stream().map(appResourceAssembler::toModel).collect(Collectors.toList()));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
