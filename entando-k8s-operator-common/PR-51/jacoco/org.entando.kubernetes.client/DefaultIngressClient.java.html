@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultIngressClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.client</a> &gt; <span class="el_source">DefaultIngressClient.java</span></div><h1>DefaultIngressClient.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.client;
+
+import io.fabric8.kubernetes.api.model.Node;
+import io.fabric8.kubernetes.api.model.NodeAddress;
+import io.fabric8.kubernetes.api.model.extensions.DoneableIngress;
+import io.fabric8.kubernetes.api.model.extensions.HTTPIngressPath;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import java.util.Map;
+import java.util.Optional;
+import org.entando.kubernetes.controller.k8sclient.IngressClient;
+import org.entando.kubernetes.model.EntandoCustomResource;
+
+public class DefaultIngressClient implements IngressClient {
+
+    private final KubernetesClient client;
+
+<span class="fc" id="L34">    public DefaultIngressClient(KubernetesClient client) {</span>
+<span class="fc" id="L35">        this.client = client;</span>
+<span class="fc" id="L36">    }</span>
+
+    public static String resolveMasterHostname(KubernetesClient client) {
+<span class="fc" id="L39">        String host = client.settings().getMasterUrl().getHost();</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if (&quot;127.0.0.1&quot;.equals(host)) {</span>
+            //This will only happen on single node installations. Generally it will return some ip/domain name that resolves to the master
+            // Retrieve IP from node API and discard local IP
+<span class="nc" id="L43">            Node masterNode = client.nodes().list().getItems().get(0);</span>
+<span class="nc" id="L44">            Optional&lt;NodeAddress&gt; masterNodeAddress = masterNode.getStatus().getAddresses().stream()</span>
+<span class="nc" id="L45">                    .filter(na -&gt; na.getType().equalsIgnoreCase(&quot;InternalIP&quot;)).findFirst();</span>
+<span class="nc" id="L46">            host = masterNodeAddress.orElseThrow(() -&gt; new RuntimeException(&quot;Impossible to retrieve node internal IP address&quot;))</span>
+<span class="nc" id="L47">                    .getAddress();</span>
+        }
+<span class="fc" id="L49">        return host;</span>
+    }
+
+    @Override
+    public Ingress addHttpPath(Ingress ingress, HTTPIngressPath httpIngressPath, Map&lt;String, String&gt; annotations) {
+<span class="fc" id="L54">        return client.extensions().ingresses().inNamespace(ingress.getMetadata().getNamespace())</span>
+<span class="fc" id="L55">                .withName(ingress.getMetadata().getName()).edit()</span>
+<span class="fc" id="L56">                .editSpec().editFirstRule().editHttp()</span>
+<span class="fc" id="L57">                .addNewPathLike(httpIngressPath)</span>
+<span class="fc" id="L58">                .endPath().endHttp().endRule().endSpec()</span>
+<span class="fc" id="L59">                .editMetadata().addToAnnotations(annotations).endMetadata()</span>
+<span class="fc" id="L60">                .done();</span>
+    }
+
+    @Override
+    public Ingress removeHttpPath(Ingress ingress, HTTPIngressPath path) {
+<span class="fc" id="L65">        return client.extensions().ingresses().inNamespace(ingress.getMetadata().getNamespace())</span>
+<span class="fc" id="L66">                .withName(ingress.getMetadata().getName()).edit()</span>
+<span class="fc" id="L67">                .editSpec().editFirstRule().editHttp()</span>
+<span class="fc" id="L68">                .removeFromPaths(path)</span>
+<span class="fc" id="L69">                .endHttp()</span>
+<span class="fc" id="L70">                .endRule()</span>
+<span class="fc" id="L71">                .endSpec()</span>
+<span class="fc" id="L72">                .done();</span>
+
+    }
+
+    @Override
+    public String getMasterUrlHost() {
+<span class="fc" id="L78">        return resolveMasterHostname(this.client);</span>
+    }
+
+    @Override
+    public Ingress createIngress(EntandoCustomResource peerInNamespace, Ingress ingress) {
+<span class="fc" id="L83">        return client.extensions().ingresses().inNamespace(peerInNamespace.getMetadata().getNamespace()).create(ingress);</span>
+    }
+
+    @Override
+    public DoneableIngress editIngress(EntandoCustomResource peerInNamespace, String name) {
+<span class="nc" id="L88">        return client.extensions().ingresses().inNamespace(peerInNamespace.getMetadata().getNamespace()).withName(name).edit();</span>
+    }
+
+    @Override
+    public Ingress loadIngress(String namespace, String name) {
+<span class="fc" id="L93">        return client.extensions().ingresses().inNamespace(namespace).withName(name).get();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
