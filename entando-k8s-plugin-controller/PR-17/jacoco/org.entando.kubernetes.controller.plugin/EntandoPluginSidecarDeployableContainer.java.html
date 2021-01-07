@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoPluginSidecarDeployableContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando Plugin Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.plugin</a> &gt; <span class="el_source">EntandoPluginSidecarDeployableContainer.java</span></div><h1>EntandoPluginSidecarDeployableContainer.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.plugin;
+
+import io.fabric8.kubernetes.api.model.EnvVar;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import org.entando.kubernetes.controller.KeycloakClientConfig;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.spi.DeployableContainer;
+import org.entando.kubernetes.controller.spi.KeycloakAware;
+import org.entando.kubernetes.controller.spi.KubernetesPermission;
+import org.entando.kubernetes.controller.spi.ParameterizableContainer;
+import org.entando.kubernetes.controller.spi.TlsAware;
+import org.entando.kubernetes.model.EntandoIngressingDeploymentSpec;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.model.plugin.EntandoPluginSpec;
+
+public class EntandoPluginSidecarDeployableContainer implements DeployableContainer, KeycloakAware, TlsAware, ParameterizableContainer {
+
+    public static final String REQUIRED_ROLE = &quot;connection-config&quot;;
+    private static final String ENTANDO_PLUGIN_SIDECAR_IMAGE = &quot;entando/entando-plugin-sidecar&quot;;
+
+    private final EntandoPlugin entandoPlugin;
+    private final KeycloakConnectionConfig keycloakConnectionConfig;
+
+<span class="fc" id="L42">    public EntandoPluginSidecarDeployableContainer(EntandoPlugin entandoPlugin, KeycloakConnectionConfig keycloakConnectionConfig) {</span>
+<span class="fc" id="L43">        this.entandoPlugin = entandoPlugin;</span>
+<span class="fc" id="L44">        this.keycloakConnectionConfig = keycloakConnectionConfig;</span>
+<span class="fc" id="L45">    }</span>
+
+    public static String keycloakClientIdOf(EntandoPlugin entandoPlugin) {
+<span class="fc" id="L48">        return entandoPlugin.getMetadata().getName() + &quot;-&quot; + &quot;sidecar&quot;;</span>
+    }
+
+    @Override
+    public int getCpuLimitMillicores() {
+<span class="fc" id="L53">        return 750;</span>
+    }
+
+    @Override
+    public int getMemoryLimitMebibytes() {
+<span class="fc" id="L58">        return 768;</span>
+    }
+
+    @Override
+    public String determineImageToUse() {
+<span class="fc" id="L63">        return ENTANDO_PLUGIN_SIDECAR_IMAGE;</span>
+    }
+
+    @Override
+    public String getNameQualifier() {
+<span class="fc" id="L68">        return &quot;sidecar&quot;;</span>
+    }
+
+    @Override
+    public int getPrimaryPort() {
+<span class="fc" id="L73">        return 8084;</span>
+    }
+
+    @Override
+    public void addEnvironmentVariables(List&lt;EnvVar&gt; vars) {
+<span class="fc" id="L78">        vars.add(new EnvVar(&quot;ENTANDO_PLUGIN_NAME&quot;, entandoPlugin.getMetadata().getName(), null));</span>
+<span class="fc" id="L79">    }</span>
+
+    public KeycloakConnectionConfig getKeycloakConnectionConfig() {
+<span class="fc" id="L82">        return keycloakConnectionConfig;</span>
+    }
+
+    @Override
+    public KeycloakClientConfig getKeycloakClientConfig() {
+<span class="fc" id="L87">        String clientId = keycloakClientIdOf(this.entandoPlugin);</span>
+<span class="fc" id="L88">        return new KeycloakClientConfig(determineRealm(), clientId, clientId).withRole(REQUIRED_ROLE);</span>
+    }
+
+    @Override
+    public String getWebContextPath() {
+<span class="fc" id="L93">        return &quot;&quot;;</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getHealthCheckPath() {
+<span class="fc" id="L98">        return Optional.of(&quot;/actuator/health&quot;);</span>
+    }
+
+    @Override
+    public List&lt;KubernetesPermission&gt; getKubernetesPermissions() {
+<span class="nc" id="L103">        return Arrays.asList(new KubernetesPermission(&quot;entando.org&quot;, &quot;entandoplugins&quot;, &quot;get&quot;, &quot;update&quot;),</span>
+                new KubernetesPermission(&quot;&quot;, &quot;secrets&quot;, &quot;create&quot;, &quot;get&quot;, &quot;update&quot;, &quot;delete&quot;));
+    }
+
+    @Override
+    public EntandoIngressingDeploymentSpec getCustomResourceSpec() {
+<span class="fc" id="L109">        return getKeycloakAwareSpec();</span>
+    }
+
+    @Override
+    public EntandoPluginSpec getKeycloakAwareSpec() {
+<span class="fc" id="L114">        return entandoPlugin.getSpec();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
