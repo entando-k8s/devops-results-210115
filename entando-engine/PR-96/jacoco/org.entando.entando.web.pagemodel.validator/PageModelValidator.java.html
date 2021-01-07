@@ -15,8 +15,10 @@ package org.entando.entando.web.pagemodel.validator;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.agiletec.aps.system.services.pagemodel.FrameSketch;
 import org.apache.commons.lang3.StringUtils;
 import org.entando.entando.web.common.validator.AbstractPaginationValidator;
 import org.entando.entando.web.pagemodel.model.PageModelFrameReq;
@@ -25,7 +27,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
 @Component
-<span class="fc" id="L28">public class PageModelValidator extends AbstractPaginationValidator {</span>
+<span class="fc" id="L30">public class PageModelValidator extends AbstractPaginationValidator {</span>
 
     public static final String ERRCODE_PAGEMODEL_NOT_FOUND = &quot;1&quot;;
     public static final String ERRCODE_CODE_EXISTS = &quot;2&quot;;
@@ -34,52 +36,106 @@ import org.springframework.validation.Errors;
     public static final String ERRCODE_FRAMES_POS_MISMATCH = &quot;5&quot;;
     public static final String ERRCODE_DEFAULT_WIDGET_NOT_EXISTS = &quot;6&quot;;
     public static final String ERRCODE_DEFAULT_WIDGET_INVALID_PARAMETER = &quot;7&quot;;
+    public static final String ERRCODE_SKETCH_XY = &quot;8&quot;;
+    public static final String ERRCODE_OVERLAPPING_FRAMES = &quot;9&quot;;
+    public static final String ERRCODE_SKETCH_NULL = &quot;10&quot;;
+
+    private static final String ERR_MSG_FRAMES_POS_MISMATCH = &quot;pageModel.frames.pos.mismatch&quot;;
+    private static final String ERR_MSG_CODE_MISMATCH = &quot;pageModel.code.mismatch&quot;;
+    private static final String ERR_MSG_FRAMES_SKETCH_NULL = &quot;pageModel.frames.error.sketchNull&quot;;
+    private static final String ERR_MSG_FRAMES_SKETCH_XY = &quot;pageModel.frames.error.sketchXYFrames&quot;;
+    private static final String ERR_MSG_FRAMES_OVERLAPPING =&quot;pageModel.frames.error.sketchOverlappingFrames&quot;;
 
     @Override
     public boolean supports(Class&lt;?&gt; paramClass) {
-<span class="nc" id="L40">        return PageModelRequest.class.equals(paramClass);</span>
+<span class="nc" id="L51">        return PageModelRequest.class.equals(paramClass);</span>
     }
 
     @Override
     public void validate(Object target, Errors errors) {
-<span class="fc" id="L45">        PageModelRequest request = (PageModelRequest) target;</span>
-<span class="fc" id="L46">        this.validateConfiguration(request, errors);</span>
-<span class="fc" id="L47">    }</span>
+<span class="fc" id="L56">        PageModelRequest request = (PageModelRequest) target;</span>
+<span class="fc" id="L57">        this.validateConfiguration(request, errors);</span>
+<span class="fc" id="L58">    }</span>
 
     private void validateConfiguration(PageModelRequest request, Errors errors) {
-<span class="fc" id="L50">        List&lt;PageModelFrameReq&gt; conf = request.getConfiguration().getFrames();</span>
-<span class="pc bpc" id="L51" title="2 of 4 branches missed.">        if (null == conf || conf.isEmpty()) {</span>
-<span class="nc" id="L52">            return;</span>
-        }
-        //frame positions should start from 0 and be progressive
-<span class="fc" id="L55">        List&lt;Integer&gt; positions = conf</span>
-<span class="fc" id="L56">                .stream()</span>
-<span class="fc" id="L57">                .sorted((e1, e2) -&gt; Integer.compare(e1.getPos(), e2.getPos()))</span>
-<span class="fc" id="L58">                .map(i -&gt; i.getPos()).collect(Collectors.toList());</span>
-<span class="fc" id="L59">        int firstPosition = positions.get(0);</span>
-<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (firstPosition != 0) {</span>
-<span class="nc" id="L61">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
-<span class="nc" id="L62">            return;</span>
-        }
+<span class="fc" id="L61">        List&lt;PageModelFrameReq&gt; conf = request.getConfiguration().getFrames();</span>
 
-<span class="fc" id="L65">        int lastPosition = positions.get(positions.size() - 1);</span>
-<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (lastPosition != positions.size() - 1) {</span>
-<span class="fc" id="L67">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
-<span class="fc" id="L68">            return;</span>
+        //frame positions should start from 0 and be progressive
+<span class="fc" id="L64">        List&lt;Integer&gt; positions = conf</span>
+<span class="fc" id="L65">                .stream()</span>
+<span class="fc" id="L66">                .sorted((e1, e2) -&gt; Integer.compare(e1.getPos(), e2.getPos()))</span>
+<span class="fc" id="L67">                .map(PageModelFrameReq::getPos).collect(Collectors.toList());</span>
+<span class="fc" id="L68">        int firstPosition = positions.get(0);</span>
+
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (firstPosition != 0) {</span>
+<span class="nc" id="L71">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, ERR_MSG_FRAMES_POS_MISMATCH);</span>
+<span class="nc" id="L72">            return;</span>
         }
-<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (positions.size() != new HashSet&lt;Integer&gt;(positions).size()) {</span>
-<span class="fc" id="L71">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, &quot;pageModel.frames.pos.mismatch&quot;);</span>
-<span class="fc" id="L72">            return;</span>
+<span class="fc" id="L74">        int lastPosition = positions.get(positions.size() - 1);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (lastPosition != positions.size() - 1) {</span>
+<span class="fc" id="L76">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, ERR_MSG_FRAMES_POS_MISMATCH);</span>
+<span class="fc" id="L77">            return;</span>
         }
-<span class="fc" id="L74">    }</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (positions.size() != new HashSet&lt;Integer&gt;(positions).size()) {</span>
+<span class="fc" id="L80">            errors.reject(ERRCODE_FRAMES_POS_MISMATCH, new String[]{}, ERR_MSG_FRAMES_POS_MISMATCH);</span>
+<span class="fc" id="L81">            return;</span>
+        }
+<span class="fc" id="L83">        validateXYSketchFrames(conf, errors);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        if (errors.hasErrors()) {</span>
+<span class="fc" id="L85">            return;</span>
+        }
+<span class="fc" id="L87">        validateOverlapppingFrames(conf, errors);</span>
+<span class="fc" id="L88">    }</span>
 
     public void validateBodyName(String code, PageModelRequest pageModelRequest, Errors errors) {
-
-<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (!StringUtils.equals(code, pageModelRequest.getCode())) {</span>
-<span class="nc" id="L79">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{code, pageModelRequest.getCode()}, &quot;pageModel.code.mismatch&quot;);</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if (!StringUtils.equals(code, pageModelRequest.getCode())) {</span>
+<span class="nc" id="L92">            errors.rejectValue(&quot;code&quot;, ERRCODE_URINAME_MISMATCH, new String[]{code, pageModelRequest.getCode()}, ERR_MSG_CODE_MISMATCH);</span>
         }
+<span class="fc" id="L94">    }</span>
 
-<span class="fc" id="L82">    }</span>
+    private void validateXYSketchFrames(final List&lt;PageModelFrameReq&gt; frames, Errors errors) {
+<span class="fc" id="L97">        frames.forEach(frame -&gt; {</span>
+<span class="fc" id="L98">            final FrameSketch sketch = frame.getSketch();</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (null == sketch) {</span>
+<span class="nc" id="L100">                errors.rejectValue(&quot;code&quot;, ERRCODE_SKETCH_NULL, new String[]{frame.getDescr(), String.valueOf(frame.getPos())},  ERR_MSG_FRAMES_SKETCH_NULL);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            } else if (sketch.getX1() &lt; 0 ||</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">                    sketch.getX2() &lt; 0 ||</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">                    sketch.getY1() &lt; 0 ||</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                    sketch.getY2() &lt; 0 ||</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">                    sketch.getY1() &gt; sketch.getY2() ||</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">                    sketch.getX1() &gt; sketch.getX2()) {</span>
+<span class="fc" id="L107">                errors.rejectValue(&quot;code&quot;, ERRCODE_SKETCH_XY, new String[]{frame.getDescr(), String.valueOf(frame.getPos())}, ERR_MSG_FRAMES_SKETCH_XY);</span>
+            }
+<span class="fc" id="L109">        });</span>
+<span class="fc" id="L110">    }</span>
 
+    private void validateOverlapppingFrames(final List&lt;PageModelFrameReq&gt; frames, Errors errors) {
+<span class="fc" id="L113">        frames.forEach(frame -&gt; {</span>
+<span class="fc" id="L114">            final FrameSketch sketch = frame.getSketch();</span>
+<span class="fc" id="L115">            final Optional&lt;PageModelFrameReq&gt; frameByCoordinates1 = getFrameByCoordinates(frames, sketch.getX1(), sketch.getY1());</span>
+<span class="fc" id="L116">            final Optional&lt;PageModelFrameReq&gt; frameByCoordinates2 = getFrameByCoordinates(frames, sketch.getX2(), sketch.getY1());</span>
+<span class="fc" id="L117">            final Optional&lt;PageModelFrameReq&gt; frameByCoordinates3 = getFrameByCoordinates(frames, sketch.getX1(), sketch.getY2());</span>
+<span class="fc" id="L118">            final Optional&lt;PageModelFrameReq&gt; frameByCoordinates4 = getFrameByCoordinates(frames, sketch.getX2(), sketch.getY2());</span>
+<span class="fc" id="L119">            checkFrameByCoordinates(errors, frameByCoordinates1, frame);</span>
+<span class="fc" id="L120">            checkFrameByCoordinates(errors, frameByCoordinates2, frame);</span>
+<span class="fc" id="L121">            checkFrameByCoordinates(errors, frameByCoordinates3, frame);</span>
+<span class="fc" id="L122">            checkFrameByCoordinates(errors, frameByCoordinates4, frame);</span>
+<span class="fc" id="L123">        });</span>
+
+<span class="fc" id="L125">    }</span>
+
+    private void checkFrameByCoordinates(Errors errors, Optional&lt;PageModelFrameReq&gt; frameByCoordinates1, PageModelFrameReq frame) {
+<span class="pc bpc" id="L128" title="1 of 4 branches missed.">        if (frameByCoordinates1.isPresent() &amp;&amp; (frameByCoordinates1.get() != frame)) {</span>
+<span class="fc" id="L129">            final PageModelFrameReq f1 = frameByCoordinates1.get();</span>
+<span class="fc" id="L130">            errors.rejectValue(&quot;code&quot;, ERRCODE_OVERLAPPING_FRAMES, new String[]{frame.getDescr(), String.valueOf(frame.getPos()), f1.getDescr(), String.valueOf(f1.getPos())}, ERR_MSG_FRAMES_OVERLAPPING);</span>
+        }
+<span class="fc" id="L132">    }</span>
+
+    private Optional&lt;PageModelFrameReq&gt; getFrameByCoordinates(final List&lt;PageModelFrameReq&gt; frames, final int x, final int y) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        return frames.stream().filter(frame -&gt; (x &gt;= frame.getSketch().getX1()</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">                &amp;&amp; y &gt;= frame.getSketch().getY1()</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                &amp;&amp; x &lt;= frame.getSketch().getX2()</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">                &amp;&amp; y &lt;= frame.getSketch().getY2())).findFirst();</span>
+    }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
