@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.init.util</a> &gt; <span class="el_source">ComponentLoader.java</span></div><h1>ComponentLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando S.r.l. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.init.util;
+
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
+
+import org.entando.entando.aps.system.init.model.Component;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.util.FileTextReader;
+
+/**
+ * @author E.Santoboni
+ */
+public class ComponentLoader {
+
+<span class="fc" id="L37">	private static final EntLogger _logger = EntLogFactory.getSanitizedLogger(ComponentLoader.class);</span>
+	
+<span class="fc" id="L39">	public ComponentLoader(String locationPatterns, Map&lt;String, String&gt; postProcessClasses) throws EntException {</span>
+        try {
+<span class="fc" id="L41">            StringTokenizer tokenizer = new StringTokenizer(locationPatterns, &quot;,&quot;);</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            while (tokenizer.hasMoreTokens()) {</span>
+<span class="fc" id="L43">                String locationPattern = tokenizer.nextToken().trim();</span>
+<span class="fc" id="L44">                this.loadComponent(locationPattern, postProcessClasses);</span>
+<span class="fc" id="L45">            }</span>
+<span class="nc" id="L46">        } catch (Throwable t) {</span>
+<span class="nc" id="L47">        	_logger.error(&quot;Error loading component definitions&quot;, t);</span>
+<span class="nc" id="L48">            throw new EntException(&quot;Error loading component definitions&quot;, t);</span>
+<span class="fc" id="L49">        }</span>
+<span class="fc" id="L50">    }</span>
+    
+    private void loadComponent(String locationPattern, Map&lt;String, String&gt; postProcessClasses) throws Throwable {
+<span class="fc" id="L53">		PathMatchingResourcePatternResolver resolver = </span>
+					new PathMatchingResourcePatternResolver();
+<span class="fc" id="L55">		Resource[] resources = resolver.getResources(locationPattern);</span>
+<span class="fc" id="L56">		ComponentDefDOM dom = null;</span>
+<span class="fc" id="L57">		Set&lt;String&gt; codes = new HashSet&lt;String&gt;();</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">		for (int i = 0; i &lt; resources.length; i++) {</span>
+<span class="nc" id="L59">            Resource resource = resources[i];</span>
+<span class="nc" id="L60">            InputStream is = null;</span>
+<span class="nc" id="L61">            String path = resource.getURL().getPath();</span>
+            try {
+<span class="nc" id="L63">                is = resource.getInputStream();</span>
+<span class="nc" id="L64">                String xml = FileTextReader.getText(is);</span>
+<span class="nc" id="L65">                dom = new ComponentDefDOM(xml, path);</span>
+<span class="nc" id="L66">				Component component = dom.getComponent(postProcessClasses);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">				if (null != component) {</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">					if (codes.add(component.getCode())) {</span>
+<span class="nc" id="L69">						_logger.debug(&quot;Component '{}' loaded&quot;, component.getCode());</span>
+<span class="nc" id="L70">						this.getComponents().put(component.getCode(), component);</span>
+					} else {
+<span class="nc" id="L72">						_logger.debug(&quot;Component '{}' already loaded&quot;, component.getCode());</span>
+					}
+				}
+<span class="nc" id="L75">            } catch (Throwable t) {</span>
+<span class="nc" id="L76">            	_logger.error(&quot;Error loading Component definition by location Pattern '{}'&quot;, path, t);</span>
+            } finally {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">                if (null != is) {</span>
+<span class="nc" id="L79">                    is.close();</span>
+                }
+            }
+        }
+<span class="fc" id="L83">    }</span>
+	
+	public Map&lt;String, Component&gt; getComponents() {
+<span class="fc" id="L86">		return _components;</span>
+	}
+    
+<span class="fc" id="L89">	private Map&lt;String, Component&gt; _components = new HashMap&lt;String, Component&gt;();</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

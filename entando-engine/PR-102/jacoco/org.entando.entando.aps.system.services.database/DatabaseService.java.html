@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DatabaseService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.database</a> &gt; <span class="el_source">DatabaseService.java</span></div><h1>DatabaseService.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.database;
+
+import com.agiletec.aps.system.common.model.dao.SearcherDaoPaginatedResult;
+import com.agiletec.aps.util.FileTextReader;
+import java.security.SecureRandom;
+import org.entando.entando.aps.system.exception.ResourceNotFoundException;
+import org.entando.entando.aps.system.exception.RestServerError;
+import org.entando.entando.aps.system.init.IComponentManager;
+import org.entando.entando.aps.system.init.IDatabaseManager;
+import org.entando.entando.aps.system.init.model.DataSourceDumpReport;
+import org.entando.entando.aps.system.services.database.model.ComponentDto;
+import org.entando.entando.aps.system.services.database.model.DumpReportDto;
+import org.entando.entando.aps.system.services.database.model.ShortDumpReportDto;
+import static org.entando.entando.aps.system.services.storage.StorageManagerUtil.mustBeValidFilename;
+import org.entando.entando.web.common.model.PagedMetadata;
+import org.entando.entando.web.common.model.RestListRequest;
+import org.entando.entando.web.database.validator.DatabaseValidator;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.validation.BeanPropertyBindingResult;
+
+import java.io.File;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L43">public class DatabaseService implements IDatabaseService {</span>
+
+<span class="fc" id="L45">    private final EntLogger logger = EntLogFactory.getSanitizedLogger(this.getClass());</span>
+
+    private IDatabaseManager databaseManager;
+    private IComponentManager componentManager;
+
+    @Override
+    public int getStatus() {
+<span class="fc" id="L52">        return this.getDatabaseManager().getStatus();</span>
+    }
+
+    @Override
+    public PagedMetadata&lt;ShortDumpReportDto&gt; getShortDumpReportDtos(RestListRequest requestList) {
+<span class="fc" id="L57">        PagedMetadata&lt;ShortDumpReportDto&gt; result = null;</span>
+<span class="fc" id="L58">        List&lt;ShortDumpReportDto&gt; dtos = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="fc" id="L60">            List&lt;DataSourceDumpReport&gt; reports = this.getDatabaseManager().getBackupReports();</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (null != reports) {</span>
+<span class="pc" id="L62">                reports.stream().forEach(report -&gt; dtos.add(new ShortDumpReportDto(report)));</span>
+            }
+<span class="fc" id="L64">            List&lt;ShortDumpReportDto&gt; sublist = requestList.getSublist(dtos);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            int size = (null != reports) ? reports.size() : 0;</span>
+<span class="fc" id="L66">            SearcherDaoPaginatedResult searchResult = new SearcherDaoPaginatedResult(size, sublist);</span>
+<span class="fc" id="L67">            result = new PagedMetadata&lt;&gt;(requestList, searchResult);</span>
+<span class="fc" id="L68">            result.setBody(sublist);</span>
+<span class="nc" id="L69">        } catch (Throwable t) {</span>
+<span class="nc" id="L70">            logger.error(&quot;error extracting database reports&quot;, t);</span>
+<span class="nc" id="L71">            throw new RestServerError(&quot;error extracting database reports&quot;, t);</span>
+<span class="fc" id="L72">        }</span>
+<span class="fc" id="L73">        return result;</span>
+    }
+
+    @Override
+    public DumpReportDto getDumpReportDto(String reportCode) {
+<span class="fc" id="L78">        DumpReportDto dtos = null;</span>
+        try {
+<span class="fc" id="L80">            DataSourceDumpReport report = this.getDatabaseManager().getBackupReport(reportCode);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            if (null == report) {</span>
+<span class="fc" id="L82">                logger.warn(&quot;no dump found with code {}&quot;, reportCode);</span>
+<span class="fc" id="L83">                throw new ResourceNotFoundException(DatabaseValidator.ERRCODE_NO_DUMP_FOUND, &quot;reportCode&quot;, reportCode);</span>
+            }
+<span class="fc" id="L85">            dtos = new DumpReportDto(report, this.getComponentManager());</span>
+<span class="fc" id="L86">        } catch (ResourceNotFoundException r) {</span>
+<span class="fc" id="L87">            throw r;</span>
+<span class="nc" id="L88">        } catch (Throwable t) {</span>
+<span class="nc" id="L89">            logger.error(&quot;error extracting database report {}&quot;, reportCode, t);</span>
+<span class="nc" id="L90">            throw new RestServerError(&quot;error extracting database report &quot; + reportCode, t);</span>
+<span class="fc" id="L91">        }</span>
+<span class="fc" id="L92">        return dtos;</span>
+    }
+
+    @Override
+    public void deleteDumpReport(String reportCode) {
+        try {
+<span class="fc" id="L98">            this.getDatabaseManager().deleteBackup(reportCode);</span>
+<span class="nc" id="L99">        } catch (Throwable t) {</span>
+<span class="nc" id="L100">            logger.error(&quot;error deleting database report {}&quot;, reportCode, t);</span>
+<span class="nc" id="L101">            throw new RestServerError(&quot;error deleting database report &quot; + reportCode, t);</span>
+<span class="fc" id="L102">        }</span>
+<span class="fc" id="L103">    }</span>
+
+    @Override
+    public List&lt;ComponentDto&gt; getCurrentComponents() {
+<span class="fc" id="L107">        ComponentDto mainDto = new ComponentDto();</span>
+<span class="fc" id="L108">        mainDto.setCode(&quot;core&quot;);</span>
+<span class="fc" id="L109">        mainDto.setDescription(&quot;Core&quot;);</span>
+<span class="fc" id="L110">        mainDto.buildTableMapping(this.getDatabaseManager().getEntandoTableMapping());</span>
+<span class="fc" id="L111">        List&lt;ComponentDto&gt; dtos = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L112">        this.getComponentManager().getCurrentComponents()</span>
+<span class="pc" id="L113">                .stream().forEach(component -&gt; dtos.add(new ComponentDto(component)));</span>
+<span class="fc" id="L114">        dtos.add(0, mainDto);</span>
+<span class="fc" id="L115">        return dtos;</span>
+    }
+
+    @Override
+    public void startDatabaseBackup() {
+        try {
+<span class="fc" id="L121">            this.getDatabaseManager().createBackup();</span>
+<span class="nc" id="L122">        } catch (Throwable t) {</span>
+<span class="nc" id="L123">            logger.error(&quot;error starting backup&quot;, t);</span>
+<span class="nc" id="L124">            throw new RestServerError(&quot;error starting backup&quot;, t);</span>
+<span class="fc" id="L125">        }</span>
+<span class="fc" id="L126">    }</span>
+
+    @Override
+    public void startDatabaseRestore(String reportCode) {
+        try {
+<span class="fc" id="L131">            DataSourceDumpReport report = this.getDatabaseManager().getBackupReport(reportCode);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">            if (null == report) {</span>
+<span class="fc" id="L133">                logger.warn(&quot;no dump found with code {}&quot;, reportCode);</span>
+<span class="fc" id="L134">                throw new ResourceNotFoundException(DatabaseValidator.ERRCODE_NO_DUMP_FOUND, &quot;reportCode&quot;, reportCode);</span>
+            }
+<span class="fc" id="L136">            this.getDatabaseManager().dropAndRestoreBackup(reportCode);</span>
+<span class="fc" id="L137">        } catch (ResourceNotFoundException r) {</span>
+<span class="fc" id="L138">            throw r;</span>
+<span class="nc" id="L139">        } catch (Throwable t) {</span>
+<span class="nc" id="L140">            logger.error(&quot;error starting restore&quot;, t);</span>
+<span class="nc" id="L141">            throw new RestServerError(&quot;error starting restore&quot;, t);</span>
+<span class="fc" id="L142">        }</span>
+<span class="fc" id="L143">    }</span>
+
+    @Override
+    public byte[] getTableDump(String reportCode, String dataSource, String tableName) {
+<span class="fc" id="L147">        File tempFile = null;</span>
+<span class="fc" id="L148">        byte[] bytes = null;</span>
+        try {
+<span class="fc" id="L150">            InputStream stream = this.getDatabaseManager().getTableDump(tableName, dataSource, reportCode);</span>
+<span class="fc" id="L151">            String safeReportCode = mustBeValidFilename(reportCode);</span>
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            if (null == stream) {</span>
+<span class="fc" id="L154">                logger.warn(&quot;no dump found with code {}, dataSource {}, table {}&quot;,</span>
+                        reportCode, dataSource, tableName);
+<span class="fc" id="L156">                BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(tableName, &quot;tableName&quot;);</span>
+<span class="fc" id="L157">                bindingResult.reject(DatabaseValidator.ERRCODE_NO_TABLE_DUMP_FOUND, new Object[]{reportCode, dataSource, tableName}, &quot;database.dump.table.notFound&quot;);</span>
+<span class="fc" id="L158">                throw new ResourceNotFoundException(&quot;code - dataSource - table&quot;,</span>
+                        &quot;'&quot; + safeReportCode + &quot;' - '&quot; + dataSource + &quot;' - '&quot; + tableName + &quot;'&quot;);
+            }
+<span class="fc" id="L161">            tempFile = FileTextReader.createTempFile(new SecureRandom().nextInt(100) + safeReportCode + &quot;_&quot; + dataSource + &quot;_&quot; + tableName, stream);</span>
+<span class="fc" id="L162">            bytes = FileTextReader.fileToByteArray(tempFile);</span>
+<span class="fc" id="L163">        } catch (ResourceNotFoundException r) {</span>
+<span class="fc" id="L164">            throw r;</span>
+<span class="fc" id="L165">        } catch (Throwable t) {</span>
+<span class="fc" id="L166">            logger.error(&quot;error extracting database dump with code {}, dataSource {}, table {}&quot;, reportCode, dataSource, tableName, t);</span>
+<span class="fc" id="L167">            throw new RestServerError(&quot;error extracting database dump&quot;, t);</span>
+        } finally {
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            if (null != tempFile) {</span>
+<span class="fc" id="L170">                boolean deleted = tempFile.delete();</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">                if (!deleted) {</span>
+<span class="nc" id="L172">                    logger.warn(&quot;Failed to create temp file {}&quot;, tempFile.getAbsolutePath());</span>
+                }
+            }
+        }
+<span class="fc" id="L176">        return bytes;</span>
+    }
+
+    public IDatabaseManager getDatabaseManager() {
+<span class="fc" id="L180">        return databaseManager;</span>
+    }
+
+    public void setDatabaseManager(IDatabaseManager databaseManager) {
+<span class="fc" id="L184">        this.databaseManager = databaseManager;</span>
+<span class="fc" id="L185">    }</span>
+
+    public IComponentManager getComponentManager() {
+<span class="fc" id="L188">        return componentManager;</span>
+    }
+
+    public void setComponentManager(IComponentManager componentManager) {
+<span class="fc" id="L192">        this.componentManager = componentManager;</span>
+<span class="fc" id="L193">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

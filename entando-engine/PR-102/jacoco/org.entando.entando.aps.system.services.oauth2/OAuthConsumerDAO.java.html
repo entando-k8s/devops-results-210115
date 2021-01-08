@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OAuthConsumerDAO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">org.entando.entando.aps.system.services.oauth2</a> &gt; <span class="el_source">OAuthConsumerDAO.java</span></div><h1>OAuthConsumerDAO.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package org.entando.entando.aps.system.services.oauth2;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.List;
+
+import com.agiletec.aps.system.common.AbstractSearcherDAO;
+import com.agiletec.aps.system.common.FieldSearchFilter;
+import org.entando.entando.ent.exception.EntException;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.entando.entando.aps.system.services.oauth2.model.ConsumerRecordVO;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+/**
+ * @author E.Santoboni
+ */
+<span class="fc" id="L39">public class OAuthConsumerDAO extends AbstractSearcherDAO implements IOAuthConsumerDAO {</span>
+
+<span class="fc" id="L41">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(OAuthConsumerDAO.class);</span>
+
+    private static final String SELECT_CONSUMER
+            = &quot;SELECT consumerkey, consumersecret, name, description, callbackurl,scope, authorizedgranttypes, expirationdate, issueddate &quot;
+            + &quot;FROM api_oauth_consumers WHERE consumerkey = ? &quot;;
+
+    private static final String ADD_CONSUMER
+            = &quot;INSERT INTO api_oauth_consumers (consumerkey, consumersecret,name, description, callbackurl,scope, authorizedgranttypes, expirationdate, issueddate) VALUES (?,?,?,?,?,?,?,?,?) &quot;;
+
+    private static final String UPDATE_CONSUMER_PREFIX = &quot;UPDATE api_oauth_consumers SET &quot;;
+
+    private static final String UPDATE_CONSUMER_SECRET = &quot;consumersecret = ? , &quot;;
+
+    private static final String UPDATE_CONSUMER_SUFFIX = &quot;name = ? , description = ? , callbackurl = ?, scope=?, authorizedgranttypes = ?, expirationdate = ? WHERE consumerkey = ? &quot;;
+
+    private static final String UPDATE_CONSUMER = UPDATE_CONSUMER_PREFIX + UPDATE_CONSUMER_SUFFIX;
+
+    private static final String UPDATE_CONSUMER_WITH_SECRET = UPDATE_CONSUMER_PREFIX + UPDATE_CONSUMER_SECRET + UPDATE_CONSUMER_SUFFIX;
+
+    private static final String DELETE_CONSUMER
+            = &quot;DELETE FROM api_oauth_consumers WHERE consumerkey = ? &quot;;
+
+    private static final String DELETE_CONSUMER_TOKENS
+            = &quot;DELETE FROM api_oauth_tokens WHERE clientid = ? &quot;;
+
+    @Override
+    public List&lt;String&gt; getConsumerKeys(FieldSearchFilter&lt;?&gt;[] filters) {
+<span class="fc" id="L68">        return super.searchId(filters);</span>
+    }
+
+    @Override
+    public ConsumerRecordVO getConsumer(String clientId) {
+<span class="fc" id="L73">        Connection conn = null;</span>
+<span class="fc" id="L74">        ConsumerRecordVO consumer = null;</span>
+<span class="fc" id="L75">        PreparedStatement stat = null;</span>
+<span class="fc" id="L76">        ResultSet res = null;</span>
+        try {
+<span class="fc" id="L78">            conn = this.getConnection();</span>
+<span class="fc" id="L79">            String query = SELECT_CONSUMER;</span>
+<span class="fc" id="L80">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L81">            stat.setString(1, clientId);</span>
+<span class="fc" id="L82">            res = stat.executeQuery();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">            if (res.next()) {</span>
+<span class="fc" id="L84">                consumer = consumerFromResultSet(res);</span>
+            }
+<span class="nc" id="L86">        } catch (SQLException | EntException t) {</span>
+<span class="nc" id="L87">            logger.error(&quot;Error while loading consumer by clientid {}&quot;, clientId, t);</span>
+<span class="nc" id="L88">            throw new RuntimeException(&quot;Error while loading consumer by key &quot; + clientId, t);</span>
+        } finally {
+<span class="fc" id="L90">            closeDaoResources(res, stat, conn);</span>
+        }
+<span class="fc" id="L92">        return consumer;</span>
+    }
+
+    @Override
+    public List&lt;ConsumerRecordVO&gt; getConsumers(FieldSearchFilter&lt;?&gt;[] filters) {
+<span class="fc" id="L97">        List&lt;ConsumerRecordVO&gt; consumers = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L99">        List&lt;String&gt; keys = getConsumerKeys(filters);</span>
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (!keys.isEmpty()) {</span>
+
+<span class="fc" id="L103">            String query = SELECT_CONSUMER;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            if (keys.size() &gt; 1) {</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">                for (int i = 1; i &lt; keys.size(); i++) {</span>
+<span class="fc" id="L106">                    query += &quot; OR consumerkey = ?&quot;;</span>
+                }
+            }
+
+<span class="fc" id="L110">            try (Connection conn = getConnection();</span>
+<span class="fc" id="L111">                    PreparedStatement stat = conn.prepareStatement(query)) {</span>
+<span class="fc" id="L112">                int i = 0;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">                for (String key : keys) {</span>
+<span class="fc" id="L114">                    stat.setString(++i, key);</span>
+<span class="fc" id="L115">                }</span>
+<span class="fc" id="L116">                try (ResultSet rs = stat.executeQuery()) {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                    while (rs.next()) {</span>
+<span class="fc" id="L118">                        consumers.add(consumerFromResultSet(rs));</span>
+                    }
+                }
+<span class="nc" id="L121">            } catch (SQLException | EntException ex) {</span>
+<span class="nc" id="L122">                logger.error(&quot;Error while loading consumers&quot;, ex);</span>
+<span class="nc" id="L123">                throw new RuntimeException(&quot;Error while loading consumers&quot;, ex);</span>
+<span class="fc" id="L124">            }</span>
+        }
+
+        // keeps the order of the keys collection
+<span class="fc" id="L128">        return keys.stream()</span>
+<span class="fc" id="L129">                .map(key -&gt; consumers.stream()</span>
+<span class="fc" id="L130">                .filter(c -&gt; key.equals(c.getKey()))</span>
+<span class="fc" id="L131">                .findFirst().get())</span>
+<span class="fc" id="L132">                .collect(Collectors.toList());</span>
+    }
+
+    private ConsumerRecordVO consumerFromResultSet(ResultSet res) throws SQLException {
+<span class="fc" id="L136">        ConsumerRecordVO consumer = new ConsumerRecordVO();</span>
+<span class="fc" id="L137">        consumer.setKey(res.getString(&quot;consumerkey&quot;));</span>
+<span class="fc" id="L138">        consumer.setSecret(res.getString(&quot;consumersecret&quot;));</span>
+<span class="fc" id="L139">        consumer.setCallbackUrl(res.getString(&quot;callbackurl&quot;));</span>
+<span class="fc" id="L140">        consumer.setName(res.getString(&quot;name&quot;));</span>
+<span class="fc" id="L141">        consumer.setDescription(res.getString(&quot;description&quot;));</span>
+<span class="fc" id="L142">        consumer.setAuthorizedGrantTypes(res.getString(&quot;authorizedgranttypes&quot;));</span>
+<span class="fc" id="L143">        consumer.setScope(res.getString(&quot;scope&quot;));</span>
+<span class="fc" id="L144">        consumer.setExpirationDate(res.getTimestamp(&quot;expirationdate&quot;));</span>
+<span class="fc" id="L145">        consumer.setIssuedDate(res.getTimestamp(&quot;issueddate&quot;));</span>
+<span class="fc" id="L146">        return consumer;</span>
+    }
+
+    @Override
+    public ConsumerRecordVO addConsumer(ConsumerRecordVO consumer) {
+<span class="fc" id="L151">        Connection conn = null;</span>
+<span class="fc" id="L152">        PreparedStatement stat = null;</span>
+<span class="fc" id="L153">        int index = 1;</span>
+        try {
+<span class="fc" id="L155">            conn = this.getConnection();</span>
+<span class="fc" id="L156">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L157">            stat = conn.prepareStatement(ADD_CONSUMER);</span>
+<span class="fc" id="L158">            stat.setString(index++, consumer.getKey());</span>
+<span class="fc" id="L159">            this.fillStatement(consumer, index, true, stat);</span>
+<span class="fc" id="L160">            stat.executeUpdate();</span>
+<span class="fc" id="L161">            conn.commit();</span>
+<span class="nc" id="L162">        } catch (SQLException | EntException t) {</span>
+<span class="nc" id="L163">            this.executeRollback(conn);</span>
+<span class="nc" id="L164">            logger.error(&quot;Error while adding a consumer&quot;, t);</span>
+<span class="nc" id="L165">            throw new RuntimeException(&quot;Error while adding a consumer&quot;, t);</span>
+        } finally {
+<span class="fc" id="L167">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L169">        return consumer;</span>
+    }
+
+    @Override
+    public ConsumerRecordVO updateConsumer(ConsumerRecordVO consumer) {
+<span class="fc" id="L174">        Connection conn = null;</span>
+<span class="fc" id="L175">        PreparedStatement stat = null;</span>
+<span class="fc" id="L176">        int index = 1;</span>
+        try {
+<span class="fc" id="L178">            conn = this.getConnection();</span>
+<span class="fc" id="L179">            conn.setAutoCommit(false);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">            String query = (!StringUtils.isBlank(consumer.getSecret())) ? UPDATE_CONSUMER_WITH_SECRET : UPDATE_CONSUMER;</span>
+<span class="fc" id="L181">            stat = conn.prepareStatement(query);</span>
+<span class="fc" id="L182">            index = this.fillStatement(consumer, index, false, stat);</span>
+<span class="fc" id="L183">            stat.setString(index++, consumer.getKey());</span>
+<span class="fc" id="L184">            stat.executeUpdate();</span>
+<span class="fc" id="L185">            conn.commit();</span>
+<span class="nc" id="L186">        } catch (SQLException | EntException t) {</span>
+<span class="nc" id="L187">            this.executeRollback(conn);</span>
+<span class="nc" id="L188">            logger.error(&quot;Error while updating a consumer&quot;, t);</span>
+<span class="nc" id="L189">            throw new RuntimeException(&quot;Error while updating a consumer&quot;, t);</span>
+        } finally {
+<span class="fc" id="L191">            closeDaoResources(null, stat, conn);</span>
+        }
+<span class="fc" id="L193">        return consumer;</span>
+    }
+
+    private int fillStatement(ConsumerRecordVO consumer, int index, boolean add, PreparedStatement stat) throws SQLException {
+<span class="fc" id="L197">        int idx = index;</span>
+<span class="fc bfc" id="L198" title="All 4 branches covered.">        if (add || !StringUtils.isBlank(consumer.getSecret())) {</span>
+<span class="fc" id="L199">            String encoded = new BCryptPasswordEncoder().encode(consumer.getSecret());</span>
+<span class="fc" id="L200">            stat.setString(idx++, &quot;{bcrypt}&quot; + encoded);</span>
+        }
+<span class="fc" id="L202">        stat.setString(idx++, consumer.getName());</span>
+<span class="fc" id="L203">        stat.setString(idx++, consumer.getDescription());</span>
+<span class="fc" id="L204">        stat.setString(idx++, consumer.getCallbackUrl());</span>
+<span class="fc" id="L205">        stat.setString(idx++, consumer.getScope());</span>
+<span class="fc" id="L206">        stat.setString(idx++, consumer.getAuthorizedGrantTypes());</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (null != consumer.getExpirationDate()) {</span>
+<span class="fc" id="L208">            stat.setTimestamp(idx++, new Timestamp(consumer.getExpirationDate().getTime()));</span>
+        } else {
+<span class="nc" id="L210">            stat.setNull(idx++, Types.TIMESTAMP);</span>
+        }
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        if (add) {</span>
+<span class="fc" id="L213">            Date now = new Date();</span>
+<span class="fc" id="L214">            consumer.setIssuedDate(now);</span>
+<span class="fc" id="L215">            stat.setTimestamp(idx++, new Timestamp(now.getTime()));</span>
+        }
+<span class="fc" id="L217">        return idx;</span>
+    }
+
+    @Override
+    public void deleteConsumer(String clientId) {
+<span class="fc" id="L222">        Connection conn = null;</span>
+        try {
+<span class="fc" id="L224">            conn = this.getConnection();</span>
+<span class="fc" id="L225">            conn.setAutoCommit(false);</span>
+<span class="fc" id="L226">            super.executeQueryWithoutResultset(conn, DELETE_CONSUMER_TOKENS, clientId);</span>
+<span class="fc" id="L227">            super.executeQueryWithoutResultset(conn, DELETE_CONSUMER, clientId);</span>
+<span class="fc" id="L228">            conn.commit();</span>
+<span class="nc" id="L229">        } catch (SQLException | EntException t) {</span>
+<span class="nc" id="L230">            this.executeRollback(conn);</span>
+<span class="nc" id="L231">            logger.error(&quot;Error while deleting consumer '{}' and its tokens&quot;, clientId, t);</span>
+<span class="nc" id="L232">            throw new RuntimeException(&quot;Error while deleting a consumer and its tokens&quot;, t);</span>
+        } finally {
+<span class="fc" id="L234">            this.closeConnection(conn);</span>
+        }
+<span class="fc" id="L236">    }</span>
+
+    @Override
+    protected String getMasterTableIdFieldName() {
+<span class="fc" id="L240">        return &quot;consumerkey&quot;;</span>
+    }
+
+    @Override
+    protected String getMasterTableName() {
+<span class="fc" id="L245">        return &quot;api_oauth_consumers&quot;;</span>
+    }
+
+    @Override
+    protected String getTableFieldName(String metadataFieldKey) {
+<span class="fc" id="L250">        return metadataFieldKey;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

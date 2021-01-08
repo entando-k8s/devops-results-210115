@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>I18nManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando Core: Engine</a> &gt; <a href="index.source.html" class="el_package">com.agiletec.aps.system.services.i18n</a> &gt; <span class="el_source">I18nManager.java</span></div><h1>I18nManager.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+package com.agiletec.aps.system.services.i18n;
+
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.text.StrSubstitutor;
+import org.entando.entando.ent.util.EntLogging.EntLogger;
+import org.entando.entando.ent.util.EntLogging.EntLogFactory;
+
+import com.agiletec.aps.system.common.AbstractService;
+import org.entando.entando.ent.exception.EntException;
+import com.agiletec.aps.system.services.i18n.cache.II18nManagerCacheWrapper;
+import com.agiletec.aps.system.services.lang.ILangManager;
+import com.agiletec.aps.util.ApsProperties;
+
+/**
+ * Servizio che fornisce stringhe &quot;localizzate&quot;. Le stringhe sono specificate da
+ * una chiave di identificazione e dalla lingua di riferimento.
+ */
+<span class="fc" id="L38">public class I18nManager extends AbstractService implements II18nManager {</span>
+
+<span class="fc" id="L40">    private static final EntLogger logger = EntLogFactory.getSanitizedLogger(I18nManager.class);</span>
+
+    private II18nManagerCacheWrapper cacheWrapper;
+
+    private ILangManager langManager;
+
+    private II18nDAO i18nDAO;
+
+    protected II18nDAO getI18nDAO() {
+<span class="fc" id="L49">        return i18nDAO;</span>
+    }
+
+    public void setI18nDAO(II18nDAO i18nDao) {
+<span class="fc" id="L53">        i18nDAO = i18nDao;</span>
+<span class="fc" id="L54">    }</span>
+
+    protected ILangManager getLangManager() {
+<span class="fc" id="L57">        return langManager;</span>
+    }
+
+    public void setLangManager(ILangManager langManager) {
+<span class="fc" id="L61">        this.langManager = langManager;</span>
+<span class="fc" id="L62">    }</span>
+
+    protected II18nManagerCacheWrapper getCacheWrapper() {
+<span class="fc" id="L65">        return cacheWrapper;</span>
+    }
+
+    public void setCacheWrapper(II18nManagerCacheWrapper cacheWrapper) {
+<span class="fc" id="L69">        this.cacheWrapper = cacheWrapper;</span>
+<span class="fc" id="L70">    }</span>
+
+    protected String getDefaultLang() {
+<span class="fc" id="L73">        return this.getLangManager().getDefaultLang().getCode();</span>
+    }
+
+    @Override
+    public void init() throws Exception {
+<span class="fc" id="L78">        this.getCacheWrapper().initCache(this.getI18nDAO());</span>
+<span class="fc" id="L79">        logger.debug(&quot;{} : initialized {} labels&quot;, this.getClass().getName(), this.getLabelGroups().size());</span>
+<span class="fc" id="L80">    }</span>
+    
+    @Override
+    protected void release() {
+<span class="fc" id="L84">        this.getCacheWrapper().release();</span>
+<span class="fc" id="L85">        super.release();</span>
+<span class="fc" id="L86">    }</span>
+
+    /**
+     * Return the group of labels.
+     *
+     * @return The group of labels.
+     */
+    @Override
+    public Map&lt;String, ApsProperties&gt; getLabelGroups() {
+<span class="fc" id="L95">        return this.getCacheWrapper().getLabelGroups();</span>
+    }
+
+    @Override
+    public String renderLabel(String key, String renderingLang,
+            boolean keyIfEmpty) throws EntException {
+<span class="fc" id="L101">        String label = null;</span>
+<span class="fc" id="L102">        ApsProperties labelsProp = this.getLabelGroup(key);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (labelsProp != null) {</span>
+<span class="fc" id="L104">            label = labelsProp.getProperty(renderingLang);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            if (StringUtils.isEmpty(label)) {</span>
+<span class="fc" id="L106">                label = labelsProp.getProperty(this.getDefaultLang());</span>
+            }
+        }
+<span class="fc bfc" id="L109" title="All 4 branches covered.">        if (keyIfEmpty &amp;&amp; StringUtils.isEmpty(label)) {</span>
+<span class="fc" id="L110">            label = key;</span>
+        }
+<span class="fc" id="L112">        return label;</span>
+    }
+
+    @Override
+    public String renderLabel(String key, String renderingLang,
+            boolean keyIfEmpty, Map&lt;String, String&gt; params) throws EntException {
+<span class="fc" id="L118">        String value = this.renderLabel(key, renderingLang, keyIfEmpty);</span>
+<span class="pc bpc" id="L119" title="2 of 6 branches missed.">        if (params != null &amp;&amp; !params.isEmpty() &amp;&amp; value != null) {</span>
+<span class="fc" id="L120">            value = this.parseText(value, params);</span>
+        }
+<span class="fc" id="L122">        return value;</span>
+    }
+
+    protected String parseText(String defaultText, Map&lt;String, String&gt; params) {
+<span class="fc" id="L126">        StrSubstitutor strSub = new StrSubstitutor(params);</span>
+<span class="fc" id="L127">        return strSub.replace(defaultText);</span>
+    }
+
+    /**
+     * Restituisce una label in base alla chiave ed alla lingua specificata.
+     *
+     * @param key La chiave
+     * @param langCode Il codice della lingua.
+     * @return La label richiesta.
+     */
+    @Override
+    public String getLabel(String key, String langCode) {
+<span class="fc" id="L139">        String label = null;</span>
+<span class="fc" id="L140">        ApsProperties labelsProp = this.getCacheWrapper().getLabelGroup(key);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        if (labelsProp != null) {</span>
+<span class="fc" id="L142">            label = labelsProp.getProperty(langCode);</span>
+        }
+<span class="fc" id="L144">        return label;</span>
+    }
+
+    @Override
+    public ApsProperties getLabelGroup(String key) throws EntException {
+<span class="fc" id="L149">        ApsProperties labelsProp = this.getCacheWrapper().getLabelGroup(key);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        if (null == labelsProp) {</span>
+<span class="fc" id="L151">            return null;</span>
+        }
+<span class="fc" id="L153">        return labelsProp.clone();</span>
+    }
+
+    /**
+     * Add a group of labels on db.
+     *
+     * @param key The key of the labels.
+     * @param labels The labels to add.
+     * @throws EntException In case of Exception.
+     */
+    @Override
+    public void addLabelGroup(String key, ApsProperties labels) throws EntException {
+        try {
+<span class="fc" id="L166">            this.getI18nDAO().addLabelGroup(key, labels);</span>
+<span class="fc" id="L167">            this.getCacheWrapper().addLabelGroup(key, labels);</span>
+<span class="nc" id="L168">        } catch (Throwable t) {</span>
+<span class="nc" id="L169">            logger.error(&quot;Error while adding a group of labels by key '{}'&quot;, key, t);</span>
+<span class="nc" id="L170">            throw new EntException(&quot;Error while adding a group of labels&quot;, t);</span>
+<span class="fc" id="L171">        }</span>
+<span class="fc" id="L172">    }</span>
+
+    /**
+     * Delete a group of labels from db.
+     *
+     * @param key The key of the labels to delete.
+     * @throws EntException In case of Exception.
+     */
+    @Override
+    public void deleteLabelGroup(String key) throws EntException {
+        try {
+<span class="fc" id="L183">            this.getI18nDAO().deleteLabelGroup(key);</span>
+<span class="fc" id="L184">            this.getCacheWrapper().removeLabelGroup(key);</span>
+<span class="nc" id="L185">        } catch (Throwable t) {</span>
+<span class="nc" id="L186">            logger.error(&quot;Error while deleting a label by key {}&quot;, key, t);</span>
+<span class="nc" id="L187">            throw new EntException(&quot;Error while deleting a label&quot;, t);</span>
+<span class="fc" id="L188">        }</span>
+<span class="fc" id="L189">    }</span>
+
+    /**
+     * Update a group of labels on db.
+     *
+     * @param key The key of the labels.
+     * @param labels The key of the labels to update.
+     * @throws EntException In case of Exception.
+     */
+    @Override
+    public void updateLabelGroup(String key, ApsProperties labels) throws EntException {
+        try {
+<span class="fc" id="L201">            this.getI18nDAO().updateLabelGroup(key, labels);</span>
+<span class="fc" id="L202">            this.getCacheWrapper().updateLabelGroup(key, labels);</span>
+<span class="nc" id="L203">        } catch (Throwable t) {</span>
+<span class="nc" id="L204">            logger.error(&quot;Error while updating label with key {}&quot;, key, t);</span>
+<span class="nc" id="L205">            throw new EntException(&quot;Error while updating a label&quot;, t);</span>
+<span class="fc" id="L206">        }</span>
+<span class="fc" id="L207">    }</span>
+
+    /**
+     * Restituisce la lista di chiavi di gruppi di labels in base ai parametri
+     * segnalati.
+     *
+     * @param insertedText Il testo tramite il quale effettuare la ricerca.
+     * @param doSearchByKey Specifica se effettuare la ricerca sulle chiavi, in
+     * base al testo inserito.
+     * @param doSearchByLang Specifica se effettuare la ricerca sul testo di una
+     * lingua, in base al testo inserito.
+     * @param langCode Specifica la lingua della label sulla quale effettuare la
+     * ricerca, in base al testo inserito.
+     * @return La lista di chiavi di gruppi di labels in base ai parametri
+     * segbalati.
+     */
+    @Override
+    public List&lt;String&gt; searchLabelsKey(String insertedText, boolean doSearchByKey,
+            boolean doSearchByLang, String langCode) {
+<span class="fc" id="L226">        List&lt;String&gt; keys = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L227">        Pattern pattern = Pattern.compile(insertedText, Pattern.CASE_INSENSITIVE + Pattern.LITERAL);</span>
+<span class="fc" id="L228">        Matcher matcher = pattern.matcher(&quot;&quot;);</span>
+<span class="fc" id="L229">        List&lt;String&gt; allKeys = new ArrayList&lt;&gt;(this.getLabelGroups().keySet());</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        for (String key : allKeys) {</span>
+<span class="fc" id="L231">            ApsProperties properies = this.getLabelGroups().get(key);</span>
+<span class="fc bfc" id="L232" title="All 4 branches covered.">            if (!doSearchByKey &amp;&amp; !doSearchByLang) {</span>
+<span class="fc" id="L233">                matcher = matcher.reset(key);</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">                if (matcher.find()) {</span>
+<span class="fc" id="L235">                    keys.add(key);</span>
+                } else {
+<span class="fc" id="L237">                    Enumeration&lt;Object&gt; langKeys = properies.keys();</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">                    while (langKeys.hasMoreElements()) {</span>
+<span class="fc" id="L239">                        String lang = (String) langKeys.nextElement();</span>
+<span class="fc" id="L240">                        String target = properies.getProperty(lang);</span>
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">                        if (this.labelMatch(target, matcher)) {</span>
+<span class="nc" id="L242">                            keys.add(key);</span>
+<span class="nc" id="L243">                            break;</span>
+                        }
+<span class="fc" id="L245">                    }</span>
+<span class="fc" id="L246">                }</span>
+<span class="pc bpc" id="L247" title="1 of 4 branches missed.">            } else if (doSearchByKey &amp;&amp; !doSearchByLang) {</span>
+<span class="fc" id="L248">                matcher = matcher.reset(key);</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">                if (matcher.find()) {</span>
+<span class="fc" id="L250">                    keys.add(key);</span>
+                }
+<span class="pc bpc" id="L252" title="2 of 4 branches missed.">            } else if (!doSearchByKey &amp;&amp; doSearchByLang) {</span>
+<span class="fc" id="L253">                String target = properies.getProperty(langCode);</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">                if (this.labelMatch(target, matcher)) {</span>
+<span class="fc" id="L255">                    keys.add(key);</span>
+                }
+            }
+<span class="fc" id="L258">        }</span>
+<span class="fc" id="L259">        return keys;</span>
+    }
+
+    private boolean labelMatch(String target, Matcher matcher) {
+<span class="fc" id="L263">        boolean match = false;</span>
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">        if (null != target) {</span>
+<span class="fc" id="L265">            matcher = matcher.reset(target);</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            if (matcher.find()) {</span>
+<span class="fc" id="L267">                match = true;</span>
+            }
+        }
+<span class="fc" id="L270">        return match;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
