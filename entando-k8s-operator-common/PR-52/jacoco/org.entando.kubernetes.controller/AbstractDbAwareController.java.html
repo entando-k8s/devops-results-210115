@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDbAwareController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller</a> &gt; <span class="el_source">AbstractDbAwareController.java</span></div><h1>AbstractDbAwareController.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller;
+
+import static java.lang.String.format;
+import static java.util.Optional.empty;
+
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.Watcher.Action;
+import java.lang.reflect.ParameterizedType;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.entando.kubernetes.client.DefaultKeycloakClient;
+import org.entando.kubernetes.client.DefaultSimpleK8SClient;
+import org.entando.kubernetes.controller.common.TlsHelper;
+import org.entando.kubernetes.controller.database.DatabaseDeployable;
+import org.entando.kubernetes.controller.database.DatabaseDeploymentResult;
+import org.entando.kubernetes.controller.database.DatabaseServiceResult;
+import org.entando.kubernetes.controller.database.DbmsDockerVendorStrategy;
+import org.entando.kubernetes.controller.database.ExternalDatabaseDeployment;
+import org.entando.kubernetes.controller.k8sclient.SimpleK8SClient;
+import org.entando.kubernetes.model.DbmsVendor;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentPhase;
+import org.entando.kubernetes.model.EntandoDeploymentSpec;
+
+public abstract class AbstractDbAwareController&lt;T extends EntandoBaseCustomResource&lt;?&gt;&gt; {
+
+    protected final SimpleK8SClient&lt;?&gt; k8sClient;
+    protected final SimpleKeycloakClient keycloakClient;
+    protected final AutoExit autoExit;
+    protected final EntandoImageResolver entandoImageResolver;
+    protected Class&lt;T&gt; resourceType;
+    protected Logger logger;
+
+    /**
+     * Constructor for runtime environments where the KubernetesClient is injected, and the controller is assumed to exit automatically to
+     * emulate the behavior of a normal CLI.
+     */
+
+    protected AbstractDbAwareController(KubernetesClient kubernetesClient) {
+<span class="nc" id="L59">        this(new DefaultSimpleK8SClient(kubernetesClient), new DefaultKeycloakClient(), new AutoExit(true));</span>
+<span class="nc" id="L60">    }</span>
+
+    /**
+     * Constructor for in process tests where we may want to mock the clients out and would not want to exit.
+     */
+
+    protected AbstractDbAwareController(SimpleK8SClient&lt;?&gt; k8sClient, SimpleKeycloakClient keycloakClient) {
+<span class="fc" id="L67">        this(k8sClient, keycloakClient, new AutoExit(false));</span>
+<span class="fc" id="L68">    }</span>
+
+    /**
+     * Constructor for integration tests where we would need to override the auto exit behaviour.
+     */
+    protected AbstractDbAwareController(KubernetesClient kubernetesClient, boolean exitAutomatically) {
+<span class="fc" id="L74">        this(new DefaultSimpleK8SClient(kubernetesClient), new DefaultKeycloakClient(), new AutoExit(exitAutomatically));</span>
+
+<span class="fc" id="L76">    }</span>
+
+<span class="fc" id="L78">    private AbstractDbAwareController(SimpleK8SClient&lt;?&gt; k8sClient, SimpleKeycloakClient keycloakClient, AutoExit autoExit) {</span>
+<span class="fc" id="L79">        this.k8sClient = k8sClient;</span>
+<span class="fc" id="L80">        this.keycloakClient = keycloakClient;</span>
+<span class="fc" id="L81">        this.autoExit = autoExit;</span>
+<span class="fc" id="L82">        this.entandoImageResolver = new EntandoImageResolver(</span>
+<span class="fc" id="L83">                k8sClient.secrets().loadControllerConfigMap(EntandoOperatorConfig.getEntandoDockerImageInfoConfigMap()));</span>
+<span class="fc" id="L84">        Class&lt;?&gt; cls = getClass();</span>
+<span class="fc" id="L85">        List&lt;Class&lt;T&gt;&gt; types = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        while (cls != AbstractDbAwareController.class) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">            if (isImplementedCorrectly(cls)) {</span>
+<span class="fc" id="L88">                types.add(getFirstTypeArgument(cls));</span>
+            }
+<span class="fc" id="L90">            cls = cls.getSuperclass();</span>
+        }
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (types.isEmpty()) {</span>
+<span class="nc" id="L93">            throw new IllegalStateException(</span>
+<span class="nc" id="L94">                    &quot;Please implement &quot; + AbstractDbAwareController.class.getSimpleName() + &quot; directly with the required type argument.&quot;);</span>
+        }
+<span class="fc" id="L96">        this.resourceType = types.get(types.size() - 1);</span>
+<span class="fc" id="L97">        this.logger = Logger.getLogger(resourceType.getName() + &quot;Controller&quot;);</span>
+<span class="fc" id="L98">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private Class&lt;T&gt; getFirstTypeArgument(Class&lt;?&gt; cls) {
+<span class="fc" id="L102">        ParameterizedType genericSuperclass = (ParameterizedType) cls.getGenericSuperclass();</span>
+<span class="fc" id="L103">        return (Class&lt;T&gt;) genericSuperclass.getActualTypeArguments()[0];</span>
+    }
+
+    private boolean isImplementedCorrectly(Class&lt;?&gt; cls) {
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (cls.getGenericSuperclass() instanceof ParameterizedType) {</span>
+<span class="fc" id="L108">            ParameterizedType genericSuperclass = (ParameterizedType) cls.getGenericSuperclass();</span>
+<span class="pc bpc" id="L109" title="1 of 4 branches missed.">            if (genericSuperclass.getActualTypeArguments().length &gt;= 1 &amp;&amp; genericSuperclass.getActualTypeArguments()[0] instanceof Class) {</span>
+<span class="fc" id="L110">                Class&lt;?&gt; argument = (Class&lt;?&gt;) genericSuperclass.getActualTypeArguments()[0];</span>
+<span class="fc" id="L111">                return EntandoBaseCustomResource.class.isAssignableFrom(argument);</span>
+            }
+        }
+<span class="fc" id="L114">        return false;</span>
+    }
+
+    protected abstract void synchronizeDeploymentState(T newResource);
+
+    protected void processCommand() {
+        try {
+<span class="fc" id="L121">            Action action = Action.valueOf(</span>
+<span class="fc" id="L122">                    EntandoOperatorConfigBase.lookupProperty(KubeUtils.ENTANDO_RESOURCE_ACTION).orElseThrow(IllegalArgumentException::new));</span>
+<span class="fc" id="L123">            TlsHelper.getInstance().init();</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">            if (actionToProcess(action)) {</span>
+<span class="fc" id="L125">                String resourceName = EntandoOperatorConfigBase.lookupProperty(KubeUtils.ENTANDO_RESOURCE_NAME)</span>
+<span class="fc" id="L126">                        .orElseThrow(IllegalArgumentException::new);</span>
+<span class="fc" id="L127">                String resourceNamespace = EntandoOperatorConfigBase.lookupProperty(KubeUtils.ENTANDO_RESOURCE_NAMESPACE)</span>
+<span class="fc" id="L128">                        .orElseThrow(IllegalArgumentException::new);</span>
+<span class="fc" id="L129">                T newResource = k8sClient.entandoResources().load(resourceType, resourceNamespace, resourceName);</span>
+<span class="fc" id="L130">                processAction(action, newResource);</span>
+            }
+        } finally {
+<span class="fc" id="L133">            new Thread(autoExit).start();</span>
+        }
+
+<span class="fc" id="L136">    }</span>
+
+    private boolean actionToProcess(Action action) {
+<span class="pc bpc" id="L139" title="3 of 4 branches missed.">        return action == Action.ADDED || action == Action.MODIFIED;</span>
+    }
+
+    protected void processAction(Action action, T resource) {
+        try {
+<span class="pc bpc" id="L144" title="3 of 4 branches missed.">            if (action == Action.ADDED || action == Action.MODIFIED) {</span>
+<span class="fc" id="L145">                EntandoDeploymentPhase initialPhase = resource.getStatus().getEntandoDeploymentPhase();</span>
+<span class="fc" id="L146">                k8sClient.entandoResources().updatePhase(resource, EntandoDeploymentPhase.STARTED);</span>
+<span class="pc bpc" id="L147" title="3 of 4 branches missed.">                if (action == Action.ADDED || initialPhase == EntandoDeploymentPhase.REQUESTED) {</span>
+<span class="fc" id="L148">                    synchronizeDeploymentState(resource);</span>
+                }
+<span class="fc" id="L150">                k8sClient.entandoResources().updatePhase(resource, EntandoDeploymentPhase.SUCCESSFUL);</span>
+            }
+<span class="nc" id="L152">        } catch (Exception e) {</span>
+<span class="nc" id="L153">            autoExit.withCode(-1);</span>
+<span class="nc" id="L154">            logger.log(Level.SEVERE, e, () -&gt; format(&quot;Unexpected exception occurred while adding %s %s/%s&quot;,</span>
+<span class="nc" id="L155">                    resource.getKind(),</span>
+<span class="nc" id="L156">                    resource.getMetadata().getNamespace(),</span>
+<span class="nc" id="L157">                    resource.getMetadata().getName()));</span>
+<span class="nc" id="L158">            k8sClient.entandoResources().deploymentFailed(resource, e);</span>
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    protected &lt;S extends EntandoDeploymentSpec&gt; DatabaseServiceResult prepareDatabaseService(T entandoCustomResource,
+            DbmsVendor dbmsVendor,
+            String nameQualifier) {
+<span class="fc" id="L166">        Optional&lt;ExternalDatabaseDeployment&gt; externalDatabase = k8sClient.entandoResources()</span>
+<span class="fc" id="L167">                .findExternalDatabase(entandoCustomResource, dbmsVendor);</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (externalDatabase.isPresent()) {</span>
+<span class="fc" id="L169">            return externalDatabase.get();</span>
+<span class="pc bpc" id="L170" title="1 of 4 branches missed.">        } else if (!(dbmsVendor == DbmsVendor.NONE || dbmsVendor == DbmsVendor.EMBEDDED)) {</span>
+<span class="fc" id="L171">            final DatabaseDeployable&lt;S&gt; databaseDeployable = new DatabaseDeployable&lt;&gt;(DbmsDockerVendorStrategy.forVendor(dbmsVendor),</span>
+                    (EntandoBaseCustomResource&lt;S&gt;) entandoCustomResource, nameQualifier, null);
+<span class="fc" id="L173">            final DeployCommand&lt;DatabaseDeploymentResult, S&gt; dbCommand = new DeployCommand&lt;&gt;(databaseDeployable);</span>
+<span class="fc" id="L174">            DatabaseDeploymentResult result = dbCommand.execute(k8sClient, empty());</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            if (result.hasFailed()) {</span>
+<span class="nc" id="L176">                throw new EntandoControllerException(&quot;Database deployment failed&quot;);</span>
+            }
+<span class="fc" id="L178">            return result;</span>
+        }
+<span class="fc" id="L180">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.creators</a> &gt; <span class="el_source">ServiceCreator.java</span></div><h1>ServiceCreator.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.creators;
+
+import io.fabric8.kubernetes.api.model.EndpointPort;
+import io.fabric8.kubernetes.api.model.EndpointsBuilder;
+import io.fabric8.kubernetes.api.model.IntOrString;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
+import io.fabric8.kubernetes.api.model.ServicePort;
+import io.fabric8.kubernetes.api.model.ServicePortBuilder;
+import io.fabric8.kubernetes.api.model.ServiceStatus;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.k8sclient.ServiceClient;
+import org.entando.kubernetes.controller.spi.Deployable;
+import org.entando.kubernetes.controller.spi.Ingressing;
+import org.entando.kubernetes.controller.spi.ServiceBackingContainer;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentSpec;
+
+public class ServiceCreator&lt;T extends EntandoDeploymentSpec&gt; extends AbstractK8SResourceCreator&lt;T&gt; {
+
+    private Service primaryService;
+
+    public ServiceCreator(EntandoBaseCustomResource&lt;T&gt; entandoCustomResource) {
+<span class="fc" id="L45">        super(entandoCustomResource);</span>
+<span class="fc" id="L46">    }</span>
+
+    public ServiceCreator(EntandoBaseCustomResource&lt;T&gt; entandoCustomResource, Service primaryService) {
+<span class="nc" id="L49">        super(entandoCustomResource);</span>
+<span class="nc" id="L50">        this.primaryService = primaryService;</span>
+<span class="nc" id="L51">    }</span>
+
+    private Service newService(Deployable&lt;?, ?&gt; deployable) {
+<span class="fc" id="L54">        ObjectMeta objectMeta = fromCustomResource(true, resolveName(deployable.getNameQualifier(), &quot;-service&quot;),</span>
+<span class="fc" id="L55">                deployable.getNameQualifier());</span>
+<span class="fc" id="L56">        return new ServiceBuilder()</span>
+<span class="fc" id="L57">                .withMetadata(objectMeta)</span>
+<span class="fc" id="L58">                .withNewSpec()</span>
+<span class="fc" id="L59">                .withSelector(labelsFromResource(deployable.getNameQualifier()))</span>
+<span class="fc" id="L60">                .withType(&quot;ClusterIP&quot;)</span>
+<span class="fc" id="L61">                .withPorts(buildPorts(deployable))</span>
+<span class="fc" id="L62">                .endSpec()</span>
+<span class="fc" id="L63">                .build();</span>
+    }
+
+    private List&lt;ServicePort&gt; buildPorts(Deployable&lt;?, ?&gt; deployable) {
+<span class="fc" id="L67">        return deployable.getContainers().stream().filter(ServiceBackingContainer.class::isInstance)</span>
+<span class="fc" id="L68">                .map(ServiceBackingContainer.class::cast)</span>
+<span class="fc" id="L69">                .map(this::newServicePort).collect(Collectors.toList());</span>
+    }
+
+    private ServicePort newServicePort(ServiceBackingContainer deployableContainer) {
+<span class="fc" id="L73">        return new ServicePortBuilder()</span>
+<span class="fc" id="L74">                .withName(deployableContainer.getNameQualifier() + &quot;-port&quot;)</span>
+<span class="fc" id="L75">                .withPort(deployableContainer.getPrimaryPort())</span>
+<span class="fc" id="L76">                .withProtocol(&quot;TCP&quot;)</span>
+<span class="fc" id="L77">                .withTargetPort(new IntOrString(deployableContainer.getPrimaryPort()))</span>
+<span class="fc" id="L78">                .build();</span>
+    }
+
+    public void createService(ServiceClient services, Deployable&lt;?, ?&gt; deployable) {
+<span class="fc" id="L82">        primaryService = services.createOrReplaceService(entandoCustomResource, newService(deployable));</span>
+<span class="fc" id="L83">    }</span>
+
+    public ServiceStatus reloadPrimaryService(ServiceClient services) {
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">        if (this.primaryService == null) {</span>
+<span class="nc" id="L87">            return null;</span>
+        }
+<span class="fc" id="L89">        this.primaryService = services.loadService(entandoCustomResource, primaryService.getMetadata().getName());</span>
+<span class="fc" id="L90">        return this.primaryService.getStatus();</span>
+    }
+
+    public Service newDelegatingService(ServiceClient services, Ingressing&lt;?&gt; ingressingDeployable) {
+<span class="nc" id="L94">        ObjectMeta metaData = new ObjectMetaBuilder()</span>
+<span class="nc" id="L95">                .withLabels(labelsFromResource(ingressingDeployable.getNameQualifier()))</span>
+<span class="nc" id="L96">                .withName(ingressingDeployable.getIngressName() + &quot;-to-&quot; + primaryService.getMetadata().getName())</span>
+<span class="nc" id="L97">                .withNamespace(ingressingDeployable.getIngressNamespace())</span>
+<span class="nc" id="L98">                .withOwnerReferences(KubeUtils.buildOwnerReference(this.entandoCustomResource)).build();</span>
+<span class="nc" id="L99">        Service delegatingService = services.createOrReplaceService(entandoCustomResource, new ServiceBuilder()</span>
+<span class="nc" id="L100">                .withMetadata(metaData)</span>
+<span class="nc" id="L101">                .withNewSpec()</span>
+<span class="nc" id="L102">                .withPorts(new ArrayList&lt;&gt;(primaryService.getSpec().getPorts()))</span>
+<span class="nc" id="L103">                .endSpec()</span>
+<span class="nc" id="L104">                .build());</span>
+        //This is just a workaround for Openshift where the DNS is not shared across namespaces. Joining the networks is an alternative
+        // solution
+<span class="nc" id="L107">        services.createOrReplaceEndpoints(entandoCustomResource, new EndpointsBuilder()</span>
+<span class="nc" id="L108">                .withMetadata(metaData)</span>
+<span class="nc" id="L109">                .addNewSubset()</span>
+<span class="nc" id="L110">                .addNewAddress().withIp(primaryService.getSpec().getClusterIP()).endAddress()</span>
+<span class="nc" id="L111">                .withPorts(toEndpointPorts(primaryService.getSpec().getPorts()))</span>
+<span class="nc" id="L112">                .endSubset()</span>
+<span class="nc" id="L113">                .build());</span>
+<span class="nc" id="L114">        return delegatingService;</span>
+    }
+
+    private List&lt;EndpointPort&gt; toEndpointPorts(List&lt;ServicePort&gt; ports) {
+<span class="nc" id="L118">        return ports.stream().map(servicePort -&gt; new EndpointPort(servicePort.getName(), servicePort.getPort(), servicePort.getProtocol()))</span>
+<span class="nc" id="L119">                .collect(Collectors.toList());</span>
+
+    }
+
+    public Service getService() {
+<span class="fc" id="L124">        return primaryService;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
