@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EntandoPluginServerDeployable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Entando Plugin Deployments</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.plugin</a> &gt; <span class="el_source">EntandoPluginServerDeployable.java</span></div><h1>EntandoPluginServerDeployable.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.plugin;
+
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import java.util.ArrayList;
+import java.util.List;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.database.DatabaseServiceResult;
+import org.entando.kubernetes.controller.spi.DbAwareDeployable;
+import org.entando.kubernetes.controller.spi.DeployableContainer;
+import org.entando.kubernetes.controller.spi.IngressingDeployable;
+import org.entando.kubernetes.model.plugin.EntandoPlugin;
+import org.entando.kubernetes.model.plugin.EntandoPluginSpec;
+import org.entando.kubernetes.model.plugin.PluginSecurityLevel;
+
+public class EntandoPluginServerDeployable implements IngressingDeployable&lt;EntandoPluginDeploymentResult, EntandoPluginSpec&gt;,
+        DbAwareDeployable {
+
+    private final DatabaseServiceResult databaseServiceResult;
+    private final EntandoPlugin entandoPlugin;
+    private final List&lt;DeployableContainer&gt; containers;
+
+    public EntandoPluginServerDeployable(DatabaseServiceResult databaseServiceResult,
+<span class="fc" id="L43">            KeycloakConnectionConfig keycloakConnectionConfig, EntandoPlugin entandoPlugin) {</span>
+<span class="fc" id="L44">        this.databaseServiceResult = databaseServiceResult;</span>
+<span class="fc" id="L45">        this.entandoPlugin = entandoPlugin;</span>
+        //TODO make decision on which other containers to include based on the EntandoPlugin.spec
+<span class="fc" id="L47">        this.containers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L48">        this.containers.add(new EntandoPluginDeployableContainer(entandoPlugin, keycloakConnectionConfig));</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (entandoPlugin.getSpec().getSecurityLevel().map(PluginSecurityLevel.LENIENT::equals).orElse(true)) {</span>
+<span class="fc" id="L50">            this.containers.add(new EntandoPluginSidecarDeployableContainer(entandoPlugin, keycloakConnectionConfig));</span>
+        }
+<span class="fc" id="L52">    }</span>
+
+    @Override
+    public int getReplicas() {
+<span class="fc" id="L56">        return entandoPlugin.getSpec().getReplicas().orElse(1);</span>
+    }
+
+    @Override
+    public String getServiceAccountName() {
+<span class="fc" id="L61">        return &quot;entando-plugin&quot;;</span>
+    }
+
+    @Override
+    public List&lt;DeployableContainer&gt; getContainers() {
+<span class="fc" id="L66">        return containers;</span>
+    }
+
+    @Override
+    public String getIngressName() {
+<span class="fc" id="L71">        return KubeUtils.standardIngressName(entandoPlugin);</span>
+    }
+
+    @Override
+    public String getIngressNamespace() {
+<span class="fc" id="L76">        return entandoPlugin.getMetadata().getNamespace();</span>
+    }
+
+    @Override
+    public String getNameQualifier() {
+<span class="fc" id="L81">        return KubeUtils.DEFAULT_SERVER_QUALIFIER;</span>
+    }
+
+    @Override
+    public EntandoPlugin getCustomResource() {
+<span class="fc" id="L86">        return entandoPlugin;</span>
+    }
+
+    @Override
+    public EntandoPluginDeploymentResult createResult(Deployment deployment, Service service, Ingress ingress, Pod pod) {
+<span class="fc" id="L91">        return new EntandoPluginDeploymentResult(pod, service, ingress);</span>
+    }
+
+    @Override
+    public DatabaseServiceResult getDatabaseServiceResult() {
+<span class="fc" id="L96">        return databaseServiceResult;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
