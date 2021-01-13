@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IngressPathCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.creators</a> &gt; <span class="el_source">IngressPathCreator.java</span></div><h1>IngressPathCreator.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.creators;
+
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.extensions.HTTPIngressPath;
+import io.fabric8.kubernetes.api.model.extensions.HTTPIngressPathBuilder;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.controller.k8sclient.IngressClient;
+import org.entando.kubernetes.controller.spi.Ingressing;
+import org.entando.kubernetes.controller.spi.IngressingDeployable;
+import org.entando.kubernetes.controller.spi.IngressingPathOnPort;
+import org.entando.kubernetes.model.EntandoCustomResource;
+
+public class IngressPathCreator {
+
+    private final EntandoCustomResource entandoCustomResource;
+
+<span class="fc" id="L36">    public IngressPathCreator(EntandoCustomResource entandoCustomResource) {</span>
+<span class="fc" id="L37">        this.entandoCustomResource = entandoCustomResource;</span>
+<span class="fc" id="L38">    }</span>
+
+    public List&lt;HTTPIngressPath&gt; buildPaths(IngressingDeployable&lt;?, ?&gt; ingressingDeployable, Service service) {
+<span class="fc" id="L41">        return ingressingDeployable.getIngressingContainers().stream().map(o -&gt; newHttpPath(o, service)).collect(Collectors</span>
+<span class="fc" id="L42">                .toList());</span>
+    }
+
+    public Ingress addMissingHttpPaths(IngressClient ingressClient, Ingressing&lt;?&gt; ingressingDeployable, Ingress ingress, Service service) {
+<span class="fc" id="L46">        List&lt;IngressingPathOnPort&gt; ingressingContainers = ingressingDeployable.getIngressingContainers().stream()</span>
+<span class="fc" id="L47">                .filter(path -&gt; this.httpPathIsAbsent(ingress, path))</span>
+<span class="fc" id="L48">                .collect(Collectors.toList());</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        for (IngressingPathOnPort ingressingContainer : ingressingContainers) {</span>
+<span class="fc" id="L50">            ingressClient.addHttpPath(ingress, newHttpPath(ingressingContainer, service), Collections</span>
+<span class="fc" id="L51">                    .singletonMap(entandoCustomResource.getMetadata().getName() + &quot;-path&quot;, ingressingContainer.getWebContextPath()));</span>
+
+<span class="fc" id="L53">        }</span>
+<span class="fc" id="L54">        return ingressClient.loadIngress(ingress.getMetadata().getNamespace(), ingress.getMetadata().getName());</span>
+    }
+
+    private HTTPIngressPath newHttpPath(IngressingPathOnPort ingressingPathOnPort, Service service) {
+<span class="fc" id="L58">        return new HTTPIngressPathBuilder()</span>
+<span class="fc" id="L59">                .withPath(ingressingPathOnPort.getWebContextPath())</span>
+<span class="fc" id="L60">                .withNewBackend()</span>
+<span class="fc" id="L61">                .withServiceName(service.getMetadata().getName())</span>
+<span class="fc" id="L62">                .withNewServicePort(ingressingPathOnPort.getPortForIngressPath())</span>
+<span class="fc" id="L63">                .endBackend()</span>
+<span class="fc" id="L64">                .build();</span>
+    }
+
+    private boolean httpPathIsAbsent(Ingress ingress, IngressingPathOnPort ingressingContainer) {
+<span class="fc" id="L68">        return ingress.getSpec().getRules().get(0).getHttp().getPaths().stream()</span>
+<span class="fc" id="L69">                .noneMatch(httpIngressPath -&gt; httpIngressPath.getPath().equals(ingressingContainer.getWebContextPath()));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

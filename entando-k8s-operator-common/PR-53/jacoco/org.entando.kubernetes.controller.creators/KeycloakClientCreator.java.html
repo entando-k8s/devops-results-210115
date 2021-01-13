@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeycloakClientCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Operator Common Library</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.creators</a> &gt; <span class="el_source">KeycloakClientCreator.java</span></div><h1>KeycloakClientCreator.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.creators;
+
+import static org.entando.kubernetes.controller.creators.IngressCreator.getIngressServerUrl;
+
+import io.fabric8.kubernetes.api.model.SecretBuilder;
+import io.fabric8.kubernetes.api.model.extensions.Ingress;
+import java.util.Optional;
+import org.entando.kubernetes.controller.KeycloakClientConfig;
+import org.entando.kubernetes.controller.KeycloakConnectionConfig;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.SimpleKeycloakClient;
+import org.entando.kubernetes.controller.common.KeycloakName;
+import org.entando.kubernetes.controller.k8sclient.SecretClient;
+import org.entando.kubernetes.controller.spi.Deployable;
+import org.entando.kubernetes.controller.spi.KeycloakAware;
+import org.entando.kubernetes.controller.spi.PublicIngressingDeployable;
+import org.entando.kubernetes.model.EntandoBaseCustomResource;
+import org.entando.kubernetes.model.EntandoDeploymentSpec;
+import org.entando.kubernetes.model.KeycloakAwareSpec;
+
+public class KeycloakClientCreator&lt;S extends EntandoDeploymentSpec&gt; {
+
+    private final EntandoBaseCustomResource&lt;S&gt; entandoCustomResource;
+
+<span class="fc" id="L41">    public KeycloakClientCreator(EntandoBaseCustomResource&lt;S&gt; entandoCustomResource) {</span>
+<span class="fc" id="L42">        this.entandoCustomResource = entandoCustomResource;</span>
+<span class="fc" id="L43">    }</span>
+
+    public boolean requiresKeycloakClients(Deployable&lt;?, ?&gt; deployable) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        return deployable instanceof PublicIngressingDeployable</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">                || deployable.getContainers().stream().anyMatch(KeycloakAware.class::isInstance);</span>
+    }
+
+    public void createKeycloakClients(SecretClient secrets, SimpleKeycloakClient keycloak, Deployable&lt;?, ?&gt; deployable,
+            Optional&lt;Ingress&gt; ingress) {
+<span class="fc" id="L52">        login(keycloak, deployable);</span>
+<span class="pc bpc" id="L53" title="1 of 4 branches missed.">        if (deployable instanceof PublicIngressingDeployable &amp;&amp; this.entandoCustomResource.getSpec() instanceof KeycloakAwareSpec) {</span>
+            //Create a public keycloak client
+<span class="fc" id="L55">            KeycloakAwareSpec spec = (KeycloakAwareSpec) this.entandoCustomResource.getSpec();</span>
+<span class="fc" id="L56">            PublicIngressingDeployable&lt;?, ?&gt; publicIngressingDeployable = (PublicIngressingDeployable&lt;?, ?&gt;) deployable;</span>
+<span class="fc" id="L57">            keycloak.createPublicClient(KeycloakName.ofTheRealm(spec),</span>
+<span class="fc" id="L58">                    KeycloakName.ofThePublicClient(publicIngressingDeployable.getCustomResource().getSpec()),</span>
+<span class="fc" id="L59">                    getIngressServerUrl(ingress.orElseThrow(IllegalStateException::new)));</span>
+
+        }
+<span class="fc" id="L62">        deployable.getContainers().stream()</span>
+<span class="fc" id="L63">                .filter(KeycloakAware.class::isInstance)</span>
+<span class="fc" id="L64">                .map(KeycloakAware.class::cast)</span>
+<span class="fc" id="L65">                .forEach(keycloakAware -&gt; createClient(secrets, keycloak, keycloakAware, ingress));</span>
+<span class="fc" id="L66">    }</span>
+
+    private void login(SimpleKeycloakClient client, Deployable&lt;?, ?&gt; deployable) {
+        KeycloakConnectionConfig keycloakConnectionConfig;
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (deployable instanceof PublicIngressingDeployable) {</span>
+<span class="fc" id="L71">            keycloakConnectionConfig = ((PublicIngressingDeployable) deployable).getKeycloakDeploymentResult();</span>
+        } else {
+<span class="fc" id="L73">            keycloakConnectionConfig = deployable.getContainers().stream()</span>
+<span class="fc" id="L74">                    .filter(KeycloakAware.class::isInstance)</span>
+<span class="fc" id="L75">                    .map(KeycloakAware.class::cast)</span>
+<span class="fc" id="L76">                    .map(KeycloakAware::getKeycloakConnectionConfig)</span>
+<span class="fc" id="L77">                    .findAny()</span>
+<span class="fc" id="L78">                    .orElseThrow(IllegalArgumentException::new);</span>
+        }
+<span class="fc" id="L80">        client.login(keycloakConnectionConfig.determineBaseUrl(), keycloakConnectionConfig.getUsername(),</span>
+<span class="fc" id="L81">                keycloakConnectionConfig.getPassword());</span>
+<span class="fc" id="L82">    }</span>
+
+    private void createClient(SecretClient secrets, SimpleKeycloakClient client, KeycloakAware container, Optional&lt;Ingress&gt; ingress) {
+<span class="fc" id="L85">        KeycloakClientConfig keycloakConfig = container.getKeycloakClientConfig();</span>
+<span class="fc" id="L86">        KeycloakClientConfig keycloakClientConfig = container.getKeycloakClientConfig();</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (ingress.isPresent()) {</span>
+<span class="fc" id="L88">            keycloakClientConfig = keycloakClientConfig</span>
+<span class="fc" id="L89">                    .withRedirectUri(getIngressServerUrl(ingress.get()) + container.getWebContextPath() + &quot;/*&quot;);</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            if (ingress.get().getSpec().getTls().size() == 1) {</span>
+                //Also support redirecting to http for http services that don't have knowledge that they are exposed as https
+<span class="nc" id="L92">                keycloakClientConfig = keycloakClientConfig.withRedirectUri(</span>
+<span class="nc" id="L93">                        &quot;http://&quot; + ingress.get().getSpec().getRules().get(0).getHost() + container.getWebContextPath() + &quot;/*&quot;);</span>
+            }
+<span class="fc" id="L95">            keycloakClientConfig = keycloakClientConfig</span>
+<span class="fc" id="L96">                    .withWebOrigin(getIngressServerUrl(ingress.get()));</span>
+        }
+<span class="fc" id="L98">        String keycloakClientSecret = client.prepareClientAndReturnSecret(keycloakClientConfig);</span>
+<span class="fc" id="L99">        String secretName = KeycloakName.forTheClientSecret(keycloakConfig);</span>
+<span class="fc" id="L100">        secrets.createSecretIfAbsent(entandoCustomResource, new SecretBuilder()</span>
+<span class="fc" id="L101">                .withNewMetadata()</span>
+<span class="fc" id="L102">                .withOwnerReferences(KubeUtils.buildOwnerReference(entandoCustomResource))</span>
+<span class="fc" id="L103">                .withName(secretName)</span>
+<span class="fc" id="L104">                .endMetadata()</span>
+<span class="fc" id="L105">                .addToStringData(KeycloakName.CLIENT_ID_KEY, keycloakConfig.getClientId())</span>
+<span class="fc" id="L106">                .addToStringData(KeycloakName.CLIENT_SECRET_KEY, keycloakClientSecret)</span>
+<span class="fc" id="L107">                .build());</span>
+<span class="fc" id="L108">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
