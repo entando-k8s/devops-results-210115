@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeycloakDeployableContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Entando K8S Controller for Keycloak</a> &gt; <a href="index.source.html" class="el_package">org.entando.kubernetes.controller.keycloakserver</a> &gt; <span class="el_source">KeycloakDeployableContainer.java</span></div><h1>KeycloakDeployableContainer.java</h1><pre class="source lang-java linenums">/*
+ *
+ * Copyright 2015-Present Entando Inc. (http://www.entando.com) All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ *
+ */
+
+package org.entando.kubernetes.controller.keycloakserver;
+
+import io.fabric8.kubernetes.api.model.EnvVar;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.entando.kubernetes.controller.EntandoOperatorConfig;
+import org.entando.kubernetes.controller.FluentTernary;
+import org.entando.kubernetes.controller.KubeUtils;
+import org.entando.kubernetes.controller.common.DockerImageInfo;
+import org.entando.kubernetes.controller.creators.SecretCreator;
+import org.entando.kubernetes.controller.database.DatabaseSchemaCreationResult;
+import org.entando.kubernetes.controller.database.DatabaseServiceResult;
+import org.entando.kubernetes.controller.database.DbmsVendorConfig;
+import org.entando.kubernetes.controller.spi.ConfigurableResourceContainer;
+import org.entando.kubernetes.controller.spi.DatabasePopulator;
+import org.entando.kubernetes.controller.spi.DbAware;
+import org.entando.kubernetes.controller.spi.DefaultDockerImageInfo;
+import org.entando.kubernetes.controller.spi.IngressingContainer;
+import org.entando.kubernetes.controller.spi.ParameterizableContainer;
+import org.entando.kubernetes.controller.spi.PersistentVolumeAware;
+import org.entando.kubernetes.controller.spi.TlsAware;
+import org.entando.kubernetes.model.DbmsVendor;
+import org.entando.kubernetes.model.EntandoIngressingDeploymentSpec;
+import org.entando.kubernetes.model.keycloakserver.EntandoKeycloakServer;
+import org.entando.kubernetes.model.keycloakserver.StandardKeycloakImage;
+
+public class KeycloakDeployableContainer implements IngressingContainer, DbAware, TlsAware, PersistentVolumeAware,
+        ParameterizableContainer, ConfigurableResourceContainer {
+
+    private static final String COMMUNITY_KEYCLOAK_IMAGE_NAME = &quot;entando/entando-keycloak&quot;;
+    public static final String REDHAT_SSO_IMAGE_NAME = &quot;entando/entando-redhat-sso&quot;;
+
+    private final EntandoKeycloakServer keycloakServer;
+    private final DatabaseServiceResult databaseServiceResult;
+    private Map&lt;String, DatabaseSchemaCreationResult&gt; dbSchemas;
+
+<span class="fc" id="L58">    public KeycloakDeployableContainer(EntandoKeycloakServer keycloakServer, DatabaseServiceResult databaseServiceResult) {</span>
+<span class="fc" id="L59">        this.keycloakServer = keycloakServer;</span>
+<span class="fc" id="L60">        this.databaseServiceResult = databaseServiceResult;</span>
+<span class="fc" id="L61">    }</span>
+
+    public static String secretName(EntandoKeycloakServer keycloakServer) {
+<span class="fc" id="L64">        return keycloakServer.getMetadata().getName() + &quot;-admin-secret&quot;;</span>
+    }
+
+    @Override
+    public DockerImageInfo getDockerImageInfo() {
+<span class="fc" id="L69">        return new DefaultDockerImageInfo(keycloakServer.getSpec().getCustomImage()</span>
+<span class="fc" id="L70">                .orElse(determineStandardImageName()));</span>
+    }
+
+    private String determineStandardImageName() {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (determineStandardKeycloakImage() == StandardKeycloakImage.REDHAT_SSO) {</span>
+<span class="nc" id="L75">            return REDHAT_SSO_IMAGE_NAME;</span>
+        } else {
+<span class="fc" id="L77">            return COMMUNITY_KEYCLOAK_IMAGE_NAME;</span>
+        }
+    }
+
+    private StandardKeycloakImage determineStandardKeycloakImage() {
+<span class="fc" id="L82">        return EntandoKeycloakHelper.determineStandardImage(keycloakServer);</span>
+    }
+
+    @Override
+    public int getMemoryLimitMebibytes() {
+<span class="fc" id="L87">        return 768;</span>
+    }
+
+    @Override
+    public int getCpuLimitMillicores() {
+<span class="fc" id="L92">        return 1000;</span>
+    }
+
+    @Override
+    public String getNameQualifier() {
+<span class="fc" id="L97">        return KubeUtils.DEFAULT_SERVER_QUALIFIER;</span>
+    }
+
+    @Override
+    public int getPrimaryPort() {
+<span class="fc" id="L102">        return 8080;</span>
+    }
+
+    @Override
+    public List&lt;EnvVar&gt; getEnvironmentVariables() {
+<span class="fc" id="L107">        List&lt;EnvVar&gt; vars = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L108">        vars.add(new EnvVar(&quot;KEYCLOAK_USER&quot;, null, KubeUtils.secretKeyRef(secretName(keycloakServer), KubeUtils.USERNAME_KEY)));</span>
+<span class="fc" id="L109">        vars.add(new EnvVar(&quot;KEYCLOAK_PASSWORD&quot;, null, KubeUtils.secretKeyRef(secretName(keycloakServer), KubeUtils.PASSSWORD_KEY)));</span>
+<span class="fc" id="L110">        vars.add(new EnvVar(&quot;PROXY_ADDRESS_FORWARDING&quot;, &quot;true&quot;, null));</span>
+<span class="fc" id="L111">        return vars;</span>
+    }
+
+    @Override
+    public List&lt;EnvVar&gt; getDatabaseConnectionVariables() {
+<span class="fc" id="L116">        List&lt;EnvVar&gt; vars = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (EntandoKeycloakHelper.determineDbmsVendor(keycloakServer) == DbmsVendor.EMBEDDED) {</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (determineStandardKeycloakImage() == StandardKeycloakImage.REDHAT_SSO) {</span>
+<span class="nc" id="L119">                vars.add(new EnvVar(&quot;DB_DRIVER&quot;, &quot;h2&quot;, null));</span>
+<span class="nc" id="L120">                vars.add(new EnvVar(&quot;DB_JNDI&quot;, &quot;java:/redhat-sso-ds&quot;, null));</span>
+<span class="nc" id="L121">                vars.add(new EnvVar(&quot;DATASOURCES&quot;, &quot;DB&quot;, null));</span>
+<span class="nc" id="L122">                vars.add(new EnvVar(&quot;DB_SERVICE_HOST&quot;, &quot;dummy&quot;, null));</span>
+<span class="nc" id="L123">                vars.add(new EnvVar(&quot;DB_SERVICE_PORT&quot;, &quot;1234&quot;, null));</span>
+            } else {
+<span class="fc" id="L125">                vars.add(new EnvVar(&quot;DB_VENDOR&quot;, &quot;h2&quot;, null));</span>
+            }
+        } else {
+<span class="fc" id="L128">            DatabaseSchemaCreationResult databaseSchemaCreationResult = dbSchemas.get(&quot;db&quot;);</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (determineStandardKeycloakImage() == StandardKeycloakImage.REDHAT_SSO) {</span>
+<span class="nc" id="L130">                vars.add(new EnvVar(&quot;DB_SERVICE_HOST&quot;, databaseSchemaCreationResult.getInternalServiceHostname(), null));</span>
+<span class="nc" id="L131">                vars.add(new EnvVar(&quot;DB_SERVICE_PORT&quot;, databaseSchemaCreationResult.getPort(), null));</span>
+<span class="nc" id="L132">                vars.add(new EnvVar(&quot;DB_DRIVER&quot;, databaseSchemaCreationResult.getVendor().getName(), null));</span>
+<span class="nc" id="L133">                vars.add(new EnvVar(&quot;DB_JNDI&quot;, &quot;java:jboss/datasources/KeycloakDS&quot;, null));</span>
+<span class="nc" id="L134">                vars.add(new EnvVar(&quot;DB_USERNAME&quot;, null, databaseSchemaCreationResult.getUsernameRef()));</span>
+<span class="nc" id="L135">                vars.add(new EnvVar(&quot;DATASOURCES&quot;, &quot;DB&quot;, null));</span>
+            } else {
+<span class="fc" id="L137">                vars.add(new EnvVar(&quot;DB_ADDR&quot;, databaseSchemaCreationResult.getInternalServiceHostname(), null));</span>
+<span class="fc" id="L138">                vars.add(new EnvVar(&quot;DB_PORT&quot;, databaseSchemaCreationResult.getPort(), null));</span>
+<span class="fc" id="L139">                vars.add(new EnvVar(&quot;DB_SCHEMA&quot;, databaseSchemaCreationResult.getSchemaName(), null));</span>
+<span class="fc" id="L140">                vars.add(new EnvVar(&quot;DB_USER&quot;, null, databaseSchemaCreationResult.getUsernameRef()));</span>
+            }
+<span class="fc" id="L142">            vars.add(new EnvVar(&quot;DB_VENDOR&quot;, determineKeycloaksNonStandardDbVendorName(databaseSchemaCreationResult), null));</span>
+<span class="fc" id="L143">            vars.add(new EnvVar(&quot;DB_DATABASE&quot;, databaseSchemaCreationResult.getDatabase(), null));</span>
+<span class="fc" id="L144">            vars.add(new EnvVar(&quot;DB_PASSWORD&quot;, null, databaseSchemaCreationResult.getPasswordRef()));</span>
+<span class="fc" id="L145">            vars.add(new EnvVar(&quot;JDBC_PARAMS&quot;,</span>
+<span class="pc" id="L146">                    databaseServiceResult.getJdbcParameters().entrySet().stream().map(entry -&gt; entry.getKey() + &quot;=&quot; + entry.getValue())</span>
+<span class="fc" id="L147">                            .collect(</span>
+<span class="fc" id="L148">                                    Collectors.joining(&quot;&amp;&quot;)), null));</span>
+
+        }
+<span class="fc" id="L151">        return vars;</span>
+    }
+
+    @Override
+    public List&lt;EnvVar&gt; getTlsVariables() {
+<span class="fc" id="L156">        List&lt;EnvVar&gt; vars = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L157">        String certFiles = String.join(&quot; &quot;,</span>
+<span class="fc" id="L158">                EntandoOperatorConfig.getCertificateAuthorityCertPaths().stream()</span>
+<span class="fc" id="L159">                        .map(path -&gt; SecretCreator.standardCertPathOf(path.getFileName().toString()))</span>
+<span class="fc" id="L160">                        .collect(Collectors.toList()));</span>
+<span class="fc" id="L161">        vars.add(new EnvVar(&quot;X509_CA_BUNDLE&quot;,</span>
+                &quot;/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt /var/run/secrets/kubernetes.io/serviceaccount/ca.crt &quot;
+                        + certFiles, null));
+<span class="fc" id="L164">        return vars;</span>
+    }
+
+    private String determineKeycloaksNonStandardDbVendorName(DatabaseSchemaCreationResult databaseSchemaCreationResult) {
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        return FluentTernary.use(&quot;postgres&quot;).when(databaseSchemaCreationResult.getVendor().getVendorConfig() == DbmsVendorConfig.POSTGRESQL)</span>
+<span class="fc" id="L169">                .orElse(databaseSchemaCreationResult.getVendor().getVendorConfig().getName());</span>
+    }
+
+    @Override
+    public String getWebContextPath() {
+<span class="fc" id="L174">        return &quot;/auth&quot;;</span>
+    }
+
+    @Override
+    public Optional&lt;String&gt; getHealthCheckPath() {
+<span class="fc" id="L179">        return Optional.of(getWebContextPath());</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getDbSchemaQualifiers() {
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if (EntandoKeycloakHelper.determineDbmsVendor(keycloakServer) == DbmsVendor.EMBEDDED) {</span>
+<span class="nc" id="L185">            return Collections.emptyList();</span>
+        } else {
+<span class="fc" id="L187">            return Arrays.asList(&quot;db&quot;);</span>
+        }
+    }
+
+    @Override
+    public Optional&lt;DatabasePopulator&gt; useDatabaseSchemas(Map&lt;String, DatabaseSchemaCreationResult&gt; dbSchemas) {
+<span class="fc" id="L193">        this.dbSchemas = dbSchemas;</span>
+<span class="fc" id="L194">        return Optional.empty();</span>
+    }
+
+    @Override
+    public String getVolumeMountPath() {
+<span class="fc" id="L199">        return &quot;/opt/jboss/keycloak/standalone/data&quot;;</span>
+    }
+
+    @Override
+    public EntandoIngressingDeploymentSpec getCustomResourceSpec() {
+<span class="fc" id="L204">        return keycloakServer.getSpec();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
