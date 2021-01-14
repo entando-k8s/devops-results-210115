@@ -32,6 +32,7 @@ import io.fabric8.kubernetes.client.Watcher.Action;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,169 +52,178 @@ public class ControllerExecutor {
 
     public static final String ETC_ENTANDO_TLS = &quot;/etc/entando/tls&quot;;
     public static final String ETC_ENTANDO_CA = &quot;/etc/entando/ca&quot;;
-<span class="fc" id="L54">    private static final Map&lt;String, String&gt; resourceKindToImageNames = buildImageMap();</span>
+<span class="fc" id="L55">    private static final Map&lt;String, String&gt; resourceKindToImageNames = buildImageMap();</span>
     private final SimpleK8SClient&lt;?&gt; client;
     private final EntandoImageResolver imageResolver;
     private String controllerNamespace;
 
     public ControllerExecutor(String controllerNamespace, KubernetesClient client) {
-<span class="nc" id="L60">        this(controllerNamespace, new DefaultSimpleK8SClient(client));</span>
-<span class="nc" id="L61">    }</span>
+<span class="nc" id="L61">        this(controllerNamespace, new DefaultSimpleK8SClient(client));</span>
+<span class="nc" id="L62">    }</span>
 
-<span class="fc" id="L63">    public ControllerExecutor(String controllerNamespace, SimpleK8SClient&lt;?&gt; client) {</span>
-<span class="fc" id="L64">        this.controllerNamespace = controllerNamespace;</span>
-<span class="fc" id="L65">        this.client = client;</span>
-<span class="fc" id="L66">        this.imageResolver = new EntandoImageResolver(</span>
-<span class="fc" id="L67">                client.secrets().loadControllerConfigMap(EntandoOperatorConfig.getEntandoDockerImageInfoConfigMap()));</span>
-<span class="fc" id="L68">    }</span>
+<span class="fc" id="L64">    public ControllerExecutor(String controllerNamespace, SimpleK8SClient&lt;?&gt; client) {</span>
+<span class="fc" id="L65">        this.controllerNamespace = controllerNamespace;</span>
+<span class="fc" id="L66">        this.client = client;</span>
+<span class="fc" id="L67">        this.imageResolver = new EntandoImageResolver(</span>
+<span class="fc" id="L68">                client.secrets().loadControllerConfigMap(EntandoOperatorConfig.getEntandoDockerImageInfoConfigMap()));</span>
+<span class="fc" id="L69">    }</span>
 
     private static Map&lt;String, String&gt; buildImageMap() {
-<span class="fc" id="L71">        Map&lt;String, String&gt; map = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="fc" id="L72">        map.put(&quot;EntandoKeycloakServer&quot;, &quot;entando-k8s-keycloak-controller&quot;);</span>
-<span class="fc" id="L73">        map.put(&quot;EntandoClusterInfrastructure&quot;, &quot;entando-k8s-cluster-infrastructure-controller&quot;);</span>
-<span class="fc" id="L74">        map.put(&quot;EntandoPlugin&quot;, &quot;entando-k8s-plugin-controller&quot;);</span>
-<span class="fc" id="L75">        map.put(&quot;EntandoApp&quot;, &quot;entando-k8s-app-controller&quot;);</span>
-<span class="fc" id="L76">        map.put(&quot;EntandoAppPluginLink&quot;, &quot;entando-k8s-app-plugin-link-controller&quot;);</span>
-<span class="fc" id="L77">        map.put(&quot;EntandoCompositeApp&quot;, &quot;entando-k8s-composite-app-controller&quot;);</span>
-<span class="fc" id="L78">        map.put(&quot;EntandoDatabaseService&quot;, &quot;entando-k8s-database-service-controller&quot;);</span>
-<span class="fc" id="L79">        return map;</span>
+<span class="fc" id="L72">        Map&lt;String, String&gt; map = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L73">        map.put(&quot;EntandoKeycloakServer&quot;, &quot;entando-k8s-keycloak-controller&quot;);</span>
+<span class="fc" id="L74">        map.put(&quot;EntandoClusterInfrastructure&quot;, &quot;entando-k8s-cluster-infrastructure-controller&quot;);</span>
+<span class="fc" id="L75">        map.put(&quot;EntandoPlugin&quot;, &quot;entando-k8s-plugin-controller&quot;);</span>
+<span class="fc" id="L76">        map.put(&quot;EntandoApp&quot;, &quot;entando-k8s-app-controller&quot;);</span>
+<span class="fc" id="L77">        map.put(&quot;EntandoAppPluginLink&quot;, &quot;entando-k8s-app-plugin-link-controller&quot;);</span>
+<span class="fc" id="L78">        map.put(&quot;EntandoCompositeApp&quot;, &quot;entando-k8s-composite-app-controller&quot;);</span>
+<span class="fc" id="L79">        map.put(&quot;EntandoDatabaseService&quot;, &quot;entando-k8s-database-service-controller&quot;);</span>
+<span class="fc" id="L80">        return map;</span>
     }
 
     public static &lt;T extends Serializable&gt; String resolveControllerImageName(EntandoBaseCustomResource&lt;T&gt; resource) {
-<span class="fc" id="L83">        return resolveControllerImageNameByKind(resource.getKind());</span>
+<span class="fc" id="L84">        return resolveControllerImageNameByKind(resource.getKind());</span>
     }
 
     public static &lt;T extends EntandoBaseCustomResource&lt;?&gt;&gt; String resolveControllerImageName(Class&lt;T&gt; type) {
-<span class="nc" id="L87">        String kind = KubeUtils.getKindOf(type);</span>
-<span class="nc" id="L88">        return resolveControllerImageNameByKind(kind);</span>
+<span class="nc" id="L88">        String kind = KubeUtils.getKindOf(type);</span>
+<span class="nc" id="L89">        return resolveControllerImageNameByKind(kind);</span>
     }
 
     private static String resolveControllerImageNameByKind(String kind) {
-<span class="fc" id="L92">        return resourceKindToImageNames.get(kind);</span>
+<span class="fc" id="L93">        return resourceKindToImageNames.get(kind);</span>
     }
 
     public &lt;T extends EntandoBaseCustomResource&lt;?&gt;&gt; Optional&lt;String&gt; resolveLatestImageFor(Class&lt;T&gt; type) {
-<span class="nc" id="L96">        String imageName = resolveControllerImageName(type);</span>
-<span class="nc" id="L97">        return this.imageResolver.determineLatestVersionOf(imageName);</span>
+<span class="nc" id="L97">        String imageName = resolveControllerImageName(type);</span>
+<span class="nc" id="L98">        return this.imageResolver.determineLatestVersionOf(imageName);</span>
     }
 
     public &lt;T extends Serializable&gt; Pod startControllerFor(Action action, EntandoBaseCustomResource&lt;T&gt; resource, String imageVersionToUse) {
-<span class="fc" id="L101">        removeObsoleteControllerPods(resource);</span>
-<span class="fc" id="L102">        Pod pod = buildControllerPod(action, resource, imageVersionToUse);</span>
-<span class="fc" id="L103">        return client.pods().start(pod);</span>
+<span class="fc" id="L102">        removeObsoleteControllerPods(resource);</span>
+<span class="fc" id="L103">        Pod pod = buildControllerPod(action, resource, imageVersionToUse);</span>
+<span class="fc" id="L104">        return client.pods().start(pod);</span>
     }
 
     public &lt;T extends EntandoDeploymentSpec&gt; Pod runControllerFor(Action action, EntandoBaseCustomResource&lt;T&gt; resource,
             String imageVersionToUse) {
-<span class="fc" id="L108">        removeObsoleteControllerPods(resource);</span>
-<span class="fc" id="L109">        Pod pod = buildControllerPod(action, resource, imageVersionToUse);</span>
-<span class="fc" id="L110">        return client.pods().runToCompletion(pod);</span>
+<span class="fc" id="L109">        removeObsoleteControllerPods(resource);</span>
+<span class="fc" id="L110">        Pod pod = buildControllerPod(action, resource, imageVersionToUse);</span>
+<span class="fc" id="L111">        return client.pods().runToCompletion(pod);</span>
     }
 
     private void removeObsoleteControllerPods(EntandoBaseCustomResource&lt;?&gt; resource) {
-<span class="fc" id="L114">        this.client.pods().removeAndWait(controllerNamespace, Map.of(</span>
-<span class="fc" id="L115">                KubeUtils.ENTANDO_RESOURCE_KIND_LABEL_NAME, resource.getKind(),</span>
-<span class="fc" id="L116">                KubeUtils.ENTANDO_RESOURCE_NAMESPACE_LABEL_NAME, resource.getMetadata().getNamespace(),</span>
-<span class="fc" id="L117">                resource.getKind(), resource.getMetadata().getName()));</span>
-<span class="fc" id="L118">    }</span>
+<span class="fc" id="L115">        this.client.pods().removeAndWait(controllerNamespace, Map.of(</span>
+<span class="fc" id="L116">                KubeUtils.ENTANDO_RESOURCE_KIND_LABEL_NAME, resource.getKind(),</span>
+<span class="fc" id="L117">                KubeUtils.ENTANDO_RESOURCE_NAMESPACE_LABEL_NAME, resource.getMetadata().getNamespace(),</span>
+<span class="fc" id="L118">                resource.getKind(), resource.getMetadata().getName()));</span>
+<span class="fc" id="L119">    }</span>
 
     private &lt;T extends Serializable&gt; Pod buildControllerPod(Action action, EntandoBaseCustomResource&lt;T&gt; resource,
             String imageVersionToUse) {
-<span class="fc" id="L122">        return new PodBuilder().withNewMetadata()</span>
-<span class="fc" id="L123">                .withName(resource.getMetadata().getName() + &quot;-deployer-&quot; + RandomStringUtils.randomAlphanumeric(10).toLowerCase())</span>
-<span class="fc" id="L124">                .withNamespace(this.controllerNamespace)</span>
-<span class="fc" id="L125">                .addToLabels(KubeUtils.ENTANDO_RESOURCE_KIND_LABEL_NAME, resource.getKind())</span>
-<span class="fc" id="L126">                .addToLabels(KubeUtils.ENTANDO_RESOURCE_NAMESPACE_LABEL_NAME, resource.getMetadata().getNamespace())</span>
-<span class="fc" id="L127">                .addToLabels(resource.getKind(), resource.getMetadata().getName())</span>
-<span class="fc" id="L128">                .endMetadata()</span>
-<span class="fc" id="L129">                .withNewSpec()</span>
-<span class="fc" id="L130">                .withRestartPolicy(&quot;Never&quot;)</span>
-<span class="fc" id="L131">                .withServiceAccountName(determineServiceAccountName())</span>
-<span class="fc" id="L132">                .addNewContainer()</span>
-<span class="fc" id="L133">                .withName(&quot;deployer&quot;)</span>
-<span class="fc" id="L134">                .withImage(determineControllerImage(resource, imageVersionToUse))</span>
-<span class="fc" id="L135">                .withImagePullPolicy(&quot;IfNotPresent&quot;)</span>
-<span class="fc" id="L136">                .withEnv(buildEnvVars(action, resource))</span>
-<span class="fc" id="L137">                .withVolumeMounts(maybeCreateTlsVolumeMounts())</span>
-<span class="fc" id="L138">                .endContainer()</span>
-<span class="fc" id="L139">                .withVolumes(maybeCreateTlsVolumes(resource))</span>
-<span class="fc" id="L140">                .endSpec()</span>
-<span class="fc" id="L141">                .build();</span>
+<span class="fc" id="L123">        return new PodBuilder().withNewMetadata()</span>
+<span class="fc" id="L124">                .withName(resource.getMetadata().getName() + &quot;-deployer-&quot; + RandomStringUtils.randomAlphanumeric(10).toLowerCase())</span>
+<span class="fc" id="L125">                .withNamespace(this.controllerNamespace)</span>
+<span class="fc" id="L126">                .addToLabels(KubeUtils.ENTANDO_RESOURCE_KIND_LABEL_NAME, resource.getKind())</span>
+<span class="fc" id="L127">                .addToLabels(KubeUtils.ENTANDO_RESOURCE_NAMESPACE_LABEL_NAME, resource.getMetadata().getNamespace())</span>
+<span class="fc" id="L128">                .addToLabels(resource.getKind(), resource.getMetadata().getName())</span>
+<span class="fc" id="L129">                .endMetadata()</span>
+<span class="fc" id="L130">                .withNewSpec()</span>
+<span class="fc" id="L131">                .withRestartPolicy(&quot;Never&quot;)</span>
+<span class="fc" id="L132">                .withServiceAccountName(determineServiceAccountName())</span>
+<span class="fc" id="L133">                .addNewContainer()</span>
+<span class="fc" id="L134">                .withName(&quot;deployer&quot;)</span>
+<span class="fc" id="L135">                .withImage(determineControllerImage(resource, imageVersionToUse))</span>
+<span class="fc" id="L136">                .withImagePullPolicy(&quot;IfNotPresent&quot;)</span>
+<span class="fc" id="L137">                .withEnv(buildEnvVars(action, resource))</span>
+<span class="fc" id="L138">                .withVolumeMounts(maybeCreateTlsVolumeMounts())</span>
+<span class="fc" id="L139">                .endContainer()</span>
+<span class="fc" id="L140">                .withVolumes(maybeCreateTlsVolumes(resource))</span>
+<span class="fc" id="L141">                .endSpec()</span>
+<span class="fc" id="L142">                .build();</span>
     }
 
     private String determineServiceAccountName() {
-<span class="fc" id="L145">        return EntandoOperatorConfig.getOperatorServiceAccount().orElse(&quot;default&quot;);</span>
+<span class="fc" id="L146">        return EntandoOperatorConfig.getOperatorServiceAccount().orElse(&quot;default&quot;);</span>
     }
 
     private &lt;T extends Serializable&gt; String determineControllerImage(EntandoBaseCustomResource&lt;T&gt; resource, String imageVersionToUse) {
-<span class="fc" id="L149">        return this.imageResolver.determineImageUri(</span>
-<span class="fc" id="L150">                &quot;entando/&quot; + resolveControllerImageName(resource) + ofNullable(imageVersionToUse).map(s -&gt; &quot;:&quot; + s).orElse(&quot;&quot;));</span>
+<span class="fc" id="L150">        return this.imageResolver.determineImageUri(</span>
+<span class="fc" id="L151">                &quot;entando/&quot; + resolveControllerImageName(resource) + ofNullable(imageVersionToUse).map(s -&gt; &quot;:&quot; + s).orElse(&quot;&quot;));</span>
     }
 
     private &lt;T extends Serializable&gt; List&lt;EnvVar&gt; buildEnvVars(Action action, EntandoBaseCustomResource&lt;T&gt; resource) {
-<span class="fc" id="L154">        ArrayList&lt;EnvVar&gt; result = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L155">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_ACTION&quot;, action.name(), null));</span>
-<span class="fc" id="L156">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_NAMESPACE&quot;, resource.getMetadata().getNamespace(), null));</span>
-<span class="fc" id="L157">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_NAME&quot;, resource.getMetadata().getName(), null));</span>
-<span class="fc" id="L158">        result.addAll(Stream.of(EntandoOperatorConfigProperty.values())</span>
-<span class="fc" id="L159">                .filter(prop -&gt; EntandoOperatorConfigBase.lookupProperty(prop).isPresent())</span>
-<span class="fc" id="L160">                .map(prop -&gt; new EnvVar(prop.name(), EntandoOperatorConfigBase.lookupProperty(prop).get(), null))</span>
-<span class="fc" id="L161">                .collect(Collectors.toList()));</span>
-<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
+<span class="fc" id="L155">        ArrayList&lt;EnvVar&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L156">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_ACTION&quot;, action.name(), null));</span>
+<span class="fc" id="L157">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_NAMESPACE&quot;, resource.getMetadata().getNamespace(), null));</span>
+<span class="fc" id="L158">        result.add(new EnvVar(&quot;ENTANDO_RESOURCE_NAME&quot;, resource.getMetadata().getName(), null));</span>
+<span class="fc" id="L159">        result.addAll(Stream.of(EntandoOperatorConfigProperty.values())</span>
+<span class="fc" id="L160">                .filter(prop -&gt; EntandoOperatorConfigBase.lookupProperty(prop).isPresent())</span>
+<span class="fc" id="L161">                .map(prop -&gt; new EnvVar(prop.name(), EntandoOperatorConfigBase.lookupProperty(prop).get(), null))</span>
+<span class="fc" id="L162">                .collect(Collectors.toList()));</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
             //TODO no need to propagate the raw CA certs. But we do need to mount the resulting Java Truststore and override the
             // _JAVA_OPTS variable
-<span class="fc" id="L165">            StringBuilder sb = new StringBuilder();</span>
-<span class="fc" id="L166">            EntandoOperatorConfig.getCertificateAuthorityCertPaths().forEach(path -&gt;</span>
-<span class="fc" id="L167">                    sb.append(ETC_ENTANDO_CA).append(&quot;/&quot;).append(path.getFileName().toString()).append(&quot; &quot;));</span>
-<span class="fc" id="L168">            result.add(new EnvVar(EntandoOperatorConfigProperty.ENTANDO_CA_CERT_PATHS.name(), sb.toString().trim(), null));</span>
+<span class="fc" id="L166">            StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L167">            EntandoOperatorConfig.getCertificateAuthorityCertPaths().forEach(path -&gt;</span>
+<span class="fc" id="L168">                    sb.append(ETC_ENTANDO_CA).append(&quot;/&quot;).append(path.getFileName().toString()).append(&quot; &quot;));</span>
+<span class="fc" id="L169">            result.add(new EnvVar(EntandoOperatorConfigProperty.ENTANDO_CA_CERT_PATHS.name(), sb.toString().trim(), null));</span>
         }
-<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
             //TODO no need to propagate the Tls certs.
-<span class="nc" id="L172">            result.add(new EnvVar(EntandoOperatorConfigProperty.ENTANDO_PATH_TO_TLS_KEYPAIR.name(), ETC_ENTANDO_TLS, null));</span>
+<span class="nc" id="L173">            result.add(new EnvVar(EntandoOperatorConfigProperty.ENTANDO_PATH_TO_TLS_KEYPAIR.name(), ETC_ENTANDO_TLS, null));</span>
         }
-<span class="fc" id="L174">        return result;</span>
+<span class="fc" id="L175">        System.getProperties().entrySet().stream()</span>
+<span class="fc" id="L176">                .filter(objectObjectEntry -&gt; objectObjectEntry.getKey().toString().toLowerCase(Locale.ROOT).replaceAll(&quot;_&quot;, &quot;.&quot;)</span>
+<span class="pc" id="L177">                        .startsWith(&quot;related.image&quot;)).forEach(objectObjectEntry -&gt; result</span>
+<span class="nc" id="L178">                .add(new EnvVar(objectObjectEntry.getKey().toString().toUpperCase(Locale.ROOT).replaceAll(&quot;.&quot;, &quot;_&quot;),</span>
+<span class="nc" id="L179">                        objectObjectEntry.getValue().toString(), null)));</span>
+<span class="fc" id="L180">        System.getenv().entrySet().stream()</span>
+<span class="fc" id="L181">                .filter(objectObjectEntry -&gt; objectObjectEntry.getKey().startsWith(&quot;RELATED_IMAGE&quot;)).forEach(objectObjectEntry -&gt; result</span>
+<span class="fc" id="L182">                .add(new EnvVar(objectObjectEntry.getKey(),</span>
+<span class="fc" id="L183">                        objectObjectEntry.getValue(), null)));</span>
+<span class="fc" id="L184">        return result;</span>
     }
 
     private &lt;T extends Serializable&gt; List&lt;Volume&gt; maybeCreateTlsVolumes(EntandoBaseCustomResource&lt;T&gt; resource) {
-<span class="fc" id="L178">        List&lt;Volume&gt; result = new ArrayList&lt;&gt;();</span>
-<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
+<span class="fc" id="L188">        List&lt;Volume&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
             //TODO no need to propagate the raw CA certs. But we do need to mount the resulting Java Truststore and override the
             // _JAVA_OPTS var
-<span class="fc" id="L182">            Secret secret = new SecretBuilder().withNewMetadata().withName(resource.getMetadata().getName() + &quot;-controller-ca-cert-secret&quot;)</span>
-<span class="fc" id="L183">                    .endMetadata().withData(new ConcurrentHashMap&lt;&gt;()).build();</span>
+<span class="fc" id="L192">            Secret secret = new SecretBuilder().withNewMetadata().withName(resource.getMetadata().getName() + &quot;-controller-ca-cert-secret&quot;)</span>
+<span class="fc" id="L193">                    .endMetadata().withData(new ConcurrentHashMap&lt;&gt;()).build();</span>
             //Add all available CA Certs. No need to map the trustStore itself - the controller will build this up internally
-<span class="fc" id="L185">            EntandoOperatorConfig.getCertificateAuthorityCertPaths().forEach(path -&gt; secret.getData()</span>
-<span class="fc" id="L186">                    .put(path.getFileName().toString(), TlsHelper.getInstance().getTlsCaCertBase64(path)));</span>
-<span class="fc" id="L187">            client.secrets().overwriteControllerSecret(secret);</span>
-<span class="fc" id="L188">            result.add(new VolumeBuilder().withName(&quot;ca-cert-volume&quot;).withNewSecret()</span>
-<span class="fc" id="L189">                    .withSecretName(resource.getMetadata().getName() + &quot;-controller-ca-cert-secret&quot;).endSecret()</span>
-<span class="fc" id="L190">                    .build());</span>
+<span class="fc" id="L195">            EntandoOperatorConfig.getCertificateAuthorityCertPaths().forEach(path -&gt; secret.getData()</span>
+<span class="fc" id="L196">                    .put(path.getFileName().toString(), TlsHelper.getInstance().getTlsCaCertBase64(path)));</span>
+<span class="fc" id="L197">            client.secrets().overwriteControllerSecret(secret);</span>
+<span class="fc" id="L198">            result.add(new VolumeBuilder().withName(&quot;ca-cert-volume&quot;).withNewSecret()</span>
+<span class="fc" id="L199">                    .withSecretName(resource.getMetadata().getName() + &quot;-controller-ca-cert-secret&quot;).endSecret()</span>
+<span class="fc" id="L200">                    .build());</span>
         }
-<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
             //TODO no need to propagate the Tls certs. It can just be mounted in deployments
-<span class="nc" id="L194">            Secret secret = new SecretBuilder().withNewMetadata().withName(resource.getMetadata().getName() + &quot;-controller-tls-secret&quot;)</span>
-<span class="nc" id="L195">                    .endMetadata()</span>
-<span class="nc" id="L196">                    .withType(&quot;kubernetes.io/tls&quot;)</span>
-<span class="nc" id="L197">                    .addToData(TlsHelper.TLS_KEY, TlsHelper.getInstance().getTlsKeyBase64())</span>
-<span class="nc" id="L198">                    .addToData(TlsHelper.TLS_CRT, TlsHelper.getInstance().getTlsCertBase64())</span>
-<span class="nc" id="L199">                    .build();</span>
-<span class="nc" id="L200">            client.secrets().overwriteControllerSecret(secret);</span>
-<span class="nc" id="L201">            result.add(new VolumeBuilder().withName(&quot;tls-volume&quot;).withNewSecret()</span>
-<span class="nc" id="L202">                    .withSecretName(resource.getMetadata().getName() + &quot;-controller-tls-secret&quot;).endSecret()</span>
-<span class="nc" id="L203">                    .build());</span>
+<span class="nc" id="L204">            Secret secret = new SecretBuilder().withNewMetadata().withName(resource.getMetadata().getName() + &quot;-controller-tls-secret&quot;)</span>
+<span class="nc" id="L205">                    .endMetadata()</span>
+<span class="nc" id="L206">                    .withType(&quot;kubernetes.io/tls&quot;)</span>
+<span class="nc" id="L207">                    .addToData(TlsHelper.TLS_KEY, TlsHelper.getInstance().getTlsKeyBase64())</span>
+<span class="nc" id="L208">                    .addToData(TlsHelper.TLS_CRT, TlsHelper.getInstance().getTlsCertBase64())</span>
+<span class="nc" id="L209">                    .build();</span>
+<span class="nc" id="L210">            client.secrets().overwriteControllerSecret(secret);</span>
+<span class="nc" id="L211">            result.add(new VolumeBuilder().withName(&quot;tls-volume&quot;).withNewSecret()</span>
+<span class="nc" id="L212">                    .withSecretName(resource.getMetadata().getName() + &quot;-controller-tls-secret&quot;).endSecret()</span>
+<span class="nc" id="L213">                    .build());</span>
         }
-<span class="fc" id="L205">        return result;</span>
+<span class="fc" id="L215">        return result;</span>
     }
 
     private List&lt;VolumeMount&gt; maybeCreateTlsVolumeMounts() {
-<span class="fc" id="L209">        List&lt;VolumeMount&gt; result = new ArrayList&lt;&gt;();</span>
-<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
-<span class="fc" id="L211">            result.add(new VolumeMountBuilder().withName(&quot;ca-cert-volume&quot;).withMountPath(ETC_ENTANDO_CA).build());</span>
+<span class="fc" id="L219">        List&lt;VolumeMount&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if (!EntandoOperatorConfig.getCertificateAuthorityCertPaths().isEmpty()) {</span>
+<span class="fc" id="L221">            result.add(new VolumeMountBuilder().withName(&quot;ca-cert-volume&quot;).withMountPath(ETC_ENTANDO_CA).build());</span>
         }
-<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
-<span class="nc" id="L214">            result.add(new VolumeMountBuilder().withName(&quot;tls-volume&quot;).withMountPath(ETC_ENTANDO_TLS).build());</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (TlsHelper.isDefaultTlsKeyPairAvailable()) {</span>
+<span class="nc" id="L224">            result.add(new VolumeMountBuilder().withName(&quot;tls-volume&quot;).withMountPath(ETC_ENTANDO_TLS).build());</span>
         }
-<span class="fc" id="L216">        return result;</span>
+<span class="fc" id="L226">        return result;</span>
     }
 
 }
